@@ -4,12 +4,12 @@ import {
   LayoutDashboard,
   Network,
   Building2,
-  MapPin,
   Shield,
   FileText,
   Settings,
   Activity,
   Server,
+  Users,
 } from "lucide-react";
 import type { Link as LinkType } from "@shared/schema";
 import {
@@ -24,59 +24,36 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-
-const navigationItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Links",
-    url: "/links",
-    icon: Network,
-  },
-];
-
-
-const securityItems = [
-  {
-    title: "Segurança",
-    url: "/security",
-    icon: Shield,
-  },
-  {
-    title: "Eventos",
-    url: "/events",
-    icon: Activity,
-  },
-  {
-    title: "Relatórios",
-    url: "/reports",
-    icon: FileText,
-  },
-];
-
-const configItems = [
-  {
-    title: "Administração",
-    url: "/admin",
-    icon: Server,
-  },
-  {
-    title: "Configurações",
-    url: "/settings",
-    icon: Settings,
-  },
-];
+import { useAuth } from "@/lib/auth";
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, isSuperAdmin, isClientAdmin } = useAuth();
 
   const { data: links } = useQuery<LinkType[]>({
     queryKey: ["/api/links"],
     refetchInterval: 30000,
   });
+
+  const navigationItems = [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Links", url: "/links", icon: Network },
+  ];
+
+  const securityItems = [
+    { title: "Segurança", url: "/security", icon: Shield },
+    { title: "Eventos", url: "/events", icon: Activity },
+    { title: "Relatórios", url: "/reports", icon: FileText },
+  ];
+
+  const clientConfigItems = [
+    ...(isClientAdmin || isSuperAdmin ? [{ title: "Usuários", url: "/users", icon: Users }] : []),
+    { title: "Configurações", url: "/settings", icon: Settings },
+  ];
+
+  const superAdminItems = isSuperAdmin ? [
+    { title: "Administração", url: "/admin", icon: Server },
+  ] : [];
 
   return (
     <Sidebar>
@@ -164,7 +141,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Sistema</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {configItems.map((item) => (
+              {clientConfigItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -180,6 +157,29 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {superAdminItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Super Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {superAdminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url}
+                    >
+                      <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <div className="text-xs text-muted-foreground">
