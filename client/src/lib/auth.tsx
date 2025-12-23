@@ -28,14 +28,16 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = useQuery<AuthUser>({
+  const { data, isLoading } = useQuery<{ user: AuthUser }>({
     queryKey: ["/api/auth/me"],
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
+  const user = data?.user || null;
+
   const value: AuthContextType = {
-    user: user || null,
+    user,
     isLoading,
     isSuperAdmin: user?.isSuperAdmin || false,
     isClientAdmin: user?.role === "admin" && !user?.isSuperAdmin,
