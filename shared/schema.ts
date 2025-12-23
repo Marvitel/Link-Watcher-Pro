@@ -113,6 +113,10 @@ export const ddosEvents = pgTable("ddos_events", {
   mitigationStatus: varchar("mitigation_status", { length: 20 }).notNull().default("detected"),
   sourceIps: integer("source_ips").notNull().default(0),
   blockedPackets: integer("blocked_packets").notNull().default(0),
+  wanguardAnomalyId: integer("wanguard_anomaly_id"),
+  wanguardSensor: varchar("wanguard_sensor", { length: 100 }),
+  targetIp: varchar("target_ip", { length: 45 }),
+  decoder: varchar("decoder", { length: 100 }),
 });
 
 export const incidents = pgTable("incidents", {
@@ -147,6 +151,11 @@ export const clientSettings = pgTable("client_settings", {
   oltApiKey: text("olt_api_key"),
   erpApiEndpoint: text("erp_api_endpoint"),
   erpApiKey: text("erp_api_key"),
+  wanguardApiEndpoint: text("wanguard_api_endpoint"),
+  wanguardApiUser: varchar("wanguard_api_user", { length: 100 }),
+  wanguardApiPassword: text("wanguard_api_password"),
+  wanguardEnabled: boolean("wanguard_enabled").notNull().default(false),
+  wanguardSyncInterval: integer("wanguard_sync_interval").notNull().default(60),
   notificationEmail: varchar("notification_email", { length: 255 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
