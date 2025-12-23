@@ -61,7 +61,13 @@ export async function registerRoutes(
       }
       
       (req.session as any).user = user;
-      res.json({ user });
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+          return res.status(500).json({ error: "Erro ao salvar sessão" });
+        }
+        res.json({ user });
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ error: "Erro ao fazer login" });
