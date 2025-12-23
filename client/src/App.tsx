@@ -18,6 +18,7 @@ import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import Admin from "@/pages/admin";
 import ClientUsers from "@/pages/client-users";
+import Login from "@/pages/login";
 
 function Router() {
   return (
@@ -37,11 +38,23 @@ function Router() {
 }
 
 function AppContent() {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, isLoading } = useAuth();
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -51,7 +64,7 @@ function AppContent() {
           <header className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border bg-background sticky top-0 z-50">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              {user && !isSuperAdmin && user.clientName && (
+              {!isSuperAdmin && user.clientName && (
                 <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
                   {user.clientName}
                 </span>
@@ -63,11 +76,9 @@ function AppContent() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              {user && (
-                <span className="text-sm text-muted-foreground hidden sm:inline">
-                  {user.name}
-                </span>
-              )}
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {user.name}
+              </span>
               <ThemeToggle />
             </div>
           </header>
