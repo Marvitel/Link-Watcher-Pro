@@ -87,7 +87,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-sidebar-foreground">Link Monitor</span>
-            <span className="text-xs text-muted-foreground">Multi-Cliente</span>
+            <span className="text-xs text-muted-foreground">by Marvitel</span>
           </div>
         </div>
       </SidebarHeader>
@@ -183,7 +183,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <div className="text-xs text-muted-foreground">
-          Defensoria Pública do Estado de Sergipe
+          Marvitel Telecomunicações
         </div>
       </SidebarFooter>
     </Sidebar>

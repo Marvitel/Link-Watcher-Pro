@@ -1,16 +1,28 @@
-# Internet Link Monitoring System - DPE/SE
+# Link Monitor - Sistema de Monitoramento de Links de Internet
 
 ## Overview
 
-This is a network monitoring dashboard application for Defensoria Pública do Estado de Sergipe (Public Defender's Office of Sergipe State, Brazil). The system monitors dedicated internet links, tracks bandwidth usage, latency, packet loss, and provides real-time status visualization with SLA compliance tracking and DDoS protection monitoring.
+Sistema de monitoramento de links de internet dedicados desenvolvido pela **Marvitel Telecomunicações**. O sistema é oferecido como serviço multi-tenant para clientes da Marvitel, permitindo monitoramento em tempo real de links dedicados de fibra ótica, acompanhamento de SLA/ANS, detecção de ataques DDoS e gestão de incidentes.
 
-The application is a full-stack TypeScript solution with a React frontend and Express backend, using PostgreSQL for data persistence. It displays real-time metrics for two primary network locations (Sede Administrativa and Central de Atendimento), manages incidents, and provides security event tracking.
+A aplicação é uma solução full-stack TypeScript com frontend React e backend Express, usando PostgreSQL para persistência de dados. Suporta múltiplos clientes (multi-tenant) com isolamento de dados por clientId.
+
+## Business Model
+
+- **Proprietário**: Marvitel Telecomunicações
+- **Modelo**: SaaS Multi-tenant
+- **Clientes**: Organizações que contratam links dedicados da Marvitel (ex: Defensoria Pública do Estado de Sergipe)
+- **Interface**: 100% em português brasileiro (pt-BR)
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+Preferred communication style: Simple, everyday language (Portuguese).
 
 ## System Architecture
+
+### Multi-Tenant Architecture
+- **Tenant Isolation**: Cada cliente (tenant) tem seus dados isolados via clientId
+- **Tables with clientId**: clients, users, links, hosts, metrics, events, incidents, ddosEvents
+- **Admin Interface**: Gerenciamento de clientes, links e hosts via /admin
 
 ### Frontend Architecture
 - **Framework**: React 18 with TypeScript
@@ -31,23 +43,30 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
 - **Schema Location**: `shared/schema.ts` (shared between client and server)
-- **Tables**: links, metrics, events, ddosEvents, incidents
+- **Tables**: clients, users, links, hosts, metrics, events, ddosEvents, incidents, clientSettings
 
 ### Key Design Patterns
 - **Monorepo Structure**: Client code in `client/`, server in `server/`, shared types in `shared/`
 - **Path Aliases**: `@/` for client source, `@shared/` for shared code
 - **Real-time Simulation**: Server generates simulated network metrics every 5 seconds
-- **Data Cleanup**: Automatic cleanup of old metrics data to manage storage
+- **Data Cleanup**: Automatic cleanup of old metrics data to manage storage (6-month retention)
 
 ### API Endpoints
 - `GET /api/stats` - Dashboard aggregate statistics
+- `GET /api/clients` - List all clients (tenants)
 - `GET /api/links` - List all monitored links
 - `GET /api/links/:id` - Single link details
 - `GET /api/links/:id/metrics` - Historical metrics for a link
+- `GET /api/hosts` - List all monitored hosts
 - `GET /api/events` - System events log
 - `GET /api/security/ddos` - DDoS event tracking
 - `GET /api/sla` - SLA indicator compliance data
 - `GET /api/incidents` - Incident management
+
+### CRUD Endpoints
+- `POST/PATCH/DELETE /api/links` - Link management
+- `POST/PATCH/DELETE /api/hosts` - Host management
+- `POST/PATCH/DELETE /api/clients` - Client management
 
 ## External Dependencies
 
@@ -70,3 +89,10 @@ Preferred communication style: Simple, everyday language.
 ### Fonts
 - **Inter**: Primary UI font (Google Fonts)
 - **JetBrains Mono**: Monospace font for metrics/data display
+
+## SLA Requirements
+- Disponibilidade: ≥99%
+- Latência: ≤80ms
+- Perda de Pacotes: ≤2%
+- Tempo Máximo de Reparo: 6 horas
+- Retenção de Dados: 6 meses
