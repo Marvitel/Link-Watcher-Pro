@@ -25,7 +25,7 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
   });
 
   const metricsHistory = metrics?.map((m) => ({
-    timestamp: m.timestamp,
+    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     download: m.download,
     upload: m.upload,
   })) || [];

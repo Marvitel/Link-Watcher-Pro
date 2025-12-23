@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -900,6 +901,7 @@ function VoalleIntegration({ clients }: { clients: Client[] }) {
 
 export default function Admin() {
   const { toast } = useToast();
+  const { isSuperAdmin, isLoading: authLoading } = useAuth();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
@@ -912,6 +914,26 @@ export default function Admin() {
     cnpj: "",
     isActive: true,
   });
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Shield className="w-16 h-16 text-muted-foreground" />
+        <h1 className="text-2xl font-semibold">Acesso Restrito</h1>
+        <p className="text-muted-foreground">
+          Esta área é exclusiva para administradores da Marvitel.
+        </p>
+      </div>
+    );
+  }
 
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
