@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,12 @@ import {
   Settings,
   Building2,
   Users,
+  Shield,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import type { Link, Host, Client, User } from "@shared/schema";
 
 function LinkForm({ link, onSave, onClose }: { 
@@ -292,6 +297,272 @@ function HostForm({ host, links, onSave, onClose }: {
   );
 }
 
+interface ClientSettings {
+  wanguardApiEndpoint?: string | null;
+  wanguardApiUser?: string | null;
+  wanguardApiPassword?: string | null;
+  wanguardEnabled?: boolean;
+  wanguardSyncInterval?: number;
+}
+
+function WanguardIntegration({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(
+    clients[0]?.id || null
+  );
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const { data: settings, isLoading: settingsLoading } = useQuery<ClientSettings>({
+    queryKey: ["/api/clients", selectedClientId, "settings"],
+    enabled: !!selectedClientId,
+  });
+
+  const [formData, setFormData] = useState<ClientSettings>({
+    wanguardApiEndpoint: "",
+    wanguardApiUser: "",
+    wanguardApiPassword: "",
+    wanguardEnabled: false,
+    wanguardSyncInterval: 60,
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        wanguardApiEndpoint: settings.wanguardApiEndpoint || "",
+        wanguardApiUser: settings.wanguardApiUser || "",
+        wanguardApiPassword: settings.wanguardApiPassword || "",
+        wanguardEnabled: settings.wanguardEnabled || false,
+        wanguardSyncInterval: settings.wanguardSyncInterval || 60,
+      });
+    }
+  }, [settings]);
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<ClientSettings>) => {
+      return await apiRequest("PATCH", `/api/clients/${selectedClientId}/settings`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", selectedClientId, "settings"] });
+      toast({ title: "Configurações salvas com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+    },
+  });
+
+  const handleTestConnection = async () => {
+    if (!selectedClientId) return;
+    
+    setIsTesting(true);
+    setTestResult(null);
+    
+    try {
+      await updateSettingsMutation.mutateAsync(formData);
+      
+      const response = await apiRequest("POST", `/api/clients/${selectedClientId}/wanguard/test`);
+      const result = await response.json();
+      setTestResult(result);
+      
+      if (result.success) {
+        toast({ title: "Conexão estabelecida com sucesso" });
+      } else {
+        toast({ title: result.message, variant: "destructive" });
+      }
+    } catch {
+      setTestResult({ success: false, message: "Erro ao testar conexão" });
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!selectedClientId) return;
+    
+    setIsSyncing(true);
+    
+    try {
+      const response = await apiRequest("POST", `/api/clients/${selectedClientId}/wanguard/sync`);
+      const result = await response.json();
+      
+      toast({ 
+        title: result.success ? "Sincronização concluída" : "Erro na sincronização",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch {
+      toast({ title: "Erro ao sincronizar", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSave = () => {
+    updateSettingsMutation.mutate(formData);
+  };
+
+  if (clients.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground">
+          Nenhum cliente cadastrado. Cadastre um cliente primeiro.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="w-5 h-5" />
+          Wanguard (Andrisoft)
+        </CardTitle>
+        <CardDescription>
+          Configure a integração com o Wanguard para detecção de ataques DDoS
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <Label>Cliente</Label>
+          <Select
+            value={selectedClientId?.toString() || ""}
+            onValueChange={(value) => {
+              setSelectedClientId(parseInt(value, 10));
+              setTestResult(null);
+            }}
+          >
+            <SelectTrigger data-testid="select-wanguard-client">
+              <SelectValue placeholder="Selecione um cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {settingsLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-md">
+              <div>
+                <p className="font-medium">Habilitar Wanguard</p>
+                <p className="text-sm text-muted-foreground">
+                  Ative para importar eventos de DDoS automaticamente
+                </p>
+              </div>
+              <Switch
+                checked={formData.wanguardEnabled || false}
+                onCheckedChange={(checked) => setFormData({ ...formData, wanguardEnabled: checked })}
+                data-testid="switch-wanguard-enabled"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="wanguardEndpoint">URL do Console Wanguard</Label>
+                <Input
+                  id="wanguardEndpoint"
+                  value={formData.wanguardApiEndpoint || ""}
+                  onChange={(e) => setFormData({ ...formData, wanguardApiEndpoint: e.target.value })}
+                  placeholder="https://wanguard.exemplo.com.br"
+                  data-testid="input-wanguard-endpoint"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Endereço do console Wanguard (sem /wanguard-api/v1/)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="wanguardUser">Usuário API</Label>
+                  <Input
+                    id="wanguardUser"
+                    value={formData.wanguardApiUser || ""}
+                    onChange={(e) => setFormData({ ...formData, wanguardApiUser: e.target.value })}
+                    placeholder="api_user"
+                    data-testid="input-wanguard-user"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wanguardPassword">Senha API</Label>
+                  <Input
+                    id="wanguardPassword"
+                    type="password"
+                    value={formData.wanguardApiPassword || ""}
+                    onChange={(e) => setFormData({ ...formData, wanguardApiPassword: e.target.value })}
+                    placeholder="••••••••"
+                    data-testid="input-wanguard-password"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="syncInterval">Intervalo de Sincronização (segundos)</Label>
+                <Input
+                  id="syncInterval"
+                  type="number"
+                  value={formData.wanguardSyncInterval || 60}
+                  onChange={(e) => setFormData({ ...formData, wanguardSyncInterval: parseInt(e.target.value, 10) || 60 })}
+                  data-testid="input-wanguard-interval"
+                />
+              </div>
+            </div>
+
+            {testResult && (
+              <div className={`p-4 rounded-md flex items-center gap-3 ${testResult.success ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                {testResult.success ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <XCircle className="w-5 h-5" />
+                )}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={isTesting || !formData.wanguardApiEndpoint}
+                  data-testid="button-test-wanguard"
+                >
+                  {isTesting && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                  Testar Conexão
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSync}
+                  disabled={isSyncing || !formData.wanguardEnabled}
+                  data-testid="button-sync-wanguard"
+                >
+                  {isSyncing && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                  Sincronizar Agora
+                </Button>
+              </div>
+              <Button
+                onClick={handleSave}
+                disabled={updateSettingsMutation.isPending}
+                data-testid="button-save-wanguard"
+              >
+                Salvar Configurações
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Admin() {
   const { toast } = useToast();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -445,6 +716,10 @@ export default function Admin() {
           <TabsTrigger value="clients" className="gap-2">
             <Building2 className="w-4 h-4" />
             Clientes
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="gap-2">
+            <Shield className="w-4 h-4" />
+            Integrações
           </TabsTrigger>
         </TabsList>
 
@@ -674,6 +949,17 @@ export default function Admin() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-4">
+          <div>
+            <h2 className="text-lg font-medium">Integrações</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure integrações com sistemas externos
+            </p>
+          </div>
+
+          <WanguardIntegration clients={clients || []} />
         </TabsContent>
       </Tabs>
     </div>

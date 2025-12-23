@@ -68,6 +68,21 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - `POST/PATCH/DELETE /api/hosts` - Host management
 - `POST/PATCH/DELETE /api/clients` - Client management
 
+### Wanguard Integration Endpoints
+- `POST /api/clients/:clientId/wanguard/test` - Test Wanguard connection
+- `POST /api/clients/:clientId/wanguard/sync` - Sync DDoS events from Wanguard
+- `GET /api/clients/:clientId/wanguard/anomalies` - Get active anomalies from Wanguard
+
+## Integrations
+
+### Wanguard (Andrisoft)
+- **Purpose**: DDoS detection and mitigation data
+- **API**: REST API with HTTP Basic Auth
+- **Endpoint**: `https://<console_ip>/wanguard-api/v1/`
+- **Service**: `server/wanguard.ts` - WanguardService class
+- **Configuration**: Per-client settings in clientSettings table (wanguardApiEndpoint, wanguardApiUser, wanguardApiPassword, wanguardEnabled, wanguardSyncInterval)
+- **Data Mapping**: Wanguard anomalies are mapped to ddosEvents with wanguardAnomalyId, wanguardSensor, targetIp, decoder fields
+
 ## External Dependencies
 
 ### Database
