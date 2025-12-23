@@ -960,6 +960,14 @@ export default function Admin() {
             <Shield className="w-4 h-4" />
             Integrações
           </TabsTrigger>
+          <TabsTrigger value="users-groups" className="gap-2">
+            <Users className="w-4 h-4" />
+            Usuários e Grupos
+          </TabsTrigger>
+          <TabsTrigger value="snmp" className="gap-2">
+            <Settings className="w-4 h-4" />
+            SNMP
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -1201,7 +1209,758 @@ export default function Admin() {
           <WanguardIntegration clients={clients || []} />
           <VoalleIntegration clients={clients || []} />
         </TabsContent>
+
+        <TabsContent value="users-groups" className="space-y-4">
+          <UsersAndGroupsTab clients={clients || []} />
+        </TabsContent>
+
+        <TabsContent value="snmp" className="space-y-4">
+          <SnmpConfigTab clients={clients || []} />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function SnmpConfigTab({ clients }: { clients: Client[] }) {
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const { toast } = useToast();
+
+  const { data: snmpProfiles, isLoading: profilesLoading, refetch: refetchProfiles } = useQuery<any[]>({
+    queryKey: ['/api/clients', selectedClient?.id, 'snmp-profiles'],
+    enabled: !!selectedClient,
+  });
+
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<any>(null);
+  const [profileFormData, setProfileFormData] = useState({
+    name: "",
+    description: "",
+    snmpVersion: "v2c",
+    community: "public",
+    port: 161,
+    timeout: 5000,
+    retries: 3,
+  });
+
+  const [mibDialogOpen, setMibDialogOpen] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [mibFormData, setMibFormData] = useState({
+    name: "",
+    oid: "",
+    dataType: "integer",
+    unit: "",
+    pollInterval: 30,
+    scaleFactor: 1.0,
+  });
+
+  const createProfileMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", `/api/clients/${selectedClient?.id}/snmp-profiles`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Perfil SNMP criado com sucesso" });
+      refetchProfiles();
+      setProfileDialogOpen(false);
+      setProfileFormData({ name: "", description: "", snmpVersion: "v2c", community: "public", port: 161, timeout: 5000, retries: 3 });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar perfil SNMP", variant: "destructive" });
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/clients/${selectedClient?.id}/snmp-profiles/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Perfil SNMP excluído com sucesso" });
+      refetchProfiles();
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir perfil SNMP", variant: "destructive" });
+    },
+  });
+
+  const createMibConfigMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", `/api/clients/${selectedClient?.id}/snmp-profiles/${selectedProfile?.id}/mib-configs`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Configuração MIB criada com sucesso" });
+      setMibDialogOpen(false);
+      setMibFormData({ name: "", oid: "", dataType: "integer", unit: "", pollInterval: 30, scaleFactor: 1.0 });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar configuração MIB", variant: "destructive" });
+    },
+  });
+
+  const handleOpenMibConfig = (profile: any) => {
+    setSelectedProfile(profile);
+    setMibDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">Configuração SNMP</h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie perfis SNMP e configurações MIB por cliente
+          </p>
+        </div>
+        <Select
+          value={selectedClient?.id?.toString() || ""}
+          onValueChange={(val) => {
+            const client = clients.find(c => c.id.toString() === val);
+            setSelectedClient(client || null);
+          }}
+        >
+          <SelectTrigger className="w-[280px]" data-testid="select-client-for-snmp">
+            <SelectValue placeholder="Selecione um cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id.toString()}>
+                {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!selectedClient ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            Selecione um cliente para gerenciar sua configuração SNMP
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Perfis SNMP</CardTitle>
+                <CardDescription>Perfis de configuração SNMP reutilizáveis</CardDescription>
+              </div>
+              <Dialog open={profileDialogOpen} onOpenChange={(open) => {
+                setProfileDialogOpen(open);
+                if (!open) {
+                  setEditingProfile(null);
+                  setProfileFormData({ name: "", description: "", snmpVersion: "v2c", community: "public", port: 161, timeout: 5000, retries: 3 });
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-snmp-profile">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Novo Perfil
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingProfile ? "Editar Perfil SNMP" : "Novo Perfil SNMP"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome</Label>
+                        <Input
+                          value={profileFormData.name}
+                          onChange={(e) => setProfileFormData({ ...profileFormData, name: e.target.value })}
+                          placeholder="Ex: Default v2c"
+                          data-testid="input-snmp-profile-name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Versão SNMP</Label>
+                        <Select 
+                          value={profileFormData.snmpVersion} 
+                          onValueChange={(v) => setProfileFormData({ ...profileFormData, snmpVersion: v })}
+                        >
+                          <SelectTrigger data-testid="select-snmp-version">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="v1">SNMP v1</SelectItem>
+                            <SelectItem value="v2c">SNMP v2c</SelectItem>
+                            <SelectItem value="v3">SNMP v3</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Comunidade (v1/v2c)</Label>
+                      <Input
+                        value={profileFormData.community}
+                        onChange={(e) => setProfileFormData({ ...profileFormData, community: e.target.value })}
+                        placeholder="public"
+                        data-testid="input-snmp-community"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Porta</Label>
+                        <Input
+                          type="number"
+                          value={profileFormData.port}
+                          onChange={(e) => setProfileFormData({ ...profileFormData, port: parseInt(e.target.value) || 161 })}
+                          data-testid="input-snmp-port"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Timeout (ms)</Label>
+                        <Input
+                          type="number"
+                          value={profileFormData.timeout}
+                          onChange={(e) => setProfileFormData({ ...profileFormData, timeout: parseInt(e.target.value) || 5000 })}
+                          data-testid="input-snmp-timeout"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Retries</Label>
+                        <Input
+                          type="number"
+                          value={profileFormData.retries}
+                          onChange={(e) => setProfileFormData({ ...profileFormData, retries: parseInt(e.target.value) || 3 })}
+                          data-testid="input-snmp-retries"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição</Label>
+                      <Input
+                        value={profileFormData.description}
+                        onChange={(e) => setProfileFormData({ ...profileFormData, description: e.target.value })}
+                        placeholder="Descrição do perfil"
+                        data-testid="input-snmp-description"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={() => createProfileMutation.mutate(profileFormData)}
+                      disabled={!profileFormData.name || createProfileMutation.isPending}
+                      data-testid="button-save-snmp-profile"
+                    >
+                      Salvar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {profilesLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : snmpProfiles && snmpProfiles.length > 0 ? (
+                <div className="space-y-2">
+                  {snmpProfiles.map((profile) => (
+                    <div key={profile.id} className="flex items-center justify-between gap-2 p-3 rounded-md border" data-testid={`row-snmp-profile-${profile.id}`}>
+                      <div>
+                        <p className="font-medium">{profile.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {profile.snmpVersion} - Comunidade: {profile.community} - Porta: {profile.port}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => handleOpenMibConfig(profile)} data-testid={`button-mib-config-${profile.id}`}>
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => deleteProfileMutation.mutate(profile.id)}
+                          data-testid={`button-delete-snmp-profile-${profile.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum perfil SNMP cadastrado
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Dialog open={mibDialogOpen} onOpenChange={setMibDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Configuração MIB - {selectedProfile?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  value={mibFormData.name}
+                  onChange={(e) => setMibFormData({ ...mibFormData, name: e.target.value })}
+                  placeholder="Ex: ifInOctets"
+                  data-testid="input-mib-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OID</Label>
+                <Input
+                  value={mibFormData.oid}
+                  onChange={(e) => setMibFormData({ ...mibFormData, oid: e.target.value })}
+                  placeholder="1.3.6.1.2.1.2.2.1.10"
+                  data-testid="input-mib-oid"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo de Dados</Label>
+                <Select 
+                  value={mibFormData.dataType} 
+                  onValueChange={(v) => setMibFormData({ ...mibFormData, dataType: v })}
+                >
+                  <SelectTrigger data-testid="select-mib-datatype">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="integer">Integer</SelectItem>
+                    <SelectItem value="counter32">Counter32</SelectItem>
+                    <SelectItem value="counter64">Counter64</SelectItem>
+                    <SelectItem value="gauge">Gauge</SelectItem>
+                    <SelectItem value="string">String</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Unidade</Label>
+                <Input
+                  value={mibFormData.unit}
+                  onChange={(e) => setMibFormData({ ...mibFormData, unit: e.target.value })}
+                  placeholder="bps, %, etc."
+                  data-testid="input-mib-unit"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Intervalo (s)</Label>
+                <Input
+                  type="number"
+                  value={mibFormData.pollInterval}
+                  onChange={(e) => setMibFormData({ ...mibFormData, pollInterval: parseInt(e.target.value) || 30 })}
+                  data-testid="input-mib-interval"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Fator de Escala</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={mibFormData.scaleFactor}
+                onChange={(e) => setMibFormData({ ...mibFormData, scaleFactor: parseFloat(e.target.value) || 1.0 })}
+                placeholder="1.0"
+                data-testid="input-mib-scale"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMibDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => createMibConfigMutation.mutate(mibFormData)}
+              disabled={!mibFormData.name || !mibFormData.oid || createMibConfigMutation.isPending}
+              data-testid="button-save-mib-config"
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const { toast } = useToast();
+
+  const { data: groups, isLoading: groupsLoading, refetch: refetchGroups } = useQuery<any[]>({
+    queryKey: ['/api/clients', selectedClient?.id, 'groups'],
+    enabled: !!selectedClient,
+  });
+
+  const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery<User[]>({
+    queryKey: ['/api/clients', selectedClient?.id, 'users'],
+    enabled: !!selectedClient,
+  });
+
+  const { data: permissions } = useQuery<any[]>({
+    queryKey: ['/api/permissions'],
+  });
+
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+  const [groupFormData, setGroupFormData] = useState({ name: "", description: "" });
+  const [permDialogOpen, setPermDialogOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [selectedPerms, setSelectedPerms] = useState<number[]>([]);
+  const [memberDialogOpen, setMemberDialogOpen] = useState(false);
+
+  const createGroupMutation = useMutation({
+    mutationFn: async (data: { name: string; description: string }) => {
+      return apiRequest("POST", `/api/clients/${selectedClient?.id}/groups`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Grupo criado com sucesso" });
+      refetchGroups();
+      setGroupDialogOpen(false);
+      setGroupFormData({ name: "", description: "" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar grupo", variant: "destructive" });
+    },
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return apiRequest("PATCH", `/api/clients/${selectedClient?.id}/groups/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Grupo atualizado com sucesso" });
+      refetchGroups();
+      setGroupDialogOpen(false);
+      setEditingGroup(null);
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar grupo", variant: "destructive" });
+    },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/clients/${selectedClient?.id}/groups/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Grupo excluído com sucesso" });
+      refetchGroups();
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir grupo", variant: "destructive" });
+    },
+  });
+
+  const setPermissionsMutation = useMutation({
+    mutationFn: async ({ groupId, permissionIds }: { groupId: number; permissionIds: number[] }) => {
+      return apiRequest("PUT", `/api/clients/${selectedClient?.id}/groups/${groupId}/permissions`, { permissionIds });
+    },
+    onSuccess: () => {
+      toast({ title: "Permissões atualizadas com sucesso" });
+      setPermDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar permissões", variant: "destructive" });
+    },
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async ({ groupId, userId }: { groupId: number; userId: number }) => {
+      return apiRequest("POST", `/api/clients/${selectedClient?.id}/groups/${groupId}/members`, { userId });
+    },
+    onSuccess: () => {
+      toast({ title: "Membro adicionado com sucesso" });
+      setMemberDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Erro ao adicionar membro", variant: "destructive" });
+    },
+  });
+
+  const handleEditGroup = (group: any) => {
+    setEditingGroup(group);
+    setGroupFormData({ name: group.name, description: group.description || "" });
+    setGroupDialogOpen(true);
+  };
+
+  const handleSaveGroup = () => {
+    if (editingGroup) {
+      updateGroupMutation.mutate({ id: editingGroup.id, data: groupFormData });
+    } else {
+      createGroupMutation.mutate(groupFormData);
+    }
+  };
+
+  const handleOpenPermissions = async (group: any) => {
+    setSelectedGroup(group);
+    try {
+      const response = await fetch(`/api/clients/${selectedClient?.id}/groups/${group.id}/permissions`);
+      const perms = await response.json();
+      setSelectedPerms(perms.map((p: any) => p.id));
+    } catch {
+      setSelectedPerms([]);
+    }
+    setPermDialogOpen(true);
+  };
+
+  const handleOpenMembers = (group: any) => {
+    setSelectedGroup(group);
+    setMemberDialogOpen(true);
+  };
+
+  const togglePermission = (permId: number) => {
+    setSelectedPerms(prev =>
+      prev.includes(permId) ? prev.filter(p => p !== permId) : [...prev, permId]
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">Usuários e Grupos</h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie usuários e grupos de permissões por cliente
+          </p>
+        </div>
+        <Select
+          value={selectedClient?.id?.toString() || ""}
+          onValueChange={(val) => {
+            const client = clients.find(c => c.id.toString() === val);
+            setSelectedClient(client || null);
+          }}
+        >
+          <SelectTrigger className="w-[280px]" data-testid="select-client-for-groups">
+            <SelectValue placeholder="Selecione um cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id.toString()}>
+                {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!selectedClient ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            Selecione um cliente para gerenciar seus usuários e grupos
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Grupos</CardTitle>
+                <CardDescription>Grupos de permissões do cliente</CardDescription>
+              </div>
+              <Dialog open={groupDialogOpen} onOpenChange={(open) => {
+                setGroupDialogOpen(open);
+                if (!open) {
+                  setEditingGroup(null);
+                  setGroupFormData({ name: "", description: "" });
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-group">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Novo Grupo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingGroup ? "Editar Grupo" : "Novo Grupo"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome do Grupo</Label>
+                      <Input
+                        value={groupFormData.name}
+                        onChange={(e) => setGroupFormData({ ...groupFormData, name: e.target.value })}
+                        placeholder="Ex: Administradores"
+                        data-testid="input-group-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição</Label>
+                      <Input
+                        value={groupFormData.description}
+                        onChange={(e) => setGroupFormData({ ...groupFormData, description: e.target.value })}
+                        placeholder="Descrição do grupo"
+                        data-testid="input-group-description"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleSaveGroup}
+                      disabled={!groupFormData.name || createGroupMutation.isPending || updateGroupMutation.isPending}
+                      data-testid="button-save-group"
+                    >
+                      Salvar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {groupsLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : groups && groups.length > 0 ? (
+                <div className="space-y-2">
+                  {groups.map((group) => (
+                    <div key={group.id} className="flex items-center justify-between gap-2 p-3 rounded-md border" data-testid={`row-group-${group.id}`}>
+                      <div>
+                        <p className="font-medium">{group.name}</p>
+                        {group.description && (
+                          <p className="text-sm text-muted-foreground">{group.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => handleOpenMembers(group)} data-testid={`button-group-members-${group.id}`}>
+                          <Users className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => handleOpenPermissions(group)} data-testid={`button-group-permissions-${group.id}`}>
+                          <Shield className="w-4 h-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => handleEditGroup(group)} data-testid={`button-edit-group-${group.id}`}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => deleteGroupMutation.mutate(group.id)}
+                          data-testid={`button-delete-group-${group.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum grupo cadastrado
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Usuários</CardTitle>
+              <CardDescription>Usuários do cliente selecionado</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {usersLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : users && users.length > 0 ? (
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between gap-2 p-3 rounded-md border" data-testid={`row-user-${user.id}`}>
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                      <Badge variant={user.isActive ? "default" : "secondary"}>
+                        {user.role === "admin" ? "Admin" : user.role === "manager" ? "Gerente" : "Operador"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum usuário cadastrado
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Dialog open={permDialogOpen} onOpenChange={setPermDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Permissões do Grupo: {selectedGroup?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[400px] overflow-auto">
+            {permissions?.map((perm) => (
+              <div 
+                key={perm.id} 
+                className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer"
+                onClick={() => togglePermission(perm.id)}
+              >
+                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedPerms.includes(perm.id) ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                  {selectedPerms.includes(perm.id) && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{perm.name}</p>
+                  <p className="text-xs text-muted-foreground">{perm.code}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => setPermissionsMutation.mutate({ groupId: selectedGroup?.id, permissionIds: selectedPerms })}
+              disabled={setPermissionsMutation.isPending}
+              data-testid="button-save-permissions"
+            >
+              Salvar Permissões
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Membros do Grupo: {selectedGroup?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Adicionar Usuário ao Grupo</Label>
+              <Select onValueChange={(val) => addMemberMutation.mutate({ groupId: selectedGroup?.id, userId: parseInt(val) })}>
+                <SelectTrigger data-testid="select-add-member">
+                  <SelectValue placeholder="Selecione um usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users?.map((user) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMemberDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

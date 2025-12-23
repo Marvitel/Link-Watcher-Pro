@@ -26,6 +26,21 @@ declare global {
   }
 }
 
+function mapIncidentReasonToEventType(failureReason: string): string {
+  const reasonMap: Record<string, string> = {
+    "fibra_rompida": "link_down",
+    "equipamento_danificado": "link_down",
+    "falha_energia": "link_down",
+    "manutencao_programada": "maintenance",
+    "manutencao": "maintenance",
+    "latencia_alta": "high_latency",
+    "perda_pacotes": "packet_loss",
+    "ddos": "ddos_detected",
+    "ddos_ataque": "ddos_detected",
+  };
+  return reasonMap[failureReason.toLowerCase()] || "link_down";
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -384,11 +399,18 @@ export async function registerRoutes(
       
       const clientSettings = await storage.getClientSettings(validatedData.clientId);
       if (clientSettings?.voalleEnabled && clientSettings?.voalleAutoCreateTicket) {
-        try {
-          const link = await storage.getLink(validatedData.linkId);
-          const client = await storage.getClient(validatedData.clientId);
-          
-          if (clientSettings.voalleApiUrl && clientSettings.voalleClientId && clientSettings.voalleClientSecret && clientSettings.voalleSolicitationTypeCode) {
+        const eventTypeCode = mapIncidentReasonToEventType(validatedData.failureReason || "link_down");
+        const eventSetting = await storage.getClientEventSetting(validatedData.clientId, eventTypeCode);
+        const shouldAutoCreate = eventSetting?.autoCreateTicket ?? true;
+        
+        if (shouldAutoCreate) {
+          try {
+            const link = await storage.getLink(validatedData.linkId);
+            const client = await storage.getClient(validatedData.clientId);
+            
+            if (!link || !client) {
+              console.warn(`Incidente ${incident.id}: Link ou cliente não encontrado, pulando criação de ticket Voalle`);
+            } else if (clientSettings.voalleApiUrl && clientSettings.voalleClientId && clientSettings.voalleClientSecret && clientSettings.voalleSolicitationTypeCode) {
             const clientVoalleService = new VoalleService();
             clientVoalleService.configure({
               apiUrl: clientSettings.voalleApiUrl,
@@ -423,9 +445,10 @@ export async function registerRoutes(
             } else {
               console.warn(`Falha ao criar ticket Voalle para incidente ${incident.id}: ${result.message}`);
             }
+            }
+          } catch (voalleError) {
+            console.error("Erro ao criar ticket no Voalle:", voalleError);
           }
-        } catch (voalleError) {
-          console.error("Erro ao criar ticket no Voalle:", voalleError);
         }
       }
       
