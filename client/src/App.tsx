@@ -37,7 +37,7 @@ function Router() {
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -49,7 +49,19 @@ function AppContent() {
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border bg-background sticky top-0 z-50">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-3">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              {user && !isSuperAdmin && user.clientName && (
+                <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
+                  {user.clientName}
+                </span>
+              )}
+              {isSuperAdmin && (
+                <span className="text-sm font-medium text-primary hidden sm:inline">
+                  Marvitel Admin
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               {user && (
                 <span className="text-sm text-muted-foreground hidden sm:inline">

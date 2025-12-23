@@ -915,40 +915,24 @@ export default function Admin() {
     isActive: true,
   });
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!isSuperAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <Shield className="w-16 h-16 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Acesso Restrito</h1>
-        <p className="text-muted-foreground">
-          Esta área é exclusiva para administradores da Marvitel.
-        </p>
-      </div>
-    );
-  }
-
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
+    enabled: isSuperAdmin,
   });
 
   const { data: links, isLoading: linksLoading } = useQuery<Link[]>({
     queryKey: ["/api/links"],
+    enabled: isSuperAdmin,
   });
 
   const { data: hosts, isLoading: hostsLoading } = useQuery<Host[]>({
     queryKey: ["/api/hosts"],
+    enabled: isSuperAdmin,
   });
 
   const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
     queryKey: ["/api/snmp-profiles"],
+    enabled: isSuperAdmin,
   });
 
   const createLinkMutation = useMutation({
@@ -1127,10 +1111,30 @@ export default function Admin() {
     setHostDialogOpen(true);
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Shield className="w-16 h-16 text-muted-foreground" />
+        <h1 className="text-2xl font-semibold">Acesso Restrito</h1>
+        <p className="text-muted-foreground">
+          Esta área é exclusiva para administradores da Marvitel.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Administração</h1>
+        <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
         <p className="text-muted-foreground">
           Gerenciamento de clientes, links e hosts monitorados
         </p>
