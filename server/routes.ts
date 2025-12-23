@@ -821,6 +821,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/snmp-profiles", requireSuperAdmin, async (req, res) => {
+    try {
+      const clientList = await storage.getClients();
+      const allProfiles: any[] = [];
+      for (const client of clientList) {
+        const profiles = await storage.getSnmpProfiles(client.id);
+        allProfiles.push(...profiles);
+      }
+      res.json(allProfiles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SNMP profiles" });
+    }
+  });
+
   app.get("/api/clients/:clientId/snmp-profiles", requireClientAccess, async (req, res) => {
     try {
       const clientId = parseInt(req.params.clientId, 10);

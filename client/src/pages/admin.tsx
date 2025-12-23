@@ -42,10 +42,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { Link, Host, Client, User } from "@shared/schema";
 
-function LinkForm({ link, onSave, onClose }: { 
+function LinkForm({ link, onSave, onClose, snmpProfiles }: { 
   link?: Link; 
   onSave: (data: Partial<Link>) => void;
   onClose: () => void;
+  snmpProfiles?: Array<{ id: number; name: string }>;
 }) {
   const [formData, setFormData] = useState({
     clientId: link?.clientId || 1,
@@ -59,6 +60,11 @@ function LinkForm({ link, onSave, onClose }: {
     bandwidth: link?.bandwidth || 200,
     monitoringEnabled: link?.monitoringEnabled ?? true,
     icmpInterval: link?.icmpInterval || 30,
+    snmpProfileId: link?.snmpProfileId || null,
+    snmpRouterIp: link?.snmpRouterIp || "",
+    snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
+    snmpInterfaceName: link?.snmpInterfaceName || "",
+    snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
   });
 
   return (
@@ -153,6 +159,73 @@ function LinkForm({ link, onSave, onClose }: {
           />
         </div>
       </div>
+      
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3">Configuração SNMP para Tráfego</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="snmpProfileId">Perfil SNMP</Label>
+            <Select
+              value={formData.snmpProfileId?.toString() || "none"}
+              onValueChange={(value) => setFormData({ ...formData, snmpProfileId: value === "none" ? null : parseInt(value, 10) })}
+            >
+              <SelectTrigger data-testid="select-snmp-profile">
+                <SelectValue placeholder="Selecione um perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {snmpProfiles?.map((p) => (
+                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
+            <Input
+              id="snmpRouterIp"
+              value={formData.snmpRouterIp}
+              onChange={(e) => setFormData({ ...formData, snmpRouterIp: e.target.value })}
+              placeholder="192.168.1.1"
+              data-testid="input-snmp-router-ip"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4 mt-3">
+          <div className="space-y-2">
+            <Label htmlFor="snmpInterfaceIndex">Índice da Interface (ifIndex)</Label>
+            <Input
+              id="snmpInterfaceIndex"
+              type="number"
+              value={formData.snmpInterfaceIndex || ""}
+              onChange={(e) => setFormData({ ...formData, snmpInterfaceIndex: e.target.value ? parseInt(e.target.value, 10) : null })}
+              placeholder="1, 2, 3..."
+              data-testid="input-snmp-interface-index"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="snmpInterfaceName">Nome da Interface</Label>
+            <Input
+              id="snmpInterfaceName"
+              value={formData.snmpInterfaceName}
+              onChange={(e) => setFormData({ ...formData, snmpInterfaceName: e.target.value })}
+              placeholder="GigabitEthernet0/1"
+              data-testid="input-snmp-interface-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="snmpInterfaceDescr">Descrição</Label>
+            <Input
+              id="snmpInterfaceDescr"
+              value={formData.snmpInterfaceDescr}
+              onChange={(e) => setFormData({ ...formData, snmpInterfaceDescr: e.target.value })}
+              placeholder="Uplink para Internet"
+              data-testid="input-snmp-interface-descr"
+            />
+          </div>
+        </div>
+      </div>
+      
       <DialogFooter>
         <Button variant="outline" onClick={onClose} data-testid="button-cancel">
           Cancelar
@@ -829,6 +902,10 @@ export default function Admin() {
     queryKey: ["/api/hosts"],
   });
 
+  const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
+    queryKey: ["/api/snmp-profiles"],
+  });
+
   const createLinkMutation = useMutation({
     mutationFn: async (data: Partial<Link>) => {
       return await apiRequest("POST", "/api/links", data);
@@ -1071,6 +1148,9 @@ export default function Admin() {
                     setLinkDialogOpen(false);
                     setEditingLink(undefined);
                   }}
+                  snmpProfiles={allSnmpProfiles?.filter(p => 
+                    editingLink ? p.clientId === editingLink.clientId : true
+                  )}
                 />
               </DialogContent>
             </Dialog>
