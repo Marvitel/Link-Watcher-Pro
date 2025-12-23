@@ -89,6 +89,11 @@ export const links = pgTable("links", {
   oltEndpoint: text("olt_endpoint"),
   snmpCommunity: varchar("snmp_community", { length: 100 }),
   icmpInterval: integer("icmp_interval").notNull().default(30),
+  snmpProfileId: integer("snmp_profile_id"),
+  snmpInterfaceIndex: integer("snmp_interface_index"),
+  snmpInterfaceName: varchar("snmp_interface_name", { length: 100 }),
+  snmpInterfaceDescr: text("snmp_interface_descr"),
+  snmpRouterIp: varchar("snmp_router_ip", { length: 45 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -106,6 +111,9 @@ export const hosts = pgTable("hosts", {
   lastStatus: varchar("last_status", { length: 20 }).notNull().default("unknown"),
   lastCheckedAt: timestamp("last_checked_at"),
   snmpProfileId: integer("snmp_profile_id"),
+  snmpInterfaceIndex: integer("snmp_interface_index"),
+  snmpInterfaceName: varchar("snmp_interface_name", { length: 100 }),
+  snmpInterfaceDescr: text("snmp_interface_descr"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
