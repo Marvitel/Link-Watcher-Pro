@@ -51,6 +51,12 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **SNMP Tables**: snmpProfiles, mibConfigs, hostMibConfigs
 - **Event Config Tables**: eventTypes, clientEventSettings
 
+### Authentication
+- **Method**: localStorage-based authentication (cookies not supported in Replit webview)
+- **AuthProvider**: React context in `client/src/lib/auth.tsx` with login/logout functions
+- **Storage Key**: `link_monitor_auth_user` in localStorage
+- **Session**: Express sessions with MemoryStore (backup, cookies may not persist)
+
 ### Key Design Patterns
 - **Monorepo Structure**: Client code in `client/`, server in `server/`, shared types in `shared/`
 - **Path Aliases**: `@/` for client source, `@shared/` for shared code
