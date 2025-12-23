@@ -37,6 +37,7 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
+  FileText,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Host, Client, User } from "@shared/schema";
@@ -563,6 +564,244 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
   );
 }
 
+interface VoalleSettings {
+  voalleApiUrl?: string | null;
+  voalleClientId?: string | null;
+  voalleClientSecret?: string | null;
+  voalleSynV1Token?: string | null;
+  voalleSolicitationTypeCode?: string | null;
+  voalleEnabled?: boolean;
+  voalleAutoCreateTicket?: boolean;
+}
+
+function VoalleIntegration({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(
+    clients[0]?.id || null
+  );
+
+  const { data: settings, isLoading } = useQuery<VoalleSettings>({
+    queryKey: ["/api/clients", selectedClientId, "settings"],
+    enabled: !!selectedClientId,
+  });
+
+  const [formData, setFormData] = useState<VoalleSettings>({
+    voalleApiUrl: "",
+    voalleClientId: "",
+    voalleClientSecret: "",
+    voalleSynV1Token: "",
+    voalleSolicitationTypeCode: "",
+    voalleEnabled: false,
+    voalleAutoCreateTicket: false,
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        voalleApiUrl: settings.voalleApiUrl || "",
+        voalleClientId: settings.voalleClientId || "",
+        voalleClientSecret: settings.voalleClientSecret || "",
+        voalleSynV1Token: settings.voalleSynV1Token || "",
+        voalleSolicitationTypeCode: settings.voalleSolicitationTypeCode || "",
+        voalleEnabled: settings.voalleEnabled || false,
+        voalleAutoCreateTicket: settings.voalleAutoCreateTicket || false,
+      });
+    }
+  }, [settings]);
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<VoalleSettings>) => {
+      return await apiRequest("PATCH", `/api/clients/${selectedClientId}/settings`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", selectedClientId, "settings"] });
+      toast({ title: "Configurações salvas com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+    },
+  });
+
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleTestConnection = async () => {
+    await updateSettingsMutation.mutateAsync(formData);
+    setIsTesting(true);
+    try {
+      const response = await fetch(`/api/clients/${selectedClientId}/voalle/test`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: "Conexão bem-sucedida", description: result.message });
+      } else {
+        toast({ title: "Falha na conexão", description: result.message, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    updateSettingsMutation.mutate(formData);
+  };
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="w-5 h-5" />
+          Voalle ERP
+        </CardTitle>
+        <CardDescription>
+          Configure a integração com o Voalle para abertura automática de chamados
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <Label>Cliente</Label>
+          <Select
+            value={selectedClientId?.toString() || ""}
+            onValueChange={(value) => setSelectedClientId(parseInt(value, 10))}
+          >
+            <SelectTrigger data-testid="select-voalle-client">
+              <SelectValue placeholder="Selecione um cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">Carregando configurações...</div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="voalleApiUrl">URL da API Voalle</Label>
+                <Input
+                  id="voalleApiUrl"
+                  value={formData.voalleApiUrl || ""}
+                  onChange={(e) => setFormData({ ...formData, voalleApiUrl: e.target.value })}
+                  placeholder="https://erp.marvitel.com.br"
+                  data-testid="input-voalle-api-url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL base do ERP Voalle (sem porta ou caminho)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="voalleClientId">Client ID</Label>
+                  <Input
+                    id="voalleClientId"
+                    value={formData.voalleClientId || ""}
+                    onChange={(e) => setFormData({ ...formData, voalleClientId: e.target.value })}
+                    placeholder="ID do cliente integrador"
+                    data-testid="input-voalle-client-id"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="voalleClientSecret">Client Secret</Label>
+                  <Input
+                    id="voalleClientSecret"
+                    type="password"
+                    value={formData.voalleClientSecret || ""}
+                    onChange={(e) => setFormData({ ...formData, voalleClientSecret: e.target.value })}
+                    placeholder="Secret do cliente integrador"
+                    data-testid="input-voalle-client-secret"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="voalleSynV1Token">Token SynV1 (opcional)</Label>
+                <Input
+                  id="voalleSynV1Token"
+                  type="password"
+                  value={formData.voalleSynV1Token || ""}
+                  onChange={(e) => setFormData({ ...formData, voalleSynV1Token: e.target.value })}
+                  placeholder="Token syn-v1 se necessário"
+                  data-testid="input-voalle-syn-token"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="voalleSolicitationTypeCode">Código do Tipo de Solicitação</Label>
+                <Input
+                  id="voalleSolicitationTypeCode"
+                  value={formData.voalleSolicitationTypeCode || ""}
+                  onChange={(e) => setFormData({ ...formData, voalleSolicitationTypeCode: e.target.value })}
+                  placeholder="Ex: suporte_link"
+                  data-testid="input-voalle-solicitation-code"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Código do tipo de solicitação para abertura de chamados no Service Desk
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Habilitar Integração</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ativar integração com Voalle ERP
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.voalleEnabled}
+                  onCheckedChange={(checked) => setFormData({ ...formData, voalleEnabled: checked })}
+                  data-testid="switch-voalle-enabled"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Abertura Automática de Chamados</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Criar automaticamente chamado no Voalle ao detectar incidente
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.voalleAutoCreateTicket}
+                  onCheckedChange={(checked) => setFormData({ ...formData, voalleAutoCreateTicket: checked })}
+                  data-testid="switch-voalle-auto-ticket"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={isTesting || !formData.voalleApiUrl}
+                data-testid="button-test-voalle"
+              >
+                {isTesting && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                Testar Conexão
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={updateSettingsMutation.isPending}
+                data-testid="button-save-voalle"
+              >
+                Salvar Configurações
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Admin() {
   const { toast } = useToast();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
@@ -960,6 +1199,7 @@ export default function Admin() {
           </div>
 
           <WanguardIntegration clients={clients || []} />
+          <VoalleIntegration clients={clients || []} />
         </TabsContent>
       </Tabs>
     </div>

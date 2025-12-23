@@ -83,6 +83,19 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Configuration**: Per-client settings in clientSettings table (wanguardApiEndpoint, wanguardApiUser, wanguardApiPassword, wanguardEnabled, wanguardSyncInterval)
 - **Data Mapping**: Wanguard anomalies are mapped to ddosEvents with wanguardAnomalyId, wanguardSensor, targetIp, decoder fields
 
+### Voalle ERP
+- **Purpose**: Ticket/incident management via Service Desk
+- **API**: REST API with OAuth2 client_credentials
+- **Auth Endpoint**: `https://<erp_url>:45700/connect/token`
+- **API Endpoint**: `https://<erp_url>:45715/external/integrations/thirdparty/`
+- **Service**: `server/voalle.ts` - VoalleService class
+- **Configuration**: Per-client settings in clientSettings table (voalleApiUrl, voalleClientId, voalleClientSecret, voalleSynV1Token, voalleSolicitationTypeCode, voalleEnabled, voalleAutoCreateTicket)
+- **Features**: Test connection, create tickets for incidents, automatic ticket creation on incident detection
+
+### Voalle Integration Endpoints
+- `POST /api/clients/:clientId/voalle/test` - Test Voalle connection
+- `POST /api/clients/:clientId/voalle/create-ticket` - Create ticket for an incident
+
 ## External Dependencies
 
 ### Database

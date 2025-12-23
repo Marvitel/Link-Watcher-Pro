@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
+import { voalleService } from "./voalle";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -529,6 +530,91 @@ export async function registerRoutes(
       res.json(anomalies);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar anomalias do Wanguard" });
+    }
+  });
+
+  // Voalle Integration Routes
+  app.post("/api/clients/:clientId/voalle/test", async (req, res) => {
+    try {
+      const settings = await storage.getClientSettings(parseInt(req.params.clientId, 10));
+      if (!settings?.voalleApiUrl || !settings?.voalleClientId || !settings?.voalleClientSecret) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Configurações do Voalle incompletas" 
+        });
+      }
+
+      voalleService.configure({
+        apiUrl: settings.voalleApiUrl,
+        clientId: settings.voalleClientId,
+        clientSecret: settings.voalleClientSecret,
+        synV1Token: settings.voalleSynV1Token || undefined,
+      });
+
+      const result = await voalleService.testConnection();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro ao testar conexão com Voalle" 
+      });
+    }
+  });
+
+  app.post("/api/clients/:clientId/voalle/create-ticket", async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const { incidentId } = req.body;
+
+      if (!incidentId) {
+        return res.status(400).json({ error: "ID do incidente é obrigatório" });
+      }
+
+      const settings = await storage.getClientSettings(clientId);
+      
+      if (!settings?.voalleEnabled) {
+        return res.status(400).json({ error: "Integração com Voalle não está habilitada" });
+      }
+
+      if (!settings.voalleApiUrl || !settings.voalleClientId || !settings.voalleClientSecret) {
+        return res.status(400).json({ error: "Configurações do Voalle incompletas" });
+      }
+
+      const incident = await storage.getIncident(incidentId);
+      if (!incident) {
+        return res.status(404).json({ error: "Incidente não encontrado" });
+      }
+
+      const link = await storage.getLink(incident.linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link do incidente não encontrado" });
+      }
+
+      voalleService.configure({
+        apiUrl: settings.voalleApiUrl,
+        clientId: settings.voalleClientId,
+        clientSecret: settings.voalleClientSecret,
+        synV1Token: settings.voalleSynV1Token || undefined,
+      });
+
+      const result = await voalleService.createProtocol(
+        settings.voalleSolicitationTypeCode || "suporte_link",
+        incident,
+        link.name,
+        link.location
+      );
+
+      if (result.success && result.protocolId) {
+        await storage.updateIncident(incidentId, {
+          erpSystem: "voalle",
+          erpTicketId: result.protocolId,
+          erpTicketStatus: "aberto",
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao criar chamado no Voalle" });
     }
   });
 
