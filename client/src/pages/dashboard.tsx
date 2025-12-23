@@ -6,6 +6,8 @@ import { MetricCard } from "@/components/metric-card";
 import { LinkCard } from "@/components/link-card";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
+import { useClientContext } from "@/lib/client-context";
+import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import {
   Activity,
@@ -15,8 +17,9 @@ import {
   Shield,
   ArrowRight,
   RefreshCw,
+  Building2,
 } from "lucide-react";
-import type { Link as LinkType, Event, DashboardStats, Metric } from "@shared/schema";
+import type { Link as LinkType, Event, DashboardStats, Metric, Client } from "@shared/schema";
 
 function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
@@ -33,21 +36,139 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
   return <LinkCard link={link} metricsHistory={metricsHistory} />;
 }
 
+function ClientsOverview({ clients, setSelectedClient }: { 
+  clients: Client[]; 
+  setSelectedClient: (id: number, name: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {clients.map((client) => (
+        <Card 
+          key={client.id} 
+          className="hover-elevate cursor-pointer"
+          onClick={() => setSelectedClient(client.id, client.name)}
+          data-testid={`card-client-${client.id}`}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              <CardTitle className="text-lg">{client.name}</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-2">
+              {client.email || "Sem email de contato"}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Clique para visualizar dashboard</span>
+              <ArrowRight className="w-3 h-3" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard() {
+  const { isSuperAdmin } = useAuth();
+  const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
+
+  const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
+    queryKey: ["/api/clients"],
+    enabled: isSuperAdmin,
+  });
+
+  const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
+  const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
+  const eventsUrl = selectedClientId ? `/api/events?clientId=${selectedClientId}` : "/api/events";
+
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/stats"],
+    queryKey: [statsUrl],
     refetchInterval: 5000,
   });
 
   const { data: links, isLoading: linksLoading } = useQuery<LinkType[]>({
-    queryKey: ["/api/links"],
+    queryKey: [linksUrl],
     refetchInterval: 5000,
   });
 
   const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: [eventsUrl],
     refetchInterval: 10000,
   });
+
+  if (isSuperAdmin && !isViewingAsClient) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
+            <p className="text-muted-foreground">
+              Visao geral de todos os clientes - Selecione um cliente para ver detalhes
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Total de Clientes"
+            value={clients?.length || 0}
+            icon={Building2}
+            trend={{ value: 0, direction: "neutral" }}
+            subtitle="clientes ativos"
+            testId="metric-total-clients"
+          />
+          <MetricCard
+            title="Links Operacionais"
+            value={`${stats?.operationalLinks || 0}/${stats?.totalLinks || 0}`}
+            icon={Activity}
+            trend={{ value: 0, direction: "neutral" }}
+            subtitle="todos os clientes"
+            testId="metric-all-links"
+          />
+          <MetricCard
+            title="Disponibilidade Geral"
+            value={(stats?.averageUptime || 0).toFixed(2)}
+            unit="%"
+            icon={Gauge}
+            trend={{ value: 0.5, direction: "up", isGood: true }}
+            subtitle="media de todos"
+            testId="metric-all-uptime"
+          />
+          <MetricCard
+            title="Alertas Ativos"
+            value={stats?.activeAlerts || 0}
+            icon={AlertTriangle}
+            trend={{ value: 0, direction: "neutral" }}
+            subtitle={stats?.ddosEventsToday ? `${stats.ddosEventsToday} DDoS hoje` : "nenhum DDoS"}
+            testId="metric-all-alerts"
+          />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Clientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {clientsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-32 w-full" />
+                ))}
+              </div>
+            ) : clients && clients.length > 0 ? (
+              <ClientsOverview clients={clients} setSelectedClient={setSelectedClient} />
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum cliente cadastrado. Acesse Administracao para adicionar clientes.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -56,6 +177,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-muted-foreground">
             Monitoramento em tempo real dos links dedicados
+            {isViewingAsClient && selectedClientName && ` - ${selectedClientName}`}
           </p>
         </div>
         <Button variant="outline" size="sm" data-testid="button-refresh">

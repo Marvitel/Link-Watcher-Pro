@@ -1166,6 +1166,10 @@ export default function Admin() {
             <Settings className="w-4 h-4" />
             SNMP
           </TabsTrigger>
+          <TabsTrigger value="system-settings" className="gap-2">
+            <Settings className="w-4 h-4" />
+            Sistema
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -1513,6 +1517,10 @@ export default function Admin() {
 
         <TabsContent value="snmp" className="space-y-4">
           <SnmpConfigTab clients={clients || []} />
+        </TabsContent>
+
+        <TabsContent value="system-settings" className="space-y-4">
+          <SystemSettingsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -2476,6 +2484,205 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SystemSettingsTab() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState({
+    slaAvailability: 99,
+    slaLatency: 80,
+    slaPacketLoss: 2,
+    slaMaxRepairTime: 6,
+    dataRetentionMonths: 6,
+    metricsPollingInterval: 5,
+    alertsEnabled: true,
+    emailNotifications: true,
+    slackWebhook: "",
+  });
+
+  const handleSave = () => {
+    toast({ title: "Configuracoes salvas com sucesso" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-medium">Configuracoes do Sistema</h2>
+        <p className="text-sm text-muted-foreground">
+          Parametros globais de SLA, retencao de dados e notificacoes
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Metas de SLA/ANS</CardTitle>
+            <CardDescription>
+              Defina os niveis de servico acordados com os clientes
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="slaAvailability">Disponibilidade Minima (%)</Label>
+                <Input
+                  id="slaAvailability"
+                  type="number"
+                  value={settings.slaAvailability}
+                  onChange={(e) => setSettings({ ...settings, slaAvailability: parseFloat(e.target.value) })}
+                  data-testid="input-sla-availability"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slaLatency">Latencia Maxima (ms)</Label>
+                <Input
+                  id="slaLatency"
+                  type="number"
+                  value={settings.slaLatency}
+                  onChange={(e) => setSettings({ ...settings, slaLatency: parseInt(e.target.value) })}
+                  data-testid="input-sla-latency"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slaPacketLoss">Perda de Pacotes Maxima (%)</Label>
+                <Input
+                  id="slaPacketLoss"
+                  type="number"
+                  step="0.1"
+                  value={settings.slaPacketLoss}
+                  onChange={(e) => setSettings({ ...settings, slaPacketLoss: parseFloat(e.target.value) })}
+                  data-testid="input-sla-packet-loss"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slaMaxRepairTime">Tempo Max Reparo (horas)</Label>
+                <Input
+                  id="slaMaxRepairTime"
+                  type="number"
+                  value={settings.slaMaxRepairTime}
+                  onChange={(e) => setSettings({ ...settings, slaMaxRepairTime: parseInt(e.target.value) })}
+                  data-testid="input-sla-repair-time"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Retencao e Coleta de Dados</CardTitle>
+            <CardDescription>
+              Configure a retencao de metricas e intervalos de coleta
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dataRetention">Retencao de Dados (meses)</Label>
+                <Input
+                  id="dataRetention"
+                  type="number"
+                  value={settings.dataRetentionMonths}
+                  onChange={(e) => setSettings({ ...settings, dataRetentionMonths: parseInt(e.target.value) })}
+                  data-testid="input-data-retention"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pollingInterval">Intervalo de Coleta (segundos)</Label>
+                <Input
+                  id="pollingInterval"
+                  type="number"
+                  value={settings.metricsPollingInterval}
+                  onChange={(e) => setSettings({ ...settings, metricsPollingInterval: parseInt(e.target.value) })}
+                  data-testid="input-polling-interval"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notificacoes</CardTitle>
+            <CardDescription>
+              Configure alertas e notificacoes do sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Alertas Habilitados</p>
+                <p className="text-sm text-muted-foreground">
+                  Receba alertas quando limites forem ultrapassados
+                </p>
+              </div>
+              <Switch
+                checked={settings.alertsEnabled}
+                onCheckedChange={(checked) => setSettings({ ...settings, alertsEnabled: checked })}
+                data-testid="switch-alerts-enabled"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Notificacoes por Email</p>
+                <p className="text-sm text-muted-foreground">
+                  Envie alertas para email dos responsaveis
+                </p>
+              </div>
+              <Switch
+                checked={settings.emailNotifications}
+                onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
+                data-testid="switch-email-notifications"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slackWebhook">Webhook Slack (opcional)</Label>
+              <Input
+                id="slackWebhook"
+                value={settings.slackWebhook}
+                onChange={(e) => setSettings({ ...settings, slackWebhook: e.target.value })}
+                placeholder="https://hooks.slack.com/services/..."
+                data-testid="input-slack-webhook"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Informacoes do Sistema</CardTitle>
+            <CardDescription>
+              Informacoes sobre a versao e estado do sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Versao</span>
+              <span className="font-mono">1.0.0</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Ambiente</span>
+              <Badge variant="outline">Producao</Badge>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Banco de Dados</span>
+              <Badge variant="default">Conectado</Badge>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Ultima Atualizacao</span>
+              <span className="font-mono text-xs">23/12/2025</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} data-testid="button-save-system-settings">
+          Salvar Configuracoes
+        </Button>
+      </div>
     </div>
   );
 }

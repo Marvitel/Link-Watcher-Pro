@@ -177,9 +177,19 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/stats", async (req, res) => {
+  function getEffectiveClientId(req: Request): number | undefined {
+    const sessionUser = (req.session as any)?.user;
+    const queryClientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+    
+    if (sessionUser?.isSuperAdmin) {
+      return queryClientId;
+    }
+    return sessionUser?.clientId || undefined;
+  }
+
+  app.get("/api/stats", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const stats = await storage.getDashboardStats(clientId);
       res.json(stats);
     } catch (error) {
@@ -187,9 +197,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/links", async (req, res) => {
+  app.get("/api/links", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const linkList = await storage.getLinks(clientId);
       res.json(linkList);
     } catch (error) {
@@ -296,10 +306,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/hosts", async (req, res) => {
+  app.get("/api/hosts", requireAuth, async (req, res) => {
     try {
       const linkId = req.query.linkId ? parseInt(req.query.linkId as string, 10) : undefined;
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const hostList = await storage.getHosts(linkId, clientId);
       res.json(hostList);
     } catch (error) {
@@ -347,9 +357,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/events", async (req, res) => {
+  app.get("/api/events", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const eventsList = await storage.getEvents(clientId);
       res.json(eventsList);
     } catch (error) {
@@ -357,9 +367,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/security/ddos", async (req, res) => {
+  app.get("/api/security/ddos", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const ddosList = await storage.getDDoSEvents(clientId);
       res.json(ddosList);
     } catch (error) {
@@ -367,9 +377,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/sla", async (req, res) => {
+  app.get("/api/sla", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const sla = await storage.getSLAIndicators(clientId);
       res.json(sla);
     } catch (error) {
@@ -377,10 +387,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/incidents", async (req, res) => {
+  app.get("/api/incidents", requireAuth, async (req, res) => {
     try {
       const open = req.query.open === "true";
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      const clientId = getEffectiveClientId(req);
       const allIncidents = open 
         ? await storage.getOpenIncidents(clientId) 
         : await storage.getIncidents(clientId);
