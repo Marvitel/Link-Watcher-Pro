@@ -64,35 +64,41 @@ function getStatusLabel(status: string) {
 
 export default function LinkDetail() {
   const [, params] = useRoute("/link/:id");
-  const linkId = params?.id || "sede";
+  const linkId = params?.id ? parseInt(params.id, 10) : 1;
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
+    enabled: !isNaN(linkId),
     refetchInterval: 5000,
   });
 
   const { data: statusDetail } = useQuery<LinkStatusDetail>({
     queryKey: ["/api/links", linkId, "status-detail"],
+    enabled: !isNaN(linkId),
     refetchInterval: 5000,
   });
 
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: ["/api/links", linkId, "metrics"],
+    enabled: !isNaN(linkId),
     refetchInterval: 5000,
   });
 
   const { data: events } = useQuery<Event[]>({
     queryKey: ["/api/links", linkId, "events"],
+    enabled: !isNaN(linkId),
     refetchInterval: 10000,
   });
 
   const { data: slaIndicators } = useQuery<SLAIndicator[]>({
     queryKey: ["/api/links", linkId, "sla"],
+    enabled: !isNaN(linkId),
     refetchInterval: 30000,
   });
 
   const { data: incidents } = useQuery<Incident[]>({
     queryKey: ["/api/links", linkId, "incidents"],
+    enabled: !isNaN(linkId),
     refetchInterval: 10000,
   });
 

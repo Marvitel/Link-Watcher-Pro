@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Network,
@@ -8,7 +9,9 @@ import {
   FileText,
   Settings,
   Activity,
+  Server,
 } from "lucide-react";
+import type { Link as LinkType } from "@shared/schema";
 import {
   Sidebar,
   SidebarContent,
@@ -35,18 +38,6 @@ const navigationItems = [
   },
 ];
 
-const locationItems = [
-  {
-    title: "Sede Administrativa",
-    url: "/link/sede",
-    icon: Building2,
-  },
-  {
-    title: "Central de Atendimento",
-    url: "/link/central",
-    icon: MapPin,
-  },
-];
 
 const securityItems = [
   {
@@ -68,6 +59,11 @@ const securityItems = [
 
 const configItems = [
   {
+    title: "Administração",
+    url: "/admin",
+    icon: Server,
+  },
+  {
     title: "Configurações",
     url: "/settings",
     icon: Settings,
@@ -76,6 +72,11 @@ const configItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+
+  const { data: links } = useQuery<LinkType[]>({
+    queryKey: ["/api/links"],
+    refetchInterval: 30000,
+  });
 
   return (
     <Sidebar>
@@ -86,7 +87,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-sidebar-foreground">Link Monitor</span>
-            <span className="text-xs text-muted-foreground">DPE/SE</span>
+            <span className="text-xs text-muted-foreground">Multi-Cliente</span>
           </div>
         </div>
       </SidebarHeader>
@@ -116,19 +117,24 @@ export function AppSidebar() {
           <SidebarGroupLabel>Localidades</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {locationItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {links?.map((link) => (
+                <SidebarMenuItem key={link.id}>
                   <SidebarMenuButton
                     asChild
-                    isActive={location === item.url}
+                    isActive={location === `/link/${link.id}`}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.url.replace("/", "")}`}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                    <Link href={`/link/${link.id}`} data-testid={`link-nav-link-${link.id}`}>
+                      <Building2 className="w-4 h-4" />
+                      <span>{link.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {(!links || links.length === 0) && (
+                <SidebarMenuItem>
+                  <span className="text-xs text-muted-foreground px-2">Nenhum link cadastrado</span>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

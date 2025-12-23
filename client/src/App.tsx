@@ -15,6 +15,7 @@ import Security from "@/pages/security";
 import Events from "@/pages/events";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import Admin from "@/pages/admin";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/events" component={Events} />
       <Route path="/reports" component={Reports} />
       <Route path="/settings" component={Settings} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

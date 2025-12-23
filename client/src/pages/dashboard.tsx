@@ -34,26 +34,28 @@ export default function Dashboard() {
     refetchInterval: 10000,
   });
 
-  const { data: sedeMetrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", "sede", "metrics"],
+  const firstLink = links?.[0];
+  const secondLink = links?.[1];
+
+  const { data: firstLinkMetrics } = useQuery<Metric[]>({
+    queryKey: ["/api/links", firstLink?.id, "metrics"],
+    enabled: !!firstLink?.id,
     refetchInterval: 5000,
   });
 
-  const { data: centralMetrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", "central", "metrics"],
+  const { data: secondLinkMetrics } = useQuery<Metric[]>({
+    queryKey: ["/api/links", secondLink?.id, "metrics"],
+    enabled: !!secondLink?.id,
     refetchInterval: 5000,
   });
 
-  const sedeLink = links?.find((l) => l.id === "sede");
-  const centralLink = links?.find((l) => l.id === "central");
-
-  const sedeHistory = sedeMetrics?.map((m) => ({
+  const firstLinkHistory = firstLinkMetrics?.map((m) => ({
     timestamp: m.timestamp,
     download: m.download,
     upload: m.upload,
   })) || [];
 
-  const centralHistory = centralMetrics?.map((m) => ({
+  const secondLinkHistory = secondLinkMetrics?.map((m) => ({
     timestamp: m.timestamp,
     download: m.download,
     upload: m.upload,
@@ -163,8 +165,8 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            {sedeLink && <LinkCard link={sedeLink} metricsHistory={sedeHistory} />}
-            {centralLink && <LinkCard link={centralLink} metricsHistory={centralHistory} />}
+            {firstLink && <LinkCard link={firstLink} metricsHistory={firstLinkHistory} />}
+            {secondLink && <LinkCard link={secondLink} metricsHistory={secondLinkHistory} />}
           </>
         )}
       </div>
@@ -259,7 +261,7 @@ export default function Dashboard() {
             <div>
               <p className="font-medium">Sistema operando normalmente</p>
               <p className="text-sm text-muted-foreground">
-                Monitoramento 24x7 ativo • Nenhum ataque detectado nas últimas 24h
+                Monitoramento 24x7 ativo - Nenhum ataque detectado nas últimas 24h
               </p>
             </div>
           </div>

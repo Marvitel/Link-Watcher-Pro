@@ -12,7 +12,7 @@ interface LinkCardProps {
 }
 
 export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
-  const detailUrl = link.id === "sede" ? "/link/sede" : "/link/central";
+  const detailUrl = `/link/${link.id}`;
 
   return (
     <Card className="overflow-visible" data-testid={`card-link-${link.id}`}>

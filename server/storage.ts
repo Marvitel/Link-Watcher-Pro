@@ -1,46 +1,39 @@
 import {
+  clients,
+  users,
   links,
+  hosts,
   metrics,
   events,
   ddosEvents,
   incidents,
+  clientSettings,
+  type Client,
+  type User,
   type Link,
+  type Host,
   type Metric,
   type Event,
   type DDoSEvent,
   type Incident,
+  type ClientSettings,
+  type InsertClient,
+  type InsertUser,
+  type InsertLink,
+  type InsertHost,
   type InsertIncident,
+  type InsertClientSettings,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
+  type AuthUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, gte, and, lt, isNull, ne } from "drizzle-orm";
+import { eq, desc, gte, and, lt, isNull, sql } from "drizzle-orm";
+import crypto from "crypto";
 
-export interface IStorage {
-  getLinks(): Promise<Link[]>;
-  getLink(id: string): Promise<Link | undefined>;
-  getLinkMetrics(linkId: string, limit?: number): Promise<Metric[]>;
-  getLinkEvents(linkId: string): Promise<Event[]>;
-  getLinkSLA(linkId: string): Promise<SLAIndicator[]>;
-  getEvents(): Promise<Event[]>;
-  getDDoSEvents(): Promise<DDoSEvent[]>;
-  getSLAIndicators(): Promise<SLAIndicator[]>;
-  getDashboardStats(): Promise<DashboardStats>;
-  initializeDefaultData(): Promise<void>;
-  addMetric(linkId: string, data: Omit<Metric, "id" | "timestamp" | "linkId">): Promise<void>;
-  updateLinkStatus(linkId: string, data: Partial<Link>): Promise<void>;
-  startMetricCollection(): void;
-  cleanupOldData(): Promise<void>;
-  getLinkStatusDetail(linkId: string): Promise<LinkStatusDetail | undefined>;
-  updateLinkFailureState(linkId: string, failureReason: string | null, failureSource: string | null): Promise<void>;
-  getIncidents(): Promise<Incident[]>;
-  getLinkIncidents(linkId: string): Promise<Incident[]>;
-  getOpenIncidents(): Promise<Incident[]>;
-  getIncident(id: number): Promise<Incident | undefined>;
-  createIncident(data: InsertIncident): Promise<Incident>;
-  updateIncident(id: number, data: Partial<Incident>): Promise<void>;
-  closeIncident(id: number, notes?: string): Promise<void>;
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
 }
 
 function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPacketLoss?: number): SLAIndicator[] {
@@ -102,17 +95,154 @@ function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPa
   ];
 }
 
-export class DatabaseStorage implements IStorage {
-  async getLinks(): Promise<Link[]> {
+export class DatabaseStorage {
+  async getClients(): Promise<Client[]> {
+    return await db.select().from(clients).where(eq(clients.isActive, true));
+  }
+
+  async getClient(id: number): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.id, id));
+    return client || undefined;
+  }
+
+  async getClientBySlug(slug: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.slug, slug));
+    return client || undefined;
+  }
+
+  async createClient(data: InsertClient): Promise<Client> {
+    const [client] = await db.insert(clients).values(data).returning();
+    return client;
+  }
+
+  async updateClient(id: number, data: Partial<Client>): Promise<void> {
+    await db.update(clients).set({ ...data, updatedAt: new Date() }).where(eq(clients.id, id));
+  }
+
+  async deleteClient(id: number): Promise<void> {
+    await db.update(clients).set({ isActive: false, updatedAt: new Date() }).where(eq(clients.id, id));
+  }
+
+  async getUsers(clientId?: number): Promise<User[]> {
+    if (clientId) {
+      return await db.select().from(users).where(and(eq(users.clientId, clientId), eq(users.isActive, true)));
+    }
+    return await db.select().from(users).where(eq(users.isActive, true));
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return user || undefined;
+  }
+
+  async createUser(data: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values({
+      ...data,
+      email: data.email.toLowerCase(),
+      passwordHash: hashPassword(data.passwordHash),
+    }).returning();
+    return user;
+  }
+
+  async updateUser(id: number, data: Partial<User>): Promise<void> {
+    const updateData: Partial<User> = { ...data, updatedAt: new Date() };
+    if (data.passwordHash) {
+      updateData.passwordHash = hashPassword(data.passwordHash);
+    }
+    await db.update(users).set(updateData).where(eq(users.id, id));
+  }
+
+  async validateCredentials(email: string, password: string): Promise<AuthUser | null> {
+    const user = await this.getUserByEmail(email);
+    if (!user || !user.isActive) return null;
+    
+    const hashedPassword = hashPassword(password);
+    if (user.passwordHash !== hashedPassword) return null;
+
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+
+    let clientName: string | undefined;
+    if (user.clientId) {
+      const client = await this.getClient(user.clientId);
+      clientName = client?.name;
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role as "admin" | "operator" | "viewer",
+      clientId: user.clientId,
+      clientName,
+    };
+  }
+
+  async getLinks(clientId?: number): Promise<Link[]> {
+    if (clientId) {
+      return await db.select().from(links).where(eq(links.clientId, clientId));
+    }
     return await db.select().from(links);
   }
 
-  async getLink(id: string): Promise<Link | undefined> {
+  async getLink(id: number): Promise<Link | undefined> {
     const [link] = await db.select().from(links).where(eq(links.id, id));
     return link || undefined;
   }
 
-  async getLinkMetrics(linkId: string, limit?: number): Promise<Metric[]> {
+  async getLinkByIdentifier(clientId: number, identifier: string): Promise<Link | undefined> {
+    const [link] = await db.select().from(links).where(
+      and(eq(links.clientId, clientId), eq(links.identifier, identifier))
+    );
+    return link || undefined;
+  }
+
+  async createLink(data: InsertLink): Promise<Link> {
+    const [link] = await db.insert(links).values(data).returning();
+    return link;
+  }
+
+  async updateLink(id: number, data: Partial<Link>): Promise<void> {
+    await db.update(links).set({ ...data, lastUpdated: new Date() }).where(eq(links.id, id));
+  }
+
+  async deleteLink(id: number): Promise<void> {
+    await db.delete(links).where(eq(links.id, id));
+  }
+
+  async getHosts(linkId?: number, clientId?: number): Promise<Host[]> {
+    if (linkId) {
+      return await db.select().from(hosts).where(eq(hosts.linkId, linkId));
+    }
+    if (clientId) {
+      return await db.select().from(hosts).where(eq(hosts.clientId, clientId));
+    }
+    return await db.select().from(hosts);
+  }
+
+  async getHost(id: number): Promise<Host | undefined> {
+    const [host] = await db.select().from(hosts).where(eq(hosts.id, id));
+    return host || undefined;
+  }
+
+  async createHost(data: InsertHost): Promise<Host> {
+    const [host] = await db.insert(hosts).values(data).returning();
+    return host;
+  }
+
+  async updateHost(id: number, data: Partial<Host>): Promise<void> {
+    await db.update(hosts).set({ ...data, updatedAt: new Date() }).where(eq(hosts.id, id));
+  }
+
+  async deleteHost(id: number): Promise<void> {
+    await db.delete(hosts).where(eq(hosts.id, id));
+  }
+
+  async getLinkMetrics(linkId: number, limit?: number): Promise<Metric[]> {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
@@ -128,7 +258,7 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
-  async getLinkEvents(linkId: string): Promise<Event[]> {
+  async getLinkEvents(linkId: number): Promise<Event[]> {
     return await db
       .select()
       .from(events)
@@ -136,21 +266,27 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(events.timestamp));
   }
 
-  async getLinkSLA(linkId: string): Promise<SLAIndicator[]> {
+  async getLinkSLA(linkId: number): Promise<SLAIndicator[]> {
     const link = await this.getLink(linkId);
     return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);
   }
 
-  async getEvents(): Promise<Event[]> {
+  async getEvents(clientId?: number): Promise<Event[]> {
+    if (clientId) {
+      return await db.select().from(events).where(eq(events.clientId, clientId)).orderBy(desc(events.timestamp));
+    }
     return await db.select().from(events).orderBy(desc(events.timestamp));
   }
 
-  async getDDoSEvents(): Promise<DDoSEvent[]> {
+  async getDDoSEvents(clientId?: number): Promise<DDoSEvent[]> {
+    if (clientId) {
+      return await db.select().from(ddosEvents).where(eq(ddosEvents.clientId, clientId)).orderBy(desc(ddosEvents.startTime));
+    }
     return await db.select().from(ddosEvents).orderBy(desc(ddosEvents.startTime));
   }
 
-  async getSLAIndicators(): Promise<SLAIndicator[]> {
-    const allLinks = await this.getLinks();
+  async getSLAIndicators(clientId?: number): Promise<SLAIndicator[]> {
+    const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
     if (allLinks.length === 0) return generateSLAIndicators();
     
     const avgUptime = allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length;
@@ -160,8 +296,8 @@ export class DatabaseStorage implements IStorage {
     return generateSLAIndicators(avgUptime, avgLatency, avgPacketLoss);
   }
 
-  async getDashboardStats(): Promise<DashboardStats> {
-    const allLinks = await this.getLinks();
+  async getDashboardStats(clientId?: number): Promise<DashboardStats> {
+    const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
     const operationalLinks = allLinks.filter((l) => l.status === "operational").length;
     const avgUptime = allLinks.length > 0 
       ? allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length 
@@ -171,22 +307,22 @@ export class DatabaseStorage implements IStorage {
       : 0;
     const totalBandwidth = allLinks.reduce((sum, l) => sum + l.bandwidth, 0);
     
-    const unresolvedEvents = await db
-      .select()
-      .from(events)
-      .where(eq(events.resolved, false));
+    const unresolvedEventsQuery = clientId 
+      ? db.select().from(events).where(and(eq(events.clientId, clientId), eq(events.resolved, false)))
+      : db.select().from(events).where(eq(events.resolved, false));
+    const unresolvedEvents = await unresolvedEventsQuery;
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const ddosToday = await db
-      .select()
-      .from(ddosEvents)
-      .where(gte(ddosEvents.startTime, today));
+    const ddosTodayQuery = clientId
+      ? db.select().from(ddosEvents).where(and(eq(ddosEvents.clientId, clientId), gte(ddosEvents.startTime, today)))
+      : db.select().from(ddosEvents).where(gte(ddosEvents.startTime, today));
+    const ddosToday = await ddosTodayQuery;
 
-    const openIncidentsList = await db
-      .select()
-      .from(incidents)
-      .where(isNull(incidents.closedAt));
+    const openIncidentsQuery = clientId
+      ? db.select().from(incidents).where(and(eq(incidents.clientId, clientId), isNull(incidents.closedAt)))
+      : db.select().from(incidents).where(isNull(incidents.closedAt));
+    const openIncidentsList = await openIncidentsQuery;
 
     return {
       totalLinks: allLinks.length,
@@ -200,9 +336,10 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async addMetric(linkId: string, data: Omit<Metric, "id" | "timestamp" | "linkId">): Promise<void> {
+  async addMetric(linkId: number, clientId: number, data: Omit<Metric, "id" | "timestamp" | "linkId" | "clientId">): Promise<void> {
     await db.insert(metrics).values({
       linkId,
+      clientId,
       download: data.download,
       upload: data.upload,
       latency: data.latency,
@@ -213,60 +350,93 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async updateLinkStatus(linkId: string, data: Partial<Link>): Promise<void> {
+  async updateLinkStatus(id: number, data: Partial<Link>): Promise<void> {
     await db.update(links).set({
       ...data,
       lastUpdated: new Date(),
-    }).where(eq(links.id, linkId));
+    }).where(eq(links.id, id));
   }
 
   async initializeDefaultData(): Promise<void> {
-    const existingLinks = await this.getLinks();
-    if (existingLinks.length > 0) return;
+    const existingClients = await this.getClients();
+    if (existingClients.length > 0) return;
 
-    await db.insert(links).values([
-      {
-        id: "sede",
-        name: "Sede Administrativa",
-        location: "Centro, Aracaju/SE",
-        address: "Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360",
-        ipBlock: "/29",
-        totalIps: 8,
-        usableIps: 6,
-        bandwidth: 200,
-        status: "operational",
-        uptime: 99.85,
-        currentDownload: 87.5,
-        currentUpload: 42.3,
-        latency: 42,
-        packetLoss: 0.12,
-        cpuUsage: 35,
-        memoryUsage: 48,
-      },
-      {
-        id: "central",
-        name: "Central de Atendimento",
-        location: "Jardins, Aracaju/SE",
-        address: "Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010",
-        ipBlock: "/28",
-        totalIps: 16,
-        usableIps: 14,
-        bandwidth: 200,
-        status: "operational",
-        uptime: 99.72,
-        currentDownload: 125.8,
-        currentUpload: 78.4,
-        latency: 38,
-        packetLoss: 0.08,
-        cpuUsage: 42,
-        memoryUsage: 52,
-      },
-    ]);
+    const [defaultClient] = await db.insert(clients).values({
+      name: "Defensoria Pública do Estado de Sergipe",
+      slug: "dpe-se",
+      cnpj: "09.264.424/0001-00",
+      address: "Aracaju, SE",
+      email: "contato@defensoria.se.def.br",
+      isActive: true,
+    }).returning();
+
+    await db.insert(clientSettings).values({
+      clientId: defaultClient.id,
+      slaAvailability: 99.0,
+      slaLatency: 80,
+      slaPacketLoss: 2,
+      slaRepairTime: 6,
+      dataRetentionDays: 180,
+    });
+
+    await db.insert(users).values({
+      email: "admin@defensoria.se.def.br",
+      passwordHash: hashPassword("admin123"),
+      name: "Administrador DPE/SE",
+      role: "admin",
+      clientId: defaultClient.id,
+      isActive: true,
+    });
+
+    const [sedeLink] = await db.insert(links).values({
+      clientId: defaultClient.id,
+      identifier: "sede",
+      name: "Sede Administrativa",
+      location: "Centro, Aracaju/SE",
+      address: "Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360",
+      ipBlock: "/29",
+      totalIps: 8,
+      usableIps: 6,
+      bandwidth: 200,
+      status: "operational",
+      uptime: 99.85,
+      currentDownload: 87.5,
+      currentUpload: 42.3,
+      latency: 42,
+      packetLoss: 0.12,
+      cpuUsage: 35,
+      memoryUsage: 48,
+      monitoringEnabled: true,
+      icmpInterval: 30,
+    }).returning();
+
+    const [centralLink] = await db.insert(links).values({
+      clientId: defaultClient.id,
+      identifier: "central",
+      name: "Central de Atendimento",
+      location: "Jardins, Aracaju/SE",
+      address: "Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010",
+      ipBlock: "/28",
+      totalIps: 16,
+      usableIps: 14,
+      bandwidth: 200,
+      status: "operational",
+      uptime: 99.72,
+      currentDownload: 125.8,
+      currentUpload: 78.4,
+      latency: 38,
+      packetLoss: 0.08,
+      cpuUsage: 42,
+      memoryUsage: 52,
+      monitoringEnabled: true,
+      icmpInterval: 30,
+    }).returning();
 
     const now = new Date();
     await db.insert(events).values([
       {
-        linkId: "sede",
+        linkId: sedeLink.id,
+        clientId: defaultClient.id,
         type: "info",
         title: "Manutenção preventiva concluída",
         description: "Atualização de firmware do equipamento CPE realizada com sucesso",
@@ -275,7 +445,8 @@ export class DatabaseStorage implements IStorage {
         resolvedAt: new Date(now.getTime() - 1 * 60 * 60 * 1000),
       },
       {
-        linkId: "central",
+        linkId: centralLink.id,
+        clientId: defaultClient.id,
         type: "warning",
         title: "Latência elevada detectada",
         description: "Latência acima de 60ms detectada por 10 minutos",
@@ -283,44 +454,12 @@ export class DatabaseStorage implements IStorage {
         resolved: true,
         resolvedAt: new Date(now.getTime() - 3.5 * 60 * 60 * 1000),
       },
-      {
-        linkId: "sede",
-        type: "info",
-        title: "Backup de configuração realizado",
-        description: "Backup automático das configurações do firewall",
-        timestamp: new Date(now.getTime() - 6 * 60 * 60 * 1000),
-        resolved: true,
-      },
-      {
-        linkId: "central",
-        type: "info",
-        title: "Certificado SSL renovado",
-        description: "Certificado SSL do portal de gerenciamento renovado automaticamente",
-        timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000),
-        resolved: true,
-      },
-      {
-        linkId: "sede",
-        type: "maintenance",
-        title: "Janela de manutenção agendada",
-        description: "Manutenção programada para atualização de patches de segurança",
-        timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-        resolved: true,
-      },
-      {
-        linkId: "central",
-        type: "critical",
-        title: "Indisponibilidade temporária",
-        description: "Link indisponível por 15 minutos devido a falha de roteamento",
-        timestamp: new Date(now.getTime() - 48 * 60 * 60 * 1000),
-        resolved: true,
-        resolvedAt: new Date(now.getTime() - 47.75 * 60 * 60 * 1000),
-      },
     ]);
 
     await db.insert(ddosEvents).values([
       {
-        linkId: "central",
+        linkId: centralLink.id,
+        clientId: defaultClient.id,
         attackType: "UDP Flood",
         startTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
         endTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
@@ -329,38 +468,19 @@ export class DatabaseStorage implements IStorage {
         sourceIps: 12500,
         blockedPackets: 8500000,
       },
-      {
-        linkId: "sede",
-        attackType: "SYN Flood",
-        startTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000),
-        endTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
-        peakBandwidth: 0.8,
-        mitigationStatus: "resolved",
-        sourceIps: 8200,
-        blockedPackets: 4200000,
-      },
-      {
-        linkId: "central",
-        attackType: "HTTP Flood",
-        startTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000),
-        endTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
-        peakBandwidth: 0.5,
-        mitigationStatus: "resolved",
-        sourceIps: 3500,
-        blockedPackets: 2100000,
-      },
     ]);
 
-    for (const linkId of ["sede", "central"]) {
-      const baseDownload = linkId === "sede" ? 85 : 120;
-      const baseUpload = linkId === "sede" ? 45 : 75;
+    for (const link of [sedeLink, centralLink]) {
+      const baseDownload = link.identifier === "sede" ? 85 : 120;
+      const baseUpload = link.identifier === "sede" ? 45 : 75;
       
       for (let i = 24; i >= 0; i--) {
         const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
         const variation = Math.sin(i * 0.5) * 20;
         
         await db.insert(metrics).values({
-          linkId,
+          linkId: link.id,
+          clientId: defaultClient.id,
           timestamp,
           download: Math.max(10, baseDownload + variation + Math.random() * 15),
           upload: Math.max(5, baseUpload + variation * 0.5 + Math.random() * 10),
@@ -372,6 +492,8 @@ export class DatabaseStorage implements IStorage {
         });
       }
     }
+
+    console.log("Initialized default client: DPE/SE with 2 links");
   }
 
   startMetricCollection(): void {
@@ -380,6 +502,8 @@ export class DatabaseStorage implements IStorage {
         const allLinks = await this.getLinks();
         
         for (const link of allLinks) {
+          if (!link.monitoringEnabled) continue;
+
           const variation = (Math.random() - 0.5) * 10;
           const newDownload = Math.max(10, Math.min(195, link.currentDownload + variation));
           const newUpload = Math.max(5, Math.min(195, link.currentUpload + variation * 0.5));
@@ -398,7 +522,7 @@ export class DatabaseStorage implements IStorage {
             memoryUsage: newMemoryUsage,
           });
 
-          await this.addMetric(link.id, {
+          await this.addMetric(link.id, link.clientId, {
             download: newDownload,
             upload: newUpload,
             latency: newLatency,
@@ -433,7 +557,7 @@ export class DatabaseStorage implements IStorage {
     console.log("Cleaned up data older than 6 months");
   }
 
-  async getLinkStatusDetail(linkId: string): Promise<LinkStatusDetail | undefined> {
+  async getLinkStatusDetail(linkId: number): Promise<LinkStatusDetail | undefined> {
     const link = await this.getLink(linkId);
     if (!link) return undefined;
 
@@ -463,7 +587,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async updateLinkFailureState(linkId: string, failureReason: string | null, failureSource: string | null): Promise<void> {
+  async updateLinkFailureState(linkId: number, failureReason: string | null, failureSource: string | null): Promise<void> {
     await db.update(links).set({
       failureReason,
       failureSource,
@@ -473,11 +597,14 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(links.id, linkId));
   }
 
-  async getIncidents(): Promise<Incident[]> {
+  async getIncidents(clientId?: number): Promise<Incident[]> {
+    if (clientId) {
+      return await db.select().from(incidents).where(eq(incidents.clientId, clientId)).orderBy(desc(incidents.openedAt));
+    }
     return await db.select().from(incidents).orderBy(desc(incidents.openedAt));
   }
 
-  async getLinkIncidents(linkId: string): Promise<Incident[]> {
+  async getLinkIncidents(linkId: number): Promise<Incident[]> {
     return await db
       .select()
       .from(incidents)
@@ -485,7 +612,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(incidents.openedAt));
   }
 
-  async getOpenIncidents(): Promise<Incident[]> {
+  async getOpenIncidents(clientId?: number): Promise<Incident[]> {
+    if (clientId) {
+      return await db.select().from(incidents).where(and(eq(incidents.clientId, clientId), isNull(incidents.closedAt))).orderBy(desc(incidents.openedAt));
+    }
     return await db
       .select()
       .from(incidents)
@@ -528,6 +658,15 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(incidents.id, id));
 
     await this.updateLinkFailureState(incident.linkId, null, null);
+  }
+
+  async getClientSettings(clientId: number): Promise<ClientSettings | undefined> {
+    const [settings] = await db.select().from(clientSettings).where(eq(clientSettings.clientId, clientId));
+    return settings || undefined;
+  }
+
+  async updateClientSettings(clientId: number, data: Partial<ClientSettings>): Promise<void> {
+    await db.update(clientSettings).set({ ...data, updatedAt: new Date() }).where(eq(clientSettings.clientId, clientId));
   }
 }
 
