@@ -42,14 +42,15 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { Link, Host, Client, User } from "@shared/schema";
 
-function LinkForm({ link, onSave, onClose, snmpProfiles }: { 
+function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: { 
   link?: Link; 
   onSave: (data: Partial<Link>) => void;
   onClose: () => void;
-  snmpProfiles?: Array<{ id: number; name: string }>;
+  snmpProfiles?: Array<{ id: number; name: string; clientId: number }>;
+  clients?: Client[];
 }) {
   const [formData, setFormData] = useState({
-    clientId: link?.clientId || 1,
+    clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
     identifier: link?.identifier || "",
     name: link?.name || "",
     location: link?.location || "",
@@ -67,8 +68,30 @@ function LinkForm({ link, onSave, onClose, snmpProfiles }: {
     snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
   });
 
+  const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId);
+
   return (
     <div className="space-y-4">
+      {clients && clients.length > 1 && (
+        <div className="space-y-2">
+          <Label htmlFor="clientId">Cliente</Label>
+          <Select
+            value={formData.clientId.toString()}
+            onValueChange={(value) => setFormData({ ...formData, clientId: parseInt(value, 10), snmpProfileId: null })}
+          >
+            <SelectTrigger data-testid="select-link-client">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="identifier">Identificador</Label>
@@ -174,7 +197,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles }: {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nenhum</SelectItem>
-                {snmpProfiles?.map((p) => (
+                {filteredSnmpProfiles?.map((p) => (
                   <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1148,9 +1171,8 @@ export default function Admin() {
                     setLinkDialogOpen(false);
                     setEditingLink(undefined);
                   }}
-                  snmpProfiles={allSnmpProfiles?.filter(p => 
-                    editingLink ? p.clientId === editingLink.clientId : true
-                  )}
+                  snmpProfiles={allSnmpProfiles}
+                  clients={clients}
                 />
               </DialogContent>
             </Dialog>
