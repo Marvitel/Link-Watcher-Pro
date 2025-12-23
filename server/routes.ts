@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { wanguardService } from "./wanguard";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -424,6 +425,110 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update client settings" });
+    }
+  });
+
+  app.post("/api/clients/:clientId/wanguard/test", async (req, res) => {
+    try {
+      const settings = await storage.getClientSettings(parseInt(req.params.clientId, 10));
+      if (!settings?.wanguardApiEndpoint || !settings?.wanguardApiUser || !settings?.wanguardApiPassword) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Configurações do Wanguard incompletas" 
+        });
+      }
+
+      wanguardService.configure({
+        endpoint: settings.wanguardApiEndpoint,
+        user: settings.wanguardApiUser,
+        password: settings.wanguardApiPassword,
+      });
+
+      const result = await wanguardService.testConnection();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro ao testar conexão com Wanguard" 
+      });
+    }
+  });
+
+  app.post("/api/clients/:clientId/wanguard/sync", async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const settings = await storage.getClientSettings(clientId);
+      
+      if (!settings?.wanguardEnabled) {
+        return res.status(400).json({ 
+          error: "Integração com Wanguard não está habilitada" 
+        });
+      }
+
+      if (!settings.wanguardApiEndpoint || !settings.wanguardApiUser || !settings.wanguardApiPassword) {
+        return res.status(400).json({ 
+          error: "Configurações do Wanguard incompletas" 
+        });
+      }
+
+      wanguardService.configure({
+        endpoint: settings.wanguardApiEndpoint,
+        user: settings.wanguardApiUser,
+        password: settings.wanguardApiPassword,
+      });
+
+      const anomalies = await wanguardService.getActiveAnomalies();
+      const links = await storage.getLinks(clientId);
+      
+      let syncedCount = 0;
+      for (const anomaly of anomalies) {
+        const matchingLink = links.find(link => 
+          link.ipBlock && anomaly.ip?.startsWith(link.ipBlock.split("/")[0].slice(0, -1))
+        );
+        
+        if (matchingLink) {
+          const existingEvent = await storage.getDDoSEventByWanguardId(anomaly.id);
+          if (!existingEvent) {
+            const eventData = wanguardService.mapAnomalyToEvent(anomaly, clientId, matchingLink.id);
+            await storage.createDDoSEvent(eventData);
+            syncedCount++;
+          }
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Sincronização concluída. ${syncedCount} novos eventos importados.`,
+        syncedCount 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao sincronizar com Wanguard" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/wanguard/anomalies", async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const settings = await storage.getClientSettings(clientId);
+      
+      if (!settings?.wanguardEnabled || !settings.wanguardApiEndpoint) {
+        return res.status(400).json({ error: "Wanguard não configurado" });
+      }
+
+      wanguardService.configure({
+        endpoint: settings.wanguardApiEndpoint,
+        user: settings.wanguardApiUser || "",
+        password: settings.wanguardApiPassword || "",
+      });
+
+      const status = req.query.status as string || "active";
+      const anomalies = status === "historical" 
+        ? await wanguardService.getHistoricalAnomalies()
+        : await wanguardService.getActiveAnomalies();
+
+      res.json(anomalies);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar anomalias do Wanguard" });
     }
   });
 

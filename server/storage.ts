@@ -23,6 +23,7 @@ import {
   type InsertHost,
   type InsertIncident,
   type InsertClientSettings,
+  type InsertDDoSEvent,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -283,6 +284,34 @@ export class DatabaseStorage {
       return await db.select().from(ddosEvents).where(eq(ddosEvents.clientId, clientId)).orderBy(desc(ddosEvents.startTime));
     }
     return await db.select().from(ddosEvents).orderBy(desc(ddosEvents.startTime));
+  }
+
+  async getDDoSEventByWanguardId(wanguardAnomalyId: number): Promise<DDoSEvent | null> {
+    const [event] = await db
+      .select()
+      .from(ddosEvents)
+      .where(eq(ddosEvents.wanguardAnomalyId, wanguardAnomalyId))
+      .limit(1);
+    return event || null;
+  }
+
+  async createDDoSEvent(data: InsertDDoSEvent & { startTime?: Date }): Promise<DDoSEvent> {
+    const [event] = await db.insert(ddosEvents).values({
+      linkId: data.linkId,
+      clientId: data.clientId,
+      attackType: data.attackType,
+      startTime: data.startTime || new Date(),
+      endTime: data.endTime,
+      peakBandwidth: data.peakBandwidth,
+      mitigationStatus: data.mitigationStatus || "detected",
+      sourceIps: data.sourceIps || 0,
+      blockedPackets: data.blockedPackets || 0,
+      wanguardAnomalyId: data.wanguardAnomalyId,
+      wanguardSensor: data.wanguardSensor,
+      targetIp: data.targetIp,
+      decoder: data.decoder,
+    }).returning();
+    return event;
   }
 
   async getSLAIndicators(clientId?: number): Promise<SLAIndicator[]> {
