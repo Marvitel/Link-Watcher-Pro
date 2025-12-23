@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart } from "@/components/bandwidth-chart";
@@ -11,10 +12,12 @@ import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import {
   Activity,
+  AlertTriangle,
   ArrowDownToLine,
   ArrowUpFromLine,
   Clock,
   Cpu,
+  FileWarning,
   Gauge,
   HardDrive,
   MapPin,
@@ -22,8 +25,42 @@ import {
   Percent,
   RefreshCw,
   Server,
+  Zap,
 } from "lucide-react";
-import type { Link, Metric, Event, SLAIndicator } from "@shared/schema";
+import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident } from "@shared/schema";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+function getFailureIcon(reason: string | null) {
+  switch (reason) {
+    case "falha_eletrica": return Zap;
+    case "rompimento_fibra": return Network;
+    case "falha_equipamento": return Server;
+    default: return AlertTriangle;
+  }
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case "aberto": return "destructive";
+    case "em_andamento": return "default";
+    case "aguardando_peca": return "secondary";
+    case "resolvido": return "outline";
+    case "cancelado": return "secondary";
+    default: return "default";
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case "aberto": return "Aberto";
+    case "em_andamento": return "Em Andamento";
+    case "aguardando_peca": return "Aguardando Peça";
+    case "resolvido": return "Resolvido";
+    case "cancelado": return "Cancelado";
+    default: return status;
+  }
+}
 
 export default function LinkDetail() {
   const [, params] = useRoute("/link/:id");
@@ -31,6 +68,11 @@ export default function LinkDetail() {
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
+    refetchInterval: 5000,
+  });
+
+  const { data: statusDetail } = useQuery<LinkStatusDetail>({
+    queryKey: ["/api/links", linkId, "status-detail"],
     refetchInterval: 5000,
   });
 
@@ -47,6 +89,11 @@ export default function LinkDetail() {
   const { data: slaIndicators } = useQuery<SLAIndicator[]>({
     queryKey: ["/api/links", linkId, "sla"],
     refetchInterval: 30000,
+  });
+
+  const { data: incidents } = useQuery<Incident[]>({
+    queryKey: ["/api/links", linkId, "incidents"],
+    refetchInterval: 10000,
   });
 
   const bandwidthData = metrics?.map((m) => ({
@@ -90,6 +137,11 @@ export default function LinkDetail() {
     );
   }
 
+  const failureInfo = statusDetail?.failureInfo || null;
+  const activeIncident = statusDetail?.activeIncident || null;
+  const hasFailure = failureInfo?.reason && failureInfo.reason !== null;
+  const FailureIcon = hasFailure ? getFailureIcon(failureInfo.reason) : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -108,6 +160,39 @@ export default function LinkDetail() {
           Atualizar
         </Button>
       </div>
+
+      {hasFailure && failureInfo && (
+        <Card className="border-destructive bg-destructive/5">
+          <CardContent className="flex items-center gap-4 py-4">
+            {FailureIcon && (
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                <FailureIcon className="w-6 h-6 text-destructive" />
+              </div>
+            )}
+            <div className="flex-1">
+              <h3 className="font-semibold text-destructive" data-testid="text-failure-reason">
+                {failureInfo.reasonLabel}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Fonte: {failureInfo.source === "olt" ? "Monitoramento OLT" : "Registro Manual"} 
+                {failureInfo.lastFailureAt && ` - ${formatDistanceToNow(new Date(failureInfo.lastFailureAt), { addSuffix: true, locale: ptBR })}`}
+              </p>
+            </div>
+            {activeIncident && (
+              <div className="text-right">
+                <Badge variant={getStatusColor(activeIncident.status) as "destructive" | "default" | "secondary" | "outline"}>
+                  {getStatusLabel(activeIncident.status)}
+                </Badge>
+                {activeIncident.erpTicketId && (
+                  <p className="text-xs text-muted-foreground mt-1" data-testid="text-erp-ticket">
+                    Ticket ERP: {activeIncident.erpTicketId}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -148,7 +233,7 @@ export default function LinkDetail() {
       </div>
 
       <Tabs defaultValue="bandwidth" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="bandwidth" data-testid="tab-bandwidth">
             Consumo de Banda
           </TabsTrigger>
@@ -160,6 +245,9 @@ export default function LinkDetail() {
           </TabsTrigger>
           <TabsTrigger value="events" data-testid="tab-events">
             Eventos
+          </TabsTrigger>
+          <TabsTrigger value="incidents" data-testid="tab-incidents">
+            Incidentes
           </TabsTrigger>
           <TabsTrigger value="sla" data-testid="tab-sla">
             SLA
@@ -324,6 +412,75 @@ export default function LinkDetail() {
             </CardHeader>
             <CardContent>
               <EventsTable events={events || []} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="incidents" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-lg">Histórico de Incidentes</CardTitle>
+              <Badge variant="outline" data-testid="badge-incidents-count">
+                {incidents?.length || 0} incidentes
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              {(!incidents || incidents.length === 0) ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <FileWarning className="w-10 h-10 mb-2 opacity-50" />
+                  <p>Nenhum incidente registrado para este link.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {incidents.map((incident) => {
+                    const IncidentIcon = getFailureIcon(incident.failureReason);
+                    return (
+                      <div 
+                        key={incident.id} 
+                        className="flex items-start gap-4 p-4 rounded-md border bg-card"
+                        data-testid={`incident-card-${incident.id}`}
+                      >
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <IncidentIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h4 className="font-medium">{incident.description || "Incidente sem descrição"}</h4>
+                            <Badge variant={getStatusColor(incident.status) as "destructive" | "default" | "secondary" | "outline"}>
+                              {getStatusLabel(incident.status)}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <p>
+                              Aberto: {formatDistanceToNow(new Date(incident.openedAt), { addSuffix: true, locale: ptBR })}
+                            </p>
+                            {incident.slaDeadline && (
+                              <p>
+                                Prazo SLA: {new Date(incident.slaDeadline).toLocaleString("pt-BR")}
+                              </p>
+                            )}
+                            {incident.erpTicketId && (
+                              <p className="flex items-center gap-1">
+                                Ticket ERP: <span className="font-mono">{incident.erpTicketId}</span>
+                                {incident.erpTicketStatus && (
+                                  <Badge variant="outline" className="ml-1 text-xs">
+                                    {incident.erpTicketStatus}
+                                  </Badge>
+                                )}
+                              </p>
+                            )}
+                            {incident.closedAt && (
+                              <p>
+                                Resolvido: {formatDistanceToNow(new Date(incident.closedAt), { addSuffix: true, locale: ptBR })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
