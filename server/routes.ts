@@ -409,7 +409,8 @@ export async function registerRoutes(
       const clientSettings = await storage.getClientSettings(validatedData.clientId);
       if (clientSettings?.voalleEnabled && clientSettings?.voalleAutoCreateTicket) {
         const eventTypeCode = mapIncidentReasonToEventType(validatedData.failureReason || "link_down");
-        const eventSetting = await storage.getClientEventSetting(validatedData.clientId, eventTypeCode);
+        const eventType = await storage.getEventTypeByCode(eventTypeCode);
+        const eventSetting = eventType ? await storage.getClientEventSetting(validatedData.clientId, eventType.id) : undefined;
         const shouldAutoCreate = eventSetting?.autoCreateTicket ?? true;
         
         if (shouldAutoCreate) {

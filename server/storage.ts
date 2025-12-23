@@ -863,9 +863,7 @@ export class DatabaseStorage {
     if (!host) return;
     
     const mibConfig = await this.getMibConfig(mibConfigId);
-    if (!mibConfig) return;
-    const snmpProfile = await this.getSnmpProfile(mibConfig.snmpProfileId);
-    if (!snmpProfile || snmpProfile.clientId !== host.clientId) return;
+    if (!mibConfig || mibConfig.clientId !== host.clientId) return;
     
     const existing = await db.select().from(hostMibConfigs).where(
       and(eq(hostMibConfigs.hostId, hostId), eq(hostMibConfigs.mibConfigId, mibConfigId))
@@ -887,9 +885,7 @@ export class DatabaseStorage {
     await db.delete(hostMibConfigs).where(eq(hostMibConfigs.hostId, hostId));
     for (const mibConfigId of mibConfigIds) {
       const mibConfig = await this.getMibConfig(mibConfigId);
-      if (!mibConfig) continue;
-      const snmpProfile = await this.getSnmpProfile(mibConfig.snmpProfileId);
-      if (!snmpProfile || snmpProfile.clientId !== host.clientId) continue;
+      if (!mibConfig || mibConfig.clientId !== host.clientId) continue;
       await db.insert(hostMibConfigs).values({ hostId, mibConfigId });
     }
   }
