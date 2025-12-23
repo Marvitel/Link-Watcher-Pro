@@ -21,8 +21,11 @@ Preferred communication style: Simple, everyday language (Portuguese).
 
 ### Multi-Tenant Architecture
 - **Tenant Isolation**: Cada cliente (tenant) tem seus dados isolados via clientId
-- **Tables with clientId**: clients, users, links, hosts, metrics, events, incidents, ddosEvents
+- **Super Admin**: Usuários com isSuperAdmin=true podem gerenciar todos os clientes (Marvitel staff)
+- **RBAC**: Sistema de grupos e permissões para controle de acesso granular
+- **Tables with clientId**: clients, users, links, hosts, metrics, events, incidents, ddosEvents, groups, snmpProfiles, mibConfigs, clientEventSettings
 - **Admin Interface**: Gerenciamento de clientes, links e hosts via /admin
+- **Super Admin Credentials**: admin@marvitel.com.br / marvitel123
 
 ### Frontend Architecture
 - **Framework**: React 18 with TypeScript
@@ -43,7 +46,10 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
 - **Schema Location**: `shared/schema.ts` (shared between client and server)
-- **Tables**: clients, users, links, hosts, metrics, events, ddosEvents, incidents, clientSettings
+- **Core Tables**: clients, users, links, hosts, metrics, events, ddosEvents, incidents, clientSettings
+- **RBAC Tables**: groups, groupMembers, permissions, groupPermissions
+- **SNMP Tables**: snmpProfiles, mibConfigs, hostMibConfigs
+- **Event Config Tables**: eventTypes, clientEventSettings
 
 ### Key Design Patterns
 - **Monorepo Structure**: Client code in `client/`, server in `server/`, shared types in `shared/`

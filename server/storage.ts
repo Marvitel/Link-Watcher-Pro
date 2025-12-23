@@ -8,6 +8,15 @@ import {
   ddosEvents,
   incidents,
   clientSettings,
+  groups,
+  groupMembers,
+  permissions,
+  groupPermissions,
+  snmpProfiles,
+  mibConfigs,
+  hostMibConfigs,
+  eventTypes,
+  clientEventSettings,
   type Client,
   type User,
   type Link,
@@ -17,6 +26,15 @@ import {
   type DDoSEvent,
   type Incident,
   type ClientSettings,
+  type Group,
+  type GroupMember,
+  type Permission,
+  type GroupPermission,
+  type SnmpProfile,
+  type MibConfig,
+  type HostMibConfig,
+  type EventType,
+  type ClientEventSetting,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -24,6 +42,11 @@ import {
   type InsertIncident,
   type InsertClientSettings,
   type InsertDDoSEvent,
+  type InsertGroup,
+  type InsertSnmpProfile,
+  type InsertMibConfig,
+  type InsertEventType,
+  type InsertClientEventSetting,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -180,6 +203,7 @@ export class DatabaseStorage {
       role: user.role as "admin" | "operator" | "viewer",
       clientId: user.clientId,
       clientName,
+      isSuperAdmin: user.isSuperAdmin,
     };
   }
 
@@ -387,6 +411,10 @@ export class DatabaseStorage {
   }
 
   async initializeDefaultData(): Promise<void> {
+    await this.initializeDefaultPermissions();
+    await this.initializeDefaultEventTypes();
+    await this.initializeSuperAdmin();
+    
     const existingClients = await this.getClients();
     if (existingClients.length > 0) return;
 
@@ -696,6 +724,277 @@ export class DatabaseStorage {
 
   async updateClientSettings(clientId: number, data: Partial<ClientSettings>): Promise<void> {
     await db.update(clientSettings).set({ ...data, updatedAt: new Date() }).where(eq(clientSettings.clientId, clientId));
+  }
+
+  async getGroups(clientId?: number): Promise<Group[]> {
+    if (clientId) {
+      return await db.select().from(groups).where(eq(groups.clientId, clientId));
+    }
+    return await db.select().from(groups);
+  }
+
+  async getGroup(id: number): Promise<Group | undefined> {
+    const [group] = await db.select().from(groups).where(eq(groups.id, id));
+    return group || undefined;
+  }
+
+  async createGroup(data: InsertGroup): Promise<Group> {
+    const [group] = await db.insert(groups).values(data).returning();
+    return group;
+  }
+
+  async updateGroup(id: number, data: Partial<Group>): Promise<void> {
+    await db.update(groups).set({ ...data, updatedAt: new Date() }).where(eq(groups.id, id));
+  }
+
+  async deleteGroup(id: number): Promise<void> {
+    await db.delete(groupMembers).where(eq(groupMembers.groupId, id));
+    await db.delete(groupPermissions).where(eq(groupPermissions.groupId, id));
+    await db.delete(groups).where(eq(groups.id, id));
+  }
+
+  async getGroupMembers(groupId: number): Promise<User[]> {
+    const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, groupId));
+    const userIds = members.map(m => m.userId);
+    if (userIds.length === 0) return [];
+    const allUsers = await db.select().from(users);
+    return allUsers.filter(u => userIds.includes(u.id));
+  }
+
+  async addGroupMember(groupId: number, userId: number): Promise<void> {
+    const existing = await db.select().from(groupMembers).where(
+      and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId))
+    );
+    if (existing.length > 0) return;
+    await db.insert(groupMembers).values({ groupId, userId });
+  }
+
+  async removeGroupMember(groupId: number, userId: number): Promise<void> {
+    await db.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)));
+  }
+
+  async getPermissions(): Promise<Permission[]> {
+    return await db.select().from(permissions);
+  }
+
+  async getGroupPermissions(groupId: number): Promise<Permission[]> {
+    const gps = await db.select().from(groupPermissions).where(eq(groupPermissions.groupId, groupId));
+    const permIds = gps.map(gp => gp.permissionId);
+    if (permIds.length === 0) return [];
+    const allPerms = await db.select().from(permissions);
+    return allPerms.filter(p => permIds.includes(p.id));
+  }
+
+  async setGroupPermissions(groupId: number, permissionIds: number[]): Promise<void> {
+    await db.delete(groupPermissions).where(eq(groupPermissions.groupId, groupId));
+    for (const permissionId of permissionIds) {
+      await db.insert(groupPermissions).values({ groupId, permissionId });
+    }
+  }
+
+  async getUserPermissions(userId: number): Promise<string[]> {
+    const memberships = await db.select().from(groupMembers).where(eq(groupMembers.userId, userId));
+    if (memberships.length === 0) return [];
+    
+    const allPerms: string[] = [];
+    for (const membership of memberships) {
+      const perms = await this.getGroupPermissions(membership.groupId);
+      allPerms.push(...perms.map(p => p.code));
+    }
+    return Array.from(new Set(allPerms));
+  }
+
+  async getSnmpProfiles(clientId: number): Promise<SnmpProfile[]> {
+    return await db.select().from(snmpProfiles).where(eq(snmpProfiles.clientId, clientId));
+  }
+
+  async getSnmpProfile(id: number): Promise<SnmpProfile | undefined> {
+    const [profile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, id));
+    return profile || undefined;
+  }
+
+  async createSnmpProfile(data: InsertSnmpProfile): Promise<SnmpProfile> {
+    const [profile] = await db.insert(snmpProfiles).values(data).returning();
+    return profile;
+  }
+
+  async updateSnmpProfile(id: number, data: Partial<SnmpProfile>): Promise<void> {
+    await db.update(snmpProfiles).set({ ...data, updatedAt: new Date() }).where(eq(snmpProfiles.id, id));
+  }
+
+  async deleteSnmpProfile(id: number): Promise<void> {
+    await db.delete(snmpProfiles).where(eq(snmpProfiles.id, id));
+  }
+
+  async getMibConfigs(clientId: number): Promise<MibConfig[]> {
+    return await db.select().from(mibConfigs).where(eq(mibConfigs.clientId, clientId));
+  }
+
+  async getMibConfig(id: number): Promise<MibConfig | undefined> {
+    const [config] = await db.select().from(mibConfigs).where(eq(mibConfigs.id, id));
+    return config || undefined;
+  }
+
+  async createMibConfig(data: InsertMibConfig): Promise<MibConfig> {
+    const [config] = await db.insert(mibConfigs).values(data).returning();
+    return config;
+  }
+
+  async updateMibConfig(id: number, data: Partial<MibConfig>): Promise<void> {
+    await db.update(mibConfigs).set({ ...data, updatedAt: new Date() }).where(eq(mibConfigs.id, id));
+  }
+
+  async deleteMibConfig(id: number): Promise<void> {
+    await db.delete(hostMibConfigs).where(eq(hostMibConfigs.mibConfigId, id));
+    await db.delete(mibConfigs).where(eq(mibConfigs.id, id));
+  }
+
+  async getHostMibConfigs(hostId: number): Promise<HostMibConfig[]> {
+    return await db.select().from(hostMibConfigs).where(eq(hostMibConfigs.hostId, hostId));
+  }
+
+  async addHostMibConfig(hostId: number, mibConfigId: number): Promise<void> {
+    const host = await this.getHost(hostId);
+    if (!host) return;
+    
+    const mibConfig = await this.getMibConfig(mibConfigId);
+    if (!mibConfig) return;
+    const snmpProfile = await this.getSnmpProfile(mibConfig.snmpProfileId);
+    if (!snmpProfile || snmpProfile.clientId !== host.clientId) return;
+    
+    const existing = await db.select().from(hostMibConfigs).where(
+      and(eq(hostMibConfigs.hostId, hostId), eq(hostMibConfigs.mibConfigId, mibConfigId))
+    );
+    if (existing.length > 0) return;
+    await db.insert(hostMibConfigs).values({ hostId, mibConfigId });
+  }
+
+  async removeHostMibConfig(hostId: number, mibConfigId: number): Promise<void> {
+    await db.delete(hostMibConfigs).where(
+      and(eq(hostMibConfigs.hostId, hostId), eq(hostMibConfigs.mibConfigId, mibConfigId))
+    );
+  }
+
+  async setHostMibConfigs(hostId: number, mibConfigIds: number[]): Promise<void> {
+    const host = await this.getHost(hostId);
+    if (!host) return;
+    
+    await db.delete(hostMibConfigs).where(eq(hostMibConfigs.hostId, hostId));
+    for (const mibConfigId of mibConfigIds) {
+      const mibConfig = await this.getMibConfig(mibConfigId);
+      if (!mibConfig) continue;
+      const snmpProfile = await this.getSnmpProfile(mibConfig.snmpProfileId);
+      if (!snmpProfile || snmpProfile.clientId !== host.clientId) continue;
+      await db.insert(hostMibConfigs).values({ hostId, mibConfigId });
+    }
+  }
+
+  async getEventTypes(): Promise<EventType[]> {
+    return await db.select().from(eventTypes);
+  }
+
+  async getEventType(id: number): Promise<EventType | undefined> {
+    const [eventType] = await db.select().from(eventTypes).where(eq(eventTypes.id, id));
+    return eventType || undefined;
+  }
+
+  async getEventTypeByCode(code: string): Promise<EventType | undefined> {
+    const [eventType] = await db.select().from(eventTypes).where(eq(eventTypes.code, code));
+    return eventType || undefined;
+  }
+
+  async createEventType(data: InsertEventType): Promise<EventType> {
+    const [eventType] = await db.insert(eventTypes).values(data).returning();
+    return eventType;
+  }
+
+  async getClientEventSettings(clientId: number): Promise<ClientEventSetting[]> {
+    return await db.select().from(clientEventSettings).where(eq(clientEventSettings.clientId, clientId));
+  }
+
+  async getClientEventSetting(clientId: number, eventTypeId: number): Promise<ClientEventSetting | undefined> {
+    const [setting] = await db.select().from(clientEventSettings).where(
+      and(eq(clientEventSettings.clientId, clientId), eq(clientEventSettings.eventTypeId, eventTypeId))
+    );
+    return setting || undefined;
+  }
+
+  async upsertClientEventSetting(data: InsertClientEventSetting): Promise<ClientEventSetting> {
+    const existing = await this.getClientEventSetting(data.clientId, data.eventTypeId);
+    if (existing) {
+      await db.update(clientEventSettings).set({ ...data, updatedAt: new Date() }).where(eq(clientEventSettings.id, existing.id));
+      return { ...existing, ...data };
+    }
+    const [setting] = await db.insert(clientEventSettings).values(data).returning();
+    return setting;
+  }
+
+  async deleteClientEventSetting(clientId: number, eventTypeId: number): Promise<void> {
+    await db.delete(clientEventSettings).where(
+      and(eq(clientEventSettings.clientId, clientId), eq(clientEventSettings.eventTypeId, eventTypeId))
+    );
+  }
+
+  async resetClientEventSettings(clientId: number): Promise<void> {
+    await db.delete(clientEventSettings).where(eq(clientEventSettings.clientId, clientId));
+  }
+
+  async initializeDefaultEventTypes(): Promise<void> {
+    const existingTypes = await this.getEventTypes();
+    if (existingTypes.length > 0) return;
+
+    const defaultTypes: InsertEventType[] = [
+      { code: "link_down", name: "Link Indisponível", category: "connectivity", severity: "critical" },
+      { code: "link_degraded", name: "Link Degradado", category: "connectivity", severity: "high" },
+      { code: "high_latency", name: "Alta Latência", category: "performance", severity: "medium" },
+      { code: "packet_loss", name: "Perda de Pacotes", category: "performance", severity: "high" },
+      { code: "ddos_detected", name: "Ataque DDoS Detectado", category: "security", severity: "critical" },
+      { code: "host_unreachable", name: "Host Inacessível", category: "connectivity", severity: "high" },
+      { code: "sla_breach", name: "Violação de SLA", category: "sla", severity: "high" },
+    ];
+
+    for (const eventType of defaultTypes) {
+      await this.createEventType(eventType);
+    }
+  }
+
+  async initializeDefaultPermissions(): Promise<void> {
+    const existingPerms = await this.getPermissions();
+    if (existingPerms.length > 0) return;
+
+    const defaultPerms = [
+      { code: "dashboard.view", name: "Visualizar Dashboard", category: "dashboard" },
+      { code: "links.view", name: "Visualizar Links", category: "links" },
+      { code: "links.manage", name: "Gerenciar Links", category: "links" },
+      { code: "hosts.view", name: "Visualizar Hosts", category: "hosts" },
+      { code: "hosts.manage", name: "Gerenciar Hosts", category: "hosts" },
+      { code: "incidents.view", name: "Visualizar Incidentes", category: "incidents" },
+      { code: "incidents.manage", name: "Gerenciar Incidentes", category: "incidents" },
+      { code: "security.view", name: "Visualizar Segurança", category: "security" },
+      { code: "sla.view", name: "Visualizar SLA", category: "sla" },
+      { code: "admin.view", name: "Visualizar Admin", category: "admin" },
+      { code: "admin.manage", name: "Gerenciar Admin", category: "admin" },
+    ];
+
+    for (const perm of defaultPerms) {
+      await db.insert(permissions).values(perm);
+    }
+  }
+
+  async initializeSuperAdmin(): Promise<void> {
+    const existing = await db.select().from(users).where(eq(users.email, "admin@marvitel.com.br"));
+    if (existing.length > 0) return;
+    
+    await db.insert(users).values({
+      email: "admin@marvitel.com.br",
+      passwordHash: hashPassword("marvitel123"),
+      name: "Super Admin Marvitel",
+      role: "admin",
+      clientId: null,
+      isSuperAdmin: true,
+      isActive: true,
+    });
+    console.log("Initialized super admin user");
   }
 }
 

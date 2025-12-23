@@ -23,10 +23,43 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: varchar("role", { length: 20 }).notNull().default("viewer"),
   clientId: integer("client_id"),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const groups = pgTable("groups", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const groupMembers = pgTable("group_members", {
+  id: serial("id").primaryKey(),
+  groupId: integer("group_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(),
+});
+
+export const groupPermissions = pgTable("group_permissions", {
+  id: serial("id").primaryKey(),
+  groupId: integer("group_id").notNull(),
+  permissionId: integer("permission_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const links = pgTable("links", {
@@ -72,8 +105,52 @@ export const hosts = pgTable("hosts", {
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   lastStatus: varchar("last_status", { length: 20 }).notNull().default("unknown"),
   lastCheckedAt: timestamp("last_checked_at"),
+  snmpProfileId: integer("snmp_profile_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const snmpProfiles = pgTable("snmp_profiles", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  version: varchar("version", { length: 10 }).notNull().default("v2c"),
+  port: integer("port").notNull().default(161),
+  community: varchar("community", { length: 100 }),
+  securityLevel: varchar("security_level", { length: 20 }),
+  authProtocol: varchar("auth_protocol", { length: 10 }),
+  authPassword: text("auth_password"),
+  privProtocol: varchar("priv_protocol", { length: 10 }),
+  privPassword: text("priv_password"),
+  username: varchar("username", { length: 100 }),
+  timeout: integer("timeout").notNull().default(5000),
+  retries: integer("retries").notNull().default(3),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const mibConfigs = pgTable("mib_configs", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  oid: varchar("oid", { length: 255 }).notNull(),
+  metricType: varchar("metric_type", { length: 50 }).notNull(),
+  unit: varchar("unit", { length: 20 }),
+  scaleFactor: real("scale_factor").notNull().default(1),
+  pollInterval: integer("poll_interval").notNull().default(60),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const hostMibConfigs = pgTable("host_mib_configs", {
+  id: serial("id").primaryKey(),
+  hostId: integer("host_id").notNull(),
+  mibConfigId: integer("mib_config_id").notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const metrics = pgTable("metrics", {
@@ -167,6 +244,31 @@ export const clientSettings = pgTable("client_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const eventTypes = pgTable("event_types", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  severity: varchar("severity", { length: 20 }).notNull().default("medium"),
+  category: varchar("category", { length: 50 }).notNull(),
+  isSystem: boolean("is_system").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const clientEventSettings = pgTable("client_event_settings", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  eventTypeId: integer("event_type_id").notNull(),
+  autoCreateTicket: boolean("auto_create_ticket").notNull().default(false),
+  voalleSolicitationTypeCode: varchar("voalle_solicitation_type_code", { length: 50 }),
+  notifyEmail: boolean("notify_email").notNull().default(true),
+  notifySms: boolean("notify_sms").notNull().default(false),
+  priority: varchar("priority", { length: 20 }).notNull().default("media"),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
 export const insertLinkSchema = createInsertSchema(links).omit({ id: true, lastUpdated: true, createdAt: true });
@@ -176,6 +278,15 @@ export const insertEventSchema = createInsertSchema(events).omit({ id: true, tim
 export const insertDDoSEventSchema = createInsertSchema(ddosEvents).omit({ id: true, startTime: true });
 export const insertIncidentSchema = createInsertSchema(incidents).omit({ id: true, openedAt: true, lastUpdateAt: true });
 export const insertClientSettingsSchema = createInsertSchema(clientSettings).omit({ id: true, updatedAt: true });
+export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGroupMemberSchema = createInsertSchema(groupMembers).omit({ id: true, createdAt: true });
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true });
+export const insertGroupPermissionSchema = createInsertSchema(groupPermissions).omit({ id: true, createdAt: true });
+export const insertSnmpProfileSchema = createInsertSchema(snmpProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMibConfigSchema = createInsertSchema(mibConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertHostMibConfigSchema = createInsertSchema(hostMibConfigs).omit({ id: true, createdAt: true });
+export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: true, createdAt: true });
+export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -186,6 +297,15 @@ export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type InsertDDoSEvent = z.infer<typeof insertDDoSEventSchema>;
 export type InsertIncident = z.infer<typeof insertIncidentSchema>;
 export type InsertClientSettings = z.infer<typeof insertClientSettingsSchema>;
+export type InsertGroup = z.infer<typeof insertGroupSchema>;
+export type InsertGroupMember = z.infer<typeof insertGroupMemberSchema>;
+export type InsertPermission = z.infer<typeof insertPermissionSchema>;
+export type InsertGroupPermission = z.infer<typeof insertGroupPermissionSchema>;
+export type InsertSnmpProfile = z.infer<typeof insertSnmpProfileSchema>;
+export type InsertMibConfig = z.infer<typeof insertMibConfigSchema>;
+export type InsertHostMibConfig = z.infer<typeof insertHostMibConfigSchema>;
+export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
+export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -196,6 +316,15 @@ export type Event = typeof events.$inferSelect;
 export type DDoSEvent = typeof ddosEvents.$inferSelect;
 export type Incident = typeof incidents.$inferSelect;
 export type ClientSettings = typeof clientSettings.$inferSelect;
+export type Group = typeof groups.$inferSelect;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type Permission = typeof permissions.$inferSelect;
+export type GroupPermission = typeof groupPermissions.$inferSelect;
+export type SnmpProfile = typeof snmpProfiles.$inferSelect;
+export type MibConfig = typeof mibConfigs.$inferSelect;
+export type HostMibConfig = typeof hostMibConfigs.$inferSelect;
+export type EventType = typeof eventTypes.$inferSelect;
+export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 
 export type UserRole = "admin" | "operator" | "viewer";
 export type LinkStatus = "operational" | "degraded" | "down" | "maintenance";
@@ -243,6 +372,8 @@ export interface AuthUser {
   role: UserRole;
   clientId: number | null;
   clientName?: string;
+  isSuperAdmin: boolean;
+  permissions?: string[];
 }
 
 export interface LoginCredentials {
