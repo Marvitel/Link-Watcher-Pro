@@ -7,6 +7,7 @@ interface ClientContextType {
   setSelectedClient: (id: number | null, name: string | null) => void;
   clearSelectedClient: () => void;
   isViewingAsClient: boolean;
+  isEditable: boolean;
 }
 
 const ClientContext = createContext<ClientContextType>({
@@ -15,6 +16,7 @@ const ClientContext = createContext<ClientContextType>({
   setSelectedClient: () => {},
   clearSelectedClient: () => {},
   isViewingAsClient: false,
+  isEditable: false,
 });
 
 export function ClientProvider({ children }: { children: ReactNode }) {
@@ -34,6 +36,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
 
   const effectiveClientId = isSuperAdmin ? selectedClientId : user?.clientId || null;
   const isViewingAsClient = isSuperAdmin && selectedClientId !== null;
+  const isEditable = isSuperAdmin && selectedClientId !== null;
 
   return (
     <ClientContext.Provider value={{
@@ -42,6 +45,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       setSelectedClient,
       clearSelectedClient,
       isViewingAsClient,
+      isEditable,
     }}>
       {children}
     </ClientContext.Provider>
