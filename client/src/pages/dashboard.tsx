@@ -18,6 +18,21 @@ import {
 } from "lucide-react";
 import type { Link as LinkType, Event, DashboardStats, Metric } from "@shared/schema";
 
+function LinkCardWithMetrics({ link }: { link: LinkType }) {
+  const { data: metrics } = useQuery<Metric[]>({
+    queryKey: ["/api/links", link.id, "metrics"],
+    refetchInterval: 5000,
+  });
+
+  const metricsHistory = metrics?.map((m) => ({
+    timestamp: m.timestamp,
+    download: m.download,
+    upload: m.upload,
+  })) || [];
+
+  return <LinkCard link={link} metricsHistory={metricsHistory} />;
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/stats"],
@@ -33,33 +48,6 @@ export default function Dashboard() {
     queryKey: ["/api/events"],
     refetchInterval: 10000,
   });
-
-  const firstLink = links?.[0];
-  const secondLink = links?.[1];
-
-  const { data: firstLinkMetrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", firstLink?.id, "metrics"],
-    enabled: !!firstLink?.id,
-    refetchInterval: 5000,
-  });
-
-  const { data: secondLinkMetrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", secondLink?.id, "metrics"],
-    enabled: !!secondLink?.id,
-    refetchInterval: 5000,
-  });
-
-  const firstLinkHistory = firstLinkMetrics?.map((m) => ({
-    timestamp: m.timestamp,
-    download: m.download,
-    upload: m.upload,
-  })) || [];
-
-  const secondLinkHistory = secondLinkMetrics?.map((m) => ({
-    timestamp: m.timestamp,
-    download: m.download,
-    upload: m.upload,
-  })) || [];
 
   return (
     <div className="space-y-6">
@@ -163,11 +151,18 @@ export default function Dashboard() {
               </Card>
             ))}
           </>
-        ) : (
+        ) : links && links.length > 0 ? (
           <>
-            {firstLink && <LinkCard link={firstLink} metricsHistory={firstLinkHistory} />}
-            {secondLink && <LinkCard link={secondLink} metricsHistory={secondLinkHistory} />}
+            {links.map((link) => (
+              <LinkCardWithMetrics key={link.id} link={link} />
+            ))}
           </>
+        ) : (
+          <Card className="lg:col-span-2">
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Nenhum link cadastrado. Acesse a administração para adicionar links.
+            </CardContent>
+          </Card>
         )}
       </div>
 
