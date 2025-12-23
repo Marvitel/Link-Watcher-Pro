@@ -3,12 +3,17 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
 import { VoalleService } from "./voalle";
+import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission } from "./middleware/auth";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
   insertUserSchema, 
   insertLinkSchema, 
   insertHostSchema,
+  insertGroupSchema,
+  insertSnmpProfileSchema,
+  insertMibConfigSchema,
+  insertClientEventSettingSchema,
   type AuthUser 
 } from "@shared/schema";
 
@@ -668,6 +673,281 @@ export async function registerRoutes(
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Erro ao criar chamado no Voalle" });
+    }
+  });
+
+  app.get("/api/super-admin/users", requireSuperAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getUsers();
+      res.json(allUsers.map(u => ({ ...u, passwordHash: undefined })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch all users" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/groups", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const groupList = await storage.getGroups(clientId);
+      res.json(groupList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch groups" });
+    }
+  });
+
+  app.post("/api/clients/:clientId/groups", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const data = insertGroupSchema.parse({ ...req.body, clientId });
+      const group = await storage.createGroup(data);
+      res.status(201).json(group);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid group data" });
+    }
+  });
+
+  app.patch("/api/clients/:clientId/groups/:groupId", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      await storage.updateGroup(groupId, req.body);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update group" });
+    }
+  });
+
+  app.delete("/api/clients/:clientId/groups/:groupId", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      await storage.deleteGroup(groupId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete group" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/groups/:groupId/members", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const members = await storage.getGroupMembers(groupId);
+      res.json(members.map(u => ({ ...u, passwordHash: undefined })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch group members" });
+    }
+  });
+
+  app.post("/api/clients/:clientId/groups/:groupId/members", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const { userId } = req.body;
+      await storage.addGroupMember(groupId, userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add group member" });
+    }
+  });
+
+  app.delete("/api/clients/:clientId/groups/:groupId/members/:userId", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const userId = parseInt(req.params.userId, 10);
+      await storage.removeGroupMember(groupId, userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to remove group member" });
+    }
+  });
+
+  app.get("/api/permissions", requireAuth, async (req, res) => {
+    try {
+      const permissionList = await storage.getPermissions();
+      res.json(permissionList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch permissions" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/groups/:groupId/permissions", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const perms = await storage.getGroupPermissions(groupId);
+      res.json(perms);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch group permissions" });
+    }
+  });
+
+  app.put("/api/clients/:clientId/groups/:groupId/permissions", requireClientAccess, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.groupId, 10);
+      const { permissionIds } = req.body;
+      await storage.setGroupPermissions(groupId, permissionIds);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to set group permissions" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/snmp-profiles", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const profiles = await storage.getSnmpProfiles(clientId);
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch SNMP profiles" });
+    }
+  });
+
+  app.post("/api/clients/:clientId/snmp-profiles", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const data = insertSnmpProfileSchema.parse({ ...req.body, clientId });
+      const profile = await storage.createSnmpProfile(data);
+      res.status(201).json(profile);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid SNMP profile data" });
+    }
+  });
+
+  app.patch("/api/clients/:clientId/snmp-profiles/:profileId", requireClientAccess, async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId, 10);
+      await storage.updateSnmpProfile(profileId, req.body);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update SNMP profile" });
+    }
+  });
+
+  app.delete("/api/clients/:clientId/snmp-profiles/:profileId", requireClientAccess, async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId, 10);
+      await storage.deleteSnmpProfile(profileId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete SNMP profile" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/snmp-profiles/:profileId/mib-configs", requireClientAccess, async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId, 10);
+      const configs = await storage.getMibConfigs(profileId);
+      res.json(configs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch MIB configs" });
+    }
+  });
+
+  app.post("/api/clients/:clientId/snmp-profiles/:profileId/mib-configs", requireClientAccess, async (req, res) => {
+    try {
+      const profileId = parseInt(req.params.profileId, 10);
+      const data = insertMibConfigSchema.parse({ ...req.body, snmpProfileId: profileId });
+      const config = await storage.createMibConfig(data);
+      res.status(201).json(config);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid MIB config data" });
+    }
+  });
+
+  app.patch("/api/clients/:clientId/mib-configs/:configId", requireClientAccess, async (req, res) => {
+    try {
+      const configId = parseInt(req.params.configId, 10);
+      await storage.updateMibConfig(configId, req.body);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update MIB config" });
+    }
+  });
+
+  app.delete("/api/clients/:clientId/mib-configs/:configId", requireClientAccess, async (req, res) => {
+    try {
+      const configId = parseInt(req.params.configId, 10);
+      await storage.deleteMibConfig(configId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete MIB config" });
+    }
+  });
+
+  app.get("/api/hosts/:hostId/mib-configs", requireAuth, async (req, res) => {
+    try {
+      const hostId = parseInt(req.params.hostId, 10);
+      const host = await storage.getHost(hostId);
+      if (!host) {
+        return res.status(404).json({ error: "Host not found" });
+      }
+      if (!req.user?.isSuperAdmin && req.user?.clientId !== host.clientId) {
+        return res.status(403).json({ error: "Acesso negado a este host" });
+      }
+      const configs = await storage.getHostMibConfigs(hostId);
+      res.json(configs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch host MIB configs" });
+    }
+  });
+
+  app.put("/api/hosts/:hostId/mib-configs", requireAuth, async (req, res) => {
+    try {
+      const hostId = parseInt(req.params.hostId, 10);
+      const host = await storage.getHost(hostId);
+      if (!host) {
+        return res.status(404).json({ error: "Host not found" });
+      }
+      if (!req.user?.isSuperAdmin && req.user?.clientId !== host.clientId) {
+        return res.status(403).json({ error: "Acesso negado a este host" });
+      }
+      const { mibConfigIds } = req.body;
+      await storage.setHostMibConfigs(hostId, mibConfigIds);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to set host MIB configs" });
+    }
+  });
+
+  app.get("/api/event-types", requireAuth, async (req, res) => {
+    try {
+      const types = await storage.getEventTypes();
+      res.json(types);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch event types" });
+    }
+  });
+
+  app.get("/api/clients/:clientId/event-settings", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const settings = await storage.getClientEventSettings(clientId);
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch event settings" });
+    }
+  });
+
+  app.put("/api/clients/:clientId/event-settings/:eventTypeId", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const eventTypeId = parseInt(req.params.eventTypeId, 10);
+      const data = insertClientEventSettingSchema.parse({ 
+        ...req.body, 
+        clientId, 
+        eventTypeId 
+      });
+      const setting = await storage.upsertClientEventSetting(data);
+      res.json(setting);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid event setting data" });
+    }
+  });
+
+  app.delete("/api/clients/:clientId/event-settings/:eventTypeId", requireClientAccess, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const eventTypeId = parseInt(req.params.eventTypeId, 10);
+      await storage.deleteClientEventSetting(clientId, eventTypeId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete event setting" });
     }
   });
 
