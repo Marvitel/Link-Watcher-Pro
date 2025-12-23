@@ -1,6 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getQueryFn } from "./queryClient";
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from "react";
 
 interface AuthUser {
   id: number;
@@ -18,6 +16,8 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isClientAdmin: boolean;
   clientId: number | null;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,18 +26,62 @@ const AuthContext = createContext<AuthContextType>({
   isSuperAdmin: false,
   isClientAdmin: false,
   clientId: null,
+  login: async () => ({ success: false }),
+  logout: async () => {},
 });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading } = useQuery<{ user: AuthUser } | null>({
-    queryKey: ["/api/auth/me"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
-    retry: false,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-  });
+const AUTH_STORAGE_KEY = "link_monitor_auth_user";
 
-  const user = data?.user || null;
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        return { success: false, error: data.error || "Erro ao fazer login" };
+      }
+      
+      const data = await res.json();
+      const loggedUser = data.user as AuthUser;
+      
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(loggedUser));
+      setUser(loggedUser);
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: "Erro de conexão" };
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setUser(null);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      // Ignore logout errors
+    }
+  }, []);
 
   const value: AuthContextType = {
     user,
@@ -45,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isSuperAdmin: user?.isSuperAdmin || false,
     isClientAdmin: user?.role === "admin" && !user?.isSuperAdmin,
     clientId: user?.clientId || null,
+    login,
+    logout,
   };
 
   return (

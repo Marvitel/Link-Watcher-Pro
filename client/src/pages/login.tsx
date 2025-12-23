@@ -1,42 +1,39 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/lib/auth";
 import { Network, LogIn } from "lucide-react";
 
 export default function Login() {
   const { toast } = useToast();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const loginMutation = useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
-      return await apiRequest("POST", "/api/auth/login", credentials);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Login realizado com sucesso" });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: "Erro ao fazer login", 
-        description: error?.message || "Verifique suas credenciais",
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast({ title: "Preencha todos os campos", variant: "destructive" });
       return;
     }
-    loginMutation.mutate({ email, password });
+    
+    setIsLoading(true);
+    const result = await login(email, password);
+    setIsLoading(false);
+    
+    if (result.success) {
+      toast({ title: "Login realizado com sucesso" });
+    } else {
+      toast({ 
+        title: "Erro ao fazer login", 
+        description: result.error || "Verifique suas credenciais",
+        variant: "destructive" 
+      });
+    }
   };
 
   return (
@@ -80,10 +77,10 @@ export default function Login() {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={loginMutation.isPending}
+              disabled={isLoading}
               data-testid="button-login"
             >
-              {loginMutation.isPending ? (
+              {isLoading ? (
                 "Entrando..."
               ) : (
                 <>
