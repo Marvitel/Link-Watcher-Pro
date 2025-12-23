@@ -84,6 +84,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/auth/me", (req, res) => {
+    console.log("Session ID:", req.sessionID);
+    console.log("Session user:", (req.session as any)?.user);
     const user = (req.session as any)?.user;
     if (!user) {
       return res.status(401).json({ error: "Não autenticado" });
