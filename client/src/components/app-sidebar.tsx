@@ -25,13 +25,21 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
+import { useClientContext } from "@/lib/client-context";
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isSuperAdmin, isClientAdmin } = useAuth();
+  const { selectedClientId, selectedClientName, isViewingAsClient } = useClientContext();
 
   const { data: links } = useQuery<LinkType[]>({
-    queryKey: ["/api/links"],
+    queryKey: ["/api/links", selectedClientId],
+    queryFn: async () => {
+      const url = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch links");
+      return res.json();
+    },
     refetchInterval: 30000,
   });
 
@@ -91,7 +99,9 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Localidades</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            {isViewingAsClient && selectedClientName ? `Links - ${selectedClientName}` : "Localidades"}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {links?.map((link) => (
