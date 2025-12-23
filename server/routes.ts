@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
-import { voalleService } from "./voalle";
+import { VoalleService } from "./voalle";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -369,13 +369,60 @@ export async function registerRoutes(
   app.post("/api/incidents", async (req, res) => {
     try {
       const validatedData = insertIncidentSchema.parse(req.body);
-      const incident = await storage.createIncident(validatedData);
+      let incident = await storage.createIncident(validatedData);
       
       await storage.updateLinkFailureState(
         validatedData.linkId,
         validatedData.failureReason || "indefinido",
         validatedData.failureSource || "manual"
       );
+      
+      const clientSettings = await storage.getClientSettings(validatedData.clientId);
+      if (clientSettings?.voalleEnabled && clientSettings?.voalleAutoCreateTicket) {
+        try {
+          const link = await storage.getLink(validatedData.linkId);
+          const client = await storage.getClient(validatedData.clientId);
+          
+          if (clientSettings.voalleApiUrl && clientSettings.voalleClientId && clientSettings.voalleClientSecret && clientSettings.voalleSolicitationTypeCode) {
+            const clientVoalleService = new VoalleService();
+            clientVoalleService.configure({
+              apiUrl: clientSettings.voalleApiUrl,
+              clientId: clientSettings.voalleClientId,
+              clientSecret: clientSettings.voalleClientSecret,
+              synV1Token: clientSettings.voalleSynV1Token || undefined,
+            });
+            
+            const linkName = link?.name || link?.identifier || "Link desconhecido";
+            const linkLocation = link?.location || "Local não especificado";
+            
+            const result = await clientVoalleService.createProtocol(
+              clientSettings.voalleSolicitationTypeCode,
+              incident,
+              linkName,
+              linkLocation
+            );
+            
+            if (result.success && result.protocolId) {
+              await storage.updateIncident(incident.id, {
+                erpSystem: "Voalle",
+                erpTicketId: result.protocolId,
+                erpTicketStatus: "aberto",
+              });
+              
+              incident = { 
+                ...incident, 
+                erpSystem: "Voalle", 
+                erpTicketId: result.protocolId, 
+                erpTicketStatus: "aberto" 
+              };
+            } else {
+              console.warn(`Falha ao criar ticket Voalle para incidente ${incident.id}: ${result.message}`);
+            }
+          }
+        } catch (voalleError) {
+          console.error("Erro ao criar ticket no Voalle:", voalleError);
+        }
+      }
       
       res.status(201).json(incident);
     } catch (error) {
@@ -544,14 +591,15 @@ export async function registerRoutes(
         });
       }
 
-      voalleService.configure({
+      const testVoalleService = new VoalleService();
+      testVoalleService.configure({
         apiUrl: settings.voalleApiUrl,
         clientId: settings.voalleClientId,
         clientSecret: settings.voalleClientSecret,
         synV1Token: settings.voalleSynV1Token || undefined,
       });
 
-      const result = await voalleService.testConnection();
+      const result = await testVoalleService.testConnection();
       res.json(result);
     } catch (error) {
       res.status(500).json({ 
@@ -580,6 +628,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Configurações do Voalle incompletas" });
       }
 
+      if (!settings.voalleSolicitationTypeCode) {
+        return res.status(400).json({ error: "Código do tipo de solicitação não configurado" });
+      }
+
       const incident = await storage.getIncident(incidentId);
       if (!incident) {
         return res.status(404).json({ error: "Incidente não encontrado" });
@@ -590,15 +642,16 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link do incidente não encontrado" });
       }
 
-      voalleService.configure({
+      const ticketVoalleService = new VoalleService();
+      ticketVoalleService.configure({
         apiUrl: settings.voalleApiUrl,
         clientId: settings.voalleClientId,
         clientSecret: settings.voalleClientSecret,
         synV1Token: settings.voalleSynV1Token || undefined,
       });
 
-      const result = await voalleService.createProtocol(
-        settings.voalleSolicitationTypeCode || "suporte_link",
+      const result = await ticketVoalleService.createProtocol(
+        settings.voalleSolicitationTypeCode,
         incident,
         link.name,
         link.location
@@ -606,7 +659,7 @@ export async function registerRoutes(
 
       if (result.success && result.protocolId) {
         await storage.updateIncident(incidentId, {
-          erpSystem: "voalle",
+          erpSystem: "Voalle",
           erpTicketId: result.protocolId,
           erpTicketStatus: "aberto",
         });
