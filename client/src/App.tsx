@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ClientProvider } from "@/lib/client-context";
 import { ClientSelector } from "@/components/client-selector";
 import NotFound from "@/pages/not-found";
@@ -40,7 +42,7 @@ function Router() {
 }
 
 function AppContent() {
-  const { user, isSuperAdmin, isLoading } = useAuth();
+  const { user, isSuperAdmin, isLoading, logout } = useAuth();
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -82,6 +84,15 @@ function AppContent() {
                   {user.name}
                 </span>
                 <ThemeToggle />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={logout}
+                  title="Sair"
+                  data-testid="button-logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
               </div>
             </header>
             <main className="flex-1 overflow-auto p-6">
