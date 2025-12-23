@@ -63,6 +63,7 @@ export async function registerRoutes(
       (req.session as any).user = user;
       res.json({ user });
     } catch (error) {
+      console.error("Login error:", error);
       res.status(500).json({ error: "Erro ao fazer login" });
     }
   });
