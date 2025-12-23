@@ -3,15 +3,19 @@ import {
   metrics,
   events,
   ddosEvents,
+  incidents,
   type Link,
   type Metric,
   type Event,
   type DDoSEvent,
+  type Incident,
+  type InsertIncident,
   type SLAIndicator,
   type DashboardStats,
+  type LinkStatusDetail,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, gte, and, lt } from "drizzle-orm";
+import { eq, desc, gte, and, lt, isNull, ne } from "drizzle-orm";
 
 export interface IStorage {
   getLinks(): Promise<Link[]>;
@@ -28,6 +32,15 @@ export interface IStorage {
   updateLinkStatus(linkId: string, data: Partial<Link>): Promise<void>;
   startMetricCollection(): void;
   cleanupOldData(): Promise<void>;
+  getLinkStatusDetail(linkId: string): Promise<LinkStatusDetail | undefined>;
+  updateLinkFailureState(linkId: string, failureReason: string | null, failureSource: string | null): Promise<void>;
+  getIncidents(): Promise<Incident[]>;
+  getLinkIncidents(linkId: string): Promise<Incident[]>;
+  getOpenIncidents(): Promise<Incident[]>;
+  getIncident(id: number): Promise<Incident | undefined>;
+  createIncident(data: InsertIncident): Promise<Incident>;
+  updateIncident(id: number, data: Partial<Incident>): Promise<void>;
+  closeIncident(id: number, notes?: string): Promise<void>;
 }
 
 function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPacketLoss?: number): SLAIndicator[] {
@@ -170,6 +183,11 @@ export class DatabaseStorage implements IStorage {
       .from(ddosEvents)
       .where(gte(ddosEvents.startTime, today));
 
+    const openIncidentsList = await db
+      .select()
+      .from(incidents)
+      .where(isNull(incidents.closedAt));
+
     return {
       totalLinks: allLinks.length,
       operationalLinks,
@@ -178,6 +196,7 @@ export class DatabaseStorage implements IStorage {
       averageLatency: avgLatency,
       totalBandwidth,
       ddosEventsToday: ddosToday.length,
+      openIncidents: openIncidentsList.length,
     };
   }
 
@@ -412,6 +431,103 @@ export class DatabaseStorage implements IStorage {
     await db.delete(ddosEvents).where(lt(ddosEvents.startTime, sixMonthsAgo));
     
     console.log("Cleaned up data older than 6 months");
+  }
+
+  async getLinkStatusDetail(linkId: string): Promise<LinkStatusDetail | undefined> {
+    const link = await this.getLink(linkId);
+    if (!link) return undefined;
+
+    const failureReasonLabels: Record<string, string> = {
+      "falha_eletrica": "Falha Elétrica",
+      "rompimento_fibra": "Rompimento de Fibra",
+      "falha_equipamento": "Falha de Equipamento",
+      "indefinido": "Causa Indefinida",
+    };
+
+    const [activeIncident] = await db
+      .select()
+      .from(incidents)
+      .where(and(eq(incidents.linkId, linkId), isNull(incidents.closedAt)))
+      .orderBy(desc(incidents.openedAt))
+      .limit(1);
+
+    return {
+      link,
+      failureInfo: {
+        reason: link.failureReason,
+        reasonLabel: link.failureReason ? failureReasonLabels[link.failureReason] || link.failureReason : "Operacional",
+        source: link.failureSource,
+        lastFailureAt: link.lastFailureAt,
+      },
+      activeIncident: activeIncident || null,
+    };
+  }
+
+  async updateLinkFailureState(linkId: string, failureReason: string | null, failureSource: string | null): Promise<void> {
+    await db.update(links).set({
+      failureReason,
+      failureSource,
+      lastFailureAt: failureReason ? new Date() : null,
+      status: failureReason ? "down" : "operational",
+      lastUpdated: new Date(),
+    }).where(eq(links.id, linkId));
+  }
+
+  async getIncidents(): Promise<Incident[]> {
+    return await db.select().from(incidents).orderBy(desc(incidents.openedAt));
+  }
+
+  async getLinkIncidents(linkId: string): Promise<Incident[]> {
+    return await db
+      .select()
+      .from(incidents)
+      .where(eq(incidents.linkId, linkId))
+      .orderBy(desc(incidents.openedAt));
+  }
+
+  async getOpenIncidents(): Promise<Incident[]> {
+    return await db
+      .select()
+      .from(incidents)
+      .where(isNull(incidents.closedAt))
+      .orderBy(desc(incidents.openedAt));
+  }
+
+  async getIncident(id: number): Promise<Incident | undefined> {
+    const [incident] = await db.select().from(incidents).where(eq(incidents.id, id));
+    return incident || undefined;
+  }
+
+  async createIncident(data: InsertIncident): Promise<Incident> {
+    const slaDeadline = new Date();
+    slaDeadline.setHours(slaDeadline.getHours() + 6);
+    
+    const [incident] = await db.insert(incidents).values({
+      ...data,
+      slaDeadline: data.slaDeadline || slaDeadline,
+    }).returning();
+    return incident;
+  }
+
+  async updateIncident(id: number, data: Partial<Incident>): Promise<void> {
+    await db.update(incidents).set({
+      ...data,
+      lastUpdateAt: new Date(),
+    }).where(eq(incidents.id, id));
+  }
+
+  async closeIncident(id: number, notes?: string): Promise<void> {
+    const incident = await this.getIncident(id);
+    if (!incident) return;
+
+    await db.update(incidents).set({
+      status: "resolvido",
+      closedAt: new Date(),
+      lastUpdateAt: new Date(),
+      repairNotes: notes,
+    }).where(eq(incidents.id, id));
+
+    await this.updateLinkFailureState(incident.linkId, null, null);
   }
 }
 
