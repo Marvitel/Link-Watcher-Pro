@@ -181,6 +181,11 @@ export class DatabaseStorage {
     await db.update(users).set(updateData).where(eq(users.id, id));
   }
 
+  async deleteUser(id: number): Promise<void> {
+    await db.delete(groupMembers).where(eq(groupMembers.userId, id));
+    await db.delete(users).where(eq(users.id, id));
+  }
+
   async validateCredentials(email: string, password: string): Promise<AuthUser | null> {
     const user = await this.getUserByEmail(email);
     if (!user || !user.isActive) return null;

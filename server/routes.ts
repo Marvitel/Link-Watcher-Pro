@@ -161,6 +161,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      await storage.deleteUser(parseInt(req.params.id, 10));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
   app.get("/api/stats", async (req, res) => {
     try {
       const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;

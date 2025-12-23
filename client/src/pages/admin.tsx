@@ -806,8 +806,16 @@ export default function Admin() {
   const { toast } = useToast();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | undefined>();
   const [editingHost, setEditingHost] = useState<Host | undefined>();
+  const [editingClient, setEditingClient] = useState<Client | undefined>();
+  const [clientFormData, setClientFormData] = useState({
+    name: "",
+    slug: "",
+    cnpj: "",
+    isActive: true,
+  });
 
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -906,6 +914,70 @@ export default function Admin() {
       toast({ title: "Erro ao excluir host", variant: "destructive" });
     },
   });
+
+  const createClientMutation = useMutation({
+    mutationFn: async (data: { name: string; slug: string; cnpj?: string; isActive: boolean }) => {
+      return await apiRequest("POST", "/api/clients", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      setClientDialogOpen(false);
+      setEditingClient(undefined);
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+      toast({ title: "Cliente criado com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar cliente", variant: "destructive" });
+    },
+  });
+
+  const updateClientMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Client> }) => {
+      return await apiRequest("PATCH", `/api/clients/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      setClientDialogOpen(false);
+      setEditingClient(undefined);
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+      toast({ title: "Cliente atualizado com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar cliente", variant: "destructive" });
+    },
+  });
+
+  const deleteClientMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest("DELETE", `/api/clients/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "Cliente excluído com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir cliente", variant: "destructive" });
+    },
+  });
+
+  const handleSaveClient = () => {
+    if (editingClient) {
+      updateClientMutation.mutate({ id: editingClient.id, data: clientFormData });
+    } else {
+      createClientMutation.mutate(clientFormData);
+    }
+  };
+
+  const handleEditClient = (client: Client) => {
+    setEditingClient(client);
+    setClientFormData({
+      name: client.name,
+      slug: client.slug,
+      cnpj: client.cnpj || "",
+      isActive: client.isActive,
+    });
+    setClientDialogOpen(true);
+  };
 
   const handleSaveLink = (data: Partial<Link>) => {
     if (editingLink) {
@@ -1166,6 +1238,78 @@ export default function Admin() {
                 Organizações cadastradas no sistema
               </p>
             </div>
+            <Dialog open={clientDialogOpen} onOpenChange={(open) => {
+              setClientDialogOpen(open);
+              if (!open) {
+                setEditingClient(undefined);
+                setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-client">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar Cliente
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingClient ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-name">Nome da Organização</Label>
+                    <Input
+                      id="client-name"
+                      value={clientFormData.name}
+                      onChange={(e) => setClientFormData({ ...clientFormData, name: e.target.value })}
+                      placeholder="Ex: Defensoria Pública do Estado de Sergipe"
+                      data-testid="input-client-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-slug">Identificador (slug)</Label>
+                    <Input
+                      id="client-slug"
+                      value={clientFormData.slug}
+                      onChange={(e) => setClientFormData({ ...clientFormData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                      placeholder="Ex: dpe-se"
+                      data-testid="input-client-slug"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-cnpj">CNPJ (opcional)</Label>
+                    <Input
+                      id="client-cnpj"
+                      value={clientFormData.cnpj}
+                      onChange={(e) => setClientFormData({ ...clientFormData, cnpj: e.target.value })}
+                      placeholder="00.000.000/0001-00"
+                      data-testid="input-client-cnpj"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="client-active"
+                      checked={clientFormData.isActive}
+                      onCheckedChange={(checked) => setClientFormData({ ...clientFormData, isActive: checked })}
+                      data-testid="switch-client-active"
+                    />
+                    <Label htmlFor="client-active">Cliente Ativo</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setClientDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleSaveClient}
+                    disabled={!clientFormData.name || !clientFormData.slug || createClientMutation.isPending || updateClientMutation.isPending}
+                    data-testid="button-save-client"
+                  >
+                    Salvar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {clientsLoading ? (
@@ -1188,12 +1332,37 @@ export default function Admin() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={client.isActive ? "default" : "secondary"}>
-                      {client.isActive ? "Ativo" : "Inativo"}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={client.isActive ? "default" : "secondary"}>
+                        {client.isActive ? "Ativo" : "Inativo"}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditClient(client)}
+                        data-testid={`button-edit-client-${client.id}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteClientMutation.mutate(client.id)}
+                        data-testid={`button-delete-client-${client.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
+              {(!clients || clients.length === 0) && (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    Nenhum cliente cadastrado. Clique em "Adicionar Cliente" para começar.
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </TabsContent>
@@ -1613,6 +1782,17 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
   const [selectedPerms, setSelectedPerms] = useState<number[]>([]);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
 
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userFormData, setUserFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "operator" as "admin" | "manager" | "operator",
+    isActive: true,
+    isSuperAdmin: false,
+  });
+
   const createGroupMutation = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
       return apiRequest("POST", `/api/clients/${selectedClient?.id}/groups`, data);
@@ -1681,6 +1861,95 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
       toast({ title: "Erro ao adicionar membro", variant: "destructive" });
     },
   });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (data: typeof userFormData & { clientId: number }) => {
+      return apiRequest("POST", "/api/users", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Usuário criado com sucesso" });
+      refetchUsers();
+      setUserDialogOpen(false);
+      resetUserForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar usuário", variant: "destructive" });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<User> }) => {
+      return apiRequest("PATCH", `/api/users/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Usuário atualizado com sucesso" });
+      refetchUsers();
+      setUserDialogOpen(false);
+      setEditingUser(null);
+      resetUserForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar usuário", variant: "destructive" });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/users/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Usuário excluído com sucesso" });
+      refetchUsers();
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir usuário", variant: "destructive" });
+    },
+  });
+
+  const resetUserForm = () => {
+    setUserFormData({
+      name: "",
+      email: "",
+      password: "",
+      role: "operator",
+      isActive: true,
+      isSuperAdmin: false,
+    });
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setUserFormData({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role as "admin" | "manager" | "operator",
+      isActive: user.isActive,
+      isSuperAdmin: user.isSuperAdmin || false,
+    });
+    setUserDialogOpen(true);
+  };
+
+  const handleSaveUser = () => {
+    if (editingUser) {
+      const updateData: Record<string, unknown> = {
+        name: userFormData.name,
+        email: userFormData.email,
+        role: userFormData.role,
+        isActive: userFormData.isActive,
+        isSuperAdmin: userFormData.isSuperAdmin,
+      };
+      if (userFormData.password) {
+        updateData.password = userFormData.password;
+      }
+      updateUserMutation.mutate({ id: editingUser.id, data: updateData as Partial<User> });
+    } else if (selectedClient) {
+      createUserMutation.mutate({
+        ...userFormData,
+        clientId: selectedClient.id,
+      });
+    }
+  };
 
   const handleEditGroup = (group: any) => {
     setEditingGroup(group);
@@ -1861,9 +2130,109 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Usuários</CardTitle>
-              <CardDescription>Usuários do cliente selecionado</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Usuários</CardTitle>
+                <CardDescription>Usuários do cliente selecionado</CardDescription>
+              </div>
+              <Dialog open={userDialogOpen} onOpenChange={(open) => {
+                setUserDialogOpen(open);
+                if (!open) {
+                  setEditingUser(null);
+                  resetUserForm();
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-user">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Novo Usuário
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nome</Label>
+                      <Input
+                        value={userFormData.name}
+                        onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                        placeholder="Nome completo"
+                        data-testid="input-user-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>E-mail</Label>
+                      <Input
+                        type="email"
+                        value={userFormData.email}
+                        onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                        placeholder="email@exemplo.com"
+                        data-testid="input-user-email"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{editingUser ? "Nova Senha (deixe vazio para manter)" : "Senha"}</Label>
+                      <Input
+                        type="password"
+                        value={userFormData.password}
+                        onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                        placeholder="********"
+                        data-testid="input-user-password"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Função</Label>
+                      <Select
+                        value={userFormData.role}
+                        onValueChange={(val) => setUserFormData({ ...userFormData, role: val as "admin" | "manager" | "operator" })}
+                      >
+                        <SelectTrigger data-testid="select-user-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                          <SelectItem value="manager">Gerente</SelectItem>
+                          <SelectItem value="operator">Operador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="user-active"
+                          checked={userFormData.isActive}
+                          onCheckedChange={(checked) => setUserFormData({ ...userFormData, isActive: checked })}
+                          data-testid="switch-user-active"
+                        />
+                        <Label htmlFor="user-active">Ativo</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="user-super-admin"
+                          checked={userFormData.isSuperAdmin}
+                          onCheckedChange={(checked) => setUserFormData({ ...userFormData, isSuperAdmin: checked })}
+                          data-testid="switch-user-super-admin"
+                        />
+                        <Label htmlFor="user-super-admin">Super Admin (Marvitel)</Label>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setUserDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleSaveUser}
+                      disabled={!userFormData.name || !userFormData.email || (!editingUser && !userFormData.password) || createUserMutation.isPending || updateUserMutation.isPending}
+                      data-testid="button-save-user"
+                    >
+                      Salvar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               {usersLoading ? (
@@ -1876,12 +2245,30 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                   {users.map((user) => (
                     <div key={user.id} className="flex items-center justify-between gap-2 p-3 rounded-md border" data-testid={`row-user-${user.id}`}>
                       <div>
-                        <p className="font-medium">{user.name}</p>
+                        <p className="font-medium">
+                          {user.name}
+                          {user.isSuperAdmin && (
+                            <Badge variant="outline" className="ml-2">Super Admin</Badge>
+                          )}
+                        </p>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
-                      <Badge variant={user.isActive ? "default" : "secondary"}>
-                        {user.role === "admin" ? "Admin" : user.role === "manager" ? "Gerente" : "Operador"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={user.isActive ? "default" : "secondary"}>
+                          {user.role === "admin" ? "Admin" : user.role === "manager" ? "Gerente" : "Operador"}
+                        </Badge>
+                        <Button size="icon" variant="ghost" onClick={() => handleEditUser(user)} data-testid={`button-edit-user-${user.id}`}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          onClick={() => deleteUserMutation.mutate(user.id)}
+                          data-testid={`button-delete-user-${user.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
