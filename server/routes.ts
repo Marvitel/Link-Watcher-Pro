@@ -6,6 +6,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  await storage.initializeDefaultData();
+  storage.startMetricCollection();
+
   app.get("/api/stats", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats();
@@ -38,7 +41,8 @@ export async function registerRoutes(
 
   app.get("/api/links/:id/metrics", async (req, res) => {
     try {
-      const metrics = await storage.getLinkMetrics(req.params.id);
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+      const metrics = await storage.getLinkMetrics(req.params.id, Math.min(limit, 1000));
       res.json(metrics);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link metrics" });
@@ -69,15 +73,6 @@ export async function registerRoutes(
       res.json(events);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch events" });
-    }
-  });
-
-  app.get("/api/alerts", async (req, res) => {
-    try {
-      const alerts = await storage.getAlerts();
-      res.json(alerts);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch alerts" });
     }
   });
 

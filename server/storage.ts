@@ -1,167 +1,40 @@
-import type {
-  Link,
-  Metric,
-  Event,
-  Alert,
-  DDoSEvent,
-  SLAIndicator,
-  DashboardStats,
+import {
+  links,
+  metrics,
+  events,
+  ddosEvents,
+  type Link,
+  type Metric,
+  type Event,
+  type DDoSEvent,
+  type SLAIndicator,
+  type DashboardStats,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, desc, gte, and, lt } from "drizzle-orm";
 
 export interface IStorage {
   getLinks(): Promise<Link[]>;
   getLink(id: string): Promise<Link | undefined>;
-  getLinkMetrics(linkId: string): Promise<Metric[]>;
+  getLinkMetrics(linkId: string, limit?: number): Promise<Metric[]>;
   getLinkEvents(linkId: string): Promise<Event[]>;
   getLinkSLA(linkId: string): Promise<SLAIndicator[]>;
   getEvents(): Promise<Event[]>;
-  getAlerts(): Promise<Alert[]>;
   getDDoSEvents(): Promise<DDoSEvent[]>;
   getSLAIndicators(): Promise<SLAIndicator[]>;
   getDashboardStats(): Promise<DashboardStats>;
+  initializeDefaultData(): Promise<void>;
+  addMetric(linkId: string, data: Omit<Metric, "id" | "timestamp" | "linkId">): Promise<void>;
+  updateLinkStatus(linkId: string, data: Partial<Link>): Promise<void>;
+  startMetricCollection(): void;
+  cleanupOldData(): Promise<void>;
 }
 
-function generateMetricsHistory(linkId: string, count: number = 24): Metric[] {
-  const metrics: Metric[] = [];
-  const now = new Date();
-  const baseDownload = linkId === "sede" ? 85 : 120;
-  const baseUpload = linkId === "sede" ? 45 : 75;
+function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPacketLoss?: number): SLAIndicator[] {
+  const uptime = linkUptime ?? 99.85;
+  const latency = linkLatency ?? 45;
+  const packetLoss = linkPacketLoss ?? 0.45;
   
-  for (let i = count - 1; i >= 0; i--) {
-    const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
-    const variation = Math.sin(i * 0.5) * 20;
-    
-    metrics.push({
-      id: randomUUID(),
-      linkId,
-      timestamp: timestamp.toISOString(),
-      download: Math.max(10, baseDownload + variation + Math.random() * 15),
-      upload: Math.max(5, baseUpload + variation * 0.5 + Math.random() * 10),
-      latency: 35 + Math.random() * 20,
-      packetLoss: Math.random() * 0.5,
-      cpuUsage: 25 + Math.random() * 20,
-      memoryUsage: 40 + Math.random() * 15,
-      errorRate: Math.random() * 0.001,
-    });
-  }
-  
-  return metrics;
-}
-
-function generateEvents(): Event[] {
-  const now = new Date();
-  return [
-    {
-      id: "evt-1",
-      linkId: "sede",
-      type: "info",
-      title: "Manutenção preventiva concluída",
-      description: "Atualização de firmware do equipamento CPE realizada com sucesso",
-      timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-      resolvedAt: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "evt-2",
-      linkId: "central",
-      type: "warning",
-      title: "Latência elevada detectada",
-      description: "Latência acima de 60ms detectada por 10 minutos",
-      timestamp: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-      resolvedAt: new Date(now.getTime() - 3.5 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "evt-3",
-      linkId: "sede",
-      type: "info",
-      title: "Backup de configuração realizado",
-      description: "Backup automático das configurações do firewall",
-      timestamp: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-    },
-    {
-      id: "evt-4",
-      linkId: "central",
-      type: "info",
-      title: "Certificado SSL renovado",
-      description: "Certificado SSL do portal de gerenciamento renovado automaticamente",
-      timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-    },
-    {
-      id: "evt-5",
-      linkId: "sede",
-      type: "maintenance",
-      title: "Janela de manutenção agendada",
-      description: "Manutenção programada para atualização de patches de segurança",
-      timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-    },
-    {
-      id: "evt-6",
-      linkId: "central",
-      type: "critical",
-      title: "Indisponibilidade temporária",
-      description: "Link indisponível por 15 minutos devido a falha de roteamento",
-      timestamp: new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-      resolvedAt: new Date(now.getTime() - 47.75 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: "evt-7",
-      linkId: "sede",
-      type: "warning",
-      title: "Uso elevado de CPU",
-      description: "CPU do firewall atingiu 85% de utilização",
-      timestamp: new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString(),
-      resolved: true,
-      resolvedAt: new Date(now.getTime() - 71 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-}
-
-function generateDDoSEvents(): DDoSEvent[] {
-  const now = new Date();
-  return [
-    {
-      id: "ddos-1",
-      linkId: "central",
-      attackType: "UDP Flood",
-      startTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000).toISOString(),
-      peakBandwidth: 1.2,
-      mitigationStatus: "resolved",
-      sourceIps: 12500,
-      blockedPackets: 8500000,
-    },
-    {
-      id: "ddos-2",
-      linkId: "sede",
-      attackType: "SYN Flood",
-      startTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
-      peakBandwidth: 0.8,
-      mitigationStatus: "resolved",
-      sourceIps: 8200,
-      blockedPackets: 4200000,
-    },
-    {
-      id: "ddos-3",
-      linkId: "central",
-      attackType: "HTTP Flood",
-      startTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000).toISOString(),
-      peakBandwidth: 0.5,
-      mitigationStatus: "resolved",
-      sourceIps: 3500,
-      blockedPackets: 2100000,
-    },
-  ];
-}
-
-function generateSLAIndicators(linkId?: string): SLAIndicator[] {
   return [
     {
       id: "sla-de",
@@ -169,9 +42,9 @@ function generateSLAIndicators(linkId?: string): SLAIndicator[] {
       description: "Percentual de tempo em que o enlace esteve em condições normais de funcionamento",
       formula: "D = [(To-Ti)/To] x 100",
       target: "≥ 99,00%",
-      current: 99.85,
+      current: uptime,
       periodicity: "Mensal",
-      status: "compliant",
+      status: uptime >= 99 ? "compliant" : uptime >= 98 ? "warning" : "non_compliant",
     },
     {
       id: "sla-teb",
@@ -189,9 +62,9 @@ function generateSLAIndicators(linkId?: string): SLAIndicator[] {
       description: "Relação entre pacotes enviados pela origem e recebidos no destino",
       formula: "PP = [(NPorig – NPdest)/NPdest] x 100",
       target: "≤ 2%",
-      current: 0.45,
+      current: packetLoss,
       periodicity: "Eventual",
-      status: "compliant",
+      status: packetLoss <= 2 ? "compliant" : packetLoss <= 3 ? "warning" : "non_compliant",
     },
     {
       id: "sla-lat",
@@ -199,9 +72,9 @@ function generateSLAIndicators(linkId?: string): SLAIndicator[] {
       description: "Tempo de transmissão de um pacote entre a origem e o destino",
       formula: "N/A",
       target: "≤ 80ms",
-      current: 45,
+      current: latency,
       periodicity: "Horária",
-      status: "compliant",
+      status: latency <= 80 ? "compliant" : latency <= 100 ? "warning" : "non_compliant",
     },
     {
       id: "sla-repair",
@@ -216,160 +89,330 @@ function generateSLAIndicators(linkId?: string): SLAIndicator[] {
   ];
 }
 
-export class MemStorage implements IStorage {
-  private links: Map<string, Link>;
-  private metricsCache: Map<string, Metric[]>;
-  private events: Event[];
-  private ddosEvents: DDoSEvent[];
-
-  constructor() {
-    this.links = new Map();
-    this.metricsCache = new Map();
-    this.events = generateEvents();
-    this.ddosEvents = generateDDoSEvents();
-
-    const sedeLink: Link = {
-      id: "sede",
-      name: "Sede Administrativa",
-      location: "Centro, Aracaju/SE",
-      address: "Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360",
-      ipBlock: "/29",
-      totalIps: 8,
-      usableIps: 6,
-      bandwidth: 200,
-      status: "operational",
-      uptime: 99.85,
-      currentDownload: 87.5,
-      currentUpload: 42.3,
-      latency: 42,
-      packetLoss: 0.12,
-      cpuUsage: 35,
-      memoryUsage: 48,
-      lastUpdated: new Date().toISOString(),
-    };
-
-    const centralLink: Link = {
-      id: "central",
-      name: "Central de Atendimento",
-      location: "Jardins, Aracaju/SE",
-      address: "Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010",
-      ipBlock: "/28",
-      totalIps: 16,
-      usableIps: 14,
-      bandwidth: 200,
-      status: "operational",
-      uptime: 99.72,
-      currentDownload: 125.8,
-      currentUpload: 78.4,
-      latency: 38,
-      packetLoss: 0.08,
-      cpuUsage: 42,
-      memoryUsage: 52,
-      lastUpdated: new Date().toISOString(),
-    };
-
-    this.links.set("sede", sedeLink);
-    this.links.set("central", centralLink);
-
-    this.metricsCache.set("sede", generateMetricsHistory("sede"));
-    this.metricsCache.set("central", generateMetricsHistory("central"));
-
-    setInterval(() => this.updateMetrics(), 30000);
-  }
-
-  private updateMetrics() {
-    for (const [linkId, link] of this.links) {
-      const variation = (Math.random() - 0.5) * 10;
-      link.currentDownload = Math.max(10, Math.min(195, link.currentDownload + variation));
-      link.currentUpload = Math.max(5, Math.min(195, link.currentUpload + variation * 0.5));
-      link.latency = Math.max(20, Math.min(75, link.latency + (Math.random() - 0.5) * 5));
-      link.packetLoss = Math.max(0, Math.min(1.5, link.packetLoss + (Math.random() - 0.5) * 0.1));
-      link.cpuUsage = Math.max(15, Math.min(80, link.cpuUsage + (Math.random() - 0.5) * 5));
-      link.memoryUsage = Math.max(30, Math.min(70, link.memoryUsage + (Math.random() - 0.5) * 3));
-      link.lastUpdated = new Date().toISOString();
-
-      const metrics = this.metricsCache.get(linkId) || [];
-      metrics.push({
-        id: randomUUID(),
-        linkId,
-        timestamp: new Date().toISOString(),
-        download: link.currentDownload,
-        upload: link.currentUpload,
-        latency: link.latency,
-        packetLoss: link.packetLoss,
-        cpuUsage: link.cpuUsage,
-        memoryUsage: link.memoryUsage,
-        errorRate: Math.random() * 0.001,
-      });
-
-      if (metrics.length > 50) {
-        metrics.shift();
-      }
-
-      this.metricsCache.set(linkId, metrics);
-    }
-  }
-
+export class DatabaseStorage implements IStorage {
   async getLinks(): Promise<Link[]> {
-    return Array.from(this.links.values());
+    return await db.select().from(links);
   }
 
   async getLink(id: string): Promise<Link | undefined> {
-    return this.links.get(id);
+    const [link] = await db.select().from(links).where(eq(links.id, id));
+    return link || undefined;
   }
 
-  async getLinkMetrics(linkId: string): Promise<Metric[]> {
-    return this.metricsCache.get(linkId) || [];
+  async getLinkMetrics(linkId: string, limit?: number): Promise<Metric[]> {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    const query = db
+      .select()
+      .from(metrics)
+      .where(and(eq(metrics.linkId, linkId), gte(metrics.timestamp, sixMonthsAgo)))
+      .orderBy(desc(metrics.timestamp));
+    
+    if (limit) {
+      return await query.limit(limit);
+    }
+    return await query;
   }
 
   async getLinkEvents(linkId: string): Promise<Event[]> {
-    return this.events.filter((e) => e.linkId === linkId);
+    return await db
+      .select()
+      .from(events)
+      .where(eq(events.linkId, linkId))
+      .orderBy(desc(events.timestamp));
   }
 
   async getLinkSLA(linkId: string): Promise<SLAIndicator[]> {
-    return generateSLAIndicators(linkId);
+    const link = await this.getLink(linkId);
+    return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);
   }
 
   async getEvents(): Promise<Event[]> {
-    return this.events.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  }
-
-  async getAlerts(): Promise<Alert[]> {
-    return [];
+    return await db.select().from(events).orderBy(desc(events.timestamp));
   }
 
   async getDDoSEvents(): Promise<DDoSEvent[]> {
-    return this.ddosEvents;
+    return await db.select().from(ddosEvents).orderBy(desc(ddosEvents.startTime));
   }
 
   async getSLAIndicators(): Promise<SLAIndicator[]> {
-    return generateSLAIndicators();
+    const allLinks = await this.getLinks();
+    if (allLinks.length === 0) return generateSLAIndicators();
+    
+    const avgUptime = allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length;
+    const avgLatency = allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length;
+    const avgPacketLoss = allLinks.reduce((sum, l) => sum + l.packetLoss, 0) / allLinks.length;
+    
+    return generateSLAIndicators(avgUptime, avgLatency, avgPacketLoss);
   }
 
   async getDashboardStats(): Promise<DashboardStats> {
-    const links = await this.getLinks();
-    const operationalLinks = links.filter((l) => l.status === "operational").length;
-    const avgUptime = links.reduce((sum, l) => sum + l.uptime, 0) / links.length;
-    const avgLatency = links.reduce((sum, l) => sum + l.latency, 0) / links.length;
-    const totalBandwidth = links.reduce((sum, l) => sum + l.bandwidth, 0);
-    const activeAlerts = this.events.filter((e) => !e.resolved).length;
-    const today = new Date().toDateString();
-    const ddosToday = this.ddosEvents.filter(
-      (e) => new Date(e.startTime).toDateString() === today
-    ).length;
+    const allLinks = await this.getLinks();
+    const operationalLinks = allLinks.filter((l) => l.status === "operational").length;
+    const avgUptime = allLinks.length > 0 
+      ? allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length 
+      : 0;
+    const avgLatency = allLinks.length > 0 
+      ? allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length 
+      : 0;
+    const totalBandwidth = allLinks.reduce((sum, l) => sum + l.bandwidth, 0);
+    
+    const unresolvedEvents = await db
+      .select()
+      .from(events)
+      .where(eq(events.resolved, false));
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const ddosToday = await db
+      .select()
+      .from(ddosEvents)
+      .where(gte(ddosEvents.startTime, today));
 
     return {
-      totalLinks: links.length,
+      totalLinks: allLinks.length,
       operationalLinks,
-      activeAlerts,
+      activeAlerts: unresolvedEvents.length,
       averageUptime: avgUptime,
       averageLatency: avgLatency,
       totalBandwidth,
-      ddosEventsToday: ddosToday,
+      ddosEventsToday: ddosToday.length,
     };
+  }
+
+  async addMetric(linkId: string, data: Omit<Metric, "id" | "timestamp" | "linkId">): Promise<void> {
+    await db.insert(metrics).values({
+      linkId,
+      download: data.download,
+      upload: data.upload,
+      latency: data.latency,
+      packetLoss: data.packetLoss,
+      cpuUsage: data.cpuUsage,
+      memoryUsage: data.memoryUsage,
+      errorRate: data.errorRate,
+    });
+  }
+
+  async updateLinkStatus(linkId: string, data: Partial<Link>): Promise<void> {
+    await db.update(links).set({
+      ...data,
+      lastUpdated: new Date(),
+    }).where(eq(links.id, linkId));
+  }
+
+  async initializeDefaultData(): Promise<void> {
+    const existingLinks = await this.getLinks();
+    if (existingLinks.length > 0) return;
+
+    await db.insert(links).values([
+      {
+        id: "sede",
+        name: "Sede Administrativa",
+        location: "Centro, Aracaju/SE",
+        address: "Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360",
+        ipBlock: "/29",
+        totalIps: 8,
+        usableIps: 6,
+        bandwidth: 200,
+        status: "operational",
+        uptime: 99.85,
+        currentDownload: 87.5,
+        currentUpload: 42.3,
+        latency: 42,
+        packetLoss: 0.12,
+        cpuUsage: 35,
+        memoryUsage: 48,
+      },
+      {
+        id: "central",
+        name: "Central de Atendimento",
+        location: "Jardins, Aracaju/SE",
+        address: "Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010",
+        ipBlock: "/28",
+        totalIps: 16,
+        usableIps: 14,
+        bandwidth: 200,
+        status: "operational",
+        uptime: 99.72,
+        currentDownload: 125.8,
+        currentUpload: 78.4,
+        latency: 38,
+        packetLoss: 0.08,
+        cpuUsage: 42,
+        memoryUsage: 52,
+      },
+    ]);
+
+    const now = new Date();
+    await db.insert(events).values([
+      {
+        linkId: "sede",
+        type: "info",
+        title: "Manutenção preventiva concluída",
+        description: "Atualização de firmware do equipamento CPE realizada com sucesso",
+        timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+        resolved: true,
+        resolvedAt: new Date(now.getTime() - 1 * 60 * 60 * 1000),
+      },
+      {
+        linkId: "central",
+        type: "warning",
+        title: "Latência elevada detectada",
+        description: "Latência acima de 60ms detectada por 10 minutos",
+        timestamp: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+        resolved: true,
+        resolvedAt: new Date(now.getTime() - 3.5 * 60 * 60 * 1000),
+      },
+      {
+        linkId: "sede",
+        type: "info",
+        title: "Backup de configuração realizado",
+        description: "Backup automático das configurações do firewall",
+        timestamp: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+        resolved: true,
+      },
+      {
+        linkId: "central",
+        type: "info",
+        title: "Certificado SSL renovado",
+        description: "Certificado SSL do portal de gerenciamento renovado automaticamente",
+        timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+        resolved: true,
+      },
+      {
+        linkId: "sede",
+        type: "maintenance",
+        title: "Janela de manutenção agendada",
+        description: "Manutenção programada para atualização de patches de segurança",
+        timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        resolved: true,
+      },
+      {
+        linkId: "central",
+        type: "critical",
+        title: "Indisponibilidade temporária",
+        description: "Link indisponível por 15 minutos devido a falha de roteamento",
+        timestamp: new Date(now.getTime() - 48 * 60 * 60 * 1000),
+        resolved: true,
+        resolvedAt: new Date(now.getTime() - 47.75 * 60 * 60 * 1000),
+      },
+    ]);
+
+    await db.insert(ddosEvents).values([
+      {
+        linkId: "central",
+        attackType: "UDP Flood",
+        startTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+        peakBandwidth: 1.2,
+        mitigationStatus: "resolved",
+        sourceIps: 12500,
+        blockedPackets: 8500000,
+      },
+      {
+        linkId: "sede",
+        attackType: "SYN Flood",
+        startTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() - 12 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
+        peakBandwidth: 0.8,
+        mitigationStatus: "resolved",
+        sourceIps: 8200,
+        blockedPackets: 4200000,
+      },
+      {
+        linkId: "central",
+        attackType: "HTTP Flood",
+        startTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000),
+        peakBandwidth: 0.5,
+        mitigationStatus: "resolved",
+        sourceIps: 3500,
+        blockedPackets: 2100000,
+      },
+    ]);
+
+    for (const linkId of ["sede", "central"]) {
+      const baseDownload = linkId === "sede" ? 85 : 120;
+      const baseUpload = linkId === "sede" ? 45 : 75;
+      
+      for (let i = 24; i >= 0; i--) {
+        const timestamp = new Date(now.getTime() - i * 5 * 60 * 1000);
+        const variation = Math.sin(i * 0.5) * 20;
+        
+        await db.insert(metrics).values({
+          linkId,
+          timestamp,
+          download: Math.max(10, baseDownload + variation + Math.random() * 15),
+          upload: Math.max(5, baseUpload + variation * 0.5 + Math.random() * 10),
+          latency: 35 + Math.random() * 20,
+          packetLoss: Math.random() * 0.5,
+          cpuUsage: 25 + Math.random() * 20,
+          memoryUsage: 40 + Math.random() * 15,
+          errorRate: Math.random() * 0.001,
+        });
+      }
+    }
+  }
+
+  startMetricCollection(): void {
+    setInterval(async () => {
+      try {
+        const allLinks = await this.getLinks();
+        
+        for (const link of allLinks) {
+          const variation = (Math.random() - 0.5) * 10;
+          const newDownload = Math.max(10, Math.min(195, link.currentDownload + variation));
+          const newUpload = Math.max(5, Math.min(195, link.currentUpload + variation * 0.5));
+          const newLatency = Math.max(20, Math.min(75, link.latency + (Math.random() - 0.5) * 5));
+          const newPacketLoss = Math.max(0, Math.min(1.5, link.packetLoss + (Math.random() - 0.5) * 0.1));
+          const newCpuUsage = Math.max(15, Math.min(80, link.cpuUsage + (Math.random() - 0.5) * 5));
+          const newMemoryUsage = Math.max(30, Math.min(70, link.memoryUsage + (Math.random() - 0.5) * 3));
+          const errorRate = Math.random() * 0.001;
+
+          await this.updateLinkStatus(link.id, {
+            currentDownload: newDownload,
+            currentUpload: newUpload,
+            latency: newLatency,
+            packetLoss: newPacketLoss,
+            cpuUsage: newCpuUsage,
+            memoryUsage: newMemoryUsage,
+          });
+
+          await this.addMetric(link.id, {
+            download: newDownload,
+            upload: newUpload,
+            latency: newLatency,
+            packetLoss: newPacketLoss,
+            cpuUsage: newCpuUsage,
+            memoryUsage: newMemoryUsage,
+            errorRate,
+          });
+        }
+      } catch (error) {
+        console.error("Error collecting metrics:", error);
+      }
+    }, 30000);
+
+    setInterval(async () => {
+      try {
+        await this.cleanupOldData();
+      } catch (error) {
+        console.error("Error cleaning up old data:", error);
+      }
+    }, 24 * 60 * 60 * 1000);
+  }
+
+  async cleanupOldData(): Promise<void> {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    await db.delete(metrics).where(lt(metrics.timestamp, sixMonthsAgo));
+    await db.delete(events).where(lt(events.timestamp, sixMonthsAgo));
+    await db.delete(ddosEvents).where(lt(ddosEvents.startTime, sixMonthsAgo));
+    
+    console.log("Cleaned up data older than 6 months");
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
