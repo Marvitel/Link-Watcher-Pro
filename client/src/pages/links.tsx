@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useClientContext } from "@/lib/client-context";
+import { getAuthToken } from "@/lib/auth";
 import type { Link as LinkType, Metric } from "@shared/schema";
 
 export default function Links() {
@@ -31,14 +32,10 @@ export default function Links() {
     usableIps: 2,
   });
 
+  const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
+  
   const { data: links, isLoading: linksLoading } = useQuery<LinkType[]>({
-    queryKey: ["/api/links", selectedClientId],
-    queryFn: async () => {
-      const url = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch links");
-      return res.json();
-    },
+    queryKey: [linksUrl],
     refetchInterval: 5000,
   });
 
@@ -47,7 +44,9 @@ export default function Links() {
       return apiRequest("POST", "/api/links", { ...data, clientId: selectedClientId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/api/links') 
+      });
       setLinkDialogOpen(false);
       resetForm();
       toast({ title: "Link criado com sucesso" });
@@ -62,7 +61,9 @@ export default function Links() {
       return apiRequest("PATCH", `/api/links/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/api/links') 
+      });
       setLinkDialogOpen(false);
       setEditingLink(null);
       resetForm();
@@ -78,7 +79,9 @@ export default function Links() {
       return apiRequest("DELETE", `/api/links/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+      queryClient.invalidateQueries({ predicate: (query) => 
+        typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/api/links') 
+      });
       setDeleteDialogOpen(false);
       setLinkToDelete(null);
       toast({ title: "Link excluido com sucesso" });
