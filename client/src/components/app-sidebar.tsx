@@ -32,14 +32,10 @@ export function AppSidebar() {
   const { user, isSuperAdmin, isClientAdmin } = useAuth();
   const { selectedClientId, selectedClientName, isViewingAsClient } = useClientContext();
 
+  const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
+  
   const { data: links } = useQuery<LinkType[]>({
-    queryKey: ["/api/links", selectedClientId],
-    queryFn: async () => {
-      const url = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch links");
-      return res.json();
-    },
+    queryKey: [linksUrl],
     refetchInterval: 30000,
   });
 
