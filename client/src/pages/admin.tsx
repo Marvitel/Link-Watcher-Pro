@@ -40,6 +40,7 @@ import {
   FileText,
   Search,
   Loader2,
+  X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User } from "@shared/schema";
@@ -64,16 +65,27 @@ function formatSpeed(speedBps: number): string {
   return speedBps > 0 ? `${speedBps} bps` : "";
 }
 
-function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: { 
+function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreated }: { 
   link?: Link; 
   onSave: (data: Partial<Link>) => void;
   onClose: () => void;
   snmpProfiles?: Array<{ id: number; name: string; clientId: number }>;
   clients?: Client[];
+  onProfileCreated?: () => void;
 }) {
   const { toast } = useToast();
   const [discoveredInterfaces, setDiscoveredInterfaces] = useState<SnmpInterface[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [showNewProfileForm, setShowNewProfileForm] = useState(false);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [newProfileData, setNewProfileData] = useState({
+    name: "",
+    version: "v2c",
+    community: "public",
+    port: 161,
+    timeout: 5000,
+    retries: 3,
+  });
   
   const [formData, setFormData] = useState({
     clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
@@ -155,6 +167,48 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
         snmpInterfaceName: iface.ifName,
         snmpInterfaceDescr: iface.ifDescr,
       });
+    }
+  };
+
+  const handleCreateProfile = async () => {
+    if (!newProfileData.name.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Informe um nome para o perfil SNMP",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsCreatingProfile(true);
+    try {
+      const response = await apiRequest("POST", `/api/clients/${formData.clientId}/snmp-profiles`, {
+        name: newProfileData.name,
+        version: newProfileData.version,
+        community: newProfileData.community,
+        port: newProfileData.port,
+        timeout: newProfileData.timeout,
+        retries: newProfileData.retries,
+      });
+      
+      const created = await response.json();
+      toast({
+        title: "Perfil SNMP criado",
+        description: `Perfil "${newProfileData.name}" criado com sucesso`,
+      });
+      
+      setFormData({ ...formData, snmpProfileId: created.id });
+      setShowNewProfileForm(false);
+      setNewProfileData({ name: "", version: "v2c", community: "public", port: 161, timeout: 5000, retries: 3 });
+      onProfileCreated?.();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar perfil",
+        description: error.message || "Não foi possível criar o perfil SNMP",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingProfile(false);
     }
   };
 
@@ -285,20 +339,36 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="snmpProfileId">Perfil SNMP</Label>
-            <Select
-              value={formData.snmpProfileId?.toString() || "none"}
-              onValueChange={(value) => setFormData({ ...formData, snmpProfileId: value === "none" ? null : parseInt(value, 10) })}
-            >
-              <SelectTrigger data-testid="select-snmp-profile">
-                <SelectValue placeholder="Selecione um perfil" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {filteredSnmpProfiles?.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {filteredSnmpProfiles && filteredSnmpProfiles.length > 0 ? (
+              <Select
+                value={formData.snmpProfileId?.toString() || "none"}
+                onValueChange={(value) => setFormData({ ...formData, snmpProfileId: value === "none" ? null : parseInt(value, 10) })}
+              >
+                <SelectTrigger data-testid="select-snmp-profile">
+                  <SelectValue placeholder="Selecione um perfil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {filteredSnmpProfiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground flex-1">Nenhum perfil SNMP</span>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowNewProfileForm(true)}
+                  data-testid="button-create-snmp-profile-inline"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Criar Perfil
+                </Button>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
@@ -443,6 +513,109 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
           {link ? "Atualizar" : "Criar"} Link
         </Button>
       </DialogFooter>
+      
+      {showNewProfileForm && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-background border rounded-lg shadow-lg p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Novo Perfil SNMP</h3>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => setShowNewProfileForm(false)}
+                data-testid="button-close-new-profile"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Criando perfil para: {selectedClientName}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nome *</Label>
+                <Input
+                  value={newProfileData.name}
+                  onChange={(e) => setNewProfileData({ ...newProfileData, name: e.target.value })}
+                  placeholder="Ex: Mikrotik"
+                  data-testid="input-new-profile-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Versão SNMP</Label>
+                <Select
+                  value={newProfileData.version}
+                  onValueChange={(v) => setNewProfileData({ ...newProfileData, version: v })}
+                >
+                  <SelectTrigger data-testid="select-new-profile-version">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="v1">v1</SelectItem>
+                    <SelectItem value="v2c">v2c</SelectItem>
+                    <SelectItem value="v3">v3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Comunidade</Label>
+              <Input
+                value={newProfileData.community}
+                onChange={(e) => setNewProfileData({ ...newProfileData, community: e.target.value })}
+                placeholder="public"
+                data-testid="input-new-profile-community"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Porta</Label>
+                <Input
+                  type="number"
+                  value={newProfileData.port}
+                  onChange={(e) => setNewProfileData({ ...newProfileData, port: parseInt(e.target.value) || 161 })}
+                  data-testid="input-new-profile-port"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Timeout (ms)</Label>
+                <Input
+                  type="number"
+                  value={newProfileData.timeout}
+                  onChange={(e) => setNewProfileData({ ...newProfileData, timeout: parseInt(e.target.value) || 5000 })}
+                  data-testid="input-new-profile-timeout"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Retries</Label>
+                <Input
+                  type="number"
+                  value={newProfileData.retries}
+                  onChange={(e) => setNewProfileData({ ...newProfileData, retries: parseInt(e.target.value) || 3 })}
+                  data-testid="input-new-profile-retries"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowNewProfileForm(false)}
+                data-testid="button-cancel-new-profile"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleCreateProfile}
+                disabled={isCreatingProfile || !newProfileData.name.trim()}
+                data-testid="button-save-new-profile"
+              >
+                {isCreatingProfile && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Criar Perfil
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1185,6 +1358,7 @@ export default function Admin() {
                   }}
                   snmpProfiles={allSnmpProfiles}
                   clients={clients}
+                  onProfileCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/snmp-profiles"] })}
                 />
               </DialogContent>
             </Dialog>
