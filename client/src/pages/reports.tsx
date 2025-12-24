@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SLAIndicators } from "@/components/sla-indicators";
+import { useClientContext } from "@/lib/client-context";
 import {
   FileText,
   Download,
@@ -14,13 +15,18 @@ import {
 import type { SLAIndicator, DashboardStats } from "@shared/schema";
 
 export default function Reports() {
+  const { selectedClientId } = useClientContext();
+  
+  const slaUrl = selectedClientId ? `/api/sla?clientId=${selectedClientId}` : "/api/sla";
+  const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
+  
   const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
-    queryKey: ["/api/sla"],
+    queryKey: [slaUrl],
     refetchInterval: 30000,
   });
 
   const { data: stats } = useQuery<DashboardStats>({
-    queryKey: ["/api/stats"],
+    queryKey: [statsUrl],
   });
 
   return (

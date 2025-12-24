@@ -237,10 +237,23 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/links/:id", async (req, res) => {
+  async function validateLinkAccess(req: Request, linkId: number): Promise<{ allowed: boolean; link?: any }> {
+    const link = await storage.getLink(linkId);
+    if (!link) return { allowed: false };
+    
+    const user = req.user;
+    if (!user) return { allowed: false };
+    if (user.isSuperAdmin) return { allowed: true, link };
+    if (link.clientId === user.clientId) return { allowed: true, link };
+    
+    return { allowed: false };
+  }
+
+  app.get("/api/links/:id", requireAuth, async (req, res) => {
     try {
-      const link = await storage.getLink(parseInt(req.params.id, 10));
-      if (!link) {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
         return res.status(404).json({ error: "Link not found" });
       }
       res.json(link);
@@ -249,9 +262,15 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/links", async (req, res) => {
+  app.post("/api/links", requireAuth, async (req, res) => {
     try {
+      const user = req.user;
       const validatedData = insertLinkSchema.parse(req.body);
+      
+      if (!user?.isSuperAdmin && validatedData.clientId !== user?.clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
       const link = await storage.createLink(validatedData);
       res.status(201).json(link);
     } catch (error) {
@@ -259,77 +278,122 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/links/:id", async (req, res) => {
+  app.patch("/api/links/:id", requireAuth, async (req, res) => {
     try {
-      await storage.updateLink(parseInt(req.params.id, 10), req.body);
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      await storage.updateLink(linkId, req.body);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update link" });
     }
   });
 
-  app.delete("/api/links/:id", async (req, res) => {
+  app.delete("/api/links/:id", requireAuth, async (req, res) => {
     try {
-      await storage.deleteLink(parseInt(req.params.id, 10));
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      await storage.deleteLink(linkId);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete link" });
     }
   });
 
-  app.get("/api/links/:id/metrics", async (req, res) => {
+  app.get("/api/links/:id/metrics", requireAuth, async (req, res) => {
     try {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
-      const metricsData = await storage.getLinkMetrics(parseInt(req.params.id, 10), Math.min(limit, 1000));
+      const metricsData = await storage.getLinkMetrics(linkId, Math.min(limit, 1000));
       res.json(metricsData);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link metrics" });
     }
   });
 
-  app.get("/api/links/:id/events", async (req, res) => {
+  app.get("/api/links/:id/events", requireAuth, async (req, res) => {
     try {
-      const eventsList = await storage.getLinkEvents(parseInt(req.params.id, 10));
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const eventsList = await storage.getLinkEvents(linkId);
       res.json(eventsList);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link events" });
     }
   });
 
-  app.get("/api/links/:id/sla", async (req, res) => {
+  app.get("/api/links/:id/sla", requireAuth, async (req, res) => {
     try {
-      const sla = await storage.getLinkSLA(parseInt(req.params.id, 10));
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const sla = await storage.getLinkSLA(linkId);
       res.json(sla);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link SLA" });
     }
   });
 
-  app.get("/api/links/:id/status-detail", async (req, res) => {
+  app.get("/api/links/:id/status-detail", requireAuth, async (req, res) => {
     try {
-      const statusDetail = await storage.getLinkStatusDetail(parseInt(req.params.id, 10));
-      if (!statusDetail) {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
         return res.status(404).json({ error: "Link not found" });
       }
+      
+      const statusDetail = await storage.getLinkStatusDetail(linkId);
       res.json(statusDetail);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link status detail" });
     }
   });
 
-  app.post("/api/links/:id/failure", async (req, res) => {
+  app.post("/api/links/:id/failure", requireAuth, async (req, res) => {
     try {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
       const { failureReason, failureSource } = req.body;
-      await storage.updateLinkFailureState(parseInt(req.params.id, 10), failureReason, failureSource);
+      await storage.updateLinkFailureState(linkId, failureReason, failureSource);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update link failure state" });
     }
   });
 
-  app.get("/api/links/:id/incidents", async (req, res) => {
+  app.get("/api/links/:id/incidents", requireAuth, async (req, res) => {
     try {
-      const linkIncidents = await storage.getLinkIncidents(parseInt(req.params.id, 10));
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const linkIncidents = await storage.getLinkIncidents(linkId);
       res.json(linkIncidents);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link incidents" });

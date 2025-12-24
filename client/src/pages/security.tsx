@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/metric-card";
 import { DDoSPanel } from "@/components/ddos-panel";
+import { useClientContext } from "@/lib/client-context";
 import {
   Shield,
   ShieldCheck,
@@ -16,8 +17,12 @@ import {
 import type { DDoSEvent } from "@shared/schema";
 
 export default function Security() {
+  const { selectedClientId } = useClientContext();
+  
+  const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
+  
   const { data: ddosEvents, isLoading } = useQuery<DDoSEvent[]>({
-    queryKey: ["/api/security/ddos"],
+    queryKey: [ddosUrl],
     refetchInterval: 10000,
   });
 

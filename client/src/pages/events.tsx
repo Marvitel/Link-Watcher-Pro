@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EventsTable } from "@/components/events-table";
+import { useClientContext } from "@/lib/client-context";
 import { Activity, Search, Filter, RefreshCw } from "lucide-react";
 import type { Event } from "@shared/schema";
 
@@ -19,9 +20,12 @@ export default function Events() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { selectedClientId } = useClientContext();
 
+  const eventsUrl = selectedClientId ? `/api/events?clientId=${selectedClientId}` : "/api/events";
+  
   const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ["/api/events"],
+    queryKey: [eventsUrl],
     refetchInterval: 10000,
   });
 
