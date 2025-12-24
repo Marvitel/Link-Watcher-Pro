@@ -185,19 +185,31 @@ export default function Links() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">Velocidade</p>
-              <p className="text-lg font-semibold font-mono">200 Mbps</p>
-              <p className="text-xs text-muted-foreground">Simetrico (upload = download)</p>
+              <p className="text-sm text-muted-foreground">Banda Total Contratada</p>
+              <p className="text-lg font-semibold font-mono">
+                {links ? links.reduce((sum, l) => sum + (l.bandwidth || 0), 0) : 0} Mbps
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {links?.length || 0} link(s) ativo(s)
+              </p>
             </div>
             <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">Garantia de Banda</p>
-              <p className="text-lg font-semibold font-mono">100%</p>
-              <p className="text-xs text-muted-foreground">Banda minima garantida</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">Disponibilidade</p>
-              <p className="text-lg font-semibold font-mono">20h x 7 x 365</p>
+              <p className="text-sm text-muted-foreground">Uptime Medio</p>
+              <p className="text-lg font-semibold font-mono">
+                {links && links.length > 0 
+                  ? (links.reduce((sum, l) => sum + (l.uptime || 0), 0) / links.length).toFixed(2) 
+                  : 0}%
+              </p>
               <p className="text-xs text-muted-foreground">Meta SLA maior ou igual 99%</p>
+            </div>
+            <div className="p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground">Latencia Media</p>
+              <p className="text-lg font-semibold font-mono">
+                {links && links.length > 0 
+                  ? (links.reduce((sum, l) => sum + (l.latency || 0), 0) / links.length).toFixed(1) 
+                  : 0} ms
+              </p>
+              <p className="text-xs text-muted-foreground">Meta SLA menor ou igual 80ms</p>
             </div>
             <div className="p-4 rounded-md bg-muted/50">
               <p className="text-sm text-muted-foreground">Tecnologia</p>
