@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
 import { VoalleService } from "./voalle";
-import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission } from "./middleware/auth";
+import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -60,13 +60,14 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
       
+      const token = signToken(user);
+      
       (req.session as any).user = user;
       req.session.save((err) => {
         if (err) {
           console.error("Session save error:", err);
-          return res.status(500).json({ error: "Erro ao salvar sessão" });
         }
-        res.json({ user });
+        res.json({ user, token });
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -151,8 +152,7 @@ export async function registerRoutes(
 
   app.post("/api/users", requireAuth, async (req, res) => {
     try {
-      const sessionUser = (req.session as any)?.user;
-      if (!sessionUser?.isSuperAdmin) {
+      if (!req.user?.isSuperAdmin) {
         return res.status(403).json({ error: "Acesso negado" });
       }
       
@@ -177,8 +177,7 @@ export async function registerRoutes(
 
   app.patch("/api/users/:id", requireAuth, async (req, res) => {
     try {
-      const sessionUser = (req.session as any)?.user;
-      if (!sessionUser?.isSuperAdmin) {
+      if (!req.user?.isSuperAdmin) {
         return res.status(403).json({ error: "Acesso negado" });
       }
       
@@ -196,8 +195,7 @@ export async function registerRoutes(
 
   app.delete("/api/users/:id", requireAuth, async (req, res) => {
     try {
-      const sessionUser = (req.session as any)?.user;
-      if (!sessionUser?.isSuperAdmin) {
+      if (!req.user?.isSuperAdmin) {
         return res.status(403).json({ error: "Acesso negado" });
       }
       
@@ -209,13 +207,13 @@ export async function registerRoutes(
   });
 
   function getEffectiveClientId(req: Request): number | undefined {
-    const sessionUser = (req.session as any)?.user;
+    const user = req.user;
     const queryClientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
     
-    if (sessionUser?.isSuperAdmin) {
+    if (user?.isSuperAdmin) {
       return queryClientId;
     }
-    return sessionUser?.clientId || undefined;
+    return user?.clientId || undefined;
   }
 
   app.get("/api/stats", requireAuth, async (req, res) => {

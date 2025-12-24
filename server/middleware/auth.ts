@@ -1,10 +1,48 @@
 import type { Request, Response, NextFunction } from "express";
 import "express-session";
+import jwt from "jsonwebtoken";
 import { storage } from "../storage";
 import type { AuthUser } from "@shared/schema";
 
+const JWT_SECRET = process.env.SESSION_SECRET || "link-monitor-secret-key";
+
+export function signToken(user: AuthUser): string {
+  return jwt.sign(
+    { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name,
+      role: user.role,
+      clientId: user.clientId,
+      isSuperAdmin: user.isSuperAdmin 
+    }, 
+    JWT_SECRET, 
+    { expiresIn: "24h" }
+  );
+}
+
+function getUserFromRequest(req: Request): AuthUser | undefined {
+  const sessionUser = (req.session as any)?.user as AuthUser | undefined;
+  if (sessionUser) {
+    return sessionUser;
+  }
+  
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+      return decoded;
+    } catch (error) {
+      return undefined;
+    }
+  }
+  
+  return undefined;
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const user = (req.session as any)?.user as AuthUser | undefined;
+  const user = getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Autenticação necessária" });
   }
@@ -14,7 +52,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
-  const user = (req.session as any)?.user as AuthUser | undefined;
+  const user = getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Autenticação necessária" });
   }
@@ -26,7 +64,7 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
 }
 
 export function requireClientAccess(req: Request, res: Response, next: NextFunction) {
-  const user = (req.session as any)?.user as AuthUser | undefined;
+  const user = getUserFromRequest(req);
   if (!user) {
     return res.status(401).json({ error: "Autenticação necessária" });
   }
@@ -50,7 +88,7 @@ export function requireClientAccess(req: Request, res: Response, next: NextFunct
 
 export function requirePermission(permissionCode: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const user = (req.session as any)?.user as AuthUser | undefined;
+    const user = getUserFromRequest(req);
     if (!user) {
       return res.status(401).json({ error: "Autenticação necessária" });
     }
@@ -72,7 +110,7 @@ export function requirePermission(permissionCode: string) {
 }
 
 export function optionalAuth(req: Request, res: Response, next: NextFunction) {
-  const user = (req.session as any)?.user as AuthUser | undefined;
+  const user = getUserFromRequest(req);
   if (user) {
     req.user = user;
     req.clientId = user.clientId ?? undefined;
