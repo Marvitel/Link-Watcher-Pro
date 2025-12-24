@@ -5,20 +5,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { useClientContext } from "@/lib/client-context";
+import { exportToPDF, exportToCSV } from "@/lib/export-utils";
+import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
   Download,
   Calendar,
   TrendingUp,
   BarChart3,
+  Loader2,
 } from "lucide-react";
-import type { SLAIndicator, DashboardStats } from "@shared/schema";
+import type { SLAIndicator, DashboardStats, Link } from "@shared/schema";
+import { useState } from "react";
 
 export default function Reports() {
-  const { selectedClientId } = useClientContext();
+  const { selectedClientId, selectedClientName } = useClientContext();
+  const { toast } = useToast();
+  const [exporting, setExporting] = useState<"pdf" | "csv" | null>(null);
   
   const slaUrl = selectedClientId ? `/api/sla?clientId=${selectedClientId}` : "/api/sla";
   const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
+  const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
   
   const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
     queryKey: [slaUrl],
@@ -28,6 +35,51 @@ export default function Reports() {
   const { data: stats } = useQuery<DashboardStats>({
     queryKey: [statsUrl],
   });
+
+  const { data: links } = useQuery<Link[]>({
+    queryKey: [linksUrl],
+  });
+
+  const handleExport = (type: "pdf" | "csv") => {
+    if (!slaIndicators || !stats || !links) {
+      toast({
+        title: "Dados não disponíveis",
+        description: "Aguarde o carregamento dos dados antes de exportar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExporting(type);
+    
+    const reportData = {
+      clientName: selectedClientName || "Todos os Clientes",
+      slaIndicators,
+      stats,
+      links,
+      generatedAt: new Date(),
+    };
+
+    try {
+      if (type === "pdf") {
+        exportToPDF(reportData);
+      } else {
+        exportToCSV(reportData);
+      }
+      toast({
+        title: "Relatório exportado",
+        description: `O relatório foi baixado em formato ${type.toUpperCase()}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao exportar",
+        description: "Não foi possível gerar o relatório.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -39,12 +91,32 @@ export default function Reports() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" data-testid="button-export-pdf">
-            <Download className="w-4 h-4 mr-2" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleExport("pdf")}
+            disabled={exporting !== null}
+            data-testid="button-export-pdf"
+          >
+            {exporting === "pdf" ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
             Exportar PDF
           </Button>
-          <Button variant="outline" size="sm" data-testid="button-export-csv">
-            <Download className="w-4 h-4 mr-2" />
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => handleExport("csv")}
+            disabled={exporting !== null}
+            data-testid="button-export-csv"
+          >
+            {exporting === "csv" ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
             Exportar CSV
           </Button>
         </div>
