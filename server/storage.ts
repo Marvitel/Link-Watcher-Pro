@@ -53,6 +53,7 @@ import {
   type AuthUser,
 } from "@shared/schema";
 import { db } from "./db";
+import { startRealTimeMonitoring } from "./monitoring";
 import { eq, desc, gte, and, lt, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -559,45 +560,7 @@ export class DatabaseStorage {
   }
 
   startMetricCollection(): void {
-    setInterval(async () => {
-      try {
-        const allLinks = await this.getLinks();
-        
-        for (const link of allLinks) {
-          if (!link.monitoringEnabled) continue;
-
-          const variation = (Math.random() - 0.5) * 10;
-          const newDownload = Math.max(10, Math.min(195, link.currentDownload + variation));
-          const newUpload = Math.max(5, Math.min(195, link.currentUpload + variation * 0.5));
-          const newLatency = Math.max(20, Math.min(75, link.latency + (Math.random() - 0.5) * 5));
-          const newPacketLoss = Math.max(0, Math.min(1.5, link.packetLoss + (Math.random() - 0.5) * 0.1));
-          const newCpuUsage = Math.max(15, Math.min(80, link.cpuUsage + (Math.random() - 0.5) * 5));
-          const newMemoryUsage = Math.max(30, Math.min(70, link.memoryUsage + (Math.random() - 0.5) * 3));
-          const errorRate = Math.random() * 0.001;
-
-          await this.updateLinkStatus(link.id, {
-            currentDownload: newDownload,
-            currentUpload: newUpload,
-            latency: newLatency,
-            packetLoss: newPacketLoss,
-            cpuUsage: newCpuUsage,
-            memoryUsage: newMemoryUsage,
-          });
-
-          await this.addMetric(link.id, link.clientId, {
-            download: newDownload,
-            upload: newUpload,
-            latency: newLatency,
-            packetLoss: newPacketLoss,
-            cpuUsage: newCpuUsage,
-            memoryUsage: newMemoryUsage,
-            errorRate,
-          });
-        }
-      } catch (error) {
-        console.error("Error collecting metrics:", error);
-      }
-    }, 30000);
+    startRealTimeMonitoring(30);
 
     setInterval(async () => {
       try {
