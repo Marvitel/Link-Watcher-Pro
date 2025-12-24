@@ -39,8 +39,10 @@ import {
   CheckCircle,
   XCircle,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Link, Host, Client, User } from "@shared/schema";
 
 function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: { 
@@ -1146,10 +1148,6 @@ export default function Admin() {
             <Network className="w-4 h-4" />
             Links
           </TabsTrigger>
-          <TabsTrigger value="hosts" className="gap-2">
-            <Server className="w-4 h-4" />
-            Hosts
-          </TabsTrigger>
           <TabsTrigger value="clients" className="gap-2">
             <Building2 className="w-4 h-4" />
             Clientes
@@ -1161,10 +1159,6 @@ export default function Admin() {
           <TabsTrigger value="users-groups" className="gap-2">
             <Users className="w-4 h-4" />
             Usuários e Grupos
-          </TabsTrigger>
-          <TabsTrigger value="snmp" className="gap-2">
-            <Settings className="w-4 h-4" />
-            SNMP
           </TabsTrigger>
           <TabsTrigger value="system-settings" className="gap-2">
             <Settings className="w-4 h-4" />
@@ -1215,151 +1209,154 @@ export default function Admin() {
               ))}
             </div>
           ) : (
-            <div className="space-y-3">
-              {links?.map((link) => (
-                <Card key={link.id} data-testid={`card-admin-link-${link.id}`}>
-                  <CardContent className="flex items-center justify-between gap-4 py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
-                        <Network className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{link.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {link.location} - {link.ipBlock} - {link.bandwidth} Mbps
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={link.status === "operational" ? "default" : "destructive"}>
-                        {link.status === "operational" ? "Operacional" : link.status}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEditLink(link)}
-                        data-testid={`button-edit-link-${link.id}`}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteLinkMutation.mutate(link.id)}
-                        data-testid={`button-delete-link-${link.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {(!links || links.length === 0) && (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum link cadastrado. Clique em "Adicionar Link" para começar.
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="hosts" className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-medium">Hosts Monitorados</h2>
-              <p className="text-sm text-muted-foreground">
-                Gerencie os hosts e equipamentos de rede
-              </p>
-            </div>
-            <Dialog open={hostDialogOpen} onOpenChange={(open) => {
-              setHostDialogOpen(open);
-              if (!open) setEditingHost(undefined);
-            }}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-host" disabled={!links || links.length === 0}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Host
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>{editingHost ? "Editar Host" : "Novo Host"}</DialogTitle>
-                </DialogHeader>
-                {links && links.length > 0 && (
-                  <HostForm
-                    host={editingHost}
-                    links={links}
-                    onSave={handleSaveHost}
-                    onClose={() => {
-                      setHostDialogOpen(false);
-                      setEditingHost(undefined);
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {hostsLoading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {hosts?.map((host) => {
-                const link = links?.find(l => l.id === host.linkId);
+            <div className="space-y-4">
+              {links?.map((link) => {
+                const linkHosts = hosts?.filter(h => h.linkId === link.id) || [];
+                const clientName = clients?.find(c => c.id === link.clientId)?.name;
                 return (
-                  <Card key={host.id} data-testid={`card-admin-host-${host.id}`}>
-                    <CardContent className="flex items-center justify-between gap-4 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-md bg-secondary/50 flex items-center justify-center">
-                          <Server className="w-5 h-5" />
+                  <Card key={link.id} data-testid={`card-admin-link-${link.id}`}>
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
+                            <Network className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{link.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {clientName && <span className="text-primary">{clientName}</span>}
+                              {clientName && " - "}{link.location} - {link.ipBlock} - {link.bandwidth} Mbps
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{host.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {host.ipAddress} - {host.hostType} - Link: {link?.name || "N/A"}
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={link.status === "operational" ? "default" : "destructive"}>
+                            {link.status === "operational" ? "Operacional" : link.status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditLink(link)}
+                            data-testid={`button-edit-link-${link.id}`}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteLinkMutation.mutate(link.id)}
+                            data-testid={`button-delete-link-${link.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={host.isActive ? "default" : "secondary"}>
-                          {host.isActive ? "Ativo" : "Inativo"}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditHost(host)}
-                          data-testid={`button-edit-host-${host.id}`}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteHostMutation.mutate(host.id)}
-                          data-testid={`button-delete-host-${host.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      
+                      <Collapsible className="mt-4">
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" data-testid={`button-toggle-hosts-${link.id}`}>
+                            <Server className="w-4 h-4" />
+                            <span>Hosts ({linkHosts.length})</span>
+                            <ChevronDown className="w-4 h-4 ml-auto" />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-2 pl-4 border-l-2 border-muted">
+                          {linkHosts.map((host) => (
+                            <div key={host.id} className="flex items-center justify-between gap-2 py-2 px-3 rounded-md bg-muted/30" data-testid={`card-admin-host-${host.id}`}>
+                              <div className="flex items-center gap-3">
+                                <Server className="w-4 h-4 text-muted-foreground" />
+                                <div>
+                                  <p className="text-sm font-medium">{host.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {host.ipAddress} - {host.hostType}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Badge variant={host.isActive ? "default" : "secondary"} className="text-xs">
+                                  {host.isActive ? "Ativo" : "Inativo"}
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditHost(host)}
+                                  data-testid={`button-edit-host-${host.id}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteHostMutation.mutate(host.id)}
+                                  data-testid={`button-delete-host-${host.id}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          {linkHosts.length === 0 && (
+                            <p className="text-sm text-muted-foreground py-2">Nenhum host cadastrado neste link</p>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => {
+                              setEditingHost({
+                                linkId: link.id,
+                                clientId: link.clientId,
+                                name: "",
+                                ipAddress: "",
+                                hostType: "server",
+                                isActive: true,
+                                latencyThreshold: 80,
+                                packetLossThreshold: 2,
+                              } as Host);
+                              setHostDialogOpen(true);
+                            }}
+                            data-testid={`button-add-host-to-link-${link.id}`}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Adicionar Host
+                          </Button>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </CardContent>
                   </Card>
                 );
               })}
-              {(!hosts || hosts.length === 0) && (
+              {(!links || links.length === 0) && (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum host cadastrado. Clique em "Adicionar Host" para começar.
+                    Nenhum link cadastrado. Clique em "Adicionar Link" para comecar.
                   </CardContent>
                 </Card>
               )}
             </div>
           )}
+
+          <Dialog open={hostDialogOpen} onOpenChange={(open) => {
+            setHostDialogOpen(open);
+            if (!open) setEditingHost(undefined);
+          }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{editingHost ? "Editar Host" : "Novo Host"}</DialogTitle>
+              </DialogHeader>
+              {links && links.length > 0 && (
+                <HostForm
+                  host={editingHost}
+                  links={links}
+                  onSave={handleSaveHost}
+                  onClose={() => {
+                    setHostDialogOpen(false);
+                    setEditingHost(undefined);
+                  }}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4">
@@ -1513,10 +1510,6 @@ export default function Admin() {
 
         <TabsContent value="users-groups" className="space-y-4">
           <UsersAndGroupsTab clients={clients || []} />
-        </TabsContent>
-
-        <TabsContent value="snmp" className="space-y-4">
-          <SnmpConfigTab clients={clients || []} />
         </TabsContent>
 
         <TabsContent value="system-settings" className="space-y-4">
