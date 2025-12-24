@@ -38,9 +38,31 @@ import {
   CheckCircle,
   XCircle,
   FileText,
+  Search,
+  Loader2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User } from "@shared/schema";
+
+interface SnmpInterface {
+  ifIndex: number;
+  ifName: string;
+  ifDescr: string;
+  ifSpeed: number;
+  ifOperStatus: string;
+  ifAdminStatus: string;
+}
+
+function formatSpeed(speedBps: number): string {
+  if (speedBps >= 1000000000) {
+    return `${(speedBps / 1000000000).toFixed(0)} Gbps`;
+  } else if (speedBps >= 1000000) {
+    return `${(speedBps / 1000000).toFixed(0)} Mbps`;
+  } else if (speedBps >= 1000) {
+    return `${(speedBps / 1000).toFixed(0)} Kbps`;
+  }
+  return speedBps > 0 ? `${speedBps} bps` : "";
+}
 
 function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: { 
   link?: Link; 
@@ -49,6 +71,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
   snmpProfiles?: Array<{ id: number; name: string; clientId: number }>;
   clients?: Client[];
 }) {
+  const { toast } = useToast();
+  const [discoveredInterfaces, setDiscoveredInterfaces] = useState<SnmpInterface[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  
   const [formData, setFormData] = useState({
     clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
     identifier: link?.identifier || "",
@@ -72,6 +98,65 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
   });
 
   const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId);
+
+  const handleDiscoverInterfaces = async () => {
+    if (!formData.snmpRouterIp || !formData.snmpProfileId) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Selecione um perfil SNMP e informe o IP do roteador",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsDiscovering(true);
+    setDiscoveredInterfaces([]);
+    
+    try {
+      const response = await apiRequest("POST", "/api/snmp/discover-interfaces", {
+        targetIp: formData.snmpRouterIp,
+        snmpProfileId: formData.snmpProfileId,
+      });
+      
+      const interfaces: SnmpInterface[] = await response.json();
+      setDiscoveredInterfaces(interfaces);
+      
+      if (interfaces.length === 0) {
+        toast({
+          title: "Nenhuma interface encontrada",
+          description: "O dispositivo não retornou interfaces SNMP",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Interfaces descobertas",
+          description: `${interfaces.length} interface(s) encontrada(s)`,
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || "Não foi possível conectar ao dispositivo";
+      const cleanMessage = errorMessage.replace(/^\d+:\s*/, "").replace(/^{"error":"(.+)"}$/, "$1");
+      toast({
+        title: "Erro na descoberta SNMP",
+        description: cleanMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const handleSelectInterface = (ifIndex: string) => {
+    const iface = discoveredInterfaces.find(i => i.ifIndex.toString() === ifIndex);
+    if (iface) {
+      setFormData({
+        ...formData,
+        snmpInterfaceIndex: iface.ifIndex,
+        snmpInterfaceName: iface.ifName,
+        snmpInterfaceDescr: iface.ifDescr,
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -208,15 +293,68 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
           </div>
           <div className="space-y-2">
             <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
-            <Input
-              id="snmpRouterIp"
-              value={formData.snmpRouterIp}
-              onChange={(e) => setFormData({ ...formData, snmpRouterIp: e.target.value })}
-              placeholder="192.168.1.1"
-              data-testid="input-snmp-router-ip"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="snmpRouterIp"
+                value={formData.snmpRouterIp}
+                onChange={(e) => setFormData({ ...formData, snmpRouterIp: e.target.value })}
+                placeholder="192.168.1.1"
+                data-testid="input-snmp-router-ip"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDiscoverInterfaces}
+                disabled={isDiscovering || !formData.snmpProfileId || !formData.snmpRouterIp}
+                data-testid="button-discover-interfaces"
+              >
+                {isDiscovering ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                <span className="ml-1">Descobrir</span>
+              </Button>
+            </div>
           </div>
         </div>
+        
+        {discoveredInterfaces.length > 0 && (
+          <div className="space-y-2 mt-3">
+            <Label>Selecionar Interface Descoberta</Label>
+            <Select
+              value={formData.snmpInterfaceIndex?.toString() || ""}
+              onValueChange={handleSelectInterface}
+            >
+              <SelectTrigger data-testid="select-discovered-interface">
+                <SelectValue placeholder="Escolha uma interface..." />
+              </SelectTrigger>
+              <SelectContent>
+                {discoveredInterfaces.map((iface) => (
+                  <SelectItem key={iface.ifIndex} value={iface.ifIndex.toString()}>
+                    <div className="flex items-center gap-2">
+                      <Badge 
+                        variant={iface.ifOperStatus === "up" ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {iface.ifOperStatus}
+                      </Badge>
+                      <span className="font-mono text-sm">{iface.ifIndex}</span>
+                      <span>{iface.ifName || iface.ifDescr}</span>
+                      {iface.ifSpeed > 0 && (
+                        <span className="text-muted-foreground text-xs">
+                          ({formatSpeed(iface.ifSpeed)})
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div className="space-y-2">
             <Label htmlFor="snmpInterfaceIndex">Índice da Interface (ifIndex)</Label>

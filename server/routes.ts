@@ -931,9 +931,23 @@ export async function registerRoutes(
         return res.status(400).json({ error: "IP do roteador e perfil SNMP são obrigatórios" });
       }
       
+      const ipPattern = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipPattern.test(targetIp)) {
+        return res.status(400).json({ error: "Formato de IP inválido" });
+      }
+      
+      if (typeof snmpProfileId !== 'number' || snmpProfileId <= 0) {
+        return res.status(400).json({ error: "ID do perfil SNMP inválido" });
+      }
+      
       const profile = await storage.getSnmpProfile(snmpProfileId);
       if (!profile) {
         return res.status(404).json({ error: "Perfil SNMP não encontrado" });
+      }
+      
+      const user = req.user;
+      if (!user?.isSuperAdmin && profile.clientId !== user?.clientId) {
+        return res.status(403).json({ error: "Acesso negado a este perfil SNMP" });
       }
       
       const interfaces = await discoverInterfaces(targetIp, {
