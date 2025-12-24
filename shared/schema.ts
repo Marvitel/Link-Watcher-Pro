@@ -94,6 +94,9 @@ export const links = pgTable("links", {
   snmpInterfaceName: varchar("snmp_interface_name", { length: 100 }),
   snmpInterfaceDescr: text("snmp_interface_descr"),
   snmpRouterIp: varchar("snmp_router_ip", { length: 45 }),
+  monitoredIp: varchar("monitored_ip", { length: 45 }),
+  latencyThreshold: real("latency_threshold").notNull().default(80),
+  packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -30,7 +30,6 @@ import {
   Pencil,
   Trash2,
   Network,
-  Server,
   Settings,
   Building2,
   Users,
@@ -39,11 +38,9 @@ import {
   CheckCircle,
   XCircle,
   FileText,
-  ChevronDown,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { Link, Host, Client, User } from "@shared/schema";
+import type { Link, Client, User } from "@shared/schema";
 
 function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: { 
   link?: Link; 
@@ -69,6 +66,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
     snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
     snmpInterfaceName: link?.snmpInterfaceName || "",
     snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
+    monitoredIp: link?.monitoredIp || "",
+    latencyThreshold: link?.latencyThreshold || 80,
+    packetLossThreshold: link?.packetLossThreshold || 2,
   });
 
   const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId);
@@ -252,6 +252,42 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
         </div>
       </div>
       
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3">Monitoramento de Conectividade</h4>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="monitoredIp">IP para Monitoramento</Label>
+            <Input
+              id="monitoredIp"
+              value={formData.monitoredIp}
+              onChange={(e) => setFormData({ ...formData, monitoredIp: e.target.value })}
+              placeholder="191.52.248.26"
+              data-testid="input-monitored-ip"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="latencyThreshold">Limite Latência (ms)</Label>
+            <Input
+              id="latencyThreshold"
+              type="number"
+              value={formData.latencyThreshold}
+              onChange={(e) => setFormData({ ...formData, latencyThreshold: parseFloat(e.target.value) || 80 })}
+              data-testid="input-latency-threshold"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="packetLossThreshold">Limite Perda Pacotes (%)</Label>
+            <Input
+              id="packetLossThreshold"
+              type="number"
+              value={formData.packetLossThreshold}
+              onChange={(e) => setFormData({ ...formData, packetLossThreshold: parseFloat(e.target.value) || 2 })}
+              data-testid="input-packetloss-threshold"
+            />
+          </div>
+        </div>
+      </div>
+      
       <DialogFooter>
         <Button variant="outline" onClick={onClose} data-testid="button-cancel">
           Cancelar
@@ -264,138 +300,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
   );
 }
 
-function HostForm({ host, links, onSave, onClose }: { 
-  host?: Host;
-  links: Link[];
-  onSave: (data: Partial<Host>) => void;
-  onClose: () => void;
-}) {
-  const [formData, setFormData] = useState({
-    linkId: host?.linkId || links[0]?.id || 0,
-    clientId: host?.clientId || links[0]?.clientId || 1,
-    name: host?.name || "",
-    ipAddress: host?.ipAddress || "",
-    hostType: host?.hostType || "server",
-    description: host?.description || "",
-    isActive: host?.isActive ?? true,
-    latencyThreshold: host?.latencyThreshold || 80,
-    packetLossThreshold: host?.packetLossThreshold || 2,
-  });
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Nome do Host</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Servidor Web, Roteador, etc."
-            data-testid="input-host-name"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ipAddress">Endereço IP</Label>
-          <Input
-            id="ipAddress"
-            value={formData.ipAddress}
-            onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
-            placeholder="192.168.1.1"
-            data-testid="input-host-ip"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="linkId">Link Associado</Label>
-          <Select
-            value={formData.linkId.toString()}
-            onValueChange={(value) => {
-              const selectedLink = links.find(l => l.id === parseInt(value, 10));
-              setFormData({ 
-                ...formData, 
-                linkId: parseInt(value, 10),
-                clientId: selectedLink?.clientId || formData.clientId,
-              });
-            }}
-          >
-            <SelectTrigger data-testid="select-link">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {links.map((link) => (
-                <SelectItem key={link.id} value={link.id.toString()}>
-                  {link.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="hostType">Tipo de Host</Label>
-          <Select
-            value={formData.hostType}
-            onValueChange={(value) => setFormData({ ...formData, hostType: value })}
-          >
-            <SelectTrigger data-testid="select-host-type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="server">Servidor</SelectItem>
-              <SelectItem value="router">Roteador</SelectItem>
-              <SelectItem value="switch">Switch</SelectItem>
-              <SelectItem value="firewall">Firewall</SelectItem>
-              <SelectItem value="olt">OLT</SelectItem>
-              <SelectItem value="other">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="description">Descrição</Label>
-        <Input
-          id="description"
-          value={formData.description || ""}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="Descrição opcional do host"
-          data-testid="input-host-description"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="latencyThreshold">Limiar Latência (ms)</Label>
-          <Input
-            id="latencyThreshold"
-            type="number"
-            value={formData.latencyThreshold}
-            onChange={(e) => setFormData({ ...formData, latencyThreshold: parseFloat(e.target.value) || 80 })}
-            data-testid="input-latency-threshold"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="packetLossThreshold">Limiar Perda (%)</Label>
-          <Input
-            id="packetLossThreshold"
-            type="number"
-            step="0.1"
-            value={formData.packetLossThreshold}
-            onChange={(e) => setFormData({ ...formData, packetLossThreshold: parseFloat(e.target.value) || 2 })}
-            data-testid="input-packet-loss-threshold"
-          />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} data-testid="button-cancel-host">
-          Cancelar
-        </Button>
-        <Button onClick={() => onSave(formData)} data-testid="button-save-host">
-          {host ? "Atualizar" : "Criar"} Host
-        </Button>
-      </DialogFooter>
-    </div>
-  );
-}
 
 interface ClientSettings {
   wanguardApiEndpoint?: string | null;
@@ -905,10 +809,8 @@ export default function Admin() {
   const { toast } = useToast();
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [hostDialogOpen, setHostDialogOpen] = useState(false);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | undefined>();
-  const [editingHost, setEditingHost] = useState<Host | undefined>();
   const [editingClient, setEditingClient] = useState<Client | undefined>();
   const [clientFormData, setClientFormData] = useState({
     name: "",
@@ -924,11 +826,6 @@ export default function Admin() {
 
   const { data: links, isLoading: linksLoading } = useQuery<Link[]>({
     queryKey: ["/api/links"],
-    enabled: isSuperAdmin,
-  });
-
-  const { data: hosts, isLoading: hostsLoading } = useQuery<Host[]>({
-    queryKey: ["/api/hosts"],
     enabled: isSuperAdmin,
   });
 
@@ -977,49 +874,6 @@ export default function Admin() {
     },
     onError: () => {
       toast({ title: "Erro ao excluir link", variant: "destructive" });
-    },
-  });
-
-  const createHostMutation = useMutation({
-    mutationFn: async (data: Partial<Host>) => {
-      return await apiRequest("POST", "/api/hosts", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hosts"] });
-      setHostDialogOpen(false);
-      setEditingHost(undefined);
-      toast({ title: "Host criado com sucesso" });
-    },
-    onError: () => {
-      toast({ title: "Erro ao criar host", variant: "destructive" });
-    },
-  });
-
-  const updateHostMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Host> }) => {
-      return await apiRequest("PATCH", `/api/hosts/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hosts"] });
-      setHostDialogOpen(false);
-      setEditingHost(undefined);
-      toast({ title: "Host atualizado com sucesso" });
-    },
-    onError: () => {
-      toast({ title: "Erro ao atualizar host", variant: "destructive" });
-    },
-  });
-
-  const deleteHostMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return await apiRequest("DELETE", `/api/hosts/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hosts"] });
-      toast({ title: "Host excluído com sucesso" });
-    },
-    onError: () => {
-      toast({ title: "Erro ao excluir host", variant: "destructive" });
     },
   });
 
@@ -1095,22 +949,9 @@ export default function Admin() {
     }
   };
 
-  const handleSaveHost = (data: Partial<Host>) => {
-    if (editingHost) {
-      updateHostMutation.mutate({ id: editingHost.id, data });
-    } else {
-      createHostMutation.mutate(data);
-    }
-  };
-
   const handleEditLink = (link: Link) => {
     setEditingLink(link);
     setLinkDialogOpen(true);
-  };
-
-  const handleEditHost = (host: Host) => {
-    setEditingHost(host);
-    setHostDialogOpen(true);
   };
 
   if (authLoading) {
@@ -1211,7 +1052,6 @@ export default function Admin() {
           ) : (
             <div className="space-y-4">
               {links?.map((link) => {
-                const linkHosts = hosts?.filter(h => h.linkId === link.id) || [];
                 const clientName = clients?.find(c => c.id === link.clientId)?.name;
                 return (
                   <Card key={link.id} data-testid={`card-admin-link-${link.id}`}>
@@ -1251,77 +1091,13 @@ export default function Admin() {
                           </Button>
                         </div>
                       </div>
-                      
-                      <Collapsible className="mt-4">
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" data-testid={`button-toggle-hosts-${link.id}`}>
-                            <Server className="w-4 h-4" />
-                            <span>Hosts ({linkHosts.length})</span>
-                            <ChevronDown className="w-4 h-4 ml-auto" />
-                          </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-2 pl-4 border-l-2 border-muted">
-                          {linkHosts.map((host) => (
-                            <div key={host.id} className="flex items-center justify-between gap-2 py-2 px-3 rounded-md bg-muted/30" data-testid={`card-admin-host-${host.id}`}>
-                              <div className="flex items-center gap-3">
-                                <Server className="w-4 h-4 text-muted-foreground" />
-                                <div>
-                                  <p className="text-sm font-medium">{host.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {host.ipAddress} - {host.hostType}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Badge variant={host.isActive ? "default" : "secondary"} className="text-xs">
-                                  {host.isActive ? "Ativo" : "Inativo"}
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEditHost(host)}
-                                  data-testid={`button-edit-host-${host.id}`}
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => deleteHostMutation.mutate(host.id)}
-                                  data-testid={`button-delete-host-${host.id}`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                          {linkHosts.length === 0 && (
-                            <p className="text-sm text-muted-foreground py-2">Nenhum host cadastrado neste link</p>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2"
-                            onClick={() => {
-                              setEditingHost({
-                                linkId: link.id,
-                                clientId: link.clientId,
-                                name: "",
-                                ipAddress: "",
-                                hostType: "server",
-                                isActive: true,
-                                latencyThreshold: 80,
-                                packetLossThreshold: 2,
-                              } as Host);
-                              setHostDialogOpen(true);
-                            }}
-                            data-testid={`button-add-host-to-link-${link.id}`}
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Adicionar Host
-                          </Button>
-                        </CollapsibleContent>
-                      </Collapsible>
+                      {link.monitoredIp && (
+                        <div className="mt-3 pt-3 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            IP Monitorado: <span className="font-mono">{link.monitoredIp}</span>
+                          </p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -1336,27 +1112,6 @@ export default function Admin() {
             </div>
           )}
 
-          <Dialog open={hostDialogOpen} onOpenChange={(open) => {
-            setHostDialogOpen(open);
-            if (!open) setEditingHost(undefined);
-          }}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingHost ? "Editar Host" : "Novo Host"}</DialogTitle>
-              </DialogHeader>
-              {links && links.length > 0 && (
-                <HostForm
-                  host={editingHost}
-                  links={links}
-                  onSave={handleSaveHost}
-                  onClose={() => {
-                    setHostDialogOpen(false);
-                    setEditingHost(undefined);
-                  }}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4">
