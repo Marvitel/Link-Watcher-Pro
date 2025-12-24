@@ -311,7 +311,14 @@ export default function Settings() {
                 id="contractDuration"
                 type="number"
                 value={formData.contractDuration}
-                onChange={(e) => setFormData({ ...formData, contractDuration: parseInt(e.target.value) || 12 })}
+                onChange={(e) => {
+                  const duration = parseInt(e.target.value) || 12;
+                  setFormData({
+                    ...formData,
+                    contractDuration: duration,
+                    contractAnnualValue: formData.contractMonthlyValue * duration,
+                  });
+                }}
                 data-testid="input-contract-duration"
               />
             </div>
