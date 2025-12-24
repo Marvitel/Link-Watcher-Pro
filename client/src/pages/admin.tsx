@@ -158,26 +158,35 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients }: {
     }
   };
 
+  const selectedClientName = clients?.find(c => c.id === formData.clientId)?.name;
+
   return (
     <div className="space-y-4">
-      {clients && clients.length > 1 && (
+      {clients && clients.length > 0 && (
         <div className="space-y-2">
-          <Label htmlFor="clientId">Cliente</Label>
-          <Select
-            value={formData.clientId.toString()}
-            onValueChange={(value) => setFormData({ ...formData, clientId: parseInt(value, 10), snmpProfileId: null })}
-          >
-            <SelectTrigger data-testid="select-link-client">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id.toString()}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="clientId">Cliente *</Label>
+          {clients.length === 1 ? (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+              <Building2 className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm">{clients[0].name}</span>
+            </div>
+          ) : (
+            <Select
+              value={formData.clientId.toString()}
+              onValueChange={(value) => setFormData({ ...formData, clientId: parseInt(value, 10), snmpProfileId: null })}
+            >
+              <SelectTrigger data-testid="select-link-client">
+                <SelectValue placeholder="Selecione um cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id.toString()}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
       <div className="grid grid-cols-2 gap-4">
