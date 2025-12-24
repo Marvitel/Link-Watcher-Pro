@@ -14,6 +14,21 @@ import { useClientContext } from "@/lib/client-context";
 import { getAuthToken } from "@/lib/auth";
 import type { Link as LinkType, Metric } from "@shared/schema";
 
+function LinkCardWithMetrics({ link }: { link: LinkType }) {
+  const { data: metrics } = useQuery<Metric[]>({
+    queryKey: [`/api/links/${link.id}/metrics`],
+    refetchInterval: 5000,
+  });
+
+  const metricsHistory = metrics?.map((m) => ({
+    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
+    download: m.download,
+    upload: m.upload,
+  })) || [];
+
+  return <LinkCard link={link} metricsHistory={metricsHistory} />;
+}
+
 export default function Links() {
   const { toast } = useToast();
   const { selectedClientId, selectedClientName, isEditable } = useClientContext();
@@ -261,7 +276,7 @@ export default function Links() {
                   </Button>
                 </div>
               )}
-              <LinkCard link={link} metricsHistory={[]} />
+              <LinkCardWithMetrics link={link} />
             </div>
           ))
         ) : (
