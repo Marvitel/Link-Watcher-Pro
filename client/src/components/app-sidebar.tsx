@@ -9,7 +9,6 @@ import {
   Settings,
   Activity,
   Server,
-  Users,
 } from "lucide-react";
 import type { Link as LinkType } from "@shared/schema";
 import {
@@ -29,7 +28,7 @@ import { useClientContext } from "@/lib/client-context";
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, isSuperAdmin, isClientAdmin } = useAuth();
+  const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, isViewingAsClient } = useClientContext();
 
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
@@ -51,7 +50,6 @@ export function AppSidebar() {
   ];
 
   const clientConfigItems = [
-    ...(isClientAdmin || isSuperAdmin ? [{ title: "Usuários", url: "/users", icon: Users }] : []),
     { title: "Configurações", url: "/settings", icon: Settings },
   ];
 
