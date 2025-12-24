@@ -94,33 +94,35 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            {isViewingAsClient && selectedClientName ? `Links - ${selectedClientName}` : "Localidades"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {links?.map((link) => (
-                <SidebarMenuItem key={link.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === `/link/${link.id}`}
-                  >
-                    <Link href={`/link/${link.id}`} data-testid={`link-nav-link-${link.id}`}>
-                      <Building2 className="w-4 h-4" />
-                      <span>{link.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {(!links || links.length === 0) && (
-                <SidebarMenuItem>
-                  <span className="text-xs text-muted-foreground px-2">Nenhum link cadastrado</span>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {selectedClientId && (
+          <SidebarGroup>
+            <SidebarGroupLabel>
+              {selectedClientName ? `Localidades - ${selectedClientName}` : "Localidades"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {links?.map((link) => (
+                  <SidebarMenuItem key={link.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === `/link/${link.id}`}
+                    >
+                      <Link href={`/link/${link.id}`} data-testid={`link-nav-link-${link.id}`}>
+                        <Building2 className="w-4 h-4" />
+                        <span>{link.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+                {(!links || links.length === 0) && (
+                  <SidebarMenuItem>
+                    <span className="text-xs text-muted-foreground px-2">Nenhum link cadastrado</span>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Monitoramento</SidebarGroupLabel>
