@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
 import { VoalleService } from "./voalle";
+import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
 import { 
   insertIncidentSchema, 
@@ -919,6 +920,48 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete SNMP profile" });
+    }
+  });
+
+  app.post("/api/snmp/discover-interfaces", requireAuth, async (req, res) => {
+    try {
+      const { targetIp, snmpProfileId } = req.body;
+      
+      if (!targetIp || !snmpProfileId) {
+        return res.status(400).json({ error: "IP do roteador e perfil SNMP são obrigatórios" });
+      }
+      
+      const profile = await storage.getSnmpProfile(snmpProfileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Perfil SNMP não encontrado" });
+      }
+      
+      const interfaces = await discoverInterfaces(targetIp, {
+        id: profile.id,
+        version: profile.version,
+        port: profile.port,
+        community: profile.community,
+        securityLevel: profile.securityLevel,
+        authProtocol: profile.authProtocol,
+        authPassword: profile.authPassword,
+        privProtocol: profile.privProtocol,
+        privPassword: profile.privPassword,
+        username: profile.username,
+        timeout: profile.timeout,
+        retries: profile.retries,
+      });
+      
+      res.json(interfaces);
+    } catch (error: any) {
+      console.error("SNMP discovery error:", error);
+      const message = error?.message || "Falha ao descobrir interfaces SNMP";
+      if (message.includes("Timeout") || message.includes("timeout")) {
+        return res.status(504).json({ error: "Tempo esgotado ao conectar ao dispositivo SNMP" });
+      }
+      if (message.includes("Authentication") || message.includes("auth")) {
+        return res.status(401).json({ error: "Falha de autenticação SNMP" });
+      }
+      res.status(500).json({ error: message });
     }
   });
 
