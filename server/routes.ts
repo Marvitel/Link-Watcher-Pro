@@ -149,31 +149,62 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  app.post("/api/users", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertUserSchema.parse(req.body);
+      const sessionUser = (req.session as any)?.user;
+      if (!sessionUser?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const { password, ...userData } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "Senha deve ter pelo menos 6 caracteres" });
+      }
+      
+      const userDataWithHash = {
+        ...userData,
+        passwordHash: password,
+      };
+      
+      const validatedData = insertUserSchema.parse(userDataWithHash);
       const user = await storage.createUser(validatedData);
       res.status(201).json({ ...user, passwordHash: undefined });
-    } catch (error) {
-      res.status(400).json({ error: "Invalid user data" });
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      res.status(400).json({ error: error.message || "Dados de usuario invalidos" });
     }
   });
 
-  app.patch("/api/users/:id", async (req, res) => {
+  app.patch("/api/users/:id", requireAuth, async (req, res) => {
     try {
-      await storage.updateUser(parseInt(req.params.id, 10), req.body);
+      const sessionUser = (req.session as any)?.user;
+      if (!sessionUser?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const { password, ...updateData } = req.body;
+      if (password) {
+        updateData.passwordHash = password;
+      }
+      
+      await storage.updateUser(parseInt(req.params.id, 10), updateData);
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to update user" });
+      res.status(500).json({ error: "Falha ao atualizar usuario" });
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+  app.delete("/api/users/:id", requireAuth, async (req, res) => {
     try {
+      const sessionUser = (req.session as any)?.user;
+      if (!sessionUser?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
       await storage.deleteUser(parseInt(req.params.id, 10));
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete user" });
+      res.status(500).json({ error: "Falha ao excluir usuario" });
     }
   });
 
