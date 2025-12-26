@@ -8,7 +8,7 @@ import { BandwidthChart } from "./bandwidth-chart";
 
 interface LinkCardProps {
   link: Link;
-  metricsHistory?: Array<{ timestamp: string; download: number; upload: number }>;
+  metricsHistory?: Array<{ timestamp: string; download: number; upload: number; status?: string }>;
 }
 
 export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
@@ -35,7 +35,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="h-24">
-          <BandwidthChart data={metricsHistory} height={96} status={link.status} />
+          <BandwidthChart data={metricsHistory} height={96} />
         </div>
         
         <div className="grid grid-cols-2 gap-4">

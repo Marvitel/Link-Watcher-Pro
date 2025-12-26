@@ -31,6 +31,7 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     download: m.download,
     upload: m.upload,
+    status: m.status,
   })) || [];
 
   return <LinkCard link={link} metricsHistory={metricsHistory} />;

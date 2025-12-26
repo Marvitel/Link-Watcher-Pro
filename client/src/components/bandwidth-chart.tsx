@@ -30,7 +30,6 @@ export function BandwidthChart({
   data,
   height = 200,
   showAxes = false,
-  status = "operational",
 }: BandwidthChartProps) {
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
@@ -39,7 +38,7 @@ export function BandwidthChart({
         .filter((item) => item && item.timestamp)
         .map((item) => {
           try {
-            const pointStatus = item.status || status;
+            const pointStatus = item.status || "operational";
             const isDown = isDownStatus(pointStatus);
             return {
               time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
@@ -56,7 +55,7 @@ export function BandwidthChart({
     } catch {
       return [];
     }
-  }, [data, status]);
+  }, [data]);
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -114,12 +113,13 @@ export function BandwidthChart({
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
-          formatter={(value: number | null, name: string) => {
-            if (value === null) return [null, null];
+          formatter={(value, name: string) => {
+            if (value === null || value === undefined) return [null, null];
+            const numVal = typeof value === 'number' ? value : 0;
             const label = name.includes("Down") 
               ? (name.includes("download") ? "Download (Down)" : "Upload (Down)")
               : (name === "download" ? "Download" : "Upload");
-            return [`${(value ?? 0).toFixed(1)} Mbps`, label];
+            return [`${numVal.toFixed(1)} Mbps`, label];
           }}
         />
         <Area
@@ -170,7 +170,7 @@ interface LatencyChartProps {
   status?: string;
 }
 
-export function LatencyChart({ data, height = 200, threshold = 80, status = "operational" }: LatencyChartProps) {
+export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChartProps) {
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
@@ -178,7 +178,7 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
         .filter((item) => item && item.timestamp)
         .map((item) => {
           try {
-            const pointStatus = item.status || status;
+            const pointStatus = item.status || "operational";
             const isDown = isDownStatus(pointStatus);
             return {
               time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
@@ -194,7 +194,7 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
     } catch {
       return [];
     }
-  }, [data, threshold, status]);
+  }, [data, threshold]);
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -241,11 +241,12 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
-          formatter={(value: number | null, name: string) => {
-            if (value === null) return [null, null];
-            if (name === "threshold") return [`${value} ms`, "Limite SLA"];
+          formatter={(value, name: string) => {
+            if (value === null || value === undefined) return [null, null];
+            const numVal = typeof value === 'number' ? value : 0;
+            if (name === "threshold") return [`${numVal} ms`, "Limite SLA"];
             const label = name === "latencyDown" ? "Latência (Down)" : "Latência";
-            return [`${(value ?? 0).toFixed(1)} ms`, label];
+            return [`${numVal.toFixed(1)} ms`, label];
           }}
         />
         <Area

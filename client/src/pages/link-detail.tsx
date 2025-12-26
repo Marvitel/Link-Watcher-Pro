@@ -106,11 +106,13 @@ export default function LinkDetail() {
     timestamp: m.timestamp,
     download: m.download,
     upload: m.upload,
+    status: m.status,
   })) || [];
 
   const latencyData = metrics?.map((m) => ({
     timestamp: m.timestamp,
     latency: m.latency,
+    status: m.status,
   })) || [];
 
   if (linkLoading) {
@@ -284,7 +286,7 @@ export default function LinkDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              <BandwidthChart data={bandwidthData} height={300} showAxes status={link?.status} />
+              <BandwidthChart data={bandwidthData} height={300} showAxes />
             </CardContent>
           </Card>
 
@@ -342,7 +344,7 @@ export default function LinkDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              <LatencyChart data={latencyData} height={300} threshold={80} status={link?.status} />
+              <LatencyChart data={latencyData} height={300} threshold={80} />
             </CardContent>
           </Card>
         </TabsContent>
