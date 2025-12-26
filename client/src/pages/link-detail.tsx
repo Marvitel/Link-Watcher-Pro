@@ -284,7 +284,7 @@ export default function LinkDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              <BandwidthChart data={bandwidthData} height={300} showAxes />
+              <BandwidthChart data={bandwidthData} height={300} showAxes status={link?.status} />
             </CardContent>
           </Card>
 
@@ -342,7 +342,7 @@ export default function LinkDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              <LatencyChart data={latencyData} height={300} threshold={80} />
+              <LatencyChart data={latencyData} height={300} threshold={80} status={link?.status} />
             </CardContent>
           </Card>
         </TabsContent>

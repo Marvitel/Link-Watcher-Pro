@@ -35,7 +35,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="h-24">
-          <BandwidthChart data={metricsHistory} height={96} />
+          <BandwidthChart data={metricsHistory} height={96} status={link.status} />
         </div>
         
         <div className="grid grid-cols-2 gap-4">

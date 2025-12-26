@@ -19,13 +19,34 @@ interface BandwidthChartProps {
   height?: number;
   showAxes?: boolean;
   showLegend?: boolean;
+  status?: string;
 }
 
 export function BandwidthChart({
   data,
   height = 200,
   showAxes = false,
+  status = "operational",
 }: BandwidthChartProps) {
+  const isDown = status === "offline" || status === "critical";
+  
+  const colors = useMemo(() => {
+    if (isDown) {
+      return {
+        download: "hsl(0, 84%, 60%)",
+        upload: "hsl(0, 70%, 50%)",
+        downloadGradient: "colorDownloadRed",
+        uploadGradient: "colorUploadRed",
+      };
+    }
+    return {
+      download: "hsl(210, 85%, 50%)",
+      upload: "hsl(142, 76%, 45%)",
+      downloadGradient: "colorDownload",
+      uploadGradient: "colorUpload",
+    };
+  }, [isDown]);
+
   const chartData = useMemo(() => {
     return data
       .filter((item) => item && item.timestamp)
@@ -66,6 +87,14 @@ export function BandwidthChart({
             <stop offset="5%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0} />
           </linearGradient>
+          <linearGradient id="colorDownloadRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="colorUploadRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(0, 70%, 50%)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(0, 70%, 50%)" stopOpacity={0} />
+          </linearGradient>
         </defs>
         {showAxes && (
           <>
@@ -99,16 +128,16 @@ export function BandwidthChart({
         <Area
           type="monotone"
           dataKey="download"
-          stroke="hsl(210, 85%, 50%)"
+          stroke={colors.download}
           strokeWidth={2}
-          fill="url(#colorDownload)"
+          fill={`url(#${colors.downloadGradient})`}
         />
         <Area
           type="monotone"
           dataKey="upload"
-          stroke="hsl(142, 76%, 45%)"
+          stroke={colors.upload}
           strokeWidth={2}
-          fill="url(#colorUpload)"
+          fill={`url(#${colors.uploadGradient})`}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -122,9 +151,25 @@ interface LatencyChartProps {
   }>;
   height?: number;
   threshold?: number;
+  status?: string;
 }
 
-export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChartProps) {
+export function LatencyChart({ data, height = 200, threshold = 80, status = "operational" }: LatencyChartProps) {
+  const isDown = status === "offline" || status === "critical";
+  
+  const colors = useMemo(() => {
+    if (isDown) {
+      return {
+        latency: "hsl(0, 84%, 60%)",
+        gradient: "colorLatencyRed",
+      };
+    }
+    return {
+      latency: "hsl(38, 92%, 50%)",
+      gradient: "colorLatency",
+    };
+  }, [isDown]);
+
   const chartData = useMemo(() => {
     return data
       .filter((item) => item && item.timestamp)
@@ -160,6 +205,10 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="colorLatencyRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
           </linearGradient>
         </defs>
         <XAxis
@@ -199,9 +248,9 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
         <Area
           type="monotone"
           dataKey="latency"
-          stroke="hsl(38, 92%, 50%)"
+          stroke={colors.latency}
           strokeWidth={2}
-          fill="url(#colorLatency)"
+          fill={`url(#${colors.gradient})`}
         />
       </AreaChart>
     </ResponsiveContainer>
