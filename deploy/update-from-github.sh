@@ -72,10 +72,13 @@ npm run db:push
 
 echo ""
 echo "[8/8] Reiniciando o serviço..."
+# Matar processos que possam estar usando a porta 5000
+fuser -k 5000/tcp 2>/dev/null || true
+sleep 2
 systemctl start link-monitor
 
 echo "      Aguardando serviço iniciar..."
-sleep 10
+sleep 15
 
 if systemctl is-active --quiet link-monitor; then
     echo ""
