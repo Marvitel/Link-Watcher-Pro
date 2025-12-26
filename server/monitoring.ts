@@ -180,15 +180,47 @@ export async function getInterfaceTraffic(
         }
 
         try {
-          const inOctets = Number(varbinds[0].value?.toString() || "0");
-          const outOctets = Number(varbinds[1].value?.toString() || "0");
+          // Debug: log raw SNMP response
+          console.log(`[SNMP Raw] ${targetIp}: varbind0 type=${typeof varbinds[0].value}, value=`, varbinds[0].value);
+          console.log(`[SNMP Raw] ${targetIp}: varbind1 type=${typeof varbinds[1].value}, value=`, varbinds[1].value);
+          
+          // Handle different value types from net-snmp
+          let inOctets = 0;
+          let outOctets = 0;
+          
+          const val0 = varbinds[0].value;
+          const val1 = varbinds[1].value;
+          
+          // net-snmp returns Counter64 as Buffer, need to convert properly
+          if (Buffer.isBuffer(val0)) {
+            inOctets = val0.readBigUInt64BE ? Number(val0.readBigUInt64BE(0)) : parseInt(val0.toString('hex'), 16);
+          } else if (typeof val0 === 'bigint') {
+            inOctets = Number(val0);
+          } else if (typeof val0 === 'number') {
+            inOctets = val0;
+          } else if (val0 !== null && val0 !== undefined) {
+            inOctets = Number(String(val0));
+          }
+          
+          if (Buffer.isBuffer(val1)) {
+            outOctets = val1.readBigUInt64BE ? Number(val1.readBigUInt64BE(0)) : parseInt(val1.toString('hex'), 16);
+          } else if (typeof val1 === 'bigint') {
+            outOctets = Number(val1);
+          } else if (typeof val1 === 'number') {
+            outOctets = val1;
+          } else if (val1 !== null && val1 !== undefined) {
+            outOctets = Number(String(val1));
+          }
+          
+          console.log(`[SNMP Parsed] ${targetIp}: inOctets=${inOctets}, outOctets=${outOctets}`);
 
           resolve({
-            inOctets,
-            outOctets,
+            inOctets: isFinite(inOctets) ? inOctets : 0,
+            outOctets: isFinite(outOctets) ? outOctets : 0,
             timestamp: new Date(),
           });
-        } catch {
+        } catch (parseError) {
+          console.error(`[SNMP Parse Error] ${targetIp}:`, parseError);
           resolve(null);
         }
       });
