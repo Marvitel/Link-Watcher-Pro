@@ -246,18 +246,21 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
     return cached.alarms;
   }
 
-  const command = "sh alarm";
+  // Usar comando específico do fabricante
+  const vendorConfig = getVendorConfig(olt.vendor);
+  const command = vendorConfig.listAlarmsCommand;
   let rawOutput = "";
   
   try {
-    console.log(`[OLT] Consultando TODOS os alarmes de ${olt.name}...`);
+    console.log(`[OLT] Consultando TODOS os alarmes de ${olt.name} (vendor: ${olt.vendor || 'default'}, comando: ${command})...`);
     if (olt.connectionType === "ssh") {
       rawOutput = await connectSSH(olt, command);
     } else {
       rawOutput = await connectTelnet(olt, command);
     }
     
-    const alarms = parseAllAlarms(rawOutput);
+    // Usar parser específico do fabricante
+    const alarms = parseAllAlarms(rawOutput, olt.vendor);
     console.log(`[OLT] ${alarms.length} alarmes encontrados em ${olt.name}`);
     
     // Armazenar em cache
@@ -283,14 +286,83 @@ function stripAnsiCodes(str: string): string {
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
-// Parseia todos os alarmes do output (sem filtrar por ONU específica)
-function parseAllAlarms(output: string): OltAlarm[] {
+// Configurações específicas por fabricante
+interface VendorConfig {
+  listAlarmsCommand: string;
+  parseAlarms: (output: string) => OltAlarm[];
+  // Mapeamento de alarmes específicos do fabricante para nomes padronizados
+  alarmNameMapping?: Record<string, string>;
+}
+
+// Comando e parser para Datacom (DmOS) - VALIDADO
+const datacomConfig: VendorConfig = {
+  listAlarmsCommand: "sh alarm",
+  parseAlarms: parseDatacomAlarms,
+};
+
+// Comando e parser para Huawei (MA5800)
+const huaweiConfig: VendorConfig = {
+  listAlarmsCommand: "display alarm active all",
+  parseAlarms: parseHuaweiAlarms,
+  alarmNameMapping: {
+    "ONU LOS": "GPON_LOSi",
+    "ONU_LOS": "GPON_LOSi",
+    "ONU Dying-Gasp": "GPON_DGi",
+    "ONU_DyingGasp": "GPON_DGi",
+    "ONU Low Rx Power": "GPON_DOWi",
+    "ONU_LowRxPower": "GPON_DOWi",
+  },
+};
+
+// Comando e parser para ZTE (C600/C650)
+const zteConfig: VendorConfig = {
+  listAlarmsCommand: "show alarm current",
+  parseAlarms: parseZteAlarms,
+  alarmNameMapping: {
+    "LOSi": "GPON_LOSi",
+    "LOS": "GPON_LOSi",
+    "DGi": "GPON_DGi",
+    "DOWi": "GPON_DOWi",
+    "SUFi": "GPON_SUFi",
+  },
+};
+
+// Comando e parser para Nokia (ISAM)
+const nokiaConfig: VendorConfig = {
+  listAlarmsCommand: "show alarm current-status",
+  parseAlarms: parseNokiaAlarms,
+};
+
+// Comando e parser para Fiberhome (AN5516)
+const fiberhomeConfig: VendorConfig = {
+  listAlarmsCommand: "show alarm",
+  parseAlarms: parseFiberhomeAlarms,
+};
+
+// Mapa de vendors para configurações
+const vendorConfigs: Record<string, VendorConfig> = {
+  "datacom": datacomConfig,
+  "dmos": datacomConfig,
+  "huawei": huaweiConfig,
+  "zte": zteConfig,
+  "nokia": nokiaConfig,
+  "fiberhome": fiberhomeConfig,
+  // Fallback para vendors não configurados
+  "default": datacomConfig,
+};
+
+// Retorna a configuração do vendor (case-insensitive)
+function getVendorConfig(vendor: string | null | undefined): VendorConfig {
+  if (!vendor) return vendorConfigs["default"];
+  const normalizedVendor = vendor.toLowerCase().trim();
+  return vendorConfigs[normalizedVendor] || vendorConfigs["default"];
+}
+
+// Parser para Datacom (DmOS) - VALIDADO EM PRODUÇÃO
+function parseDatacomAlarms(output: string): OltAlarm[] {
   const alarms: OltAlarm[] = [];
-  
-  // Limpar caracteres de controle ANSI antes de processar
   const cleanOutput = stripAnsiCodes(output);
   const lines = cleanOutput.split("\n");
-  
   
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -306,8 +378,7 @@ function parseAllAlarms(output: string): OltAlarm[] {
       continue;
     }
     
-    // Tentar parsing por regex - formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss..."
-    // O timestamp pode ter timezone como "UTC-3" ou "UTC+0"
+    // Formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss..."
     const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*[A-Z]*[+-]?\d*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+([\w_]+)\s+(.*)/);
     if (match) {
       alarms.push({
@@ -321,9 +392,8 @@ function parseAllAlarms(output: string): OltAlarm[] {
       continue;
     }
     
-    // Fallback: separar por múltiplos espaços (formato tabular do DmOS)
+    // Fallback: separar por múltiplos espaços
     const columns = trimmedLine.split(/\s{2,}/);
-    
     if (columns.length >= 5 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
       if (columns.length >= 6) {
         alarms.push({
@@ -335,7 +405,6 @@ function parseAllAlarms(output: string): OltAlarm[] {
           description: columns.slice(5).join(' ').trim(),
         });
       } else if (columns.length === 5) {
-        // Formato mais compacto
         alarms.push({
           timestamp: columns[0].trim(),
           severity: columns[1].trim(),
@@ -349,6 +418,158 @@ function parseAllAlarms(output: string): OltAlarm[] {
   }
   
   return alarms;
+}
+
+// Parser para Huawei (MA5800) - A VALIDAR
+function parseHuaweiAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Pular linhas vazias e cabeçalhos
+    if (!trimmedLine || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.startsWith("Alarm") ||
+        trimmedLine.includes("Total:") ||
+        trimmedLine.includes("#") ||
+        trimmedLine.includes("MA5800")) {
+      continue;
+    }
+    
+    // Formato Huawei: "2025-12-15 05:43:59  CRITICAL  0/1/3  116  ONU LOS  ..."
+    // ou: "Alarm ID  Alarm Name  Alarm State  Alarm Location  ..."
+    const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(\w+)\s+([\d\/]+)\s+(\d+)\s+(.*)/);
+    if (match) {
+      const onuId = `${match[3]}:${match[4]}`; // formato: 0/1/3:116
+      const alarmDesc = match[5].trim();
+      const alarmName = alarmDesc.split(/\s{2,}/)[0] || alarmDesc;
+      
+      // Mapear nome do alarme para formato padronizado
+      const mappedName = huaweiConfig.alarmNameMapping?.[alarmName] || alarmName.replace(/\s+/g, "_");
+      
+      alarms.push({
+        timestamp: match[1].trim(),
+        severity: match[2].trim(),
+        source: `gpon-${onuId}`,
+        status: "Active",
+        name: mappedName,
+        description: alarmDesc,
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Parser para ZTE (C600/C650) - A VALIDAR
+function parseZteAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    // Pular linhas vazias e cabeçalhos
+    if (!trimmedLine || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.startsWith("Alarm") ||
+        trimmedLine.includes("Total") ||
+        trimmedLine.includes("#") ||
+        trimmedLine.includes("ZXAN")) {
+      continue;
+    }
+    
+    // Formato ZTE: "1  gpon-onu_1/1/3:116  LOSi  Active  2025-12-15 05:43:59"
+    const match = trimmedLine.match(/\d+\s+(gpon-onu_[\d\/\:]+)\s+(\w+)\s+(\w+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/i);
+    if (match) {
+      const alarmName = zteConfig.alarmNameMapping?.[match[2]] || `GPON_${match[2]}`;
+      alarms.push({
+        timestamp: match[4].trim(),
+        severity: "CRITICAL",
+        source: match[1].trim(),
+        status: match[3].trim(),
+        name: alarmName,
+        description: `${match[2]} alarm`,
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Parser para Nokia (ISAM) - A VALIDAR
+function parseNokiaAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    if (!trimmedLine || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.includes("#")) {
+      continue;
+    }
+    
+    // Formato Nokia: similar ao Datacom (tabular)
+    const columns = trimmedLine.split(/\s{2,}/);
+    if (columns.length >= 5 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
+      alarms.push({
+        timestamp: columns[0].trim(),
+        severity: columns[1]?.trim() || "CRITICAL",
+        source: columns[2]?.trim() || "",
+        status: columns[3]?.trim() || "Active",
+        name: columns[4]?.trim() || "",
+        description: columns.slice(5).join(' ').trim(),
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Parser para Fiberhome (AN5516) - A VALIDAR
+function parseFiberhomeAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    if (!trimmedLine || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.includes("#") ||
+        trimmedLine.includes("AN5516")) {
+      continue;
+    }
+    
+    // Formato Fiberhome: "gpon-onu_1/1/3:116  LOS  Active  2025-12-15 05:43:59"
+    const match = trimmedLine.match(/([\w\-\/\:]+)\s+(\w+)\s+(\w+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+    if (match) {
+      alarms.push({
+        timestamp: match[4].trim(),
+        severity: "CRITICAL",
+        source: match[1].trim(),
+        status: match[3].trim(),
+        name: `GPON_${match[2]}i`,
+        description: `${match[2]} alarm`,
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Parseia todos os alarmes do output usando o parser específico do vendor
+function parseAllAlarms(output: string, vendor?: string | null): OltAlarm[] {
+  const config = getVendorConfig(vendor);
+  return config.parseAlarms(output);
 }
 
 // Busca diagnóstico para uma ONU específica a partir de uma lista de alarmes pré-carregados
