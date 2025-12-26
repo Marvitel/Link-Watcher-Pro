@@ -346,6 +346,38 @@ export class DatabaseStorage {
     return event;
   }
 
+  async updateDDoSEvent(id: number, data: Partial<InsertDDoSEvent & { startTime?: Date }>): Promise<DDoSEvent | null> {
+    const [event] = await db.update(ddosEvents)
+      .set({
+        linkId: data.linkId,
+        clientId: data.clientId,
+        attackType: data.attackType,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        peakBandwidth: data.peakBandwidth,
+        mitigationStatus: data.mitigationStatus,
+        sourceIps: data.sourceIps,
+        blockedPackets: data.blockedPackets,
+        wanguardAnomalyId: data.wanguardAnomalyId,
+        wanguardSensor: data.wanguardSensor,
+        targetIp: data.targetIp,
+        decoder: data.decoder,
+      })
+      .where(eq(ddosEvents.id, id))
+      .returning();
+    return event || null;
+  }
+
+  async deleteDDoSEventsWithoutWanguardId(clientId: number): Promise<number> {
+    const result = await db.delete(ddosEvents)
+      .where(and(
+        eq(ddosEvents.clientId, clientId),
+        sql`${ddosEvents.wanguardAnomalyId} IS NULL`
+      ))
+      .returning();
+    return result.length;
+  }
+
   async getSLAIndicators(clientId?: number): Promise<SLAIndicator[]> {
     const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
     if (allLinks.length === 0) return generateSLAIndicators();

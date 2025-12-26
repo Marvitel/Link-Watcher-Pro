@@ -675,6 +675,12 @@ export async function registerRoutes(
         password: settings.wanguardApiPassword,
       });
 
+      // Primeiro, remover eventos de demonstração (sem wanguardAnomalyId)
+      const deletedDemo = await storage.deleteDDoSEventsWithoutWanguardId(clientId);
+      if (deletedDemo > 0) {
+        console.log(`[Wanguard] Removidos ${deletedDemo} eventos de demonstração`);
+      }
+
       // Buscar anomalias ativas
       let anomalies = await wanguardService.getActiveAnomalies();
       
@@ -686,7 +692,9 @@ export async function registerRoutes(
       
       const links = await storage.getLinks(clientId);
       
-      let syncedCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
+      
       for (const anomaly of anomalies) {
         // Tentar encontrar link correspondente pelo IP
         const matchingLink = links.find(link => 
@@ -697,19 +705,27 @@ export async function registerRoutes(
         const targetLink = matchingLink || links[0];
         
         if (targetLink) {
+          const eventData = wanguardService.mapAnomalyToEvent(anomaly, clientId, targetLink.id);
           const existingEvent = await storage.getDDoSEventByWanguardId(anomaly.id);
-          if (!existingEvent) {
-            const eventData = wanguardService.mapAnomalyToEvent(anomaly, clientId, targetLink.id);
+          
+          if (existingEvent) {
+            // Sobrescrever evento existente com dados do Wanguard
+            await storage.updateDDoSEvent(existingEvent.id, eventData);
+            updatedCount++;
+          } else {
+            // Criar novo evento
             await storage.createDDoSEvent(eventData);
-            syncedCount++;
+            createdCount++;
           }
         }
       }
 
       res.json({ 
         success: true, 
-        message: `Sincronização concluída. ${syncedCount} novos eventos importados.`,
-        syncedCount,
+        message: `Sincronização concluída. ${createdCount} novos, ${updatedCount} atualizados, ${deletedDemo} removidos.`,
+        createdCount,
+        updatedCount,
+        deletedDemo,
         totalAnomalies: anomalies.length
       });
     } catch (error) {
