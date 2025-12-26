@@ -196,7 +196,6 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
           "aes192-cbc",
           "aes256-cbc",
           "3des-cbc",
-          "blowfish-cbc",
         ],
         serverHostKey: [
           "ssh-ed25519",
