@@ -41,9 +41,12 @@ import {
   Search,
   Loader2,
   X,
+  Radio,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import type { Link, Client, User } from "@shared/schema";
+import type { Link, Client, User, Olt } from "@shared/schema";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -1417,6 +1420,10 @@ export default function Admin() {
             <Settings className="w-4 h-4" />
             Sistema
           </TabsTrigger>
+          <TabsTrigger value="olts" className="gap-2">
+            <Radio className="w-4 h-4" />
+            OLTs
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -1682,6 +1689,10 @@ export default function Admin() {
 
         <TabsContent value="system-settings" className="space-y-4">
           <SystemSettingsTab />
+        </TabsContent>
+
+        <TabsContent value="olts" className="space-y-4">
+          <OltsTab clients={clients || []} />
         </TabsContent>
       </Tabs>
     </div>
@@ -2844,6 +2855,356 @@ function SystemSettingsTab() {
           Salvar Configuracoes
         </Button>
       </div>
+    </div>
+  );
+}
+
+function OltsTab({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingOlt, setEditingOlt] = useState<Olt | undefined>(undefined);
+  const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
+  const [testingConnection, setTestingConnection] = useState<number | null>(null);
+
+  const { data: oltsList, isLoading } = useQuery<Olt[]>({
+    queryKey: ["/api/olts"],
+  });
+
+  const [formData, setFormData] = useState({
+    clientId: clients[0]?.id || 1,
+    name: "",
+    ipAddress: "",
+    port: 23,
+    username: "",
+    password: "",
+    connectionType: "telnet",
+    vendor: "",
+    model: "",
+    isActive: true,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      clientId: clients[0]?.id || 1,
+      name: "",
+      ipAddress: "",
+      port: 23,
+      username: "",
+      password: "",
+      connectionType: "telnet",
+      vendor: "",
+      model: "",
+      isActive: true,
+    });
+    setEditingOlt(undefined);
+  };
+
+  const handleEdit = (olt: Olt) => {
+    setEditingOlt(olt);
+    setFormData({
+      clientId: olt.clientId,
+      name: olt.name,
+      ipAddress: olt.ipAddress,
+      port: olt.port,
+      username: olt.username,
+      password: olt.password,
+      connectionType: olt.connectionType,
+      vendor: olt.vendor || "",
+      model: olt.model || "",
+      isActive: olt.isActive,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingOlt) {
+        await apiRequest("PATCH", `/api/olts/${editingOlt.id}`, formData);
+        toast({ title: "OLT atualizada com sucesso" });
+      } else {
+        await apiRequest("POST", "/api/olts", formData);
+        toast({ title: "OLT criada com sucesso" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/olts"] });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast({ title: "Erro ao salvar OLT", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza que deseja excluir esta OLT?")) return;
+    try {
+      await apiRequest("DELETE", `/api/olts/${id}`);
+      toast({ title: "OLT excluida com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/olts"] });
+    } catch (error) {
+      toast({ title: "Erro ao excluir OLT", variant: "destructive" });
+    }
+  };
+
+  const handleTestConnection = async (oltId: number) => {
+    setTestingConnection(oltId);
+    try {
+      const response = await apiRequest("POST", `/api/olts/${oltId}/test`);
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: "Conexao bem-sucedida", description: result.message });
+      } else {
+        toast({ title: "Falha na conexao", description: result.message, variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Erro ao testar conexao", variant: "destructive" });
+    } finally {
+      setTestingConnection(null);
+    }
+  };
+
+  const getClientName = (clientId: number) => {
+    return clients.find(c => c.id === clientId)?.name || "Desconhecido";
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">OLTs Cadastradas</h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie as OLTs para diagnostico automatico de alarmes
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-olt">
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar OLT
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingOlt ? "Editar OLT" : "Nova OLT"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="olt-client">Cliente</Label>
+                <Select
+                  value={formData.clientId.toString()}
+                  onValueChange={(v) => setFormData({ ...formData, clientId: parseInt(v, 10) })}
+                >
+                  <SelectTrigger data-testid="select-olt-client">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="olt-name">Nome</Label>
+                <Input
+                  id="olt-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: OLT-CENTRO-01"
+                  data-testid="input-olt-name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="olt-ip">Endereco IP</Label>
+                  <Input
+                    id="olt-ip"
+                    value={formData.ipAddress}
+                    onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                    placeholder="192.168.1.1"
+                    data-testid="input-olt-ip"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="olt-port">Porta</Label>
+                  <Input
+                    id="olt-port"
+                    type="number"
+                    value={formData.port}
+                    onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value, 10) || 23 })}
+                    data-testid="input-olt-port"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="olt-connection">Tipo de Conexao</Label>
+                <Select
+                  value={formData.connectionType}
+                  onValueChange={(v) => setFormData({ ...formData, connectionType: v, port: v === "ssh" ? 22 : 23 })}
+                >
+                  <SelectTrigger data-testid="select-olt-connection">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="telnet">Telnet</SelectItem>
+                    <SelectItem value="ssh">SSH</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="olt-username">Usuario</Label>
+                  <Input
+                    id="olt-username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    data-testid="input-olt-username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="olt-password">Senha</Label>
+                  <Input
+                    id="olt-password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    data-testid="input-olt-password"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="olt-vendor">Fabricante</Label>
+                  <Input
+                    id="olt-vendor"
+                    value={formData.vendor}
+                    onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
+                    placeholder="Ex: Huawei, ZTE"
+                    data-testid="input-olt-vendor"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="olt-model">Modelo</Label>
+                  <Input
+                    id="olt-model"
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    placeholder="Ex: MA5800-X15"
+                    data-testid="input-olt-model"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="olt-active">Ativo</Label>
+                <Switch
+                  id="olt-active"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                  data-testid="switch-olt-active"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} data-testid="button-save-olt">
+                {editingOlt ? "Salvar" : "Criar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {oltsList?.map((olt) => (
+            <Card key={olt.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-md bg-primary/10">
+                      <Radio className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{olt.name}</span>
+                        <Badge variant={olt.isActive ? "default" : "secondary"}>
+                          {olt.isActive ? "Ativo" : "Inativo"}
+                        </Badge>
+                        <Badge variant="outline">{olt.connectionType.toUpperCase()}</Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {olt.ipAddress}:{olt.port} - {getClientName(olt.clientId)}
+                        {olt.vendor && ` - ${olt.vendor}`}
+                        {olt.model && ` ${olt.model}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPassword({ ...showPassword, [olt.id]: !showPassword[olt.id] })}
+                      data-testid={`button-toggle-password-${olt.id}`}
+                    >
+                      {showPassword[olt.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestConnection(olt.id)}
+                      disabled={testingConnection === olt.id}
+                      data-testid={`button-test-olt-${olt.id}`}
+                    >
+                      {testingConnection === olt.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(olt)}
+                      data-testid={`button-edit-olt-${olt.id}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(olt.id)}
+                      data-testid={`button-delete-olt-${olt.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+                {showPassword[olt.id] && (
+                  <div className="mt-3 p-2 bg-muted rounded-md text-sm font-mono">
+                    Usuario: {olt.username} | Senha: {olt.password}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {(!oltsList || oltsList.length === 0) && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Nenhuma OLT cadastrada. Clique em "Adicionar OLT" para comecar.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
