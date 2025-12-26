@@ -171,31 +171,54 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
   });
 }
 
+// Extrai apenas os números de slot/port/pon/onu de um ID para comparação normalizada
+// Exemplos de entrada: "gpon-olt_1/1/1:14", "gpon-1/1/1/14", "1/1/1/14", "gpon-olt_1/1/3:116"
+// Retorna: "1/1/1/14", "1/1/1/14", "1/1/1/14", "1/1/3/116"
+function normalizeOnuId(onuId: string): string {
+  // Remove prefixos como "gpon-olt_", "gpon-", etc
+  let normalized = onuId.replace(/^(gpon-olt_|gpon-|olt_)/i, "");
+  // Converte ":" para "/" para unificar formato (1/1/3:116 -> 1/1/3/116)
+  normalized = normalized.replace(":", "/");
+  return normalized;
+}
+
 function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
   const alarms: OltAlarm[] = [];
   const lines = output.split("\n");
+  const normalizedOnuId = normalizeOnuId(onuId);
+  
+  console.log(`[OLT Parser] Buscando alarmes para ONU: ${onuId} (normalizado: ${normalizedOnuId})`);
   
   for (const line of lines) {
-    if (!line.includes(onuId)) continue;
-    
+    // Regex para capturar linhas de alarme no formato Datacom/Nokia
+    // Formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14                   Active   GPON_LOSi ..."
     const match = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
     if (match) {
-      alarms.push({
-        timestamp: match[1].trim(),
-        severity: match[2].trim(),
-        source: match[3].trim(),
-        status: match[4].trim(),
-        name: match[5].trim(),
-        description: match[6].trim(),
-      });
+      const source = match[3].trim();
+      const normalizedSource = normalizeOnuId(source);
+      
+      // Verifica se a ONU normalizada corresponde
+      if (normalizedSource === normalizedOnuId) {
+        console.log(`[OLT Parser] Alarme encontrado: ${match[5]} em ${source}`);
+        alarms.push({
+          timestamp: match[1].trim(),
+          severity: match[2].trim(),
+          source: source,
+          status: match[4].trim(),
+          name: match[5].trim(),
+          description: match[6].trim(),
+        });
+      }
     }
   }
   
+  console.log(`[OLT Parser] Total de alarmes encontrados: ${alarms.length}`);
   return alarms;
 }
 
 export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnosis> {
-  const command = `show alarm | include ${onuId}`;
+  // Busca todos os alarmes para fazer parsing mais inteligente com normalização de formatos
+  const command = "show alarm";
   let rawOutput = "";
   
   try {
