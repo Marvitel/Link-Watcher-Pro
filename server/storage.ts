@@ -18,6 +18,7 @@ import {
   eventTypes,
   clientEventSettings,
   equipmentVendors,
+  olts,
   type Client,
   type User,
   type Link,
@@ -37,6 +38,7 @@ import {
   type EventType,
   type ClientEventSetting,
   type EquipmentVendor,
+  type Olt,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -49,6 +51,7 @@ import {
   type InsertMibConfig,
   type InsertEventType,
   type InsertClientEventSetting,
+  type InsertOlt,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -1119,6 +1122,32 @@ export class DatabaseStorage {
       isActive: true,
     });
     console.log("Initialized super admin user");
+  }
+
+  async getOlts(clientId?: number): Promise<Olt[]> {
+    if (clientId) {
+      return db.select().from(olts).where(eq(olts.clientId, clientId)).orderBy(olts.name);
+    }
+    return db.select().from(olts).orderBy(olts.name);
+  }
+
+  async getOlt(id: number): Promise<Olt | undefined> {
+    const result = await db.select().from(olts).where(eq(olts.id, id));
+    return result[0];
+  }
+
+  async createOlt(data: InsertOlt): Promise<Olt> {
+    const result = await db.insert(olts).values(data).returning();
+    return result[0];
+  }
+
+  async updateOlt(id: number, data: Partial<InsertOlt>): Promise<Olt | undefined> {
+    const result = await db.update(olts).set({ ...data, updatedAt: new Date() }).where(eq(olts.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteOlt(id: number): Promise<void> {
+    await db.delete(olts).where(eq(olts.id, id));
   }
 }
 

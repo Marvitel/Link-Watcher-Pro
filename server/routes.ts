@@ -15,6 +15,7 @@ import {
   insertSnmpProfileSchema,
   insertMibConfigSchema,
   insertClientEventSettingSchema,
+  insertOltSchema,
   type AuthUser 
 } from "@shared/schema";
 
@@ -1224,6 +1225,69 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete event setting" });
+    }
+  });
+
+  app.get("/api/olts", requireAuth, async (req, res) => {
+    try {
+      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
+      if (!req.user?.isSuperAdmin && clientId && req.user?.clientId !== clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const filterClientId = req.user?.isSuperAdmin ? clientId : req.user?.clientId || undefined;
+      const oltList = await storage.getOlts(filterClientId);
+      res.json(oltList);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar OLTs" });
+    }
+  });
+
+  app.get("/api/olts/:id", requireAuth, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      if (!req.user?.isSuperAdmin && req.user?.clientId !== olt.clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      res.json(olt);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar OLT" });
+    }
+  });
+
+  app.post("/api/olts", requireSuperAdmin, async (req, res) => {
+    try {
+      const data = insertOltSchema.parse(req.body);
+      const olt = await storage.createOlt(data);
+      res.status(201).json(olt);
+    } catch (error) {
+      console.error("Error creating OLT:", error);
+      res.status(400).json({ error: "Dados de OLT inválidos" });
+    }
+  });
+
+  app.patch("/api/olts/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const olt = await storage.updateOlt(id, req.body);
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      res.json(olt);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar OLT" });
+    }
+  });
+
+  app.delete("/api/olts/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteOlt(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir OLT" });
     }
   });
 
