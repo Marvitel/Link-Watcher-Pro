@@ -59,7 +59,7 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error("Telnet connection timeout"));
-    }, 30000);
+    }, 60000);
 
     socket.connect(olt.port, olt.ipAddress, () => {
       console.log(`Telnet connected to ${olt.ipAddress}:${olt.port}`);
@@ -113,7 +113,7 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
     const timeout = setTimeout(() => {
       conn.end();
       reject(new Error("SSH connection timeout"));
-    }, 30000);
+    }, 60000);
 
     conn.on("ready", () => {
       conn.shell((err, stream) => {
@@ -179,7 +179,7 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
           "3des-cbc",
         ],
       },
-      readyTimeout: 20000,
+      readyTimeout: 40000,
     });
   });
 }
