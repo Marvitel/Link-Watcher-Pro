@@ -63,11 +63,15 @@ cd "$APP_DIR"
 npm install
 
 echo ""
-echo "[6/7] Compilando aplicação..."
+echo "[6/8] Compilando aplicação..."
 npm run build
 
 echo ""
-echo "[7/7] Reiniciando o serviço..."
+echo "[7/8] Atualizando banco de dados..."
+npm run db:push
+
+echo ""
+echo "[8/8] Reiniciando o serviço..."
 systemctl start link-monitor
 
 echo "      Aguardando serviço iniciar..."
