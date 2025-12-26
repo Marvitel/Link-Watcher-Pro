@@ -1,0 +1,37 @@
+oot@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+dez 26 20:02:17 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 20:02:17 link-monitor npm[37693]: > rest-express@1.0.0 start
+dez 26 20:02:17 link-monitor npm[37693]: > NODE_ENV=production node dist/index.cjs
+dez 26 20:02:18 link-monitor npm[37706]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 20:02:18 link-monitor npm[37706]: 8:02:18 PM [express] serving on port 5000
+dez 26 20:02:22 link-monitor npm[37706]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 20:02:26 link-monitor npm[37706]: [Monitor] Cache de diagnóstico OLT limpo para Sede Administrativa
+dez 26 20:02:26 link-monitor npm[37706]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:02:26 link-monitor npm[37706]: [Monitor] Evento criado: Link Sede Administrativa restaurado
+dez 26 20:02:26 link-monitor npm[37706]: [Monitor] Sede Administrativa: latency=2.2ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=22.0%, mem=0.0%, status=operational
+dez 26 20:02:52 link-monitor npm[37706]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.18Mbps, up=0.61Mbps, cpu=23.0%, mem=0.0%, status=operational
+dez 26 20:02:59 link-monitor npm[37706]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:02:59 link-monitor npm[37706]: [Monitor] Evento criado: Link Sede Administrativa degradado
+dez 26 20:02:59 link-monitor npm[37706]: [Monitor] Sede Administrativa: latency=1.9ms, loss=20.0%, down=0.20Mbps, up=0.61Mbps, cpu=23.0%, mem=0.0%, status=degraded
+dez 26 20:03:24 link-monitor npm[37706]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:03:24 link-monitor npm[37706]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:03:24 link-monitor npm[37706]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 1/1/1/14)...
+dez 26 20:03:24 link-monitor npm[37706]: [OLT] Consultando TODOS os alarmes de OLT-DTC-HSP...
+dez 26 20:03:30 link-monitor npm[37706]: [OLT] Output bruto (881 chars):
+dez 26 20:03:30 link-monitor npm[37706]: Welcome to the DmOS CLI
+dez 26 20:03:30 link-monitor npm[37706]: User mvtel@marvitel last logged in 2025-12-26T23:02:57.13679+00:00, to DM4610, from 100.66.128.122 using cli-ssh
+dez 26 20:03:30 link-monitor npm[37706]: mvtel@marvitel connected from 100.66.128.84 using ssh on AJU-MVT-OLT-HSP
+dez 26 20:03:30 link-monitor npm[37706]: [30B blob data]
+dez 26 20:03:30 link-monitor npm[37706]: Triggered on                 Severity Source                          Status   Name                           Description
+dez 26 20:03:30 link-monitor npm[37706]: ---------------------------- -------- ------------------------------- -------- ------------------------------ -----------------------------------------
+dez 26 20:03:30 link-monitor npm[37706]: [129B blob data]
+dez 26 20:03:30 link-monitor npm[37706]: [129B blob data]
+dez 26 20:03:30 link-monitor npm[37706]: AJU-MVT-OLT-HSP# exit
+dez 26 20:03:30 link-monitor npm[37706]: [OLT Parser] Analisando 10 linhas de output
+dez 26 20:03:30 link-monitor npm[37706]: [OLT Parser] Linha candidata: User mvtel@marvitel last logged in 2025-12-26T23:02:57.13679+00:00, to DM4610, from 100.66.128.122 using cli-ssh
+dez 26 20:03:30 link-monitor npm[37706]: [149B blob data]
+dez 26 20:03:30 link-monitor npm[37706]: [149B blob data]
+dez 26 20:03:30 link-monitor npm[37706]: [OLT] 0 alarmes encontrados em OLT-DTC-HSP
+dez 26 20:03:30 link-monitor npm[37706]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 20:03:30 link-monitor npm[37706]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.19Mbps, up=0.60Mbps, cpu=20.0%, mem=0.0%, status=offline
+dez 26 20:03:34 link-monitor npm[37706]: [Monitor] Central de Atendimento: latency=1.5ms, loss=0.0%, down=0.16Mbps, up=0.62Mbps, cpu=20.0%, mem=0.0%, status=operational
