@@ -33,9 +33,10 @@ export function SLAIndicators({ indicators }: SLAIndicatorsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {indicators.map((indicator) => {
-        const config = statusConfig[indicator.status];
+        const config = statusConfig[indicator.status] || statusConfig.warning;
         const Icon = config.icon;
-        const progressValue = Math.min(100, Math.max(0, indicator.current));
+        const safeCurrent = indicator.current ?? 0;
+        const progressValue = Math.min(100, Math.max(0, safeCurrent));
 
         return (
           <Card key={indicator.id} data-testid={`card-sla-${indicator.id}`}>
@@ -49,7 +50,7 @@ export function SLAIndicators({ indicators }: SLAIndicatorsProps) {
             <CardContent>
               <div className="flex items-baseline gap-2 mb-2">
                 <span className="text-2xl font-semibold font-mono" data-testid={`text-sla-current-${indicator.id}`}>
-                  {indicator.current.toFixed(2)}%
+                  {safeCurrent.toFixed(2)}%
                 </span>
                 <span className="text-sm text-muted-foreground">
                   Meta: {indicator.target}
@@ -82,8 +83,9 @@ interface SLACompactCardProps {
 }
 
 export function SLACompactCard({ title, current, target, status, unit = "%" }: SLACompactCardProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.warning;
   const Icon = config.icon;
+  const safeCurrent = current ?? 0;
 
   return (
     <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
@@ -93,7 +95,7 @@ export function SLACompactCard({ title, current, target, status, unit = "%" }: S
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm font-mono font-medium">
-          {typeof current === "number" ? current.toFixed(2) : current}{unit}
+          {safeCurrent.toFixed(2)}{unit}
         </span>
         <span className="text-xs text-muted-foreground">/ {target}</span>
       </div>

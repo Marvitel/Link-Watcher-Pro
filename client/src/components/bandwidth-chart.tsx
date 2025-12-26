@@ -82,7 +82,7 @@ export function BandwidthChart({
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
           formatter={(value: number, name: string) => [
-            `${value.toFixed(1)} Mbps`,
+            `${(value ?? 0).toFixed(1)} Mbps`,
             name === "download" ? "Download" : "Upload",
           ]}
         />
@@ -165,7 +165,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
           formatter={(value: number, name: string) => [
-            name === "latency" ? `${value.toFixed(1)} ms` : `${value} ms`,
+            name === "latency" ? `${(value ?? 0).toFixed(1)} ms` : `${value ?? 0} ms`,
             name === "latency" ? "Latência" : "Limite SLA",
           ]}
         />

@@ -114,8 +114,9 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
               </TableHeader>
               <TableBody>
                 {activeEvents.map((event) => {
-                  const config = statusConfig[event.mitigationStatus];
+                  const config = statusConfig[event.mitigationStatus] || statusConfig.detecting;
                   const Icon = config.icon;
+                  const safePeakBandwidth = event.peakBandwidth ?? 0;
                   return (
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.attackType}</TableCell>
@@ -123,7 +124,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
                         {format(new Date(event.startTime), "dd/MM HH:mm", { locale: ptBR })}
                       </TableCell>
                       <TableCell className="font-mono">
-                        {event.peakBandwidth.toFixed(1)} Mbps
+                        {safePeakBandwidth.toFixed(1)} Mbps
                       </TableCell>
                       <TableCell className="font-mono">
                         {event.sourceIps.toLocaleString()}
@@ -165,12 +166,13 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
             </TableHeader>
             <TableBody>
               {resolvedEvents.map((event) => {
-                const config = statusConfig[event.mitigationStatus];
+                const config = statusConfig[event.mitigationStatus] || statusConfig.mitigated;
                 const Icon = config.icon;
                 const start = new Date(event.startTime);
                 const end = event.endTime ? new Date(event.endTime) : new Date();
                 const durationMs = end.getTime() - start.getTime();
                 const durationMin = Math.round(durationMs / 60000);
+                const safePeakBandwidth = event.peakBandwidth ?? 0;
                 
                 return (
                   <TableRow key={event.id}>
@@ -185,7 +187,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
                       {durationMin} min
                     </TableCell>
                     <TableCell className="font-mono">
-                      {event.peakBandwidth.toFixed(1)} Mbps
+                      {safePeakBandwidth.toFixed(1)} Mbps
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={config.className}>
