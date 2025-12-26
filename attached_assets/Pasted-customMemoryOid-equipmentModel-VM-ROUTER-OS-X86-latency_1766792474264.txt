@@ -1,0 +1,22 @@
+customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"}]
+dez 26 20:38:53 link-monitor npm[39121]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.53Mbps, up=0.96Mbps, cpu=23.0%, mem=0.0%, status=operational
+dez 26 20:38:57 link-monitor npm[39121]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.52Mbps, up=0.99Mbps, cpu=24.0%, mem=0.0%, status=operational
+dez 26 20:39:23 link-monitor npm[39121]: [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.38Mbps, up=0.81Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 20:39:27 link-monitor npm[39121]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.29Mbps, up=0.74Mbps, cpu=20.0%, mem=0.0%, status=operational
+dez 26 20:39:55 link-monitor npm[39121]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:39:55 link-monitor npm[39121]: [Monitor] Link Sede Administrativa - oltId: 2, onuId: 1/1/7/11
+dez 26 20:39:55 link-monitor npm[39121]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 1/1/7/11)...
+dez 26 20:39:55 link-monitor npm[39121]: [OLT] Consultando TODOS os alarmes de OLT-DTC-MAIKAI (vendor: datacom, comando: sh alarm)...
+dez 26 20:40:25 link-monitor npm[39121]: [OLT] Erro ao consultar alarmes de OLT-DTC-MAIKAI: Error: SSH connection timeout
+dez 26 20:40:25 link-monitor npm[39121]:     at Timeout._onTimeout (/opt/link-monitor/dist/index.cjs:98:266)
+dez 26 20:40:25 link-monitor npm[39121]:     at listOnTimeout (node:internal/timers:581:17)
+dez 26 20:40:25 link-monitor npm[39121]:     at process.processTimers (node:internal/timers:519:7)
+dez 26 20:40:25 link-monitor npm[39121]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Link Sede Administrativa - oltId: 2, onuId: 1/1/7/11
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Usando diagnóstico OLT em cache para Sede Administrativa
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.20Mbps, up=0.61Mbps, cpu=19.0%, mem=0.0%, status=offline
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 20:40:25 link-monitor npm[39121]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.31Mbps, up=0.75Mbps, cpu=22.0%, mem=0.0%, status=offline
+dez 26 20:40:29 link-monitor npm[39121]: [Monitor] Central de Atendimento: latency=2.1ms, loss=0.0%, down=0.23Mbps, up=0.69Mbps, cpu=23.0%, mem=0.0%, status=operational
+dez 26 20:40:29 link-monitor npm[39121]: [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=23.0%, mem=0.0%, status=operational
