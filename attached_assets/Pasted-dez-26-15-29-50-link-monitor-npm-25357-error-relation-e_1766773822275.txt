@@ -1,0 +1,30 @@
+dez 26 15:29:50 link-monitor npm[25357]: error: relation "equipment_vendors" does not exist
+dez 26 15:29:50 link-monitor npm[25357]:     at /opt/link-monitor/dist/index.cjs:86:13330
+dez 26 15:29:50 link-monitor npm[25357]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+dez 26 15:29:50 link-monitor npm[25357]:     at async /opt/link-monitor/dist/index.cjs:94:108457
+dez 26 15:29:50 link-monitor npm[25357]:     at async mg.initializeDefaultEquipmentVendors (/opt/link-monitor/dist/index.cjs:94:124915)
+dez 26 15:29:50 link-monitor npm[25357]:     at async mg.initializeDefaultData (/opt/link-monitor/dist/index.cjs:94:127090)
+dez 26 15:29:50 link-monitor npm[25357]:     at async GC (/opt/link-monitor/dist/index.cjs:107:4393)
+dez 26 15:29:50 link-monitor npm[25357]:     at async /opt/link-monitor/dist/index.cjs:107:28161 {
+dez 26 15:29:50 link-monitor npm[25357]:   length: 117,
+dez 26 15:29:50 link-monitor npm[25357]:   severity: 'ERROR',
+dez 26 15:29:50 link-monitor npm[25357]:   code: '42P01',
+dez 26 15:29:50 link-monitor npm[25357]:   detail: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   hint: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   position: '193',
+dez 26 15:29:50 link-monitor npm[25357]:   internalPosition: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   internalQuery: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   where: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   schema: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   table: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   column: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   dataType: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   constraint: undefined,
+dez 26 15:29:50 link-monitor npm[25357]:   file: 'parse_relation.c',
+dez 26 15:29:50 link-monitor npm[25357]:   line: '1392',
+dez 26 15:29:50 link-monitor npm[25357]:   routine: 'parserOpenTable'
+dez 26 15:29:50 link-monitor npm[25357]: }
+dez 26 15:29:50 link-monitor npm[25357]: Node.js v20.19.6
+dez 26 15:29:50 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+dez 26 15:29:50 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+root@link-monitor:/opt/link-monitor# 

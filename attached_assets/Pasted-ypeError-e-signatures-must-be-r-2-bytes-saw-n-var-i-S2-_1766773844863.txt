@@ -1,0 +1,32 @@
+ypeError('"'+e+'" signatures must be "'+r*2+'" bytes, saw "'+n+'"');var i=S2(t,0,r),a=S2(t,r,t.length),s=r-i,o=r-a,u=2+s+1+1+o,c=u<Yu,l=Ju.allocUnsafe((c?2:3)+u),p=0;return l[p++]=k2,c?l[p++]=u:(l[p++]=Yu|1,l[p++]=u&255),l[p++]=el,l[p++]=s,i<0?(l[p++]=0,p+=t.copy(l,p,0,r)):p+=t.copy(l,p,i,r),l[p++]=el,l[p++]=o,a<0?(l[p++]=0,t.copy(l,p,r)):t.copy(l,p,r+a),l}C2.exports={derToJose:n7,joseToDer:i7}});var P2=m(($ie,I2)=>{"use strict";var Po=require("buffer").Buffer,yg=require("buffer").SlowBuffer;I2.exports=tl;function tl(t,e){if(!Po.isBuffer(t)||!Po.isBuffer(e)||t.length!==e.length)return!1;for(var r=0,n=0;n<t.length;n++)r|=t[n]^e[n];return r===0}tl.install=function(){Po.prototype.equal=yg.prototype.equal=function(e){return tl(this,e)}};var a7=Po.prototype.equal,s7=yg.prototype.equal;tl.restore=function(){Po.prototype.equal=a7,yg.prototype.equal=s7}});var Sg=m((Fie,$2)=>{var Pa=jr().Buffer,mr=require("crypto"),O2=A2(),N2=require("util"),o7=`"%s" is not a valid algorithm.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+
+error: relation "equipment_vendors" does not exist
+    at /opt/link-monitor/dist/index.cjs:86:13330
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /opt/link-monitor/dist/index.cjs:94:108457
+    at async mg.initializeDefaultEquipmentVendors (/opt/link-monitor/dist/index.cjs:94:124915)
+    at async mg.initializeDefaultData (/opt/link-monitor/dist/index.cjs:94:127090)
+    at async GC (/opt/link-monitor/dist/index.cjs:107:4393)
+    at async /opt/link-monitor/dist/index.cjs:107:28161 {
+  length: 117,
+  severity: 'ERROR',
+  code: '42P01',
+  detail: undefined,
+  hint: undefined,
+  position: '193',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '1392',
+  routine: 'parserOpenTable'
+}
+
+Node.js v20.19.6
+root@link-monitor:/opt/link-monitor# 
