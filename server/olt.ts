@@ -275,9 +275,17 @@ function parseAllAlarms(output: string): OltAlarm[] {
   const alarms: OltAlarm[] = [];
   const lines = output.split("\n");
   
+  console.log(`[OLT Parser] Analisando ${lines.length} linhas de output`);
+  
   for (const line of lines) {
+    // Log linhas que parecem conter dados de alarme
+    if (line.includes("GPON") || line.includes("gpon") || line.match(/\d{4}-\d{2}-\d{2}/)) {
+      console.log(`[OLT Parser] Linha candidata: ${line.substring(0, 120)}`);
+    }
+    
     const match = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
     if (match) {
+      console.log(`[OLT Parser] MATCH: ${match[5]} em ${match[3]}`);
       alarms.push({
         timestamp: match[1].trim(),
         severity: match[2].trim(),
