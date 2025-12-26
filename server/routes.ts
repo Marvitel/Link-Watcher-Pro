@@ -461,6 +461,20 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/clients/:clientId/events", async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const deletedCount = await storage.deleteAllEvents(clientId);
+      res.json({ 
+        success: true, 
+        message: `${deletedCount} eventos removidos`,
+        deletedCount 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao limpar eventos" });
+    }
+  });
+
   app.get("/api/security/ddos", requireAuth, async (req, res) => {
     try {
       const clientId = getEffectiveClientId(req);

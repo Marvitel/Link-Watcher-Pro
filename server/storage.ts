@@ -311,6 +311,13 @@ export class DatabaseStorage {
     return await db.select().from(events).orderBy(desc(events.timestamp));
   }
 
+  async deleteAllEvents(clientId: number): Promise<number> {
+    const result = await db.delete(events)
+      .where(eq(events.clientId, clientId))
+      .returning();
+    return result.length;
+  }
+
   async getDDoSEvents(clientId?: number): Promise<DDoSEvent[]> {
     if (clientId) {
       return await db.select().from(ddosEvents).where(eq(ddosEvents.clientId, clientId)).orderBy(desc(ddosEvents.startTime));

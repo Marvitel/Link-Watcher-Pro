@@ -2,10 +2,67 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const execAsync = promisify(exec);
+
+interface StatusChangeEvent {
+  type: "error" | "warning" | "info";
+  title: string;
+  description: string;
+  resolved: boolean;
+}
+
+function getStatusChangeEvent(
+  previousStatus: string,
+  newStatus: string,
+  linkName: string,
+  latency: number,
+  packetLoss: number
+): StatusChangeEvent | null {
+  // Link ficou offline
+  if (newStatus === "offline" && previousStatus !== "offline") {
+    return {
+      type: "error",
+      title: `Link ${linkName} offline`,
+      description: `O link ficou indisponível. Última latência: ${latency.toFixed(1)}ms, Perda de pacotes: ${packetLoss.toFixed(1)}%`,
+      resolved: false,
+    };
+  }
+  
+  // Link degradado
+  if (newStatus === "degraded" && previousStatus === "operational") {
+    return {
+      type: "warning",
+      title: `Link ${linkName} degradado`,
+      description: `O link apresenta degradação de desempenho. Latência: ${latency.toFixed(1)}ms, Perda de pacotes: ${packetLoss.toFixed(1)}%`,
+      resolved: false,
+    };
+  }
+  
+  // Link voltou ao normal após offline
+  if (newStatus === "operational" && previousStatus === "offline") {
+    return {
+      type: "info",
+      title: `Link ${linkName} restaurado`,
+      description: `O link voltou a operar normalmente. Latência: ${latency.toFixed(1)}ms, Perda de pacotes: ${packetLoss.toFixed(1)}%`,
+      resolved: true,
+    };
+  }
+  
+  // Link voltou ao normal após degradação
+  if (newStatus === "operational" && previousStatus === "degraded") {
+    return {
+      type: "info",
+      title: `Link ${linkName} normalizado`,
+      description: `O link voltou ao desempenho normal. Latência: ${latency.toFixed(1)}ms, Perda de pacotes: ${packetLoss.toFixed(1)}%`,
+      resolved: true,
+    };
+  }
+  
+  return null;
+}
 
 interface PingResult {
   latency: number;
@@ -541,6 +598,55 @@ export async function collectAllLinksMetrics(): Promise<void> {
         const safePacketLoss = isFinite(collectedMetrics.packetLoss) ? collectedMetrics.packetLoss : 0;
         const safeCpuUsage = isFinite(collectedMetrics.cpuUsage) ? collectedMetrics.cpuUsage : 0;
         const safeMemoryUsage = isFinite(collectedMetrics.memoryUsage) ? collectedMetrics.memoryUsage : 0;
+
+        // Detectar mudança de status para gerar eventos
+        const previousStatus = link.status;
+        const newStatus = collectedMetrics.status;
+        
+        // Criar evento se o status mudou
+        if (previousStatus !== newStatus) {
+          const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
+          if (eventConfig) {
+            await db.insert(events).values({
+              linkId: link.id,
+              clientId: link.clientId,
+              type: eventConfig.type,
+              title: eventConfig.title,
+              description: eventConfig.description,
+              timestamp: new Date(),
+              resolved: eventConfig.resolved,
+            });
+            console.log(`[Monitor] Evento criado: ${eventConfig.title}`);
+          }
+        }
+        
+        // Criar alertas para latência/perda de pacotes alta (mesmo sem mudança de status)
+        const latencyThreshold = link.latencyThreshold || 80;
+        const packetLossThreshold = link.packetLossThreshold || 2;
+        
+        if (safeLatency > latencyThreshold && link.latency <= latencyThreshold) {
+          await db.insert(events).values({
+            linkId: link.id,
+            clientId: link.clientId,
+            type: "warning",
+            title: `Latência elevada em ${link.name}`,
+            description: `Latência atual: ${safeLatency.toFixed(1)}ms (limite: ${latencyThreshold}ms)`,
+            timestamp: new Date(),
+            resolved: false,
+          });
+        }
+        
+        if (safePacketLoss > packetLossThreshold && link.packetLoss <= packetLossThreshold) {
+          await db.insert(events).values({
+            linkId: link.id,
+            clientId: link.clientId,
+            type: "warning",
+            title: `Perda de pacotes elevada em ${link.name}`,
+            description: `Perda atual: ${safePacketLoss.toFixed(1)}% (limite: ${packetLossThreshold}%)`,
+            timestamp: new Date(),
+            resolved: false,
+          });
+        }
 
         await db.update(links).set({
           currentDownload: safeDownload,
