@@ -1,0 +1,87 @@
+root@link-monitor:/opt/link-monitor# curl -o /opt/link-monitor/deploy/update-from-github.sh https://raw.githubusercontent.com/Marvitel/Link-Watcher-Pro/main/deploy/update-from-github.sh
+chmod +x /opt/link-monitor/deploy/update-from-github.sh
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2861  100  2861    0     0   5717      0 --:--:-- --:--:-- --:--:--  5744
+root@link-monitor:/opt/link-monitor# sudo bash /opt/link-monitor/deploy/update-from-github.sh
+==========================================
+  Link Monitor - Atualização via GitHub
+==========================================
+
+[1/6] Criando backup em /opt/link-monitor-backups/backup-20251226-155107...
+      Backup criado com sucesso!
+
+[2/6] Baixando código do GitHub...
+Cloning into '/tmp/link-monitor-update/repo'...
+remote: Enumerating objects: 156, done.
+remote: Counting objects: 100% (156/156), done.
+remote: Compressing objects: 100% (142/142), done.
+remote: Total 156 (delta 13), reused 135 (delta 9), pack-reused 0 (from 0)
+Receiving objects: 100% (156/156), 3.18 MiB | 4.44 MiB/s, done.
+Resolving deltas: 100% (13/13), done.
+
+[3/6] Parando o serviço...
+
+[4/6] Atualizando arquivos...
+
+[5/7] Instalando dependências...
+
+added 67 packages, removed 35 packages, changed 144 packages, and audited 518 packages in 11s
+
+68 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+[6/8] Compilando aplicação...
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (4) src/App.tsx
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3436 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-Dj4WdyAk.css              74.17 kB │ gzip:  12.00 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-Dmxoax91.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-DQF3WJrk.js            1,334.19 kB │ gzip: 394.73 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 27.66s
+building server...
+
+  dist/index.cjs  1.2mb ⚠️
+
+⚡ Done in 343ms
+
+[7/8] Atualizando banco de dados...
+
+> rest-express@1.0.0 db:push
+> drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/opt/link-monitor/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] Pulling schema from database...
+[i] No changes detected
+
+[8/8] Reiniciando o serviço...
+      Aguardando serviço iniciar...
+
+==========================================
+  ATUALIZAÇÃO CONCLUÍDA COM SUCESSO!
+==========================================
+
+Backup salvo em: /opt/link-monitor-backups/backup-20251226-155107
+
+Para verificar os logs:
+  sudo journalctl -u link-monitor -f
+
+root@link-monitor:/opt/link-monitor# 
