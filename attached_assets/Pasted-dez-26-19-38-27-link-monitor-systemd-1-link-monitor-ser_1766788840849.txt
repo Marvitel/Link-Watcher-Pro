@@ -1,0 +1,23 @@
+dez 26 19:38:27 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+dez 26 19:38:27 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+dez 26 19:38:27 link-monitor systemd[1]: link-monitor.service: Consumed 12.665s CPU time.
+dez 26 19:39:07 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 19:39:08 link-monitor npm[36578]: > rest-express@1.0.0 start
+dez 26 19:39:08 link-monitor npm[36578]: > NODE_ENV=production node dist/index.cjs
+dez 26 19:39:08 link-monitor npm[36591]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 19:39:08 link-monitor npm[36591]: 7:39:08 PM [express] serving on port 5000
+dez 26 19:39:13 link-monitor npm[36591]: [Monitor] Central de Atendimento: latency=2.1ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 19:39:17 link-monitor npm[36591]: [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 19:39:42 link-monitor npm[36591]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.15Mbps, up=0.59Mbps, cpu=20.0%, mem=0.0%, status=operational
+dez 26 19:39:49 link-monitor npm[36591]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 19:39:49 link-monitor npm[36591]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 19:39:49 link-monitor npm[36591]: [Monitor] Consultando OLT para diagnóstico do link Sede Administrativa...
+dez 26 19:40:14 link-monitor npm[36591]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 19:40:15 link-monitor npm[36591]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 19:40:15 link-monitor npm[36591]: [Monitor] Consultando OLT para diagnóstico do link Sede Administrativa...
+dez 26 19:40:19 link-monitor npm[36591]: Error querying OLT alarm: Error: SSH connection timeout
+dez 26 19:40:19 link-monitor npm[36591]:     at Timeout._onTimeout (/opt/link-monitor/dist/index.cjs:98:265)
+dez 26 19:40:19 link-monitor npm[36591]:     at listOnTimeout (node:internal/timers:581:17)
+dez 26 19:40:19 link-monitor npm[36591]:     at process.processTimers (node:internal/timers:519:7)
+dez 26 19:40:19 link-monitor npm[36591]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 19:40:19 link-monitor npm[36591]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.23Mbps, up=0.86Mbps, cpu=24.0%, mem=0.0%, status=offline
