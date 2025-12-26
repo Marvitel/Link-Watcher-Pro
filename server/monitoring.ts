@@ -191,9 +191,18 @@ export async function getInterfaceTraffic(
           const val0 = varbinds[0].value;
           const val1 = varbinds[1].value;
           
+          // Helper function to parse Buffer of any size to number
+          const bufferToNumber = (buf: Buffer): number => {
+            let result = 0;
+            for (let i = 0; i < buf.length; i++) {
+              result = result * 256 + buf[i];
+            }
+            return result;
+          };
+          
           // net-snmp returns Counter64 as Buffer, need to convert properly
           if (Buffer.isBuffer(val0)) {
-            inOctets = val0.readBigUInt64BE ? Number(val0.readBigUInt64BE(0)) : parseInt(val0.toString('hex'), 16);
+            inOctets = bufferToNumber(val0);
           } else if (typeof val0 === 'bigint') {
             inOctets = Number(val0);
           } else if (typeof val0 === 'number') {
@@ -203,7 +212,7 @@ export async function getInterfaceTraffic(
           }
           
           if (Buffer.isBuffer(val1)) {
-            outOctets = val1.readBigUInt64BE ? Number(val1.readBigUInt64BE(0)) : parseInt(val1.toString('hex'), 16);
+            outOctets = bufferToNumber(val1);
           } else if (typeof val1 === 'bigint') {
             outOctets = Number(val1);
           } else if (typeof val1 === 'number') {

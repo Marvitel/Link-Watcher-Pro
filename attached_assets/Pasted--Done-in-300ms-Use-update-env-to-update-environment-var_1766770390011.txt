@@ -1,0 +1,34 @@
+⚡ Done in 300ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [link-monitor](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ N/A     │ fork    │ 22040    │ 0s     │ 3    │ online    │ 0%       │ 16.8mb   │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+0|link-mon | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-mon | [SNMP Debug] Sede Administrativa: Got traffic data - in=NaN, out=NaN
+0|link-mon | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.00Mbps, up=0.00Mbps
+0|link-mon | [SNMP Debug] Central de Atendimento: Querying 191.52.248.227 interface 17
+0|link-mon | [SNMP Debug] Central de Atendimento: Got traffic data - in=NaN, out=NaN
+0|link-mon | [SNMP Debug] Central de Atendimento: Calculated bandwidth - down=0.00Mbps, up=0.00Mbps
+0|link-mon | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-mon | [SNMP Debug] Sede Administrativa: Got traffic data - in=NaN, out=NaN
+0|link-mon | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.00Mbps, up=0.00Mbps
+0|link-mon | [SNMP Debug] Central de Atendimento: Querying 191.52.248.227 interface 17
+0|link-mon | [SNMP Debug] Central de Atendimento: Got traffic data - in=NaN, out=NaN
+0|link-mon | [SNMP Debug] Central de Atendimento: Calculated bandwidth - down=0.00Mbps, up=0.00Mbps
+0|link-mon | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-mon | [SNMP Debug] Sede Administrativa: Got traffic data - in=NaN, out=NaN
+0|link-mon | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.00Mbps, up=0.00Mbps
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Querying 191.52.248.227 interface 17
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind0 type=object, value= <Buffer 03 f6 8f 2f c1>
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind1 type=object, value= <Buffer 09 95 d6 4d 06>
+0|link-monitor  | [SNMP Parse Error] 191.52.248.227: RangeError [ERR_BUFFER_OUT_OF_BOUNDS]: Attempt to access memory outside buffer bounds
+0|link-monitor  | [SNMP Debug] Central de Atendimento: No traffic data returned from SNMP
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind0 type=object, value= <Buffer 04 78 7b c8 0f>
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind1 type=object, value= <Buffer 0a 9c 4c 3d 8f>
+0|link-monitor  | [SNMP Parse Error] 191.52.248.26: RangeError [ERR_BUFFER_OUT_OF_BOUNDS]: Attempt to access memory outside buffer bounds
+0|link-monitor  | [SNMP Debug] Sede Administrativa: No traffic data returned from SNMP
