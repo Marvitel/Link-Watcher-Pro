@@ -28,7 +28,7 @@ export function BandwidthChart({
   showAxes = false,
   status = "operational",
 }: BandwidthChartProps) {
-  const isDown = status === "offline" || status === "critical";
+  const isDown = status === "offline" || status === "critical" || status === "down";
   
   const colors = useMemo(() => {
     if (isDown) {
@@ -48,23 +48,28 @@ export function BandwidthChart({
   }, [isDown]);
 
   const chartData = useMemo(() => {
-    return data
-      .filter((item) => item && item.timestamp)
-      .map((item) => {
-        try {
-          return {
-            download: item.download ?? 0,
-            upload: item.upload ?? 0,
-            time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
-          };
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
+    if (!data || !Array.isArray(data)) return [];
+    try {
+      return data
+        .filter((item) => item && item.timestamp)
+        .map((item) => {
+          try {
+            return {
+              download: item.download ?? 0,
+              upload: item.upload ?? 0,
+              time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
+            };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   }, [data]);
 
-  if (!data || data.length === 0 || chartData.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
       <div 
         className="flex items-center justify-center h-full text-muted-foreground text-sm"
@@ -155,7 +160,7 @@ interface LatencyChartProps {
 }
 
 export function LatencyChart({ data, height = 200, threshold = 80, status = "operational" }: LatencyChartProps) {
-  const isDown = status === "offline" || status === "critical";
+  const isDown = status === "offline" || status === "critical" || status === "down";
   
   const colors = useMemo(() => {
     if (isDown) {
@@ -171,23 +176,28 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
   }, [isDown]);
 
   const chartData = useMemo(() => {
-    return data
-      .filter((item) => item && item.timestamp)
-      .map((item) => {
-        try {
-          return {
-            latency: item.latency ?? 0,
-            time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
-            threshold,
-          };
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
+    if (!data || !Array.isArray(data)) return [];
+    try {
+      return data
+        .filter((item) => item && item.timestamp)
+        .map((item) => {
+          try {
+            return {
+              latency: item.latency ?? 0,
+              time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
+              threshold,
+            };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
   }, [data, threshold]);
 
-  if (!data || data.length === 0 || chartData.length === 0) {
+  if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
       <div 
         className="flex items-center justify-center h-full text-muted-foreground text-sm"
