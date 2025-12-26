@@ -65,8 +65,10 @@ export function EventsTable({ events, compact = false }: EventsTableProps) {
         </TableHeader>
         <TableBody>
           {events.map((event) => {
-            const config = typeConfig[event.type];
+            const config = typeConfig[event.type as keyof typeof typeConfig] || typeConfig.info;
             const Icon = config.icon;
+            const title = event.title || "Evento";
+            const description = event.description || "";
             return (
               <TableRow key={event.id} data-testid={`row-event-${event.id}`}>
                 <TableCell>
@@ -77,9 +79,9 @@ export function EventsTable({ events, compact = false }: EventsTableProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">{event.title}</span>
+                    <span className="font-medium">{title}</span>
                     {!compact && (
-                      <span className="text-xs text-muted-foreground">{event.description}</span>
+                      <span className="text-xs text-muted-foreground">{description}</span>
                     )}
                   </div>
                 </TableCell>

@@ -30,9 +30,11 @@ export default function Events() {
   });
 
   const filteredEvents = events?.filter((event) => {
+    const title = event.title || "";
+    const description = event.description || "";
     const matchesSearch =
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description.toLowerCase().includes(searchQuery.toLowerCase());
+      title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = typeFilter === "all" || event.type === typeFilter;
     const matchesStatus =
       statusFilter === "all" ||
