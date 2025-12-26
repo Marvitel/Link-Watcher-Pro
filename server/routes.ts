@@ -654,6 +654,7 @@ export async function registerRoutes(
   app.post("/api/clients/:clientId/wanguard/sync", async (req, res) => {
     try {
       const clientId = parseInt(req.params.clientId, 10);
+      const includeHistorical = req.body?.includeHistorical === true;
       const settings = await storage.getClientSettings(clientId);
       
       if (!settings?.wanguardEnabled) {
@@ -674,19 +675,31 @@ export async function registerRoutes(
         password: settings.wanguardApiPassword,
       });
 
-      const anomalies = await wanguardService.getActiveAnomalies();
+      // Buscar anomalias ativas
+      let anomalies = await wanguardService.getActiveAnomalies();
+      
+      // Se solicitado, incluir também anomalias históricas
+      if (includeHistorical) {
+        const historicalAnomalies = await wanguardService.getHistoricalAnomalies();
+        anomalies = [...anomalies, ...historicalAnomalies];
+      }
+      
       const links = await storage.getLinks(clientId);
       
       let syncedCount = 0;
       for (const anomaly of anomalies) {
+        // Tentar encontrar link correspondente pelo IP
         const matchingLink = links.find(link => 
           link.ipBlock && anomaly.ip?.startsWith(link.ipBlock.split("/")[0].slice(0, -1))
         );
         
-        if (matchingLink) {
+        // Se não encontrar link, usar o primeiro link do cliente (para não perder o evento)
+        const targetLink = matchingLink || links[0];
+        
+        if (targetLink) {
           const existingEvent = await storage.getDDoSEventByWanguardId(anomaly.id);
           if (!existingEvent) {
-            const eventData = wanguardService.mapAnomalyToEvent(anomaly, clientId, matchingLink.id);
+            const eventData = wanguardService.mapAnomalyToEvent(anomaly, clientId, targetLink.id);
             await storage.createDDoSEvent(eventData);
             syncedCount++;
           }
@@ -696,9 +709,11 @@ export async function registerRoutes(
       res.json({ 
         success: true, 
         message: `Sincronização concluída. ${syncedCount} novos eventos importados.`,
-        syncedCount 
+        syncedCount,
+        totalAnomalies: anomalies.length
       });
     } catch (error) {
+      console.error("Erro ao sincronizar com Wanguard:", error);
       res.status(500).json({ error: "Erro ao sincronizar com Wanguard" });
     }
   });

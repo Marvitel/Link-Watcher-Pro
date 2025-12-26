@@ -783,13 +783,15 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
     }
   };
 
-  const handleSync = async () => {
+  const handleSync = async (includeHistorical: boolean = false) => {
     if (!selectedClientId) return;
     
     setIsSyncing(true);
     
     try {
-      const response = await apiRequest("POST", `/api/clients/${selectedClientId}/wanguard/sync`);
+      const response = await apiRequest("POST", `/api/clients/${selectedClientId}/wanguard/sync`, {
+        includeHistorical,
+      });
       const result = await response.json();
       
       toast({ 
@@ -945,12 +947,21 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={handleSync}
+                  onClick={() => handleSync(false)}
                   disabled={isSyncing || !formData.wanguardEnabled}
                   data-testid="button-sync-wanguard"
                 >
                   {isSyncing && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
                   Sincronizar Agora
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSync(true)}
+                  disabled={isSyncing || !formData.wanguardEnabled}
+                  data-testid="button-sync-wanguard-historical"
+                >
+                  {isSyncing && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                  Importar Histórico
                 </Button>
               </div>
               <Button
