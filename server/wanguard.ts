@@ -1,5 +1,48 @@
 import type { InsertDDoSEvent } from "@shared/schema";
 
+interface WanguardAnomalyRef {
+  href: string;
+}
+
+interface WanguardAnomalyDetail {
+  status: string;
+  prefix: string;
+  ip_group: string | null;
+  anomaly: string;
+  direction: string;
+  decoder: {
+    decoder_id: string;
+    decoder_name: string;
+    href: string;
+  };
+  unit: string;
+  threshold: string;
+  value: string;
+  latest_value: string;
+  sensor: {
+    sensor_interface_name: string;
+    sensor_interface_id: string;
+    href: string;
+  };
+  from: {
+    iso_8601: string;
+    unixtime: string;
+  };
+  until: {
+    iso_8601: string;
+    unixtime: string;
+  };
+  duration: string;
+  "pkts/s": string;
+  "bits/s": string;
+  packets: string;
+  bits: string;
+  severity: string;
+  link_severity: string;
+  classification: string;
+  comments: string;
+}
+
 interface WanguardAnomaly {
   id: number;
   ip: string;
@@ -64,34 +107,84 @@ export class WanguardService {
     return response.json() as Promise<T>;
   }
 
+  private extractIdFromHref(href: string): number {
+    const match = href.match(/\/anomalies\/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  private async getAnomalyDetails(anomalyId: number): Promise<WanguardAnomalyDetail | null> {
+    try {
+      return await this.apiRequest<WanguardAnomalyDetail>(`/anomalies/${anomalyId}`);
+    } catch (error) {
+      console.error(`Erro ao buscar detalhes da anomalia ${anomalyId}:`, error);
+      return null;
+    }
+  }
+
+  private convertDetailToAnomaly(id: number, detail: WanguardAnomalyDetail): WanguardAnomaly {
+    return {
+      id,
+      ip: detail.prefix,
+      sensor: detail.sensor?.sensor_interface_name || "",
+      decoder: detail.decoder?.decoder_name || "",
+      status: detail.status,
+      kbps: Math.round(parseInt(detail["bits/s"] || "0", 10) / 1000),
+      pps: parseInt(detail["pkts/s"] || "0", 10),
+      start_time: detail.from?.iso_8601 || "",
+      end_time: detail.until?.iso_8601 || null,
+      href: `/wanguard-api/v1/anomalies/${id}`,
+    };
+  }
+
   async getActiveAnomalies(): Promise<WanguardAnomaly[]> {
     try {
-      return await this.apiRequest<WanguardAnomaly[]>("/anomalies", { Status: "Active" });
+      const refs = await this.apiRequest<WanguardAnomalyRef[]>("/anomalies", { Status: "Active" });
+      const anomalies: WanguardAnomaly[] = [];
+      
+      for (const ref of refs) {
+        const id = this.extractIdFromHref(ref.href);
+        if (id) {
+          const detail = await this.getAnomalyDetails(id);
+          if (detail) {
+            anomalies.push(this.convertDetailToAnomaly(id, detail));
+          }
+        }
+      }
+      
+      return anomalies;
     } catch (error) {
       console.error("Erro ao buscar anomalias ativas do Wanguard:", error);
       return [];
     }
   }
 
-  async getHistoricalAnomalies(since?: Date): Promise<WanguardAnomaly[]> {
+  async getHistoricalAnomalies(since?: Date, limit: number = 100): Promise<WanguardAnomaly[]> {
     try {
       const params: Record<string, string> = { Status: "Historical" };
       if (since) {
         params["StartTime"] = since.toISOString();
       }
-      return await this.apiRequest<WanguardAnomaly[]>("/anomalies", params);
+      
+      const refs = await this.apiRequest<WanguardAnomalyRef[]>("/anomalies", params);
+      const anomalies: WanguardAnomaly[] = [];
+      
+      const limitedRefs = refs.slice(0, limit);
+      
+      for (const ref of limitedRefs) {
+        const id = this.extractIdFromHref(ref.href);
+        if (id) {
+          const detail = await this.getAnomalyDetails(id);
+          if (detail) {
+            anomalies.push(this.convertDetailToAnomaly(id, detail));
+          }
+        }
+      }
+      
+      console.log(`[Wanguard] Importadas ${anomalies.length} de ${refs.length} anomalias históricas`);
+      return anomalies;
     } catch (error) {
       console.error("Erro ao buscar anomalias históricas do Wanguard:", error);
       return [];
-    }
-  }
-
-  async getAnomalyDetails(anomalyId: number): Promise<WanguardAnomaly | null> {
-    try {
-      return await this.apiRequest<WanguardAnomaly>(`/anomalies/${anomalyId}`);
-    } catch (error) {
-      console.error(`Erro ao buscar detalhes da anomalia ${anomalyId}:`, error);
-      return null;
     }
   }
 
@@ -111,6 +204,7 @@ export class WanguardService {
       "fragment": "Fragmentation Attack",
       "slowloris": "Slowloris",
       "rudy": "R.U.D.Y.",
+      "ip": "Volumetric Attack",
     };
 
     const decoder = anomaly.decoder?.toLowerCase() || "";
@@ -126,7 +220,8 @@ export class WanguardService {
       "active": "mitigating",
       "detected": "detected",
       "mitigated": "mitigated",
-      "historical": "mitigated",
+      "finished": "resolved",
+      "historical": "resolved",
     };
 
     return {
@@ -138,7 +233,7 @@ export class WanguardService {
       peakBandwidth: anomaly.kbps / 1000,
       mitigationStatus: mitigationStatusMap[anomaly.status?.toLowerCase()] || "detected",
       sourceIps: 0,
-      blockedPackets: 0,
+      blockedPackets: anomaly.pps,
       wanguardAnomalyId: anomaly.id,
       wanguardSensor: anomaly.sensor,
       targetIp: anomaly.ip,
@@ -152,8 +247,11 @@ export class WanguardService {
     }
 
     try {
-      await this.apiRequest<unknown>("/anomalies", { limit: "1" });
-      return { success: true, message: "Conexão com Wanguard estabelecida com sucesso" };
+      const refs = await this.apiRequest<WanguardAnomalyRef[]>("/anomalies", { limit: "1" });
+      return { 
+        success: true, 
+        message: `Conexão com Wanguard estabelecida com sucesso (${refs.length} anomalia(s) disponível)` 
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erro desconhecido";
       return { success: false, message: `Falha na conexão: ${message}` };
