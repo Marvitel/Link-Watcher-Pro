@@ -621,6 +621,7 @@ export async function collectAllLinksMetrics(): Promise<void> {
             }
             
             // Se link ficou offline e tem OLT/ONU configurados, consultar diagnóstico
+            console.log(`[Monitor] Link ${link.name} - oltId: ${link.oltId}, onuId: ${link.onuId}`);
             if (newStatus === "offline" && link.oltId && link.onuId) {
               // Verificar cache para evitar múltiplas consultas
               const cached = oltDiagnosisCache.get(link.id);
