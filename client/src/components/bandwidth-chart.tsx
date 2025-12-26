@@ -34,24 +34,53 @@ export function BandwidthChart({
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
-      return data
-        .filter((item) => item && item.timestamp)
-        .map((item) => {
-          try {
-            const pointStatus = item.status || "operational";
-            const isDown = isDownStatus(pointStatus);
-            return {
-              time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
-              download: isDown ? null : (item.download ?? 0),
-              upload: isDown ? null : (item.upload ?? 0),
-              downloadDown: isDown ? (item.download ?? 0) : null,
-              uploadDown: isDown ? (item.upload ?? 0) : null,
-            };
-          } catch {
-            return null;
+      const filtered = data.filter((item) => item && item.timestamp);
+      const result: Array<{
+        time: string;
+        download: number | null;
+        upload: number | null;
+        downloadDown: number | null;
+        uploadDown: number | null;
+      }> = [];
+      
+      for (let i = 0; i < filtered.length; i++) {
+        const item = filtered[i];
+        const prevItem = i > 0 ? filtered[i - 1] : null;
+        
+        try {
+          const pointStatus = item.status || "operational";
+          const isDown = isDownStatus(pointStatus);
+          const prevStatus = prevItem?.status || "operational";
+          const wasDown = isDownStatus(prevStatus);
+          
+          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const dl = item.download ?? 0;
+          const ul = item.upload ?? 0;
+          
+          // Se mudou de status, adicionar ponto de transição
+          if (prevItem && isDown !== wasDown) {
+            result.push({
+              time,
+              download: dl,
+              upload: ul,
+              downloadDown: dl,
+              uploadDown: ul,
+            });
+          } else {
+            result.push({
+              time,
+              download: isDown ? null : dl,
+              upload: isDown ? null : ul,
+              downloadDown: isDown ? dl : null,
+              uploadDown: isDown ? ul : null,
+            });
           }
-        })
-        .filter(Boolean);
+        } catch {
+          // skip invalid item
+        }
+      }
+      
+      return result;
     } catch {
       return [];
     }
@@ -174,23 +203,49 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
-      return data
-        .filter((item) => item && item.timestamp)
-        .map((item) => {
-          try {
-            const pointStatus = item.status || "operational";
-            const isDown = isDownStatus(pointStatus);
-            return {
-              time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
+      const filtered = data.filter((item) => item && item.timestamp);
+      const result: Array<{
+        time: string;
+        threshold: number;
+        latency: number | null;
+        latencyDown: number | null;
+      }> = [];
+      
+      for (let i = 0; i < filtered.length; i++) {
+        const item = filtered[i];
+        const prevItem = i > 0 ? filtered[i - 1] : null;
+        
+        try {
+          const pointStatus = item.status || "operational";
+          const isDown = isDownStatus(pointStatus);
+          const prevStatus = prevItem?.status || "operational";
+          const wasDown = isDownStatus(prevStatus);
+          
+          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const lat = item.latency ?? 0;
+          
+          // Se mudou de status, adicionar ponto de transição
+          if (prevItem && isDown !== wasDown) {
+            result.push({
+              time,
               threshold,
-              latency: isDown ? null : (item.latency ?? 0),
-              latencyDown: isDown ? (item.latency ?? 0) : null,
-            };
-          } catch {
-            return null;
+              latency: lat,
+              latencyDown: lat,
+            });
+          } else {
+            result.push({
+              time,
+              threshold,
+              latency: isDown ? null : lat,
+              latencyDown: isDown ? lat : null,
+            });
           }
-        })
-        .filter(Boolean);
+        } catch {
+          // skip invalid item
+        }
+      }
+      
+      return result;
     } catch {
       return [];
     }
