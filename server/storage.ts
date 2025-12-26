@@ -378,6 +378,13 @@ export class DatabaseStorage {
     return result.length;
   }
 
+  async deleteAllDDoSEvents(clientId: number): Promise<number> {
+    const result = await db.delete(ddosEvents)
+      .where(eq(ddosEvents.clientId, clientId))
+      .returning();
+    return result.length;
+  }
+
   async getSLAIndicators(clientId?: number): Promise<SLAIndicator[]> {
     const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
     if (allLinks.length === 0) return generateSLAIndicators();

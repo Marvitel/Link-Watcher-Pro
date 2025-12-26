@@ -18,7 +18,11 @@ interface DDoSPanelProps {
   compact?: boolean;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, {
+  icon: typeof ShieldAlert;
+  className: string;
+  label: string;
+}> = {
   detected: {
     icon: ShieldAlert,
     className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
@@ -119,7 +123,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
                         {format(new Date(event.startTime), "dd/MM HH:mm", { locale: ptBR })}
                       </TableCell>
                       <TableCell className="font-mono">
-                        {event.peakBandwidth.toFixed(1)} Gbps
+                        {event.peakBandwidth.toFixed(1)} Mbps
                       </TableCell>
                       <TableCell className="font-mono">
                         {event.sourceIps.toLocaleString()}
@@ -181,7 +185,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
                       {durationMin} min
                     </TableCell>
                     <TableCell className="font-mono">
-                      {event.peakBandwidth.toFixed(1)} Gbps
+                      {event.peakBandwidth.toFixed(1)} Mbps
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={config.className}>

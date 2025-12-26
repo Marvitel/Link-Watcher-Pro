@@ -655,6 +655,7 @@ export async function registerRoutes(
     try {
       const clientId = parseInt(req.params.clientId, 10);
       const includeHistorical = req.body?.includeHistorical === true;
+      const clearAll = req.body?.clearAll === true;
       const settings = await storage.getClientSettings(clientId);
       
       if (!settings?.wanguardEnabled) {
@@ -675,10 +676,17 @@ export async function registerRoutes(
         password: settings.wanguardApiPassword,
       });
 
-      // Primeiro, remover eventos de demonstração (sem wanguardAnomalyId)
-      const deletedDemo = await storage.deleteDDoSEventsWithoutWanguardId(clientId);
-      if (deletedDemo > 0) {
-        console.log(`[Wanguard] Removidos ${deletedDemo} eventos de demonstração`);
+      // Se clearAll, apagar TODOS os eventos DDoS do cliente
+      let deletedCount = 0;
+      if (clearAll) {
+        deletedCount = await storage.deleteAllDDoSEvents(clientId);
+        console.log(`[Wanguard] Removidos ${deletedCount} eventos DDoS (limpeza total)`);
+      } else {
+        // Apenas remover eventos de demonstração (sem wanguardAnomalyId)
+        deletedCount = await storage.deleteDDoSEventsWithoutWanguardId(clientId);
+        if (deletedCount > 0) {
+          console.log(`[Wanguard] Removidos ${deletedCount} eventos de demonstração`);
+        }
       }
 
       // Buscar anomalias ativas
@@ -722,10 +730,10 @@ export async function registerRoutes(
 
       res.json({ 
         success: true, 
-        message: `Sincronização concluída. ${createdCount} novos, ${updatedCount} atualizados, ${deletedDemo} removidos.`,
+        message: `Sincronização concluída. ${createdCount} novos, ${updatedCount} atualizados, ${deletedCount} removidos.`,
         createdCount,
         updatedCount,
-        deletedDemo,
+        deletedCount,
         totalAnomalies: anomalies.length
       });
     } catch (error) {
