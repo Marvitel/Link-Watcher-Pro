@@ -233,6 +233,97 @@ function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
   return alarms;
 }
 
+// Cache de alarmes por OLT para evitar múltiplas consultas no mesmo ciclo
+const oltAlarmsCache = new Map<number, { timestamp: number; alarms: OltAlarm[] }>();
+const OLT_ALARMS_CACHE_TTL_MS = 60000; // 1 minuto
+
+// Busca todos os alarmes de uma OLT (para usar quando múltiplos links da mesma OLT estão offline)
+export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
+  // Verificar cache
+  const cached = oltAlarmsCache.get(olt.id);
+  if (cached && (Date.now() - cached.timestamp) < OLT_ALARMS_CACHE_TTL_MS) {
+    console.log(`[OLT] Usando cache de alarmes para ${olt.name} (${cached.alarms.length} alarmes)`);
+    return cached.alarms;
+  }
+
+  const command = "sh alarm";
+  let rawOutput = "";
+  
+  try {
+    console.log(`[OLT] Consultando TODOS os alarmes de ${olt.name}...`);
+    if (olt.connectionType === "ssh") {
+      rawOutput = await connectSSH(olt, command);
+    } else {
+      rawOutput = await connectTelnet(olt, command);
+    }
+    
+    const alarms = parseAllAlarms(rawOutput);
+    console.log(`[OLT] ${alarms.length} alarmes encontrados em ${olt.name}`);
+    
+    // Armazenar em cache
+    oltAlarmsCache.set(olt.id, { timestamp: Date.now(), alarms });
+    
+    return alarms;
+  } catch (error) {
+    console.error(`[OLT] Erro ao consultar alarmes de ${olt.name}:`, error);
+    return [];
+  }
+}
+
+// Parseia todos os alarmes do output (sem filtrar por ONU específica)
+function parseAllAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const lines = output.split("\n");
+  
+  for (const line of lines) {
+    const match = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
+    if (match) {
+      alarms.push({
+        timestamp: match[1].trim(),
+        severity: match[2].trim(),
+        source: match[3].trim(),
+        status: match[4].trim(),
+        name: match[5].trim(),
+        description: match[6].trim(),
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Busca diagnóstico para uma ONU específica a partir de uma lista de alarmes pré-carregados
+export function getDiagnosisFromAlarms(alarms: OltAlarm[], onuId: string): OltDiagnosis {
+  const normalizedOnuId = normalizeOnuId(onuId);
+  
+  // Filtrar alarmes para esta ONU
+  const onuAlarms = alarms.filter(alarm => {
+    const normalizedSource = normalizeOnuId(alarm.source);
+    return normalizedSource === normalizedOnuId;
+  });
+  
+  if (onuAlarms.length === 0) {
+    return {
+      alarmType: null,
+      alarmCode: null,
+      description: "Nenhum alarme encontrado para esta ONU",
+      diagnosis: "Sem alarmes ativos",
+      rawOutput: "",
+    };
+  }
+  
+  const activeAlarm = onuAlarms.find(a => a.status === "Active") || onuAlarms[0];
+  const mapping = ALARM_MAPPINGS[activeAlarm.name];
+  
+  return {
+    alarmType: activeAlarm.name,
+    alarmCode: activeAlarm.source,
+    description: mapping?.description || activeAlarm.description,
+    diagnosis: mapping?.diagnosis || "Alarme Desconhecido",
+    rawOutput: "",
+  };
+}
+
 export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnosis> {
   // Usa comando abreviado e filtra pelo ONU ID normalizado (apenas números slot/port/pon/onu)
   const normalizedId = normalizeOnuId(onuId);

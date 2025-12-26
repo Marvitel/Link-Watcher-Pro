@@ -4,7 +4,7 @@ import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { queryOltAlarm } from "./olt";
+import { queryAllOltAlarms, getDiagnosisFromAlarms, type OltAlarm } from "./olt";
 
 const execAsync = promisify(exec);
 
@@ -623,7 +623,7 @@ export async function collectAllLinksMetrics(): Promise<void> {
             // Se link ficou offline e tem OLT/ONU configurados, consultar diagnóstico
             console.log(`[Monitor] Link ${link.name} - oltId: ${link.oltId}, onuId: ${link.onuId}`);
             if (newStatus === "offline" && link.oltId && link.onuId) {
-              // Verificar cache para evitar múltiplas consultas
+              // Verificar cache de diagnóstico do link para evitar múltiplas consultas
               const cached = oltDiagnosisCache.get(link.id);
               const now = Date.now();
               
@@ -633,11 +633,15 @@ export async function collectAllLinksMetrics(): Promise<void> {
                 console.log(`[Monitor] Usando diagnóstico OLT em cache para ${link.name}`);
               } else {
                 try {
-                  console.log(`[Monitor] Consultando OLT para diagnóstico do link ${link.name}...`);
                   const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
                   
                   if (olt && olt.isActive) {
-                    const diagnosis = await queryOltAlarm(olt, link.onuId);
+                    // Usa queryAllOltAlarms que tem cache de 1 minuto por OLT
+                    // Se múltiplos links da mesma OLT caírem, apenas UMA consulta é feita
+                    console.log(`[Monitor] Buscando diagnóstico para ${link.name} (ONU: ${link.onuId})...`);
+                    const allAlarms = await queryAllOltAlarms(olt);
+                    const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
+                    
                     let diagnosisSuffix = "";
                     if (diagnosis.alarmType) {
                       diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
@@ -646,7 +650,7 @@ export async function collectAllLinksMetrics(): Promise<void> {
                       diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
                     }
                     eventDescription += diagnosisSuffix;
-                    // Armazenar em cache
+                    // Armazenar em cache por link
                     oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
                   }
                 } catch (oltError) {
