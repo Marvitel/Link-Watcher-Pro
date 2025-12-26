@@ -70,7 +70,8 @@ echo ""
 echo "[7/7] Reiniciando o serviço..."
 systemctl start link-monitor
 
-sleep 3
+echo "      Aguardando serviço iniciar..."
+sleep 10
 
 if systemctl is-active --quiet link-monitor; then
     echo ""

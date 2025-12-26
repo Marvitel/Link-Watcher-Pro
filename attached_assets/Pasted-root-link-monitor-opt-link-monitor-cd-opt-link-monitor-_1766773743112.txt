@@ -1,0 +1,113 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+NODE_ENV=development npm install
+npm run build
+systemctl restart link-monitor
+systemctl status link-monitor
+
+added 98 packages, changed 2 packages, and audited 486 packages in 7s
+
+56 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3450 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-Dj4WdyAk.css              74.17 kB │ gzip:  12.00 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-Dw1rk6kT.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-DZY22lk3.js            1,346.73 kB │ gzip: 397.97 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 27.00s
+building server...
+
+  dist/index.cjs  1.2mb ⚠️
+
+⚡ Done in 315ms
+● link-monitor.service - Link Monitor - Marvitel
+     Loaded: loaded (/etc/systemd/system/link-monitor.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2025-12-26 15:27:10 -03; 19ms ago
+   Main PID: 24861 (node)
+      Tasks: 6 (limit: 9467)
+     Memory: 2.3M
+        CPU: 16ms
+     CGroup: /system.slice/link-monitor.service
+             └─24861 node /usr/bin/npm start
+
+dez 26 15:27:10 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+root@link-monitor:/opt/link-monitor# sudo bash /opt/link-monitor/deploy/update-from-github.sh
+==========================================
+  Link Monitor - Atualização via GitHub
+==========================================
+
+[1/6] Criando backup em /opt/link-monitor-backups/backup-20251226-152740...
+      Backup criado com sucesso!
+
+[2/6] Baixando código do GitHub...
+Cloning into '/tmp/link-monitor-update/repo'...
+remote: Enumerating objects: 150, done.
+remote: Counting objects: 100% (150/150), done.
+remote: Compressing objects: 100% (136/136), done.
+remote: Total 150 (delta 12), reused 130 (delta 9), pack-reused 0 (from 0)
+Receiving objects: 100% (150/150), 3.17 MiB | 6.50 MiB/s, done.
+Resolving deltas: 100% (12/12), done.
+
+[3/6] Parando o serviço...
+
+[4/6] Atualizando arquivos...
+
+[5/7] Instalando dependências...
+
+added 67 packages, removed 35 packages, changed 144 packages, and audited 518 packages in 11s
+
+68 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+[6/7] Compilando aplicação...
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3436 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-Dj4WdyAk.css              74.17 kB │ gzip:  12.00 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-Dmxoax91.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-DQF3WJrk.js            1,334.19 kB │ gzip: 394.73 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 26.04s
+building server...
+
+  dist/index.cjs  1.2mb ⚠️
+
+⚡ Done in 266ms
+
+[7/7] Reiniciando o serviço...
+
+ERRO: Serviço não iniciou corretamente!
+Restaurando backup...
+Backup restaurado. Sistema voltou ao estado anterior.
+root@link-monitor:/opt/link-monitor# 
