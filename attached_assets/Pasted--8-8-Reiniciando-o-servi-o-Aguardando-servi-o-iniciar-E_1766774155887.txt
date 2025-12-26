@@ -1,0 +1,38 @@
+[8/8] Reiniciando o serviço...
+      Aguardando serviço iniciar...
+
+ERRO: Serviço não iniciou corretamente!
+Restaurando backup...
+Backup restaurado. Sistema voltou ao estado anterior.
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -n 30 --no-pager
+dez 26 15:35:25 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+dez 26 15:35:25 link-monitor systemd[1]: link-monitor.service: Consumed 1.027s CPU time.
+dez 26 15:35:35 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 82.
+dez 26 15:35:35 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+dez 26 15:35:35 link-monitor systemd[1]: link-monitor.service: Consumed 1.027s CPU time.
+dez 26 15:35:35 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 15:35:35 link-monitor npm[26400]: > rest-express@1.0.0 start
+dez 26 15:35:35 link-monitor npm[26400]: > NODE_ENV=production node dist/index.cjs
+dez 26 15:35:35 link-monitor npm[26412]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 15:35:35 link-monitor npm[26412]: node:events:502
+dez 26 15:35:35 link-monitor npm[26412]:       throw er; // Unhandled 'error' event
+dez 26 15:35:35 link-monitor npm[26412]:       ^
+dez 26 15:35:35 link-monitor npm[26412]: Error: listen EADDRINUSE: address already in use 0.0.0.0:5000
+dez 26 15:35:35 link-monitor npm[26412]:     at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+dez 26 15:35:35 link-monitor npm[26412]:     at listenInCluster (node:net:1965:12)
+dez 26 15:35:35 link-monitor npm[26412]:     at doListen (node:net:2139:7)
+dez 26 15:35:35 link-monitor npm[26412]:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+dez 26 15:35:35 link-monitor npm[26412]: Emitted 'error' event on Server instance at:
+dez 26 15:35:35 link-monitor npm[26412]:     at emitErrorNT (node:net:1944:8)
+dez 26 15:35:35 link-monitor npm[26412]:     at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+dez 26 15:35:35 link-monitor npm[26412]:   code: 'EADDRINUSE',
+dez 26 15:35:35 link-monitor npm[26412]:   errno: -98,
+dez 26 15:35:35 link-monitor npm[26412]:   syscall: 'listen',
+dez 26 15:35:35 link-monitor npm[26412]:   address: '0.0.0.0',
+dez 26 15:35:35 link-monitor npm[26412]:   port: 5000
+dez 26 15:35:35 link-monitor npm[26412]: }
+dez 26 15:35:35 link-monitor npm[26412]: Node.js v20.19.6
+dez 26 15:35:36 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+dez 26 15:35:36 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+dez 26 15:35:36 link-monitor systemd[1]: link-monitor.service: Consumed 1.017s CPU time.
+root@link-monitor:/opt/link-monitor# 
