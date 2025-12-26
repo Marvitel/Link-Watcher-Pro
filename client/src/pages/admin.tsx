@@ -107,6 +107,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     monitoredIp: link?.monitoredIp || "",
     latencyThreshold: link?.latencyThreshold || 80,
     packetLossThreshold: link?.packetLossThreshold || 2,
+    equipmentVendorId: (link as any)?.equipmentVendorId || null,
+    equipmentModel: (link as any)?.equipmentModel || "",
+    customCpuOid: (link as any)?.customCpuOid || "",
+    customMemoryOid: (link as any)?.customMemoryOid || "",
+    snmpCommunity: "",
+  });
+
+  const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
+    queryKey: ["/api/equipment-vendors"],
   });
 
   const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId);
@@ -467,6 +476,78 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             />
           </div>
         </div>
+
+        <div className="space-y-2 mt-3">
+          <Label htmlFor="snmpCommunity">Community SNMP (sobrescreve o perfil)</Label>
+          <Input
+            id="snmpCommunity"
+            value={formData.snmpCommunity}
+            onChange={(e) => setFormData({ ...formData, snmpCommunity: e.target.value })}
+            placeholder="Deixe vazio para usar a community do perfil"
+            data-testid="input-snmp-community"
+          />
+          <p className="text-xs text-muted-foreground">Se informado, será usado ao invés da community do perfil SNMP selecionado</p>
+        </div>
+      </div>
+
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3">Equipamento de Rede</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="equipmentVendorId">Fabricante</Label>
+            <Select
+              value={formData.equipmentVendorId?.toString() || "none"}
+              onValueChange={(value) => setFormData({ ...formData, equipmentVendorId: value === "none" ? null : parseInt(value, 10) })}
+            >
+              <SelectTrigger data-testid="select-equipment-vendor">
+                <SelectValue placeholder="Selecione o fabricante" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum / Não coletar CPU/Memória</SelectItem>
+                {equipmentVendors?.map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="equipmentModel">Modelo do Equipamento</Label>
+            <Input
+              id="equipmentModel"
+              value={formData.equipmentModel}
+              onChange={(e) => setFormData({ ...formData, equipmentModel: e.target.value })}
+              placeholder="FortiGate 60F, Mikrotik RB3011, etc."
+              data-testid="input-equipment-model"
+            />
+          </div>
+        </div>
+        
+        {formData.equipmentVendorId && equipmentVendors?.find(v => v.id === formData.equipmentVendorId)?.slug === "custom" && (
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <div className="space-y-2">
+              <Label htmlFor="customCpuOid">OID Customizado CPU</Label>
+              <Input
+                id="customCpuOid"
+                value={formData.customCpuOid}
+                onChange={(e) => setFormData({ ...formData, customCpuOid: e.target.value })}
+                placeholder="1.3.6.1.4.1...."
+                data-testid="input-custom-cpu-oid"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customMemoryOid">OID Customizado Memória</Label>
+              <Input
+                id="customMemoryOid"
+                value={formData.customMemoryOid}
+                onChange={(e) => setFormData({ ...formData, customMemoryOid: e.target.value })}
+                placeholder="1.3.6.1.4.1...."
+                data-testid="input-custom-memory-oid"
+              />
+            </div>
+          </div>
+        )}
       </div>
       
       <div className="border-t pt-4 mt-4">
