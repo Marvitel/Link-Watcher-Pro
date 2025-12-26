@@ -9,11 +9,15 @@ import { queryOltAlarm } from "./olt";
 const execAsync = promisify(exec);
 
 interface StatusChangeEvent {
-  type: "error" | "warning" | "info";
+  type: "error" | "warning" | "info" | "critical";
   title: string;
   description: string;
   resolved: boolean;
 }
+
+// Cache para evitar múltiplas consultas de OLT durante transições rápidas
+const oltDiagnosisCache = new Map<number, { timestamp: number; diagnosis: string }>();
+const OLT_DIAGNOSIS_COOLDOWN_MS = 300000; // 5 minutos
 
 function getStatusChangeEvent(
   previousStatus: string,
@@ -22,10 +26,10 @@ function getStatusChangeEvent(
   latency: number,
   packetLoss: number
 ): StatusChangeEvent | null {
-  // Link ficou offline
+  // Link ficou offline - evento crítico
   if (newStatus === "offline" && previousStatus !== "offline") {
     return {
-      type: "error",
+      type: "critical",
       title: `Link ${linkName} offline`,
       description: `O link ficou indisponível. Última latência: ${latency.toFixed(1)}ms, Perda de pacotes: ${packetLoss.toFixed(1)}%`,
       resolved: false,
@@ -610,23 +614,43 @@ export async function collectAllLinksMetrics(): Promise<void> {
           if (eventConfig) {
             let eventDescription = eventConfig.description;
             
+            // Limpar cache de diagnóstico quando link se recupera
+            if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
+              oltDiagnosisCache.delete(link.id);
+              console.log(`[Monitor] Cache de diagnóstico OLT limpo para ${link.name}`);
+            }
+            
             // Se link ficou offline e tem OLT/ONU configurados, consultar diagnóstico
             if (newStatus === "offline" && link.oltId && link.onuId) {
-              try {
-                console.log(`[Monitor] Consultando OLT para diagnóstico do link ${link.name}...`);
-                const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
-                
-                if (olt && olt.isActive) {
-                  const diagnosis = await queryOltAlarm(olt, link.onuId);
-                  if (diagnosis.alarmType) {
-                    eventDescription += ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
-                    console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
-                  } else {
-                    eventDescription += ` | OLT: ${diagnosis.description}`;
+              // Verificar cache para evitar múltiplas consultas
+              const cached = oltDiagnosisCache.get(link.id);
+              const now = Date.now();
+              
+              if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
+                // Usar diagnóstico em cache
+                eventDescription += cached.diagnosis;
+                console.log(`[Monitor] Usando diagnóstico OLT em cache para ${link.name}`);
+              } else {
+                try {
+                  console.log(`[Monitor] Consultando OLT para diagnóstico do link ${link.name}...`);
+                  const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
+                  
+                  if (olt && olt.isActive) {
+                    const diagnosis = await queryOltAlarm(olt, link.onuId);
+                    let diagnosisSuffix = "";
+                    if (diagnosis.alarmType) {
+                      diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
+                      console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
+                    } else {
+                      diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
+                    }
+                    eventDescription += diagnosisSuffix;
+                    // Armazenar em cache
+                    oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
                   }
+                } catch (oltError) {
+                  console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
                 }
-              } catch (oltError) {
-                console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
               }
             }
             
