@@ -257,6 +257,10 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
       rawOutput = await connectTelnet(olt, command);
     }
     
+    // Log output bruto para debug
+    console.log(`[OLT] Output bruto (${rawOutput.length} chars):`);
+    console.log(rawOutput);
+    
     const alarms = parseAllAlarms(rawOutput);
     console.log(`[OLT] ${alarms.length} alarmes encontrados em ${olt.name}`);
     
