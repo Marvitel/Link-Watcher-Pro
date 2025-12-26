@@ -1,0 +1,36 @@
+root@link-monitor:~# pm2 logs link-monitor --lines 20
+[TAILING] Tailing last 20 lines for [link-monitor] process (change the value with --lines option)
+/root/.pm2/logs/link-monitor-error.log last 20 lines:
+0|link-mon |     at Session.onClose (/root/Link-Watcher-Pro/node_modules/net-snmp/index.js:2402:7)
+0|link-mon |     at Socket.emit (node:events:524:28)
+0|link-mon |     at socketCloseNT (node:dgram:775:8)
+0|link-mon |     at process.processTicksAndRejections (node:internal/process/task_queues:81:21) {
+0|link-mon |   code: 'ERR_SOCKET_DGRAM_NOT_RUNNING'
+0|link-mon | }
+0|link-mon | Error [ERR_SOCKET_DGRAM_NOT_RUNNING]: Not running
+0|link-mon |     at healthCheck (node:dgram:929:11)
+0|link-mon |     at Socket.close (node:dgram:754:3)
+0|link-mon |     at Session.close (/root/Link-Watcher-Pro/node_modules/net-snmp/index.js:2100:13)
+0|link-mon |     at Req.responseCb (/root/Link-Watcher-Pro/dist/index.cjs:94:113480)
+0|link-mon |     at Session.cancelRequests (/root/Link-Watcher-Pro/node_modules/net-snmp/index.js:2109:7)
+0|link-mon |     at Session.onClose (/root/Link-Watcher-Pro/node_modules/net-snmp/index.js:2402:7)
+0|link-mon |     at Socket.emit (node:events:524:28)
+0|link-mon |     at socketCloseNT (node:dgram:775:8)
+0|link-mon |     at process.processTicksAndRejections (node:internal/process/task_queues:81:21) {
+0|link-mon |   code: 'ERR_SOCKET_DGRAM_NOT_RUNNING'
+0|link-mon | }
+0|link-mon | SNMP error for 191.52.248.227: NoSuchName: 1.3.6.1.2.1.31.1.1.1.6.11
+0|link-mon | SNMP error for 191.52.248.227: NoSuchName: 1.3.6.1.2.1.31.1.1.1.6.11
+
+/root/.pm2/logs/link-monitor-out.log last 20 lines:
+0|link-mon | ailureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":null,"icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":1,"snmpInterfaceName":"ether1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.26","monitoredIp":"191.52.248.26","latencyThreshold":80,"packetLossThreshold":2,"createdAt":"2025-12-26T12:06:18.538Z"},{"id":2,"clientId":1,"identifier":"central","name":"Central de Atendimento","location":"Jardins, Aracaju/SE","address":"Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010","ipBlock":"/28","totalIps":16,"usableIps":14,"bandwidth":200,"status":"operational","uptime":99.808,"currentDownload":null,"currentUpload":null,"latency":1.826,"packetLoss":0,"cpuUsage":42,"memoryUsage":52,"lastUpdated":"2025-12-26T16:54:48.439Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":null,"icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","latencyThreshold":80,"packetLossThreshold":2,"createdAt":"2025-12-26T12:06:18.553Z"}]
+0|link-mon | 1:54:57 PM [express] GET /api/clients 304 in 15ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","slug":"dpe-se","cnpj":"09.264.424/0001-00","address":"Aracaju, SE","phone":null,"email":"contato@defensoria.se.def.br","logoUrl":null,"isActive":true,"createdAt":"2025-12-26T12:06:18.504Z","updatedAt":"2025-12-26T12:06:18.504Z"}]
+0|link-mon | 1:54:57 PM [express] GET /api/stats 304 in 30ms :: {"totalLinks":2,"operationalLinks":2,"activeAlerts":0,"averageUptime":99.8775,"averageLatency":1.88,"totalBandwidth":400,"ddosEventsToday":0,"openIncidents":0}
+0|link-mon | 1:54:57 PM [express] GET /api/events 304 in 49ms :: [{"id":1,"linkId":1,"clientId":1,"type":"info","title":"Manutenção preventiva concluída","description":"Atualização de firmware do equipamento CPE realizada com sucesso","timestamp":"2025-12-26T13:06:18.573Z","resolved":true,"resolvedAt":"2025-12-26T14:06:18.573Z"},{"id":2,"linkId":2,"clientId":1,"type":"warning","title":"Latência elevada detectada","description":"Latência acima de 60ms detectada por 10 minutos","timestamp":"2025-12-26T11:06:18.573Z","resolved":true,"resolvedAt":"2025-12-26T11:36:18.573Z"}]
+0|link-mon | 1:55:00 PM [express] GET /api/sla 200 in 8ms :: [{"id":"sla-de","name":"Disponibilidade do Enlace (DE)","description":"Percentual de tempo em que o enlace esteve em condições normais de funcionamento","formula":"D = [(To-Ti)/To] x 100","target":"≥ 99,00%","current":99.8775,"periodicity":"Mensal","status":"compliant"},{"id":"sla-teb","name":"Taxa de Erro de Bit (TEB)","description":"Relação entre bits transmitidos com erro e o total de bits enviados","formula":"TEB = (NBE/NTB) x 100","target":"≤ 1x10⁻⁶","current":1e-7,"periodicity":"Eventual","status":"compliant"},{"id":"sla-dp","name":"Descarte de Pacotes (DP)","description":"Relação entre pacotes enviados pela origem e recebidos no destino","formula":"PP = [(NPorig – NPdest)/NPdest] x 100","target":"≤ 2%","current":0,"periodicity":"Eventual","status":"compliant"},{"id":"sla-lat","name":"Latência (LAT)","description":"Tempo de transmissão de um pacote entre a origem e o destino","formula":"N/A","target":"≤ 80ms","current":1.88,"periodicity":"Horária","status":"compliant"},{"id":"sla-repair","name":"Prazo de Reparo do Serviço","description":"Tempo entre a abertura do chamado e o restabelecimento do serviço","formula":"N/A","target":"Máximo 6 horas","current":100,"periodicity":"Mensal","status":"compliant"}]
+0|link-mon | [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, status=operational
+
+0|link-monitor  | [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, status=operational
