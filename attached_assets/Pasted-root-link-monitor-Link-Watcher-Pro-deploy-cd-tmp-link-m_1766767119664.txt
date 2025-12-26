@@ -1,0 +1,77 @@
+root@link-monitor:~/Link-Watcher-Pro/deploy# cd /tmp/link-monitor-update/repo
+sudo bash deploy/update-from-github.sh
+==========================================
+  Link Monitor - Atualização via GitHub
+==========================================
+
+[1/6] Criando backup em /opt/link-monitor-backups/backup-20251226-133346...
+      Backup criado com sucesso!
+
+[2/6] Baixando código do GitHub...
+Cloning into '/tmp/link-monitor-update/repo'...
+fatal: Unable to read current working directory: Arquivo ou diretório inexistente
+root@link-monitor:/tmp/link-monitor-update/repo# # Limpar diretório temporário
+rm -rf /tmp/link-monitor-update
+
+# Baixar código do GitHub
+git clone https://github.com/Marvitel/Link-Watcher-Pro /tmp/link-monitor-update
+
+# Backup do .env
+cp /opt/link-monitor/.env /tmp/.env.backup 2>/dev/null || true
+
+# Copiar arquivos novos (preservando node_modules)
+cd /tmp/link-monitor-update
+cp -r client server shared deploy package*.json tsconfig.json vite.config.ts drizzle.config.ts tailwind.config.ts postcss.config.js /opt/link-monitor/
+
+# Restaurar .env
+cp /tmp/.env.backup /opt/link-monitor/.env 2>/dev/null || true
+
+# Reinstalar dependências e reiniciar
+cd /opt/link-monitor
+npm install
+pm2 restart link-monitor || node dist/index.js &
+Cloning into '/tmp/link-monitor-update'...
+fatal: Unable to read current working directory: Arquivo ou diretório inexistente
+-bash: cd: /tmp/link-monitor-update: Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'client': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'server': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'shared': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'deploy': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'package*.json': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'tsconfig.json': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'vite.config.ts': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'drizzle.config.ts': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'tailwind.config.ts': Arquivo ou diretório inexistente
+cp: não foi possível obter estado de 'postcss.config.js': Arquivo ou diretório inexistente
+
+added 107 packages, and audited 518 packages in 6s
+
+68 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+[1] 13702
+root@link-monitor:/opt/link-monitor# Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [link-monitor](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ 1.0.0   │ fork    │ 13711    │ 0s     │ 28   │ online    │ 0%       │ 16.8mb   │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+[1]+  Concluído              pm2 restart link-monitor || node dist/index.js
+root@link-monitor:/opt/link-monitor# pm2 restart link-monitor || node dist/index.js &
+[1] 13766
+root@link-monitor:/opt/link-monitor# Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [link-monitor](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ 1.0.0   │ fork    │ 13775    │ 0s     │ 29   │ online    │ 0%       │ 18.6mb   │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+[1]+  Concluído              pm2 restart link-monitor || node dist/index.js
+root@link-monitor:/opt/link-monitor# systemctl list-units --type=service | grep -i link
+root@link-monitor:/opt/link-monitor# 
