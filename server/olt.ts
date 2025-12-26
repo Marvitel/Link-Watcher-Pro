@@ -217,8 +217,9 @@ function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
 }
 
 export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnosis> {
-  // Busca todos os alarmes para fazer parsing mais inteligente com normalização de formatos
-  const command = "show alarm";
+  // Usa comando abreviado e filtra pelo ONU ID normalizado (apenas números slot/port/pon/onu)
+  const normalizedId = normalizeOnuId(onuId);
+  const command = `sh alarm | include ${normalizedId}`;
   let rawOutput = "";
   
   try {
@@ -264,7 +265,7 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
 
 export async function testOltConnection(olt: Olt): Promise<{ success: boolean; message: string }> {
   try {
-    const command = "show alarm";
+    const command = "sh alarm";
     if (olt.connectionType === "ssh") {
       await connectSSH(olt, command);
     } else {
