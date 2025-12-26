@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
 import { VoalleService } from "./voalle";
 import { discoverInterfaces, type SnmpInterface } from "./snmp";
+import { queryOltAlarm, testOltConnection } from "./olt";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
 import { 
   insertIncidentSchema, 
@@ -1288,6 +1289,39 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao excluir OLT" });
+    }
+  });
+
+  app.post("/api/olts/:id/test", requireSuperAdmin, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      const result = await testOltConnection(olt);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao testar conexão" });
+    }
+  });
+
+  app.post("/api/olts/:id/query-alarm", requireAuth, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      if (!req.user?.isSuperAdmin && req.user?.clientId !== olt.clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const { onuId } = req.body;
+      if (!onuId) {
+        return res.status(400).json({ error: "ONU ID é obrigatório" });
+      }
+      const diagnosis = await queryOltAlarm(olt, onuId);
+      res.json(diagnosis);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao consultar alarme" });
     }
   });
 
