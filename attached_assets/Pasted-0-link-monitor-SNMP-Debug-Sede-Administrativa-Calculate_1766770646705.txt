@@ -1,0 +1,25 @@
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.21Mbps, up=0.73Mbps
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Querying 191.52.248.227 interface 17
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind0 type=object, value= <Buffer 03 f6 f3 5b 28>
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind1 type=object, value= <Buffer 09 97 67 ba e3>
+0|link-monitor  | [SNMP Parsed] 191.52.248.227: inOctets=17028045608, outOctets=41194863331
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Got traffic data - in=17028045608, out=41194863331
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Calculated bandwidth - down=0.19Mbps, up=0.67Mbps
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind0 type=object, value= <Buffer 04 78 f3 5b 5c>
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind1 type=object, value= <Buffer 0a 9e 1a f6 b5>
+0|link-monitor  | [SNMP Parsed] 191.52.248.26: inOctets=19209083740, outOctets=45602240181
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Got traffic data - in=19209083740, out=45602240181
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.23Mbps, up=0.80Mbps
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Querying 191.52.248.227 interface 17
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind0 type=object, value= <Buffer 03 f6 fd ef bf>
+0|link-monitor  | [SNMP Raw] 191.52.248.227: varbind1 type=object, value= <Buffer 09 97 89 ae 92>
+0|link-monitor  | [SNMP Parsed] 191.52.248.227: inOctets=17028739007, outOctets=41197088402
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Got traffic data - in=17028739007, out=41197088402
+0|link-monitor  | [SNMP Debug] Central de Atendimento: Calculated bandwidth - down=0.18Mbps, up=0.59Mbps
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Querying 191.52.248.26 interface 1
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind0 type=object, value= <Buffer 04 79 00 59 a9>
+0|link-monitor  | [SNMP Raw] 191.52.248.26: varbind1 type=object, value= <Buffer 0a 9e 44 ee 64>
+0|link-monitor  | [SNMP Parsed] 191.52.248.26: inOctets=19209935273, outOctets=45604990564
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Got traffic data - in=19209935273, out=45604990564
+0|link-monitor  | [SNMP Debug] Sede Administrativa: Calculated bandwidth - down=0.23Mbps, up=0.73Mbps
