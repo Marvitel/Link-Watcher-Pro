@@ -41,6 +41,9 @@ fi
 echo ""
 echo "[3/6] Parando o serviço..."
 systemctl stop link-monitor || true
+# Parar PM2 se estiver rodando (migração de versões antigas)
+pm2 stop all 2>/dev/null || true
+pm2 delete all 2>/dev/null || true
 
 echo ""
 echo "[4/6] Atualizando arquivos..."

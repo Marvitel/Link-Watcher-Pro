@@ -1,0 +1,27 @@
+root@link-monitor:/opt/link-monitor# pm2 stop all
+pm2 delete all
+fuser -k -9 5000/tcp
+sleep 2
+npm start
+[PM2] Applying action stopProcessId on app [all](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ N/A     │ fork    │ 0        │ 0      │ 8    │ stopped   │ 0%       │ 0b       │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+[PM2] Applying action deleteProcessId on app [all](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬───────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name      │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+└────┴───────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.cjs
+
+[Monitor] Starting real-time monitoring with 30s interval
+3:47:47 PM [express] serving on port 5000
+[Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+[Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+[Monitor] Central de Atendimento: latency=2.1ms, loss=0.0%, down=0.54Mbps, up=1.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+[Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.60Mbps, up=1.17Mbps, cpu=0.0%, mem=0.0%, status=operational
