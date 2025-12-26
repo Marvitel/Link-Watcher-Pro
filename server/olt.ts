@@ -257,10 +257,6 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
       rawOutput = await connectTelnet(olt, command);
     }
     
-    // Log output bruto para debug
-    console.log(`[OLT] Output bruto (${rawOutput.length} chars):`);
-    console.log(rawOutput);
-    
     const alarms = parseAllAlarms(rawOutput);
     console.log(`[OLT] ${alarms.length} alarmes encontrados em ${olt.name}`);
     
@@ -295,7 +291,6 @@ function parseAllAlarms(output: string): OltAlarm[] {
   const cleanOutput = stripAnsiCodes(output);
   const lines = cleanOutput.split("\n");
   
-  console.log(`[OLT Parser] Analisando ${lines.length} linhas de output (limpo)`);
   
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -311,16 +306,10 @@ function parseAllAlarms(output: string): OltAlarm[] {
       continue;
     }
     
-    // Log linhas que parecem conter dados de alarme
-    if (trimmedLine.includes("GPON") || trimmedLine.includes("gpon") || trimmedLine.match(/\d{4}-\d{2}-\d{2}/)) {
-      console.log(`[OLT Parser] Linha candidata: ${trimmedLine.substring(0, 150)}`);
-    }
-    
     // Tentar parsing por regex - formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss..."
     // O timestamp pode ter timezone como "UTC-3" ou "UTC+0"
     const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*[A-Z]*[+-]?\d*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+([\w_]+)\s+(.*)/);
     if (match) {
-      console.log(`[OLT Parser] MATCH regex: ${match[5]} em ${match[3]}`);
       alarms.push({
         timestamp: match[1].trim(),
         severity: match[2].trim(),
@@ -333,14 +322,9 @@ function parseAllAlarms(output: string): OltAlarm[] {
     }
     
     // Fallback: separar por múltiplos espaços (formato tabular do DmOS)
-    // Linha exemplo: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss of signal"
     const columns = trimmedLine.split(/\s{2,}/);
-    console.log(`[OLT Parser] Tentando split: ${columns.length} colunas - [${columns.join('|')}]`);
     
     if (columns.length >= 5 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
-      // O timestamp pode estar junto com timezone em uma coluna só ou separado
-      console.log(`[OLT Parser] MATCH colunas: ${columns.length >= 6 ? columns[4] : columns[3]} em ${columns.length >= 6 ? columns[2] : columns[1]}`);
-      
       if (columns.length >= 6) {
         alarms.push({
           timestamp: columns[0].trim(),
