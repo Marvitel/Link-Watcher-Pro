@@ -55,7 +55,7 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
     const socket = new Socket();
     let output = "";
     let loginPhase = 0;
-    let commandSentAt = 0;
+    let promptCount = 0;
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error("Telnet connection timeout"));
@@ -77,13 +77,13 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
         loginPhase = 2;
       } else if (loginPhase === 2 && (str.includes("#") || str.includes(">"))) {
         socket.write(command + "\r\n");
-        commandSentAt = Date.now();
         loginPhase = 3;
-      } else if (loginPhase === 3) {
-        // Esperar pelo menos 500ms após enviar o comando antes de verificar o prompt
-        // Isso garante que a resposta do comando seja capturada
-        const elapsed = Date.now() - commandSentAt;
-        if (elapsed > 500 && (str.includes("#") || str.includes(">"))) {
+        promptCount = 0;
+      } else if (loginPhase === 3 && (str.includes("#") || str.includes(">"))) {
+        promptCount++;
+        // Esperar pelo segundo prompt após enviar o comando
+        // Primeiro prompt é o eco do comando, segundo é após a resposta
+        if (promptCount >= 2 || output.includes(command)) {
           clearTimeout(timeout);
           socket.write("exit\r\n");
           socket.end();
@@ -109,7 +109,7 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
 async function connectSSH(olt: Olt, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new SSHClient();
-    let commandSentAt = 0;
+    let promptCount = 0;
     const timeout = setTimeout(() => {
       conn.end();
       reject(new Error("SSH connection timeout"));
@@ -132,12 +132,12 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
 
           if (!commandSent && (str.includes("#") || str.includes(">"))) {
             stream.write(command + "\n");
-            commandSentAt = Date.now();
             commandSent = true;
-          } else if (commandSent) {
-            // Esperar pelo menos 1000ms após enviar o comando antes de verificar o prompt
-            const elapsed = Date.now() - commandSentAt;
-            if (elapsed > 1000 && (str.includes("#") || str.includes(">"))) {
+            promptCount = 0;
+          } else if (commandSent && (str.includes("#") || str.includes(">"))) {
+            promptCount++;
+            // Esperar pelo segundo prompt ou verificar se o comando está no output
+            if (promptCount >= 2 || output.includes(command)) {
               clearTimeout(timeout);
               stream.write("exit\n");
               stream.end();
