@@ -1,11 +1,10 @@
 import { Badge } from "@/components/ui/badge";
-import type { LinkStatus } from "@shared/schema";
 
 interface StatusBadgeProps {
-  status: LinkStatus;
+  status: string;
 }
 
-const statusConfig: Record<LinkStatus, { label: string; className: string }> = {
+const statusConfig: Record<string, { label: string; className: string }> = {
   operational: {
     label: "Operacional",
     className: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20",
@@ -18,14 +17,27 @@ const statusConfig: Record<LinkStatus, { label: string; className: string }> = {
     label: "Inoperante",
     className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
   },
+  offline: {
+    label: "Offline",
+    className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
+  },
+  critical: {
+    label: "Crítico",
+    className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
+  },
   maintenance: {
     label: "Manutenção",
     className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
   },
 };
 
+const defaultConfig = {
+  label: "Desconhecido",
+  className: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20",
+};
+
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || defaultConfig;
   
   return (
     <Badge variant="outline" className={config.className} data-testid={`badge-status-${status}`}>
@@ -36,7 +48,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
 }
 
 interface StatusDotProps {
-  status: LinkStatus;
+  status: string;
   size?: "sm" | "md" | "lg";
 }
 
@@ -46,17 +58,22 @@ const sizeClasses = {
   lg: "w-3 h-3",
 };
 
-const dotColors: Record<LinkStatus, string> = {
+const dotColors: Record<string, string> = {
   operational: "bg-green-500",
   degraded: "bg-amber-500",
   down: "bg-red-500",
+  offline: "bg-red-500",
+  critical: "bg-red-500",
   maintenance: "bg-blue-500",
 };
 
+const defaultDotColor = "bg-gray-500";
+
 export function StatusDot({ status, size = "md" }: StatusDotProps) {
+  const color = dotColors[status] || defaultDotColor;
   return (
     <span
-      className={`${sizeClasses[size]} ${dotColors[status]} rounded-full inline-block`}
+      className={`${sizeClasses[size]} ${color} rounded-full inline-block`}
       data-testid={`dot-status-${status}`}
     />
   );
