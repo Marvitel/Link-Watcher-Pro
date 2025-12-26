@@ -274,12 +274,17 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
   }
 }
 
-// Remove caracteres de controle ANSI (cores do terminal)
+// Remove caracteres de controle ANSI (cores do terminal) - versão mais abrangente
 function stripAnsiCodes(str: string): string {
-  // Remove códigos ANSI de escape (cores, formatação, etc.)
-  return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
-            .replace(/\x1B\]0;[^\x07]*\x07/g, '') // Remove títulos de janela
-            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ''); // Remove outros caracteres de controle
+  return str
+    // Remove todas as sequências CSI (Control Sequence Introducer)
+    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
+    // Remove sequências OSC (Operating System Command)
+    .replace(/\x1B\].*?(?:\x07|\x1B\\)/g, '')
+    // Remove carriage returns
+    .replace(/\r/g, '')
+    // Remove outros caracteres de controle
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
 // Parseia todos os alarmes do output (sem filtrar por ONU específica)
@@ -293,14 +298,28 @@ function parseAllAlarms(output: string): OltAlarm[] {
   console.log(`[OLT Parser] Analisando ${lines.length} linhas de output (limpo)`);
   
   for (const line of lines) {
-    // Log linhas que parecem conter dados de alarme
-    if (line.includes("GPON") || line.includes("gpon") || line.match(/\d{4}-\d{2}-\d{2}/)) {
-      console.log(`[OLT Parser] Linha candidata: ${line.substring(0, 150)}`);
+    const trimmedLine = line.trim();
+    
+    // Pular linhas vazias, cabeçalhos e separadores
+    if (!trimmedLine || 
+        trimmedLine.startsWith("Triggered on") || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.includes("Welcome to") ||
+        trimmedLine.includes("logged in") ||
+        trimmedLine.includes("connected from") ||
+        trimmedLine.includes("#")) {
+      continue;
     }
     
-    const match = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
+    // Log linhas que parecem conter dados de alarme
+    if (trimmedLine.includes("GPON") || trimmedLine.includes("gpon") || trimmedLine.match(/\d{4}-\d{2}-\d{2}/)) {
+      console.log(`[OLT Parser] Linha candidata: ${trimmedLine.substring(0, 150)}`);
+    }
+    
+    // Tentar parsing por regex primeiro
+    const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
     if (match) {
-      console.log(`[OLT Parser] MATCH: ${match[5]} em ${match[3]}`);
+      console.log(`[OLT Parser] MATCH regex: ${match[5]} em ${match[3]}`);
       alarms.push({
         timestamp: match[1].trim(),
         severity: match[2].trim(),
@@ -308,6 +327,21 @@ function parseAllAlarms(output: string): OltAlarm[] {
         status: match[4].trim(),
         name: match[5].trim(),
         description: match[6].trim(),
+      });
+      continue;
+    }
+    
+    // Fallback: separar por múltiplos espaços (formato tabular)
+    const columns = trimmedLine.split(/\s{2,}/);
+    if (columns.length >= 6 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
+      console.log(`[OLT Parser] MATCH colunas: ${columns[4]} em ${columns[2]}`);
+      alarms.push({
+        timestamp: columns[0].trim(),
+        severity: columns[1].trim(),
+        source: columns[2].trim(),
+        status: columns[3].trim(),
+        name: columns[4].trim(),
+        description: columns.slice(5).join(' ').trim(),
       });
     }
   }

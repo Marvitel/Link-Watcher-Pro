@@ -1,0 +1,34 @@
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+dez 26 20:05:29 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+dez 26 20:05:29 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+dez 26 20:05:29 link-monitor systemd[1]: link-monitor.service: Consumed 7.282s CPU time.
+dez 26 20:06:11 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 20:06:12 link-monitor npm[37940]: > rest-express@1.0.0 start
+dez 26 20:06:12 link-monitor npm[37940]: > NODE_ENV=production node dist/index.cjs
+dez 26 20:06:13 link-monitor npm[37953]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 20:06:13 link-monitor npm[37953]: 8:06:13 PM [express] serving on port 5000
+dez 26 20:06:17 link-monitor npm[37953]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 20:06:21 link-monitor npm[37953]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 20:06:49 link-monitor npm[37953]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:06:49 link-monitor npm[37953]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:06:49 link-monitor npm[37953]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 1/1/1/14)...
+dez 26 20:06:49 link-monitor npm[37953]: [OLT] Consultando TODOS os alarmes de OLT-DTC-HSP...
+dez 26 20:06:54 link-monitor npm[37953]: [OLT] Output bruto (882 chars):
+dez 26 20:06:54 link-monitor npm[37953]: Welcome to the DmOS CLI
+dez 26 20:06:54 link-monitor npm[37953]: User mvtel@marvitel last logged in 2025-12-26T23:04:13.719051+00:00, to DM4610, from 100.66.128.122 using cli-ssh
+dez 26 20:06:54 link-monitor npm[37953]: mvtel@marvitel connected from 100.66.128.84 using ssh on AJU-MVT-OLT-HSP
+dez 26 20:06:54 link-monitor npm[37953]: [30B blob data]
+dez 26 20:06:54 link-monitor npm[37953]: Triggered on                 Severity Source                          Status   Name                           Description
+dez 26 20:06:54 link-monitor npm[37953]: ---------------------------- -------- ------------------------------- -------- ------------------------------ -----------------------------------------
+dez 26 20:06:54 link-monitor npm[37953]: [129B blob data]
+dez 26 20:06:54 link-monitor npm[37953]: [129B blob data]
+dez 26 20:06:54 link-monitor npm[37953]: AJU-MVT-OLT-HSP# exit
+dez 26 20:06:54 link-monitor npm[37953]: [OLT Parser] Analisando 10 linhas de output (limpo)
+dez 26 20:06:54 link-monitor npm[37953]: [OLT Parser] Linha candidata: User mvtel@marvitel last logged in 2025-12-26T23:04:13.719051+00:00, to DM4610, from 100.66.128.122 using cli-ssh
+dez 26 20:06:54 link-monitor npm[37953]: [159B blob data]
+dez 26 20:06:54 link-monitor npm[37953]: [159B blob data]
+dez 26 20:06:54 link-monitor npm[37953]: [OLT] 0 alarmes encontrados em OLT-DTC-HSP
+dez 26 20:06:54 link-monitor npm[37953]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 20:06:54 link-monitor npm[37953]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.25Mbps, up=0.70Mbps, cpu=23.0%, mem=0.0%, status=offline
+dez 26 20:06:59 link-monitor npm[37953]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.19Mbps, up=0.67Mbps, cpu=22.0%, mem=0.0%, status=operational
+dez 26 20:07:19 link-monitor npm[37953]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
