@@ -2,8 +2,9 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { queryOltAlarm } from "./olt";
 
 const execAsync = promisify(exec);
 
@@ -607,12 +608,34 @@ export async function collectAllLinksMetrics(): Promise<void> {
         if (previousStatus !== newStatus) {
           const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
           if (eventConfig) {
+            let eventDescription = eventConfig.description;
+            
+            // Se link ficou offline e tem OLT/ONU configurados, consultar diagnóstico
+            if (newStatus === "offline" && link.oltId && link.onuId) {
+              try {
+                console.log(`[Monitor] Consultando OLT para diagnóstico do link ${link.name}...`);
+                const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
+                
+                if (olt && olt.isActive) {
+                  const diagnosis = await queryOltAlarm(olt, link.onuId);
+                  if (diagnosis.alarmType) {
+                    eventDescription += ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
+                    console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
+                  } else {
+                    eventDescription += ` | OLT: ${diagnosis.description}`;
+                  }
+                }
+              } catch (oltError) {
+                console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
+              }
+            }
+            
             await db.insert(events).values({
               linkId: link.id,
               clientId: link.clientId,
               type: eventConfig.type,
               title: eventConfig.title,
-              description: eventConfig.description,
+              description: eventDescription,
               timestamp: new Date(),
               resolved: eventConfig.resolved,
             });

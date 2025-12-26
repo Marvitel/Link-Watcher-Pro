@@ -89,6 +89,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     timeout: 5000,
     retries: 3,
   });
+
+  const { data: olts } = useQuery<Olt[]>({
+    queryKey: ["/api/olts"],
+  });
   
   const [formData, setFormData] = useState({
     clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
@@ -115,7 +119,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     customCpuOid: (link as any)?.customCpuOid || "",
     customMemoryOid: (link as any)?.customMemoryOid || "",
     snmpCommunity: "",
+    oltId: link?.oltId || null,
+    onuId: link?.onuId || "",
   });
+
+  const filteredOlts = olts?.filter(olt => olt.clientId === formData.clientId && olt.isActive);
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
@@ -550,6 +558,50 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               />
             </div>
           </div>
+        )}
+      </div>
+
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3">Diagnostico OLT/ONU</h4>
+        <p className="text-sm text-muted-foreground mb-3">
+          Configure a OLT e ONU para diagnostico automatico de causa raiz em alarmes criticos
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="oltId">OLT</Label>
+            <Select
+              value={formData.oltId?.toString() || "none"}
+              onValueChange={(value) => setFormData({ ...formData, oltId: value === "none" ? null : parseInt(value, 10) })}
+            >
+              <SelectTrigger data-testid="select-olt">
+                <SelectValue placeholder="Selecione a OLT" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhuma OLT</SelectItem>
+                {filteredOlts?.map((olt) => (
+                  <SelectItem key={olt.id} value={olt.id.toString()}>
+                    {olt.name} ({olt.ipAddress})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="onuId">ID da ONU</Label>
+            <Input
+              id="onuId"
+              value={formData.onuId}
+              onChange={(e) => setFormData({ ...formData, onuId: e.target.value })}
+              placeholder="Ex: gpon-olt_1/1/3:116"
+              data-testid="input-onu-id"
+            />
+            <p className="text-xs text-muted-foreground">Formato: gpon-olt_slot/port/pon:onu</p>
+          </div>
+        </div>
+        {!filteredOlts?.length && formData.oltId === null && (
+          <p className="text-sm text-amber-600 mt-2">
+            Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
+          </p>
         )}
       </div>
       
