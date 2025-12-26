@@ -143,6 +143,14 @@ export default function LinkDetail() {
     );
   }
 
+  // Proteção contra valores nulos/undefined
+  const safeUptime = link.uptime ?? 0;
+  const safeLatency = link.latency ?? 0;
+  const safePacketLoss = link.packetLoss ?? 0;
+  const safeCurrentDownload = link.currentDownload ?? 0;
+  const safeCurrentUpload = link.currentUpload ?? 0;
+  const safeBandwidth = link.bandwidth ?? 1;
+
   const failureInfo = statusDetail?.failureInfo || null;
   const activeIncident = statusDetail?.activeIncident || null;
   const hasFailure = failureInfo?.reason && failureInfo.reason !== null;
@@ -203,7 +211,7 @@ export default function LinkDetail() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Uptime"
-          value={link.uptime.toFixed(2)}
+          value={safeUptime.toFixed(2)}
           unit="%"
           icon={Activity}
           trend={{ value: 0.1, direction: "up", isGood: true }}
@@ -212,7 +220,7 @@ export default function LinkDetail() {
         />
         <MetricCard
           title="Latência"
-          value={link.latency}
+          value={safeLatency.toFixed(0)}
           unit="ms"
           icon={Clock}
           trend={{ value: 1.5, direction: "down", isGood: true }}
@@ -221,7 +229,7 @@ export default function LinkDetail() {
         />
         <MetricCard
           title="Perda de Pacotes"
-          value={link.packetLoss.toFixed(2)}
+          value={safePacketLoss.toFixed(2)}
           unit="%"
           icon={Percent}
           trend={{ value: 0.1, direction: "down", isGood: true }}
@@ -289,12 +297,12 @@ export default function LinkDetail() {
               <CardContent>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-semibold font-mono" data-testid="text-current-download">
-                    {link.currentDownload.toFixed(1)}
+                    {safeCurrentDownload.toFixed(1)}
                   </span>
                   <span className="text-muted-foreground">Mbps</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {((link.currentDownload / link.bandwidth) * 100).toFixed(1)}% da capacidade
+                  {((safeCurrentDownload / safeBandwidth) * 100).toFixed(1)}% da capacidade
                 </p>
               </CardContent>
             </Card>
@@ -306,12 +314,12 @@ export default function LinkDetail() {
               <CardContent>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-semibold font-mono" data-testid="text-current-upload">
-                    {link.currentUpload.toFixed(1)}
+                    {safeCurrentUpload.toFixed(1)}
                   </span>
                   <span className="text-muted-foreground">Mbps</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {((link.currentUpload / link.bandwidth) * 100).toFixed(1)}% da capacidade
+                  {((safeCurrentUpload / safeBandwidth) * 100).toFixed(1)}% da capacidade
                 </p>
               </CardContent>
             </Card>

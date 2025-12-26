@@ -13,6 +13,13 @@ interface LinkCardProps {
 
 export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
   const detailUrl = `/link/${link.id}`;
+  
+  // Proteção contra valores nulos/undefined
+  const currentDownload = link.currentDownload ?? 0;
+  const currentUpload = link.currentUpload ?? 0;
+  const latency = link.latency ?? 0;
+  const packetLoss = link.packetLoss ?? 0;
+  const uptime = link.uptime ?? 0;
 
   return (
     <Card className="overflow-visible" data-testid={`card-link-${link.id}`}>
@@ -39,7 +46,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
             <div>
               <p className="text-xs text-muted-foreground">Download</p>
               <p className="text-sm font-mono font-medium" data-testid={`text-download-${link.id}`}>
-                {link.currentDownload.toFixed(1)} Mbps
+                {currentDownload.toFixed(1)} Mbps
               </p>
             </div>
           </div>
@@ -50,7 +57,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
             <div>
               <p className="text-xs text-muted-foreground">Upload</p>
               <p className="text-sm font-mono font-medium" data-testid={`text-upload-${link.id}`}>
-                {link.currentUpload.toFixed(1)} Mbps
+                {currentUpload.toFixed(1)} Mbps
               </p>
             </div>
           </div>
@@ -63,7 +70,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
               <span className="text-xs">Latência</span>
             </div>
             <p className="text-sm font-mono font-medium" data-testid={`text-latency-${link.id}`}>
-              {link.latency} ms
+              {latency.toFixed(0)} ms
             </p>
           </div>
           <div className="text-center">
@@ -72,7 +79,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
               <span className="text-xs">Perda</span>
             </div>
             <p className="text-sm font-mono font-medium" data-testid={`text-packetloss-${link.id}`}>
-              {link.packetLoss.toFixed(2)}%
+              {packetLoss.toFixed(2)}%
             </p>
           </div>
           <div className="text-center">
@@ -81,7 +88,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
               <span className="text-xs">Uptime</span>
             </div>
             <p className="text-sm font-mono font-medium" data-testid={`text-uptime-${link.id}`}>
-              {link.uptime.toFixed(2)}%
+              {uptime.toFixed(2)}%
             </p>
           </div>
         </div>
