@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-GITHUB_REPO="https://github.com/Marvitel/link-monitor"
+GITHUB_REPO="https://github.com/Marvitel/Link-Watcher-Pro"
 APP_DIR="/opt/link-monitor"
 BACKUP_DIR="/opt/link-monitor-backups"
 TEMP_DIR="/tmp/link-monitor-update"
