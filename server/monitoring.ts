@@ -671,6 +671,7 @@ export async function collectAllLinksMetrics(): Promise<void> {
           cpuUsage: safeCpuUsage,
           memoryUsage: safeMemoryUsage,
           errorRate: 0,
+          status: collectedMetrics.status,
         });
 
         console.log(

@@ -15,6 +15,7 @@ interface BandwidthChartProps {
     timestamp: string;
     download: number;
     upload: number;
+    status?: string;
   }>;
   height?: number;
   showAxes?: boolean;
@@ -22,31 +23,15 @@ interface BandwidthChartProps {
   status?: string;
 }
 
+const isDownStatus = (s: string | undefined) => 
+  s === "offline" || s === "critical" || s === "down";
+
 export function BandwidthChart({
   data,
   height = 200,
   showAxes = false,
   status = "operational",
 }: BandwidthChartProps) {
-  const isDown = status === "offline" || status === "critical" || status === "down";
-  
-  const colors = useMemo(() => {
-    if (isDown) {
-      return {
-        download: "hsl(0, 84%, 60%)",
-        upload: "hsl(0, 70%, 50%)",
-        downloadGradient: "colorDownloadRed",
-        uploadGradient: "colorUploadRed",
-      };
-    }
-    return {
-      download: "hsl(210, 85%, 50%)",
-      upload: "hsl(142, 76%, 45%)",
-      downloadGradient: "colorDownload",
-      uploadGradient: "colorUpload",
-    };
-  }, [isDown]);
-
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
@@ -54,10 +39,14 @@ export function BandwidthChart({
         .filter((item) => item && item.timestamp)
         .map((item) => {
           try {
+            const pointStatus = item.status || status;
+            const isDown = isDownStatus(pointStatus);
             return {
-              download: item.download ?? 0,
-              upload: item.upload ?? 0,
               time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
+              download: isDown ? null : (item.download ?? 0),
+              upload: isDown ? null : (item.upload ?? 0),
+              downloadDown: isDown ? (item.download ?? 0) : null,
+              uploadDown: isDown ? (item.upload ?? 0) : null,
             };
           } catch {
             return null;
@@ -67,7 +56,7 @@ export function BandwidthChart({
     } catch {
       return [];
     }
-  }, [data]);
+  }, [data, status]);
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -125,24 +114,45 @@ export function BandwidthChart({
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
-          formatter={(value: number, name: string) => [
-            `${(value ?? 0).toFixed(1)} Mbps`,
-            name === "download" ? "Download" : "Upload",
-          ]}
+          formatter={(value: number | null, name: string) => {
+            if (value === null) return [null, null];
+            const label = name.includes("Down") 
+              ? (name.includes("download") ? "Download (Down)" : "Upload (Down)")
+              : (name === "download" ? "Download" : "Upload");
+            return [`${(value ?? 0).toFixed(1)} Mbps`, label];
+          }}
         />
         <Area
           type="monotone"
           dataKey="download"
-          stroke={colors.download}
+          stroke="hsl(210, 85%, 50%)"
           strokeWidth={2}
-          fill={`url(#${colors.downloadGradient})`}
+          fill="url(#colorDownload)"
+          connectNulls={false}
         />
         <Area
           type="monotone"
           dataKey="upload"
-          stroke={colors.upload}
+          stroke="hsl(142, 76%, 45%)"
           strokeWidth={2}
-          fill={`url(#${colors.uploadGradient})`}
+          fill="url(#colorUpload)"
+          connectNulls={false}
+        />
+        <Area
+          type="monotone"
+          dataKey="downloadDown"
+          stroke="hsl(0, 84%, 60%)"
+          strokeWidth={2}
+          fill="url(#colorDownloadRed)"
+          connectNulls={false}
+        />
+        <Area
+          type="monotone"
+          dataKey="uploadDown"
+          stroke="hsl(0, 70%, 50%)"
+          strokeWidth={2}
+          fill="url(#colorUploadRed)"
+          connectNulls={false}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -153,6 +163,7 @@ interface LatencyChartProps {
   data: Array<{
     timestamp: string;
     latency: number;
+    status?: string;
   }>;
   height?: number;
   threshold?: number;
@@ -160,21 +171,6 @@ interface LatencyChartProps {
 }
 
 export function LatencyChart({ data, height = 200, threshold = 80, status = "operational" }: LatencyChartProps) {
-  const isDown = status === "offline" || status === "critical" || status === "down";
-  
-  const colors = useMemo(() => {
-    if (isDown) {
-      return {
-        latency: "hsl(0, 84%, 60%)",
-        gradient: "colorLatencyRed",
-      };
-    }
-    return {
-      latency: "hsl(38, 92%, 50%)",
-      gradient: "colorLatency",
-    };
-  }, [isDown]);
-
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
@@ -182,10 +178,13 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
         .filter((item) => item && item.timestamp)
         .map((item) => {
           try {
+            const pointStatus = item.status || status;
+            const isDown = isDownStatus(pointStatus);
             return {
-              latency: item.latency ?? 0,
               time: format(new Date(item.timestamp), "HH:mm", { locale: ptBR }),
               threshold,
+              latency: isDown ? null : (item.latency ?? 0),
+              latencyDown: isDown ? (item.latency ?? 0) : null,
             };
           } catch {
             return null;
@@ -195,7 +194,7 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
     } catch {
       return [];
     }
-  }, [data, threshold]);
+  }, [data, threshold, status]);
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -242,10 +241,12 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
-          formatter={(value: number, name: string) => [
-            name === "latency" ? `${(value ?? 0).toFixed(1)} ms` : `${value ?? 0} ms`,
-            name === "latency" ? "Latência" : "Limite SLA",
-          ]}
+          formatter={(value: number | null, name: string) => {
+            if (value === null) return [null, null];
+            if (name === "threshold") return [`${value} ms`, "Limite SLA"];
+            const label = name === "latencyDown" ? "Latência (Down)" : "Latência";
+            return [`${(value ?? 0).toFixed(1)} ms`, label];
+          }}
         />
         <Area
           type="monotone"
@@ -258,9 +259,18 @@ export function LatencyChart({ data, height = 200, threshold = 80, status = "ope
         <Area
           type="monotone"
           dataKey="latency"
-          stroke={colors.latency}
+          stroke="hsl(38, 92%, 50%)"
           strokeWidth={2}
-          fill={`url(#${colors.gradient})`}
+          fill="url(#colorLatency)"
+          connectNulls={false}
+        />
+        <Area
+          type="monotone"
+          dataKey="latencyDown"
+          stroke="hsl(0, 84%, 60%)"
+          strokeWidth={2}
+          fill="url(#colorLatencyRed)"
+          connectNulls={false}
         />
       </AreaChart>
     </ResponsiveContainer>

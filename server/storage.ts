@@ -454,6 +454,7 @@ export class DatabaseStorage {
       cpuUsage: data.cpuUsage,
       memoryUsage: data.memoryUsage,
       errorRate: data.errorRate,
+      status: data.status || "operational",
     });
   }
 

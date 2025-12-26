@@ -197,6 +197,7 @@ export const metrics = pgTable("metrics", {
   cpuUsage: real("cpu_usage").notNull(),
   memoryUsage: real("memory_usage").notNull(),
   errorRate: real("error_rate").notNull().default(0),
+  status: varchar("status", { length: 20 }).notNull().default("operational"),
 });
 
 export const events = pgTable("events", {
