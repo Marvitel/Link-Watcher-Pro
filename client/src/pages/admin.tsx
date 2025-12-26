@@ -2923,28 +2923,26 @@ function OltsTab({ clients }: { clients: Client[] }) {
   });
 
   const [formData, setFormData] = useState({
-    clientId: clients[0]?.id || 1,
     name: "",
     ipAddress: "",
     port: 23,
     username: "",
     password: "",
     connectionType: "telnet",
-    vendor: "",
+    vendor: "datacom",
     model: "",
     isActive: true,
   });
 
   const resetForm = () => {
     setFormData({
-      clientId: clients[0]?.id || 1,
       name: "",
       ipAddress: "",
       port: 23,
       username: "",
       password: "",
       connectionType: "telnet",
-      vendor: "",
+      vendor: "datacom",
       model: "",
       isActive: true,
     });
@@ -2954,14 +2952,13 @@ function OltsTab({ clients }: { clients: Client[] }) {
   const handleEdit = (olt: Olt) => {
     setEditingOlt(olt);
     setFormData({
-      clientId: olt.clientId,
       name: olt.name,
       ipAddress: olt.ipAddress,
       port: olt.port,
       username: olt.username,
       password: olt.password,
       connectionType: olt.connectionType,
-      vendor: olt.vendor || "",
+      vendor: olt.vendor || "datacom",
       model: olt.model || "",
       isActive: olt.isActive,
     });
@@ -3013,10 +3010,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
     }
   };
 
-  const getClientName = (clientId: number) => {
-    return clients.find(c => c.id === clientId)?.name || "Desconhecido";
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -3041,22 +3034,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
               <DialogTitle>{editingOlt ? "Editar OLT" : "Nova OLT"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="olt-client">Cliente</Label>
-                <Select
-                  value={formData.clientId.toString()}
-                  onValueChange={(v) => setFormData({ ...formData, clientId: parseInt(v, 10) })}
-                >
-                  <SelectTrigger data-testid="select-olt-client">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="olt-name">Nome</Label>
                 <Input
@@ -3128,13 +3105,24 @@ function OltsTab({ clients }: { clients: Client[] }) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="olt-vendor">Fabricante</Label>
-                  <Input
-                    id="olt-vendor"
+                  <Select
                     value={formData.vendor}
-                    onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
-                    placeholder="Ex: Huawei, ZTE"
-                    data-testid="input-olt-vendor"
-                  />
+                    onValueChange={(v) => setFormData({ ...formData, vendor: v })}
+                  >
+                    <SelectTrigger data-testid="select-olt-vendor">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="datacom">Datacom</SelectItem>
+                      <SelectItem value="zte">ZTE</SelectItem>
+                      <SelectItem value="furukawa">Furukawa</SelectItem>
+                      <SelectItem value="intelbras">Intelbras</SelectItem>
+                      <SelectItem value="tplink">TP-Link</SelectItem>
+                      <SelectItem value="huawei">Huawei</SelectItem>
+                      <SelectItem value="nokia">Nokia</SelectItem>
+                      <SelectItem value="fiberhome">Fiberhome</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="olt-model">Modelo</Label>
@@ -3142,7 +3130,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
                     id="olt-model"
                     value={formData.model}
                     onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    placeholder="Ex: MA5800-X15"
+                    placeholder="Ex: DM4610, C650"
                     data-testid="input-olt-model"
                   />
                 </div>
@@ -3194,8 +3182,8 @@ function OltsTab({ clients }: { clients: Client[] }) {
                         <Badge variant="outline">{olt.connectionType.toUpperCase()}</Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {olt.ipAddress}:{olt.port} - {getClientName(olt.clientId)}
-                        {olt.vendor && ` - ${olt.vendor}`}
+                        {olt.ipAddress}:{olt.port}
+                        {olt.vendor && ` - ${olt.vendor.charAt(0).toUpperCase() + olt.vendor.slice(1)}`}
                         {olt.model && ` ${olt.model}`}
                       </div>
                     </div>

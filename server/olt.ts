@@ -339,6 +339,36 @@ const fiberhomeConfig: VendorConfig = {
   parseAlarms: parseFiberhomeAlarms,
 };
 
+// Comando e parser para Furukawa - A VALIDAR
+const furukawaConfig: VendorConfig = {
+  listAlarmsCommand: "show gpon onu alarm",
+  parseAlarms: parseDatacomAlarms, // Usar parser genérico até validar
+};
+
+// Comando e parser para Intelbras - A VALIDAR
+const intelbrasConfig: VendorConfig = {
+  listAlarmsCommand: "show alarm active",
+  parseAlarms: parseDatacomAlarms, // Usar parser genérico até validar
+};
+
+// Comando e parser para TP-Link - A VALIDAR
+const tplinkConfig: VendorConfig = {
+  listAlarmsCommand: "show alarm",
+  parseAlarms: parseDatacomAlarms, // Usar parser genérico até validar
+};
+
+// Lista de fabricantes suportados (para uso no frontend)
+export const OLT_VENDORS = [
+  { value: "datacom", label: "Datacom" },
+  { value: "zte", label: "ZTE" },
+  { value: "furukawa", label: "Furukawa" },
+  { value: "intelbras", label: "Intelbras" },
+  { value: "tplink", label: "TP-Link" },
+  { value: "huawei", label: "Huawei" },
+  { value: "nokia", label: "Nokia" },
+  { value: "fiberhome", label: "Fiberhome" },
+] as const;
+
 // Mapa de vendors para configurações
 const vendorConfigs: Record<string, VendorConfig> = {
   "datacom": datacomConfig,
@@ -347,6 +377,10 @@ const vendorConfigs: Record<string, VendorConfig> = {
   "zte": zteConfig,
   "nokia": nokiaConfig,
   "fiberhome": fiberhomeConfig,
+  "furukawa": furukawaConfig,
+  "intelbras": intelbrasConfig,
+  "tplink": tplinkConfig,
+  "tp-link": tplinkConfig,
   // Fallback para vendors não configurados
   "default": datacomConfig,
 };
