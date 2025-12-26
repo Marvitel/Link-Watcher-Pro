@@ -159,11 +159,17 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
 
     console.log(`[OLT SSH] Conectando a ${olt.ipAddress}:${olt.port}...`);
     
+    conn.on("keyboard-interactive", (name, instructions, instructionsLang, prompts, finish) => {
+      console.log(`[OLT SSH] Keyboard-interactive auth para ${olt.ipAddress}`);
+      finish([olt.password]);
+    });
+    
     conn.connect({
       host: olt.ipAddress,
       port: olt.port,
       username: olt.username,
       password: olt.password,
+      tryKeyboard: true,
       algorithms: {
         kex: [
           "curve25519-sha256",
