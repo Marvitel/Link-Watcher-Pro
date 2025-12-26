@@ -1,0 +1,26 @@
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+dez 26 19:31:45 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+dez 26 19:31:45 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+dez 26 19:31:45 link-monitor systemd[1]: link-monitor.service: Consumed 3.204s CPU time.
+dez 26 19:32:26 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 19:32:27 link-monitor npm[36299]: > rest-express@1.0.0 start
+dez 26 19:32:27 link-monitor npm[36299]: > NODE_ENV=production node dist/index.cjs
+dez 26 19:32:27 link-monitor npm[36312]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 19:32:27 link-monitor npm[36312]: 7:32:27 PM [express] serving on port 5000
+dez 26 19:32:31 link-monitor npm[36312]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 19:32:36 link-monitor npm[36312]: [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 19:33:01 link-monitor npm[36312]: [Monitor] Central de Atendimento: latency=1.4ms, loss=0.0%, down=0.16Mbps, up=0.59Mbps, cpu=20.0%, mem=0.0%, status=operational
+dez 26 19:33:08 link-monitor npm[36312]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 19:33:08 link-monitor npm[36312]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 19:33:08 link-monitor npm[36312]: [Monitor] Consultando OLT para diagnóstico do link Sede Administrativa...
+dez 26 19:33:08 link-monitor npm[36312]: Telnet connected to 172.26.240.254:23
+dez 26 19:33:33 link-monitor npm[36312]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 19:33:34 link-monitor npm[36312]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 19:33:34 link-monitor npm[36312]: [Monitor] Consultando OLT para diagnóstico do link Sede Administrativa...
+dez 26 19:33:34 link-monitor npm[36312]: Telnet connected to 172.26.240.254:23
+dez 26 19:33:38 link-monitor npm[36312]: Error querying OLT alarm: Error: Telnet connection timeout
+dez 26 19:33:38 link-monitor npm[36312]:     at Timeout._onTimeout (/opt/link-monitor/dist/index.cjs:94:113833)
+dez 26 19:33:38 link-monitor npm[36312]:     at listOnTimeout (node:internal/timers:581:17)
+dez 26 19:33:38 link-monitor npm[36312]:     at process.processTimers (node:internal/timers:519:7)
+dez 26 19:33:38 link-monitor npm[36312]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 19:33:38 link-monitor npm[36312]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.19Mbps, up=0.58Mbps, cpu=20.0%, mem=0.0%, status=offline
