@@ -55,6 +55,7 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
     const socket = new Socket();
     let output = "";
     let loginPhase = 0;
+    let commandSentAt = 0;
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error("Telnet connection timeout"));
@@ -76,12 +77,18 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
         loginPhase = 2;
       } else if (loginPhase === 2 && (str.includes("#") || str.includes(">"))) {
         socket.write(command + "\r\n");
+        commandSentAt = Date.now();
         loginPhase = 3;
-      } else if (loginPhase === 3 && (str.includes("#") || str.includes(">"))) {
-        clearTimeout(timeout);
-        socket.write("exit\r\n");
-        socket.end();
-        resolve(output);
+      } else if (loginPhase === 3) {
+        // Esperar pelo menos 500ms após enviar o comando antes de verificar o prompt
+        // Isso garante que a resposta do comando seja capturada
+        const elapsed = Date.now() - commandSentAt;
+        if (elapsed > 500 && (str.includes("#") || str.includes(">"))) {
+          clearTimeout(timeout);
+          socket.write("exit\r\n");
+          socket.end();
+          resolve(output);
+        }
       }
     });
 

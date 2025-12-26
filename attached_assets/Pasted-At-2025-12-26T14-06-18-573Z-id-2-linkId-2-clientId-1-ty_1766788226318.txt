@@ -1,0 +1,20 @@
+At":"2025-12-26T14:06:18.573Z"},{"id":2,"linkId":2,"clientId":1,"type":"warning","title":"Latência elevada detectada","description":"Latência acima de 60ms detectada por 10 minutos","timestamp":"2025-12-26T11:06:18.573Z","resolved":true,"resolvedAt":"2025-12-26T11:36:18.573Z"}]
+dez 26 19:29:17 link-monitor npm[36038]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 19:29:17 link-monitor npm[36038]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 19:29:17 link-monitor npm[36038]: [Monitor] Consultando OLT para diagnóstico do link Sede Administrativa...
+dez 26 19:29:17 link-monitor npm[36038]: Telnet connected to 172.26.240.254:23
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Buscando alarmes para ONU: 1/1/1/14 (normalizado: 1/1/1/14)
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Output bruto (9 linhas):
+dez 26 19:29:18 link-monitor npm[36038]: [50B blob data]
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 1: AJU-MVT-OLT-HSP login: mvtel@marvitel
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 2: Password:
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 3: Welcome to the DmOS CLI
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 4: User mvtel@marvitel last logged in 2025-12-26T22:24:31.939734+00:00, to DM4610, from 100.66.128.84 using cli-tcp
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 5: mvtel@marvitel connected from 100.66.128.84 using tcp on AJU-MVT-OLT-HSP
+dez 26 19:29:18 link-monitor npm[36038]: [71B blob data]
+dez 26 19:29:18 link-monitor npm[36038]: [151B blob data]
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Linha 8: AJU-MVT-OLT-HSP#
+dez 26 19:29:18 link-monitor npm[36038]: [OLT Parser] Total de alarmes encontrados: 0
+dez 26 19:29:18 link-monitor npm[36038]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 19:29:18 link-monitor npm[36038]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.21Mbps, up=0.59Mbps, cpu=19.0%, mem=0.0%, status=offline
+dez 26 19:29:19 link-monitor npm[36038]: 7:29:19 PM [express] GET /api/events 200 in 16ms :: [{"id":34,"linkId":1,"clientId":1,"type":"warning","title":"Perda de pacotes elevada em Sede Administrativa","description":"Perda atual: 100.0% (limite: 2%)","timestamp":"2025-12-26T22:29:18.075Z","resolved":false,"resolvedAt":null},{"id":33,"linkId":1,"clientId":1,"type
