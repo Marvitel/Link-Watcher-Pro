@@ -599,7 +599,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         </div>
         {!filteredOlts?.length && formData.oltId === null && (
-          <p className="text-sm text-amber-600 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
           </p>
         )}
