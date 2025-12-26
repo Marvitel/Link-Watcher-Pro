@@ -58,12 +58,16 @@ if [ -f "$TEMP_DIR/.env.backup" ]; then
 fi
 
 echo ""
-echo "[5/6] Instalando dependências..."
+echo "[5/7] Instalando dependências..."
 cd "$APP_DIR"
-npm install --production
+npm install
 
 echo ""
-echo "[6/6] Reiniciando o serviço..."
+echo "[6/7] Compilando aplicação..."
+npm run build
+
+echo ""
+echo "[7/7] Reiniciando o serviço..."
 systemctl start link-monitor
 
 sleep 3
