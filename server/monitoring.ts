@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const execAsync = promisify(exec);
@@ -286,17 +286,36 @@ function parseSnmpValue(value: unknown): number {
 
 export async function getSystemResources(
   targetIp: string,
-  profile: SnmpProfile
+  profile: SnmpProfile,
+  cpuOid?: string | null,
+  memoryOid?: string | null
 ): Promise<SystemResourceResult | null> {
+  // If no OIDs provided, return null
+  if (!cpuOid && !memoryOid) {
+    return null;
+  }
+
   return new Promise((resolve) => {
     try {
       const session = createSnmpSession(targetIp, profile);
 
-      // Try FortiGate OIDs first
-      const oids = [
-        FORTIGATE_SYSTEM_OIDS.cpuUsage,
-        FORTIGATE_SYSTEM_OIDS.memoryUsage,
-      ];
+      // Use provided OIDs or skip if not available
+      const oids: string[] = [];
+      const oidMap: { cpu: number; memory: number } = { cpu: -1, memory: -1 };
+      
+      if (cpuOid) {
+        oidMap.cpu = oids.length;
+        oids.push(cpuOid);
+      }
+      if (memoryOid) {
+        oidMap.memory = oids.length;
+        oids.push(memoryOid);
+      }
+
+      if (oids.length === 0) {
+        resolve(null);
+        return;
+      }
 
       let sessionClosed = false;
       const closeSession = () => {
@@ -315,7 +334,7 @@ export async function getSystemResources(
           return;
         }
 
-        if (!varbinds || varbinds.length < 2) {
+        if (!varbinds || varbinds.length === 0) {
           resolve(null);
           return;
         }
@@ -323,16 +342,24 @@ export async function getSystemResources(
         // Check if we got valid responses (not NoSuchObject or NoSuchInstance)
         const noSuchObject = 128; // snmp.ObjectType.NoSuchObject
         const noSuchInstance = 129; // snmp.ObjectType.NoSuchInstance
-        
-        if (varbinds[0].type === noSuchObject || varbinds[0].type === noSuchInstance ||
-            varbinds[1].type === noSuchObject || varbinds[1].type === noSuchInstance) {
-          resolve(null);
-          return;
-        }
 
         try {
-          const cpuUsage = parseSnmpValue(varbinds[0].value);
-          const memoryUsage = parseSnmpValue(varbinds[1].value);
+          let cpuUsage = 0;
+          let memoryUsage = 0;
+
+          if (oidMap.cpu >= 0 && varbinds[oidMap.cpu]) {
+            const vb = varbinds[oidMap.cpu];
+            if (vb.type !== noSuchObject && vb.type !== noSuchInstance) {
+              cpuUsage = parseSnmpValue(vb.value);
+            }
+          }
+
+          if (oidMap.memory >= 0 && varbinds[oidMap.memory]) {
+            const vb = varbinds[oidMap.memory];
+            if (vb.type !== noSuchObject && vb.type !== noSuchInstance) {
+              memoryUsage = parseSnmpValue(vb.value);
+            }
+          }
 
           resolve({
             cpuUsage: isFinite(cpuUsage) && cpuUsage >= 0 && cpuUsage <= 100 ? cpuUsage : 0,
@@ -388,6 +415,11 @@ async function getSnmpProfile(profileId: number): Promise<SnmpProfile | null> {
   return profile || null;
 }
 
+async function getEquipmentVendor(vendorId: number): Promise<typeof equipmentVendors.$inferSelect | null> {
+  const [vendor] = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, vendorId));
+  return vendor || null;
+}
+
 export async function collectLinkMetrics(link: typeof links.$inferSelect): Promise<{
   latency: number;
   packetLoss: number;
@@ -431,11 +463,37 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         }
       }
 
-      // Collect CPU and memory usage
-      const systemResources = await getSystemResources(link.snmpRouterIp, profile);
-      if (systemResources) {
-        cpuUsage = systemResources.cpuUsage;
-        memoryUsage = systemResources.memoryUsage;
+      // Collect CPU and memory usage - determine which OIDs to use
+      let cpuOid: string | null = null;
+      let memoryOid: string | null = null;
+
+      // Priority: custom OIDs > vendor OIDs
+      if (link.customCpuOid) {
+        cpuOid = link.customCpuOid;
+      }
+      if (link.customMemoryOid) {
+        memoryOid = link.customMemoryOid;
+      }
+
+      // If no custom OIDs, try vendor OIDs
+      if ((!cpuOid || !memoryOid) && link.equipmentVendorId) {
+        const vendor = await getEquipmentVendor(link.equipmentVendorId);
+        if (vendor) {
+          if (!cpuOid && vendor.cpuOid) {
+            cpuOid = vendor.cpuOid;
+          }
+          if (!memoryOid && vendor.memoryOid) {
+            memoryOid = vendor.memoryOid;
+          }
+        }
+      }
+
+      if (cpuOid || memoryOid) {
+        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryOid);
+        if (systemResources) {
+          cpuUsage = systemResources.cpuUsage;
+          memoryUsage = systemResources.memoryUsage;
+        }
       }
     }
   }

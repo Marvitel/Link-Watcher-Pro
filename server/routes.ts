@@ -1119,6 +1119,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/equipment-vendors", requireAuth, async (req, res) => {
+    try {
+      const vendors = await storage.getEquipmentVendors();
+      res.json(vendors);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch equipment vendors" });
+    }
+  });
+
   app.get("/api/event-types", requireAuth, async (req, res) => {
     try {
       const types = await storage.getEventTypes();

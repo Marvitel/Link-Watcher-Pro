@@ -95,6 +95,10 @@ export const links = pgTable("links", {
   snmpInterfaceDescr: text("snmp_interface_descr"),
   snmpRouterIp: varchar("snmp_router_ip", { length: 45 }),
   monitoredIp: varchar("monitored_ip", { length: 45 }),
+  equipmentVendorId: integer("equipment_vendor_id"),
+  customCpuOid: varchar("custom_cpu_oid", { length: 255 }),
+  customMemoryOid: varchar("custom_memory_oid", { length: 255 }),
+  equipmentModel: varchar("equipment_model", { length: 100 }),
   latencyThreshold: real("latency_threshold").notNull().default(80),
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -136,6 +140,23 @@ export const snmpProfiles = pgTable("snmp_profiles", {
   username: varchar("username", { length: 100 }),
   timeout: integer("timeout").notNull().default(5000),
   retries: integer("retries").notNull().default(3),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Equipment vendors with pre-configured SNMP OIDs for CPU/Memory
+export const equipmentVendors = pgTable("equipment_vendors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: varchar("slug", { length: 50 }).notNull().unique(),
+  cpuOid: varchar("cpu_oid", { length: 255 }),
+  memoryOid: varchar("memory_oid", { length: 255 }),
+  memoryTotalOid: varchar("memory_total_oid", { length: 255 }),
+  memoryUsedOid: varchar("memory_used_oid", { length: 255 }),
+  memoryIsPercentage: boolean("memory_is_percentage").notNull().default(true),
+  description: text("description"),
+  isBuiltIn: boolean("is_built_in").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -308,6 +329,7 @@ export const insertGroupMemberSchema = createInsertSchema(groupMembers).omit({ i
 export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true });
 export const insertGroupPermissionSchema = createInsertSchema(groupPermissions).omit({ id: true, createdAt: true });
 export const insertSnmpProfileSchema = createInsertSchema(snmpProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEquipmentVendorSchema = createInsertSchema(equipmentVendors).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMibConfigSchema = createInsertSchema(mibConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertHostMibConfigSchema = createInsertSchema(hostMibConfigs).omit({ id: true, createdAt: true });
 export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: true, createdAt: true });
@@ -327,6 +349,7 @@ export type InsertGroupMember = z.infer<typeof insertGroupMemberSchema>;
 export type InsertPermission = z.infer<typeof insertPermissionSchema>;
 export type InsertGroupPermission = z.infer<typeof insertGroupPermissionSchema>;
 export type InsertSnmpProfile = z.infer<typeof insertSnmpProfileSchema>;
+export type InsertEquipmentVendor = z.infer<typeof insertEquipmentVendorSchema>;
 export type InsertMibConfig = z.infer<typeof insertMibConfigSchema>;
 export type InsertHostMibConfig = z.infer<typeof insertHostMibConfigSchema>;
 export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
@@ -346,6 +369,7 @@ export type GroupMember = typeof groupMembers.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type GroupPermission = typeof groupPermissions.$inferSelect;
 export type SnmpProfile = typeof snmpProfiles.$inferSelect;
+export type EquipmentVendor = typeof equipmentVendors.$inferSelect;
 export type MibConfig = typeof mibConfigs.$inferSelect;
 export type HostMibConfig = typeof hostMibConfigs.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;

@@ -17,6 +17,7 @@ import {
   hostMibConfigs,
   eventTypes,
   clientEventSettings,
+  equipmentVendors,
   type Client,
   type User,
   type Link,
@@ -35,6 +36,7 @@ import {
   type HostMibConfig,
   type EventType,
   type ClientEventSetting,
+  type EquipmentVendor,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -416,9 +418,111 @@ export class DatabaseStorage {
     }).where(eq(links.id, id));
   }
 
+  async initializeDefaultEquipmentVendors(): Promise<void> {
+    const existingVendors = await db.select().from(equipmentVendors);
+    if (existingVendors.length > 0) return;
+
+    const defaultVendors = [
+      {
+        name: "Fortinet (FortiGate)",
+        slug: "fortigate",
+        cpuOid: "1.3.6.1.4.1.12356.101.4.1.3.0",      // fgSysCpuUsage
+        memoryOid: "1.3.6.1.4.1.12356.101.4.1.4.0",   // fgSysMemUsage
+        memoryIsPercentage: true,
+        description: "FortiGate Firewalls (FortiOS)",
+        isBuiltIn: true,
+      },
+      {
+        name: "Mikrotik (RouterOS)",
+        slug: "mikrotik",
+        cpuOid: "1.3.6.1.2.1.25.3.3.1.2.1",           // hrProcessorLoad.1
+        memoryOid: null,                              // Needs calculation
+        memoryTotalOid: "1.3.6.1.2.1.25.2.3.1.5.65536",  // hrStorageSize
+        memoryUsedOid: "1.3.6.1.2.1.25.2.3.1.6.65536",   // hrStorageUsed
+        memoryIsPercentage: false,
+        description: "Mikrotik RouterOS devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "Cisco (IOS)",
+        slug: "cisco",
+        cpuOid: "1.3.6.1.4.1.9.2.1.57.0",             // avgBusy5 (5min avg CPU)
+        memoryOid: null,
+        memoryTotalOid: "1.3.6.1.4.1.9.9.48.1.1.1.5.1", // ciscoMemoryPoolFree
+        memoryUsedOid: "1.3.6.1.4.1.9.9.48.1.1.1.6.1",  // ciscoMemoryPoolUsed
+        memoryIsPercentage: false,
+        description: "Cisco IOS/IOS-XE devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "Huawei",
+        slug: "huawei",
+        cpuOid: "1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5.0",  // hwEntityCpuUsage
+        memoryOid: "1.3.6.1.4.1.2011.5.25.31.1.1.1.1.7.0", // hwEntityMemUsage
+        memoryIsPercentage: true,
+        description: "Huawei network devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "Datacom",
+        slug: "datacom",
+        cpuOid: "1.3.6.1.4.1.3709.3.5.201.1.1.5.0",    // CPU usage
+        memoryOid: "1.3.6.1.4.1.3709.3.5.201.1.1.6.0", // Memory usage
+        memoryIsPercentage: true,
+        description: "Datacom network devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "Ubiquiti (EdgeOS/UniFi)",
+        slug: "ubiquiti",
+        cpuOid: "1.3.6.1.2.1.25.3.3.1.2.1",           // hrProcessorLoad.1
+        memoryOid: null,
+        memoryTotalOid: "1.3.6.1.2.1.25.2.2.0",       // hrMemorySize
+        memoryUsedOid: null,
+        memoryIsPercentage: false,
+        description: "Ubiquiti EdgeRouter/UniFi devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "Ruijie",
+        slug: "ruijie",
+        cpuOid: "1.3.6.1.4.1.4881.1.1.10.2.36.1.1.2.0", // CPU usage
+        memoryOid: "1.3.6.1.4.1.4881.1.1.10.2.36.1.1.6.0", // Memory usage
+        memoryIsPercentage: true,
+        description: "Ruijie network devices",
+        isBuiltIn: true,
+      },
+      {
+        name: "TP-Link",
+        slug: "tplink",
+        cpuOid: "1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1",  // CPU usage
+        memoryOid: "1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1", // Memory usage
+        memoryIsPercentage: true,
+        description: "TP-Link managed switches and routers",
+        isBuiltIn: true,
+      },
+      {
+        name: "Personalizado",
+        slug: "custom",
+        cpuOid: null,
+        memoryOid: null,
+        memoryIsPercentage: true,
+        description: "Configure OIDs manually in the link settings",
+        isBuiltIn: true,
+      },
+    ];
+
+    for (const vendor of defaultVendors) {
+      await db.insert(equipmentVendors).values(vendor);
+    }
+
+    console.log("[Storage] Default equipment vendors initialized");
+  }
+
   async initializeDefaultData(): Promise<void> {
     await this.initializeDefaultPermissions();
     await this.initializeDefaultEventTypes();
+    await this.initializeDefaultEquipmentVendors();
     await this.initializeSuperAdmin();
     
     const existingClients = await this.getClients();
@@ -770,6 +874,15 @@ export class DatabaseStorage {
       allPerms.push(...perms.map(p => p.code));
     }
     return Array.from(new Set(allPerms));
+  }
+
+  async getEquipmentVendors(): Promise<EquipmentVendor[]> {
+    return await db.select().from(equipmentVendors).where(eq(equipmentVendors.isActive, true));
+  }
+
+  async getEquipmentVendor(id: number): Promise<EquipmentVendor | undefined> {
+    const [vendor] = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, id));
+    return vendor || undefined;
   }
 
   async getSnmpProfiles(clientId: number): Promise<SnmpProfile[]> {
