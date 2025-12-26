@@ -109,6 +109,7 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
 async function connectSSH(olt: Olt, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new SSHClient();
+    let commandSentAt = 0;
     const timeout = setTimeout(() => {
       conn.end();
       reject(new Error("SSH connection timeout"));
@@ -131,11 +132,16 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
 
           if (!commandSent && (str.includes("#") || str.includes(">"))) {
             stream.write(command + "\n");
+            commandSentAt = Date.now();
             commandSent = true;
-          } else if (commandSent && (str.includes("#") || str.includes(">"))) {
-            clearTimeout(timeout);
-            stream.write("exit\n");
-            stream.end();
+          } else if (commandSent) {
+            // Esperar pelo menos 1000ms após enviar o comando antes de verificar o prompt
+            const elapsed = Date.now() - commandSentAt;
+            if (elapsed > 1000 && (str.includes("#") || str.includes(">"))) {
+              clearTimeout(timeout);
+              stream.write("exit\n");
+              stream.end();
+            }
           }
         });
 
