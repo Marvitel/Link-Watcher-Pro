@@ -101,6 +101,8 @@ export const links = pgTable("links", {
   equipmentModel: varchar("equipment_model", { length: 100 }),
   latencyThreshold: real("latency_threshold").notNull().default(80),
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
+  oltId: integer("olt_id"),
+  onuId: varchar("onu_id", { length: 50 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -316,6 +318,22 @@ export const clientEventSettings = pgTable("client_event_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const olts = pgTable("olts", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(),
+  port: integer("port").notNull().default(23),
+  username: varchar("username", { length: 100 }).notNull(),
+  password: text("password").notNull(),
+  connectionType: varchar("connection_type", { length: 20 }).notNull().default("telnet"),
+  vendor: varchar("vendor", { length: 50 }),
+  model: varchar("model", { length: 100 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
 export const insertLinkSchema = createInsertSchema(links).omit({ id: true, lastUpdated: true, createdAt: true });
@@ -335,6 +353,7 @@ export const insertMibConfigSchema = createInsertSchema(mibConfigs).omit({ id: t
 export const insertHostMibConfigSchema = createInsertSchema(hostMibConfigs).omit({ id: true, createdAt: true });
 export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: true, createdAt: true });
 export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOltSchema = createInsertSchema(olts).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -355,6 +374,7 @@ export type InsertMibConfig = z.infer<typeof insertMibConfigSchema>;
 export type InsertHostMibConfig = z.infer<typeof insertHostMibConfigSchema>;
 export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
 export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
+export type InsertOlt = z.infer<typeof insertOltSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -375,6 +395,7 @@ export type MibConfig = typeof mibConfigs.$inferSelect;
 export type HostMibConfig = typeof hostMibConfigs.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
+export type Olt = typeof olts.$inferSelect;
 
 export type UserRole = "admin" | "operator" | "viewer";
 export type LinkStatus = "operational" | "degraded" | "down" | "maintenance";
