@@ -316,8 +316,9 @@ function parseAllAlarms(output: string): OltAlarm[] {
       console.log(`[OLT Parser] Linha candidata: ${trimmedLine.substring(0, 150)}`);
     }
     
-    // Tentar parsing por regex primeiro
-    const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
+    // Tentar parsing por regex - formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss..."
+    // O timestamp pode ter timezone como "UTC-3" ou "UTC+0"
+    const match = trimmedLine.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s*[A-Z]*[+-]?\d*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+([\w_]+)\s+(.*)/);
     if (match) {
       console.log(`[OLT Parser] MATCH regex: ${match[5]} em ${match[3]}`);
       alarms.push({
@@ -331,18 +332,35 @@ function parseAllAlarms(output: string): OltAlarm[] {
       continue;
     }
     
-    // Fallback: separar por múltiplos espaços (formato tabular)
+    // Fallback: separar por múltiplos espaços (formato tabular do DmOS)
+    // Linha exemplo: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14    Active   GPON_LOSi    ONU Loss of signal"
     const columns = trimmedLine.split(/\s{2,}/);
-    if (columns.length >= 6 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
-      console.log(`[OLT Parser] MATCH colunas: ${columns[4]} em ${columns[2]}`);
-      alarms.push({
-        timestamp: columns[0].trim(),
-        severity: columns[1].trim(),
-        source: columns[2].trim(),
-        status: columns[3].trim(),
-        name: columns[4].trim(),
-        description: columns.slice(5).join(' ').trim(),
-      });
+    console.log(`[OLT Parser] Tentando split: ${columns.length} colunas - [${columns.join('|')}]`);
+    
+    if (columns.length >= 5 && columns[0].match(/^\d{4}-\d{2}-\d{2}/)) {
+      // O timestamp pode estar junto com timezone em uma coluna só ou separado
+      console.log(`[OLT Parser] MATCH colunas: ${columns.length >= 6 ? columns[4] : columns[3]} em ${columns.length >= 6 ? columns[2] : columns[1]}`);
+      
+      if (columns.length >= 6) {
+        alarms.push({
+          timestamp: columns[0].trim(),
+          severity: columns[1].trim(),
+          source: columns[2].trim(),
+          status: columns[3].trim(),
+          name: columns[4].trim(),
+          description: columns.slice(5).join(' ').trim(),
+        });
+      } else if (columns.length === 5) {
+        // Formato mais compacto
+        alarms.push({
+          timestamp: columns[0].trim(),
+          severity: columns[1].trim(),
+          source: columns[2].trim(),
+          status: "Active",
+          name: columns[3].trim(),
+          description: columns[4].trim(),
+        });
+      }
     }
   }
   

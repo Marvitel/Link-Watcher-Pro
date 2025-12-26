@@ -1,0 +1,35 @@
+oot@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+dez 26 20:10:01 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+dez 26 20:10:01 link-monitor npm[38183]: > rest-express@1.0.0 start
+dez 26 20:10:01 link-monitor npm[38183]: > NODE_ENV=production node dist/index.cjs
+dez 26 20:10:02 link-monitor npm[38196]: [Monitor] Starting real-time monitoring with 30s interval
+dez 26 20:10:02 link-monitor npm[38196]: 8:10:02 PM [express] serving on port 5000
+dez 26 20:10:06 link-monitor npm[38196]: [Monitor] Cache de diagnóstico OLT limpo para Sede Administrativa
+dez 26 20:10:06 link-monitor npm[38196]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:10:06 link-monitor npm[38196]: [Monitor] Evento criado: Link Sede Administrativa restaurado
+dez 26 20:10:06 link-monitor npm[38196]: [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=26.0%, mem=0.0%, status=operational
+dez 26 20:10:10 link-monitor npm[38196]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=26.0%, mem=0.0%, status=operational
+dez 26 20:10:38 link-monitor npm[38196]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:10:38 link-monitor npm[38196]: [Monitor] Link Sede Administrativa - oltId: 1, onuId: 1/1/1/14
+dez 26 20:10:38 link-monitor npm[38196]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 1/1/1/14)...
+dez 26 20:10:38 link-monitor npm[38196]: [OLT] Consultando TODOS os alarmes de OLT-DTC-HSP...
+dez 26 20:10:44 link-monitor npm[38196]: [OLT] Output bruto (882 chars):
+dez 26 20:10:44 link-monitor npm[38196]: Welcome to the DmOS CLI
+dez 26 20:10:44 link-monitor npm[38196]: User mvtel@marvitel last logged in 2025-12-26T23:10:39.595472+00:00, to DM4610, from 100.66.128.122 using cli-ssh
+dez 26 20:10:44 link-monitor npm[38196]: mvtel@marvitel connected from 100.66.128.84 using ssh on AJU-MVT-OLT-HSP
+dez 26 20:10:44 link-monitor npm[38196]: [30B blob data]
+dez 26 20:10:44 link-monitor npm[38196]: Triggered on                 Severity Source                          Status   Name                           Description
+dez 26 20:10:44 link-monitor npm[38196]: ---------------------------- -------- ------------------------------- -------- ------------------------------ -----------------------------------------
+dez 26 20:10:44 link-monitor npm[38196]: [129B blob data]
+dez 26 20:10:44 link-monitor npm[38196]: [129B blob data]
+dez 26 20:10:44 link-monitor npm[38196]: AJU-MVT-OLT-HSP# exit
+dez 26 20:10:44 link-monitor npm[38196]: [OLT Parser] Analisando 10 linhas de output (limpo)
+dez 26 20:10:44 link-monitor npm[38196]: [OLT Parser] Linha candidata: 2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14                   Active   GPON_LOSi                      ONU Loss of signal
+dez 26 20:10:44 link-monitor npm[38196]: [OLT Parser] Linha candidata: 2025-12-26 11:58:00 UTC-3    CRITICAL gpon-1/1/1/18                   Active   GPON_LOSi                      ONU Loss of signal
+dez 26 20:10:44 link-monitor npm[38196]: [OLT] 0 alarmes encontrados em OLT-DTC-HSP
+dez 26 20:10:44 link-monitor npm[38196]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 20:10:44 link-monitor npm[38196]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.26Mbps, up=0.66Mbps, cpu=25.0%, mem=0.0%, status=offline
+dez 26 20:10:48 link-monitor npm[38196]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.20Mbps, up=0.64Mbps, cpu=23.0%, mem=0.0%, status=operational
+dez 26 20:11:08 link-monitor npm[38196]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 20:11:08 link-monitor npm[38196]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.42Mbps, up=1.40Mbps, cpu=31.0%, mem=0.0%, status=offline
+dez 26 20:11:17 link-monitor npm[38196]: [Monitor] Central de Atendimento: latency=2.3ms, loss=0.0%, down=0.54Mbps, up=2.21Mbps, cpu=40.0%, mem=0.0%, status=operational
