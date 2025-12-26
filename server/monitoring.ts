@@ -212,27 +212,27 @@ function calculateBandwidth(
 ): { downloadMbps: number; uploadMbps: number } {
   const timeDiffSeconds = (current.timestamp.getTime() - previous.timestamp.getTime()) / 1000;
 
-  if (timeDiffSeconds <= 0) {
+  if (timeDiffSeconds <= 0 || !isFinite(timeDiffSeconds)) {
     return { downloadMbps: 0, uploadMbps: 0 };
   }
 
   let inOctetsDiff = current.inOctets - previous.inOctets;
   let outOctetsDiff = current.outOctets - previous.outOctets;
 
-  if (inOctetsDiff < 0) {
-    inOctetsDiff = current.inOctets;
+  if (!isFinite(inOctetsDiff) || inOctetsDiff < 0) {
+    inOctetsDiff = 0;
   }
-  if (outOctetsDiff < 0) {
-    outOctetsDiff = current.outOctets;
+  if (!isFinite(outOctetsDiff) || outOctetsDiff < 0) {
+    outOctetsDiff = 0;
   }
 
   const downloadBps = inOctetsDiff * 8 / timeDiffSeconds;
   const uploadBps = outOctetsDiff * 8 / timeDiffSeconds;
 
-  return {
-    downloadMbps: downloadBps / 1000000,
-    uploadMbps: uploadBps / 1000000,
-  };
+  const downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
+  const uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
+
+  return { downloadMbps, uploadMbps };
 }
 
 async function getSnmpProfile(profileId: number): Promise<SnmpProfile | null> {
@@ -313,11 +313,16 @@ export async function collectAllLinksMetrics(): Promise<void> {
           newUptime = Math.min(100, currentUptime + 0.001);
         }
 
+        const safeDownload = isFinite(collectedMetrics.downloadMbps) ? collectedMetrics.downloadMbps : 0;
+        const safeUpload = isFinite(collectedMetrics.uploadMbps) ? collectedMetrics.uploadMbps : 0;
+        const safeLatency = isFinite(collectedMetrics.latency) ? collectedMetrics.latency : 0;
+        const safePacketLoss = isFinite(collectedMetrics.packetLoss) ? collectedMetrics.packetLoss : 0;
+
         await db.update(links).set({
-          currentDownload: collectedMetrics.downloadMbps,
-          currentUpload: collectedMetrics.uploadMbps,
-          latency: collectedMetrics.latency,
-          packetLoss: collectedMetrics.packetLoss,
+          currentDownload: safeDownload,
+          currentUpload: safeUpload,
+          latency: safeLatency,
+          packetLoss: safePacketLoss,
           status: collectedMetrics.status,
           uptime: newUptime,
           lastUpdated: new Date(),
@@ -327,18 +332,19 @@ export async function collectAllLinksMetrics(): Promise<void> {
           linkId: link.id,
           clientId: link.clientId,
           timestamp: new Date(),
-          download: collectedMetrics.downloadMbps,
-          upload: collectedMetrics.uploadMbps,
-          latency: collectedMetrics.latency,
-          packetLoss: collectedMetrics.packetLoss,
+          download: safeDownload,
+          upload: safeUpload,
+          latency: safeLatency,
+          packetLoss: safePacketLoss,
           cpuUsage: 0,
           memoryUsage: 0,
           errorRate: 0,
         });
 
         console.log(
-          `[Monitor] ${link.name}: latency=${collectedMetrics.latency.toFixed(1)}ms, ` +
-          `loss=${collectedMetrics.packetLoss.toFixed(1)}%, status=${collectedMetrics.status}`
+          `[Monitor] ${link.name}: latency=${safeLatency.toFixed(1)}ms, ` +
+          `loss=${safePacketLoss.toFixed(1)}%, down=${safeDownload.toFixed(2)}Mbps, ` +
+          `up=${safeUpload.toFixed(2)}Mbps, status=${collectedMetrics.status}`
         );
       } catch (error) {
         console.error(`Error collecting metrics for link ${link.name}:`, error);
