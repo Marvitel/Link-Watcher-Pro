@@ -188,6 +188,10 @@ function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
   const normalizedOnuId = normalizeOnuId(onuId);
   
   console.log(`[OLT Parser] Buscando alarmes para ONU: ${onuId} (normalizado: ${normalizedOnuId})`);
+  console.log(`[OLT Parser] Output bruto (${lines.length} linhas):`);
+  lines.forEach((line, i) => {
+    if (line.trim()) console.log(`[OLT Parser] Linha ${i}: ${line}`);
+  });
   
   for (const line of lines) {
     // Regex para capturar linhas de alarme no formato Datacom/Nokia
