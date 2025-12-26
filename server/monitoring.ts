@@ -41,6 +41,25 @@ const IF_TRAFFIC_OIDS = {
   ifHCOutOctets: "1.3.6.1.2.1.31.1.1.1.10",
 };
 
+// OIDs for CPU and Memory monitoring
+// FortiGate specific OIDs
+const FORTIGATE_SYSTEM_OIDS = {
+  cpuUsage: "1.3.6.1.4.1.12356.101.4.1.3.0",      // fgSysCpuUsage
+  memoryUsage: "1.3.6.1.4.1.12356.101.4.1.4.0",   // fgSysMemUsage
+};
+
+// Generic HOST-RESOURCES-MIB OIDs (fallback)
+const HOST_RESOURCES_OIDS = {
+  hrProcessorLoad: "1.3.6.1.2.1.25.3.3.1.2",      // CPU load per processor
+  hrStorageUsed: "1.3.6.1.2.1.25.2.3.1.6",        // Storage used
+  hrStorageSize: "1.3.6.1.2.1.25.2.3.1.5",        // Storage size
+};
+
+interface SystemResourceResult {
+  cpuUsage: number;
+  memoryUsage: number;
+}
+
 const previousTrafficData = new Map<number, TrafficResult>();
 
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -165,8 +184,16 @@ export async function getInterfaceTraffic(
         `${IF_TRAFFIC_OIDS.ifHCOutOctets}.${ifIndex}`,
       ];
 
+      let sessionClosed = false;
+      const closeSession = () => {
+        if (!sessionClosed) {
+          sessionClosed = true;
+          try { session.close(); } catch {}
+        }
+      };
+
       (session as unknown as { get: (oids: string[], callback: (error: Error | null, varbinds: Array<{value: unknown}>) => void) => void }).get(oids, (error: Error | null, varbinds: Array<{value: unknown}>) => {
-        session.close();
+        closeSession();
 
         if (error) {
           console.error(`SNMP error for ${targetIp}:`, error.message);
@@ -229,13 +256,99 @@ export async function getInterfaceTraffic(
       });
 
       setTimeout(() => {
-        try {
-          session.close();
-        } catch {}
+        closeSession();
         resolve(null);
       }, profile.timeout + 2000);
     } catch (error) {
       console.error(`SNMP session error for ${targetIp}:`, error);
+      resolve(null);
+    }
+  });
+}
+
+// Helper function to parse SNMP values
+function parseSnmpValue(value: unknown): number {
+  if (Buffer.isBuffer(value)) {
+    let result = 0;
+    for (let i = 0; i < value.length; i++) {
+      result = result * 256 + value[i];
+    }
+    return result;
+  } else if (typeof value === 'bigint') {
+    return Number(value);
+  } else if (typeof value === 'number') {
+    return value;
+  } else if (value !== null && value !== undefined) {
+    return Number(String(value));
+  }
+  return 0;
+}
+
+export async function getSystemResources(
+  targetIp: string,
+  profile: SnmpProfile
+): Promise<SystemResourceResult | null> {
+  return new Promise((resolve) => {
+    try {
+      const session = createSnmpSession(targetIp, profile);
+
+      // Try FortiGate OIDs first
+      const oids = [
+        FORTIGATE_SYSTEM_OIDS.cpuUsage,
+        FORTIGATE_SYSTEM_OIDS.memoryUsage,
+      ];
+
+      let sessionClosed = false;
+      const closeSession = () => {
+        if (!sessionClosed) {
+          sessionClosed = true;
+          try { session.close(); } catch {}
+        }
+      };
+
+      (session as unknown as { get: (oids: string[], callback: (error: Error | null, varbinds: Array<{value: unknown, type: number}>) => void) => void }).get(oids, (error: Error | null, varbinds: Array<{value: unknown, type: number}>) => {
+        closeSession();
+
+        if (error) {
+          // FortiGate OIDs failed, return null (could try generic OIDs as fallback)
+          resolve(null);
+          return;
+        }
+
+        if (!varbinds || varbinds.length < 2) {
+          resolve(null);
+          return;
+        }
+
+        // Check if we got valid responses (not NoSuchObject or NoSuchInstance)
+        const noSuchObject = 128; // snmp.ObjectType.NoSuchObject
+        const noSuchInstance = 129; // snmp.ObjectType.NoSuchInstance
+        
+        if (varbinds[0].type === noSuchObject || varbinds[0].type === noSuchInstance ||
+            varbinds[1].type === noSuchObject || varbinds[1].type === noSuchInstance) {
+          resolve(null);
+          return;
+        }
+
+        try {
+          const cpuUsage = parseSnmpValue(varbinds[0].value);
+          const memoryUsage = parseSnmpValue(varbinds[1].value);
+
+          resolve({
+            cpuUsage: isFinite(cpuUsage) && cpuUsage >= 0 && cpuUsage <= 100 ? cpuUsage : 0,
+            memoryUsage: isFinite(memoryUsage) && memoryUsage >= 0 && memoryUsage <= 100 ? memoryUsage : 0,
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+
+      setTimeout(() => {
+        closeSession();
+        resolve(null);
+      }, profile.timeout + 2000);
+    } catch (error) {
+      console.error(`SNMP system resources error for ${targetIp}:`, error);
       resolve(null);
     }
   });
@@ -280,6 +393,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   packetLoss: number;
   downloadMbps: number;
   uploadMbps: number;
+  cpuUsage: number;
+  memoryUsage: number;
   status: string;
 }> {
   const ipToMonitor = link.monitoredIp || link.snmpRouterIp || link.address;
@@ -288,27 +403,39 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
   let downloadMbps = 0;
   let uploadMbps = 0;
+  let cpuUsage = 0;
+  let memoryUsage = 0;
 
-  if (link.snmpProfileId && link.snmpRouterIp && link.snmpInterfaceIndex) {
+  if (link.snmpProfileId && link.snmpRouterIp) {
     const profile = await getSnmpProfile(link.snmpProfileId);
 
     if (profile) {
-      const trafficData = await getInterfaceTraffic(
-        link.snmpRouterIp,
-        profile,
-        link.snmpInterfaceIndex
-      );
+      // Collect traffic data if interface index is configured
+      if (link.snmpInterfaceIndex) {
+        const trafficData = await getInterfaceTraffic(
+          link.snmpRouterIp,
+          profile,
+          link.snmpInterfaceIndex
+        );
 
-      if (trafficData) {
-        const previousData = previousTrafficData.get(link.id);
+        if (trafficData) {
+          const previousData = previousTrafficData.get(link.id);
 
-        if (previousData) {
-          const bandwidth = calculateBandwidth(trafficData, previousData);
-          downloadMbps = bandwidth.downloadMbps;
-          uploadMbps = bandwidth.uploadMbps;
+          if (previousData) {
+            const bandwidth = calculateBandwidth(trafficData, previousData);
+            downloadMbps = bandwidth.downloadMbps;
+            uploadMbps = bandwidth.uploadMbps;
+          }
+
+          previousTrafficData.set(link.id, trafficData);
         }
+      }
 
-        previousTrafficData.set(link.id, trafficData);
+      // Collect CPU and memory usage
+      const systemResources = await getSystemResources(link.snmpRouterIp, profile);
+      if (systemResources) {
+        cpuUsage = systemResources.cpuUsage;
+        memoryUsage = systemResources.memoryUsage;
       }
     }
   }
@@ -325,6 +452,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     packetLoss: pingResult.packetLoss,
     downloadMbps,
     uploadMbps,
+    cpuUsage,
+    memoryUsage,
     status,
   };
 }
@@ -352,12 +481,16 @@ export async function collectAllLinksMetrics(): Promise<void> {
         const safeUpload = isFinite(collectedMetrics.uploadMbps) ? collectedMetrics.uploadMbps : 0;
         const safeLatency = isFinite(collectedMetrics.latency) ? collectedMetrics.latency : 0;
         const safePacketLoss = isFinite(collectedMetrics.packetLoss) ? collectedMetrics.packetLoss : 0;
+        const safeCpuUsage = isFinite(collectedMetrics.cpuUsage) ? collectedMetrics.cpuUsage : 0;
+        const safeMemoryUsage = isFinite(collectedMetrics.memoryUsage) ? collectedMetrics.memoryUsage : 0;
 
         await db.update(links).set({
           currentDownload: safeDownload,
           currentUpload: safeUpload,
           latency: safeLatency,
           packetLoss: safePacketLoss,
+          cpuUsage: safeCpuUsage,
+          memoryUsage: safeMemoryUsage,
           status: collectedMetrics.status,
           uptime: newUptime,
           lastUpdated: new Date(),
@@ -371,15 +504,15 @@ export async function collectAllLinksMetrics(): Promise<void> {
           upload: safeUpload,
           latency: safeLatency,
           packetLoss: safePacketLoss,
-          cpuUsage: 0,
-          memoryUsage: 0,
+          cpuUsage: safeCpuUsage,
+          memoryUsage: safeMemoryUsage,
           errorRate: 0,
         });
 
         console.log(
           `[Monitor] ${link.name}: latency=${safeLatency.toFixed(1)}ms, ` +
           `loss=${safePacketLoss.toFixed(1)}%, down=${safeDownload.toFixed(2)}Mbps, ` +
-          `up=${safeUpload.toFixed(2)}Mbps, status=${collectedMetrics.status}`
+          `up=${safeUpload.toFixed(2)}Mbps, cpu=${safeCpuUsage.toFixed(1)}%, mem=${safeMemoryUsage.toFixed(1)}%, status=${collectedMetrics.status}`
         );
       } catch (error) {
         console.error(`Error collecting metrics for link ${link.name}:`, error);
