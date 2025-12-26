@@ -44,8 +44,18 @@ systemctl stop link-monitor || true
 
 echo ""
 echo "[4/6] Atualizando arquivos..."
-rsync -av --exclude='node_modules' --exclude='.env' --exclude='dist' \
-    "$TEMP_DIR/repo/" "$APP_DIR/"
+# Preservar .env e node_modules
+if [ -f "$APP_DIR/.env" ]; then
+    cp "$APP_DIR/.env" "$TEMP_DIR/.env.backup"
+fi
+
+# Copiar novos arquivos (exceto node_modules e .env)
+find "$TEMP_DIR/repo" -mindepth 1 -maxdepth 1 ! -name 'node_modules' ! -name '.env' -exec cp -r {} "$APP_DIR/" \;
+
+# Restaurar .env
+if [ -f "$TEMP_DIR/.env.backup" ]; then
+    cp "$TEMP_DIR/.env.backup" "$APP_DIR/.env"
+fi
 
 echo ""
 echo "[5/6] Instalando dependências..."
