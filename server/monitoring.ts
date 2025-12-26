@@ -258,6 +258,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     const profile = await getSnmpProfile(link.snmpProfileId);
 
     if (profile) {
+      console.log(`[SNMP Debug] ${link.name}: Querying ${link.snmpRouterIp} interface ${link.snmpInterfaceIndex}`);
+      
       const trafficData = await getInterfaceTraffic(
         link.snmpRouterIp,
         profile,
@@ -265,16 +267,29 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       );
 
       if (trafficData) {
+        console.log(`[SNMP Debug] ${link.name}: Got traffic data - in=${trafficData.inOctets}, out=${trafficData.outOctets}`);
         const previousData = previousTrafficData.get(link.id);
 
         if (previousData) {
           const bandwidth = calculateBandwidth(trafficData, previousData);
           downloadMbps = bandwidth.downloadMbps;
           uploadMbps = bandwidth.uploadMbps;
+          console.log(`[SNMP Debug] ${link.name}: Calculated bandwidth - down=${downloadMbps.toFixed(2)}Mbps, up=${uploadMbps.toFixed(2)}Mbps`);
+        } else {
+          console.log(`[SNMP Debug] ${link.name}: First collection, storing baseline`);
         }
 
         previousTrafficData.set(link.id, trafficData);
+      } else {
+        console.log(`[SNMP Debug] ${link.name}: No traffic data returned from SNMP`);
       }
+    } else {
+      console.log(`[SNMP Debug] ${link.name}: SNMP profile ${link.snmpProfileId} not found`);
+    }
+  } else {
+    // Log only once per link to avoid spam
+    if (!previousTrafficData.has(link.id)) {
+      console.log(`[SNMP Debug] ${link.name}: SNMP not configured (profileId=${link.snmpProfileId}, routerIp=${link.snmpRouterIp}, ifIndex=${link.snmpInterfaceIndex})`);
     }
   }
 
