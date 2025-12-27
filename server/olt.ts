@@ -134,28 +134,52 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
 
         let output = "";
         let commandSent = false;
+        let inactivityTimer: NodeJS.Timeout | null = null;
+        
+        const finishCommand = () => {
+          if (inactivityTimer) clearTimeout(inactivityTimer);
+          console.log(`[OLT SSH] Comando completo em ${olt.ipAddress}, saindo...`);
+          clearTimeout(timeout);
+          stream.write("exit\n");
+          stream.end();
+        };
+        
+        const resetInactivityTimer = () => {
+          if (inactivityTimer) clearTimeout(inactivityTimer);
+          if (commandSent) {
+            // Se o comando foi enviado, esperar 5s de inatividade para finalizar
+            inactivityTimer = setTimeout(() => {
+              console.log(`[OLT SSH] Timeout de inatividade em ${olt.ipAddress}, finalizando...`);
+              finishCommand();
+            }, 5000);
+          }
+        };
 
         stream.on("data", (data: Buffer) => {
           const str = data.toString();
           output += str;
           
-          // Log para debug
-          console.log(`[OLT SSH] Data de ${olt.ipAddress}: ${str.substring(0, 200).replace(/\n/g, '\\n')}`);
+          // Log para debug (sem quebras de linha para melhor visualização)
+          const cleanStr = str.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+          if (cleanStr.length > 0) {
+            console.log(`[OLT SSH] Data de ${olt.ipAddress}: ${cleanStr.substring(0, 150)}`);
+          }
+          
+          // Reset do timer de inatividade a cada dado recebido
+          resetInactivityTimer();
 
           if (!commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
             console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}, enviando comando: ${command}`);
             stream.write(command + "\n");
             commandSent = true;
             promptCount = 0;
+            resetInactivityTimer();
           } else if (commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
             promptCount++;
             console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
-            // Esperar pelo segundo prompt ou verificar se o comando está no output
-            if (promptCount >= 2 || output.includes(command)) {
-              console.log(`[OLT SSH] Comando completo em ${olt.ipAddress}, saindo...`);
-              clearTimeout(timeout);
-              stream.write("exit\n");
-              stream.end();
+            // Esperar pelo segundo prompt
+            if (promptCount >= 2) {
+              finishCommand();
             }
           }
         });

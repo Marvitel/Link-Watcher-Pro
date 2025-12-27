@@ -1,0 +1,52 @@
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -n 50 --no-pager
+dez 26 21:12:30 link-monitor npm[40658]: ]
+dez 26 21:12:30 link-monitor npm[40658]:     at get error [as error] (/opt/link-monitor/dist/index.cjs:94:39674)
+dez 26 21:12:30 link-monitor npm[40658]:     at t.parse (/opt/link-monitor/dist/index.cjs:94:40947)
+dez 26 21:12:30 link-monitor npm[40658]:     at /opt/link-monitor/dist/index.cjs:119:28435
+dez 26 21:12:30 link-monitor npm[40658]:     at Vi.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+dez 26 21:12:30 link-monitor npm[40658]:     at u (/opt/link-monitor/dist/index.cjs:38:5250)
+dez 26 21:12:30 link-monitor npm[40658]:     at bi (/opt/link-monitor/dist/index.cjs:119:3737)
+dez 26 21:12:30 link-monitor npm[40658]:     at Vi.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+dez 26 21:12:30 link-monitor npm[40658]:     at u (/opt/link-monitor/dist/index.cjs:38:5250)
+dez 26 21:12:30 link-monitor npm[40658]:     at Hi.dispatch (/opt/link-monitor/dist/index.cjs:38:5049)
+dez 26 21:12:30 link-monitor npm[40658]:     at Vi.handle_request (/opt/link-monitor/dist/index.cjs:38:3170) {
+dez 26 21:12:30 link-monitor npm[40658]:   issues: [
+dez 26 21:12:30 link-monitor npm[40658]:     {
+dez 26 21:12:30 link-monitor npm[40658]:       code: 'invalid_type',
+dez 26 21:12:30 link-monitor npm[40658]:       expected: 'number',
+dez 26 21:12:30 link-monitor npm[40658]:       received: 'undefined',
+dez 26 21:12:30 link-monitor npm[40658]:       path: [Array],
+dez 26 21:12:30 link-monitor npm[40658]:       message: 'Required'
+dez 26 21:12:30 link-monitor npm[40658]:     }
+dez 26 21:12:30 link-monitor npm[40658]:   ],
+dez 26 21:12:30 link-monitor npm[40658]:   addIssue: [Function (anonymous)],
+dez 26 21:12:30 link-monitor npm[40658]:   addIssues: [Function (anonymous)],
+dez 26 21:12:30 link-monitor npm[40658]:   errors: [
+dez 26 21:12:30 link-monitor npm[40658]:     {
+dez 26 21:12:30 link-monitor npm[40658]:       code: 'invalid_type',
+dez 26 21:12:30 link-monitor npm[40658]:       expected: 'number',
+dez 26 21:12:30 link-monitor npm[40658]:       received: 'undefined',
+dez 26 21:12:30 link-monitor npm[40658]:       path: [Array],
+dez 26 21:12:30 link-monitor npm[40658]:       message: 'Required'
+dez 26 21:12:30 link-monitor npm[40658]:     }
+dez 26 21:12:30 link-monitor npm[40658]:   ]
+dez 26 21:12:30 link-monitor npm[40658]: }
+dez 26 21:12:30 link-monitor npm[40658]: 9:12:30 PM [express] POST /api/olts 400 in 9ms :: {"error":"Dados de OLT inválidos"}
+dez 26 21:12:36 link-monitor npm[40658]: [OLT SSH] Conectando a 172.29.0.2:22...
+dez 26 21:12:36 link-monitor npm[40658]: [OLT SSH] Handshake OK com 172.29.0.2: kex=curve25519-sha256, cipher=chacha20-poly1305@openssh.com
+dez 26 21:12:37 link-monitor npm[40658]: [OLT SSH] Ready - conexão estabelecida com 172.29.0.2
+dez 26 21:12:37 link-monitor npm[40658]: [158B blob data]
+dez 26 21:12:37 link-monitor npm[40658]: [OLT SSH] Prompt detectado em 172.29.0.2, enviando comando: sh alarm
+dez 26 21:12:37 link-monitor npm[40658]: [OLT SSH] Data de 172.29.0.2: sh alarm
+dez 26 21:12:37 link-monitor npm[40658]: [33B blob data]
+dez 26 21:12:37 link-monitor npm[40658]: [231B blob data]
+dez 26 21:12:37 link-monitor npm[40658]: [231B blob data]
+dez 26 21:12:37 link-monitor npm[40658]: [231B blob data]
+dez 26 21:12:37 link-monitor npm[40658]: [231B blob data]
+dez 26 21:12:55 link-monitor npm[40658]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.36Mbps, up=0.82Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 21:12:59 link-monitor npm[40658]: [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.44Mbps, up=0.87Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 21:13:25 link-monitor npm[40658]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.50Mbps, up=0.96Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 21:13:28 link-monitor npm[40658]: 9:13:28 PM [express] GET /api/links 200 in 13ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administrativa","location":"Centro, Aracaju/SE","address":"Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360","ipBlock":"/29","totalIps":8,"usableIps":6,"bandwidth":200,"status":"operational","uptime":98.542,"currentDownload":0.44278452,"currentUpload":0.8696085,"latency":1.68,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2025-12-27T00:12:59.908Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":1,"snmpInterfaceName":"ether1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.26","monitoredIp":"191.52.248.26","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTEROS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":2,"onuId":"1/1/7/11","createdAt":"2025-12-26T12:06:18.538Z"},{"id":2,"clientId":1,"identifier":"central","name":"Central de Atendimento","location":"Jardins, Aracaju/SE","address":"Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010","ipBlock":"/28","totalIps":16,"usableIps":14,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0.497754,"currentUpload":0.95515275,"latency":1.611,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2025-12-27T00:13:25.839Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"}]
+dez 26 21:13:29 link-monitor npm[40658]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.48Mbps, up=0.92Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 26 21:13:36 link-monitor npm[40658]: 9:13:36 PM [express] POST /api/olts/2/test 200 in 60016ms :: {"success":false,"message":"SSH connection timeout"}
+root@link-monitor:/opt/link-monitor# 
