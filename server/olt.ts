@@ -146,7 +146,11 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
         const sendEnable = () => {
           if (options.requiresEnable && !enableSent) {
             console.log(`[OLT SSH] Enviando 'enable' para ${olt.ipAddress}`);
-            stream.write("enable\r\n");
+            // Enviar Enter primeiro para acordar o terminal, depois enable
+            stream.write("\r\n");
+            setTimeout(() => {
+              stream.write("enable\r\n");
+            }, 300);
             enableSent = true;
           }
         };
@@ -159,6 +163,14 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
             resetInactivityTimer();
           }
         };
+        
+        // Para OLTs com enable, enviar Enter inicial para obter o prompt
+        if (options.requiresEnable) {
+          setTimeout(() => {
+            console.log(`[OLT SSH] Enviando Enter inicial para obter prompt de ${olt.ipAddress}`);
+            stream.write("\r\n");
+          }, 500);
+        }
         
         const finishCommand = () => {
           if (inactivityTimer) clearTimeout(inactivityTimer);
