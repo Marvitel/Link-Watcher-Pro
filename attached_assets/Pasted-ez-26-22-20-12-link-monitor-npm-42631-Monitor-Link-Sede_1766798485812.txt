@@ -1,0 +1,23 @@
+ez 26 22:20:12 link-monitor npm[42631]: [Monitor] Link Sede Administrativa - oltId: 4, onuId: 54504C477971B99D
+dez 26 22:20:12 link-monitor npm[42631]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 54504C477971B99D)...
+dez 26 22:20:12 link-monitor npm[42631]: [Monitor] Usando diagnóstico específico para furukawa
+dez 26 22:20:12 link-monitor npm[42631]: [OLT] Usando comando de diagnóstico específico para furukawa: show onu serial 54504C477971B99D
+dez 26 22:20:12 link-monitor npm[42631]: [OLT SSH] Conectando a 100.65.128.226:22...
+dez 26 22:20:12 link-monitor npm[42631]: 10:20:12 PM [express] GET /api/links 304 in 33ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administ>
+dez 26 22:20:12 link-monitor npm[42631]: 10:20:12 PM [express] GET /api/clients 304 in 27ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","sl>
+dez 26 22:20:12 link-monitor npm[42631]: 10:20:12 PM [express] GET /api/events 304 in 62ms :: [{"id":108,"linkId":1,"clientId":1,"type":"info","title":"Link>
+dez 26 22:20:12 link-monitor npm[42631]: [OLT SSH] Handshake OK com 100.65.128.226: kex=ecdh-sha2-nistp256, cipher=aes128-ctr
+dez 26 22:20:12 link-monitor npm[42631]: [OLT SSH] Ready - conexão estabelecida com 100.65.128.226
+dez 26 22:20:12 link-monitor npm[42631]: [OLT SSH] Data de 100.65.128.226: Last login: Sat Dec 27 01:15:24 2025 from 100.66.128.84
+dez 26 22:20:13 link-monitor npm[42631]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 22:20:13 link-monitor npm[42631]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.18Mbps, up=0.74Mbps, cpu=17.0%, mem=0.0%, status=>
+dez 26 22:20:16 link-monitor npm[42631]: 10:20:16 PM [express] GET /api/links 200 in 20ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de>
+dez 26 22:20:16 link-monitor npm[42631]: 10:20:16 PM [express] GET /api/events 200 in 22ms :: [{"id":110,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:20:16 link-monitor npm[42631]: 10:20:16 PM [express] GET /api/clients 304 in 22ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","sl>
+dez 26 22:20:17 link-monitor npm[42631]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.15Mbps, up=0.57Mbps, cpu=18.0%, mem=0.0%, status>
+dez 26 22:20:22 link-monitor npm[42631]: 10:20:22 PM [express] GET /api/links 200 in 16ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administ>
+dez 26 22:20:22 link-monitor npm[42631]: 10:20:22 PM [express] GET /api/clients 304 in 13ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","sl>
+dez 26 22:20:22 link-monitor npm[42631]: 10:20:22 PM [express] GET /api/events 304 in 21ms :: [{"id":110,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:20:42 link-monitor npm[42631]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:20:42 link-monitor npm[42631]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.21Mbps, up=0.80Mbps, cpu=20.0%, mem=0.0%, status=>
+lines 61-100/100 (END)
