@@ -138,15 +138,21 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
         stream.on("data", (data: Buffer) => {
           const str = data.toString();
           output += str;
+          
+          // Log para debug
+          console.log(`[OLT SSH] Data de ${olt.ipAddress}: ${str.substring(0, 200).replace(/\n/g, '\\n')}`);
 
-          if (!commandSent && (str.includes("#") || str.includes(">"))) {
+          if (!commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
+            console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}, enviando comando: ${command}`);
             stream.write(command + "\n");
             commandSent = true;
             promptCount = 0;
-          } else if (commandSent && (str.includes("#") || str.includes(">"))) {
+          } else if (commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
             promptCount++;
+            console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
             // Esperar pelo segundo prompt ou verificar se o comando está no output
             if (promptCount >= 2 || output.includes(command)) {
+              console.log(`[OLT SSH] Comando completo em ${olt.ipAddress}, saindo...`);
               clearTimeout(timeout);
               stream.write("exit\n");
               stream.end();
