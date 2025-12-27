@@ -2119,17 +2119,30 @@ function SnmpConfigTab({ clients }: { clients: Client[] }) {
 
 function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
   const { toast } = useToast();
 
   const { data: groups, isLoading: groupsLoading, refetch: refetchGroups } = useQuery<any[]>({
     queryKey: ['/api/clients', selectedClient?.id, 'groups'],
-    enabled: !!selectedClient,
+    enabled: !!selectedClient && !isSuperAdminMode,
   });
 
-  const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery<User[]>({
+  // Query para usuários de clientes
+  const { data: clientUsers, isLoading: clientUsersLoading, refetch: refetchClientUsers } = useQuery<User[]>({
     queryKey: ['/api/clients', selectedClient?.id, 'users'],
-    enabled: !!selectedClient,
+    enabled: !!selectedClient && !isSuperAdminMode,
   });
+
+  // Query para Super Admins da Marvitel
+  const { data: superAdmins, isLoading: superAdminsLoading, refetch: refetchSuperAdmins } = useQuery<User[]>({
+    queryKey: ['/api/superadmins'],
+    enabled: isSuperAdminMode,
+  });
+
+  // Seleciona os usuários corretos baseado no modo
+  const users = isSuperAdminMode ? superAdmins : clientUsers;
+  const usersLoading = isSuperAdminMode ? superAdminsLoading : clientUsersLoading;
+  const refetchUsers = isSuperAdminMode ? refetchSuperAdmins : refetchClientUsers;
 
   const { data: permissions } = useQuery<any[]>({
     queryKey: ['/api/permissions'],
@@ -2224,7 +2237,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
   });
 
   const createUserMutation = useMutation({
-    mutationFn: async (data: typeof userFormData & { clientId: number }) => {
+    mutationFn: async (data: typeof userFormData & { clientId: number | null }) => {
       return apiRequest("POST", "/api/users", data);
     },
     onSuccess: () => {
@@ -2298,12 +2311,19 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
         email: userFormData.email,
         role: userFormData.role,
         isActive: userFormData.isActive,
-        isSuperAdmin: userFormData.isSuperAdmin,
+        isSuperAdmin: isSuperAdminMode ? true : userFormData.isSuperAdmin,
       };
       if (userFormData.password) {
         updateData.password = userFormData.password;
       }
       updateUserMutation.mutate({ id: editingUser.id, data: updateData as Partial<User> });
+    } else if (isSuperAdminMode) {
+      // Criar Super Admin (sem clientId)
+      createUserMutation.mutate({
+        ...userFormData,
+        isSuperAdmin: true,
+        clientId: null,
+      });
     } else if (selectedClient) {
       createUserMutation.mutate({
         ...userFormData,
@@ -2355,20 +2375,32 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
         <div>
           <h2 className="text-lg font-medium">Usuários e Grupos</h2>
           <p className="text-sm text-muted-foreground">
-            Gerencie usuários e grupos de permissões por cliente
+            {isSuperAdminMode 
+              ? "Gerencie Super Admins da Marvitel" 
+              : "Gerencie usuários e grupos de permissões por cliente"}
           </p>
         </div>
         <Select
-          value={selectedClient?.id?.toString() || ""}
+          value={isSuperAdminMode ? "superadmins" : (selectedClient?.id?.toString() || "")}
           onValueChange={(val) => {
-            const client = clients.find(c => c.id.toString() === val);
-            setSelectedClient(client || null);
+            if (val === "superadmins") {
+              setIsSuperAdminMode(true);
+              setSelectedClient(null);
+            } else {
+              setIsSuperAdminMode(false);
+              const client = clients.find(c => c.id.toString() === val);
+              setSelectedClient(client || null);
+            }
           }}
         >
           <SelectTrigger className="w-[280px]" data-testid="select-client-for-groups">
             <SelectValue placeholder="Selecione um cliente" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="superadmins" className="font-medium text-primary">
+              Super Admins Marvitel
+            </SelectItem>
+            <div className="my-1 border-t" />
             {clients.map((client) => (
               <SelectItem key={client.id} value={client.id.toString()}>
                 {client.name}
@@ -2378,10 +2410,131 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
         </Select>
       </div>
 
-      {!selectedClient ? (
+      {!selectedClient && !isSuperAdminMode ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            Selecione um cliente para gerenciar seus usuários e grupos
+            Selecione um cliente ou "Super Admins Marvitel" para gerenciar usuários
+          </CardContent>
+        </Card>
+      ) : isSuperAdminMode ? (
+        /* Interface de Super Admins - apenas Card de Usuários */
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Super Admins Marvitel</CardTitle>
+              <CardDescription>Usuários com acesso total ao painel administrativo</CardDescription>
+            </div>
+            <Dialog open={userDialogOpen} onOpenChange={(open) => {
+              setUserDialogOpen(open);
+              if (!open) {
+                setEditingUser(null);
+                resetUserForm();
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button size="sm" data-testid="button-add-superadmin">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Novo Super Admin
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingUser ? "Editar Super Admin" : "Novo Super Admin"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nome</Label>
+                    <Input
+                      value={userFormData.name}
+                      onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                      placeholder="Nome completo"
+                      data-testid="input-superadmin-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>E-mail</Label>
+                    <Input
+                      type="email"
+                      value={userFormData.email}
+                      onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                      placeholder="email@marvitel.com.br"
+                      data-testid="input-superadmin-email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{editingUser ? "Nova Senha (deixe vazio para manter)" : "Senha"}</Label>
+                    <Input
+                      type="password"
+                      value={userFormData.password}
+                      onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                      placeholder={editingUser ? "Nova senha (opcional)" : "Senha"}
+                      data-testid="input-superadmin-password"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={userFormData.isActive}
+                      onCheckedChange={(checked) => setUserFormData({ ...userFormData, isActive: checked })}
+                      data-testid="switch-superadmin-active"
+                    />
+                    <Label>Ativo</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setUserDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={handleSaveUser}
+                    disabled={!userFormData.name || !userFormData.email || (!editingUser && !userFormData.password) || createUserMutation.isPending || updateUserMutation.isPending}
+                    data-testid="button-save-superadmin"
+                  >
+                    Salvar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {usersLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : users && users.length > 0 ? (
+              <div className="space-y-2">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between gap-2 p-3 rounded-md border" data-testid={`row-superadmin-${user.id}`}>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="font-medium">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                      </div>
+                      <Badge variant={user.isActive ? "default" : "secondary"}>
+                        {user.isActive ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => handleEditUser(user)} data-testid={`button-edit-superadmin-${user.id}`}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        onClick={() => deleteUserMutation.mutate(user.id)}
+                        data-testid={`button-delete-superadmin-${user.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum Super Admin cadastrado
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : (

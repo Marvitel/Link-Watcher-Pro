@@ -153,6 +153,19 @@ export async function registerRoutes(
     }
   });
 
+  // Endpoint para listar Super Admins da Marvitel
+  app.get("/api/superadmins", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const superAdminList = await storage.getSuperAdmins();
+      res.json(superAdminList.map(u => ({ ...u, passwordHash: undefined })));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar super admins" });
+    }
+  });
+
   app.post("/api/users", requireAuth, async (req, res) => {
     try {
       if (!req.user?.isSuperAdmin) {

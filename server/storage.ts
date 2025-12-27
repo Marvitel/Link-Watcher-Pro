@@ -160,6 +160,10 @@ export class DatabaseStorage {
     return await db.select().from(users).where(eq(users.isActive, true));
   }
 
+  async getSuperAdmins(): Promise<User[]> {
+    return await db.select().from(users).where(and(eq(users.isSuperAdmin, true), eq(users.isActive, true)));
+  }
+
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
