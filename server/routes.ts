@@ -332,8 +332,22 @@ export async function registerRoutes(
       }
       
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
-      const hours = req.query.hours ? parseInt(req.query.hours as string, 10) : 24; // Padrão 24h
-      const metricsData = await storage.getLinkMetrics(linkId, limit ? Math.min(limit, 5000) : undefined, hours);
+      // Padrão 1h para mini-gráficos (dashboard/links), página de detalhes passa hours explicitamente
+      const hours = req.query.hours ? parseInt(req.query.hours as string, 10) : 1;
+      
+      // Suporte a intervalo personalizado via from/to (timestamps ISO)
+      const fromParam = req.query.from as string | undefined;
+      const toParam = req.query.to as string | undefined;
+      const fromDate = fromParam ? new Date(fromParam) : undefined;
+      const toDate = toParam ? new Date(toParam) : undefined;
+      
+      const metricsData = await storage.getLinkMetrics(
+        linkId, 
+        limit ? Math.min(limit, 5000) : undefined, 
+        (fromDate && toDate) ? undefined : hours,
+        fromDate,
+        toDate
+      );
       res.json(metricsData);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link metrics" });

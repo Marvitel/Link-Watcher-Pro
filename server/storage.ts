@@ -59,7 +59,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
-import { eq, desc, gte, and, lt, isNull, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, and, lt, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 
 function hashPassword(password: string): string {
@@ -282,20 +282,33 @@ export class DatabaseStorage {
     await db.delete(hosts).where(eq(hosts.id, id));
   }
 
-  async getLinkMetrics(linkId: number, limit?: number, hours?: number): Promise<Metric[]> {
-    // Se hours for especificado, filtra por intervalo de tempo
+  async getLinkMetrics(linkId: number, limit?: number, hours?: number, fromDate?: Date, toDate?: Date): Promise<Metric[]> {
+    // Se fromDate/toDate especificados, usa intervalo personalizado
+    // Se hours especificado, calcula a partir de agora
     // Caso contrário, usa os últimos 6 meses como padrão
-    const startDate = new Date();
-    if (hours) {
+    let startDate: Date;
+    let endDate: Date | undefined;
+    
+    if (fromDate && toDate) {
+      startDate = fromDate;
+      endDate = toDate;
+    } else if (hours) {
+      startDate = new Date();
       startDate.setHours(startDate.getHours() - hours);
     } else {
+      startDate = new Date();
       startDate.setMonth(startDate.getMonth() - 6);
+    }
+    
+    const conditions = [eq(metrics.linkId, linkId), gte(metrics.timestamp, startDate)];
+    if (endDate) {
+      conditions.push(lte(metrics.timestamp, endDate));
     }
     
     const query = db
       .select()
       .from(metrics)
-      .where(and(eq(metrics.linkId, linkId), gte(metrics.timestamp, startDate)))
+      .where(and(...conditions))
       .orderBy(desc(metrics.timestamp));
     
     if (limit) {

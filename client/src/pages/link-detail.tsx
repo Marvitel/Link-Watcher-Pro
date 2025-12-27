@@ -12,11 +12,14 @@ import { BandwidthChart, LatencyChart } from "@/components/bandwidth-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Activity,
   AlertTriangle,
   ArrowDownToLine,
   ArrowUpFromLine,
+  CalendarIcon,
   Clock,
   Cpu,
   FileWarning,
@@ -30,8 +33,9 @@ import {
   Zap,
 } from "lucide-react";
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident } from "@shared/schema";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 
 // Opções de período para os gráficos
 const PERIOD_OPTIONS = [
@@ -77,6 +81,8 @@ export default function LinkDetail() {
   const [, params] = useRoute("/link/:id");
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [isCustomRange, setIsCustomRange] = useState(false);
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
@@ -90,17 +96,26 @@ export default function LinkDetail() {
     refetchInterval: 5000,
   });
 
+  // Construir URL com base no modo (período pré-definido ou intervalo personalizado)
+  const buildMetricsUrl = () => {
+    const base = `/api/links/${linkId}/metrics`;
+    if (isCustomRange && dateRange?.from && dateRange?.to) {
+      return `${base}?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`;
+    }
+    return `${base}?hours=${selectedPeriod}`;
+  };
+
   const { data: metrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", linkId, "metrics", { hours: selectedPeriod }],
+    queryKey: ["/api/links", linkId, "metrics", { hours: selectedPeriod, dateRange, isCustomRange }],
     queryFn: async () => {
-      const res = await fetch(`/api/links/${linkId}/metrics?hours=${selectedPeriod}`, {
+      const res = await fetch(buildMetricsUrl(), {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch metrics");
       return res.json();
     },
     enabled: !isNaN(linkId),
-    refetchInterval: 5000,
+    refetchInterval: isCustomRange ? false : 5000, // Não atualizar automaticamente em modo personalizado
   });
 
   const { data: events } = useQuery<Event[]>({
@@ -296,11 +311,17 @@ export default function LinkDetail() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 flex-wrap">
               <CardTitle className="text-lg">Consumo de Banda</CardTitle>
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
                 <ToggleGroup 
                   type="single" 
-                  value={selectedPeriod} 
-                  onValueChange={(value) => value && setSelectedPeriod(value)}
+                  value={isCustomRange ? "" : selectedPeriod} 
+                  onValueChange={(value) => {
+                    if (value) {
+                      setSelectedPeriod(value);
+                      setIsCustomRange(false);
+                      setDateRange(undefined);
+                    }
+                  }}
                   className="border rounded-md"
                   data-testid="toggle-period-bandwidth"
                 >
@@ -316,6 +337,54 @@ export default function LinkDetail() {
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant={isCustomRange ? "default" : "outline"} 
+                      size="sm"
+                      className="text-xs gap-1"
+                      data-testid="button-custom-range"
+                    >
+                      <CalendarIcon className="w-3 h-3" />
+                      {isCustomRange && dateRange?.from && dateRange?.to ? (
+                        <span>
+                          {format(dateRange.from, "dd/MM", { locale: ptBR })} - {format(dateRange.to, "dd/MM", { locale: ptBR })}
+                        </span>
+                      ) : (
+                        "Personalizado"
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={(range) => {
+                        setDateRange(range);
+                        if (range?.from && range?.to) {
+                          setIsCustomRange(true);
+                        }
+                      }}
+                      numberOfMonths={2}
+                      locale={ptBR}
+                      disabled={(date) => date > new Date()}
+                      data-testid="calendar-custom-range"
+                    />
+                    {dateRange?.from && dateRange?.to && (
+                      <div className="p-3 border-t flex justify-end">
+                        <Button 
+                          size="sm" 
+                          onClick={() => {
+                            setIsCustomRange(true);
+                          }}
+                          data-testid="button-apply-range"
+                        >
+                          Aplicar
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
                 <div className="flex items-center gap-4 text-sm">
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-full bg-blue-500" />
