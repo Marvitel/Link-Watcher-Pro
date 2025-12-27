@@ -649,6 +649,13 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
     return cached.alarms;
   }
 
+  // Para conexões MySQL (Zabbix), não temos como listar todos os alarmes sem um serial específico
+  // Retornamos array vazio - a consulta será feita por ONU específica via queryOltAlarm
+  if (olt.connectionType === "mysql") {
+    console.log(`[OLT] OLT ${olt.name} é MySQL/Zabbix - consulta de alarmes será feita por ONU específica`);
+    return [];
+  }
+
   // Usar comando específico do fabricante
   const vendorConfig = getVendorConfig(olt.vendor);
   const command = vendorConfig.listAlarmsCommand;

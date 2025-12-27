@@ -640,9 +640,9 @@ export async function collectAllLinksMetrics(): Promise<void> {
                     
                     let diagnosisSuffix = "";
                     
-                    // Se o vendor tem comando de diagnóstico específico (ex: Furukawa), usar ele
-                    if (hasSpecificDiagnosisCommand(olt.vendor)) {
-                      console.log(`[Monitor] Usando diagnóstico específico para ${olt.vendor}`);
+                    // Para MySQL/Zabbix ou vendors com diagnóstico específico, usar queryOltAlarm
+                    if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
+                      console.log(`[Monitor] Usando diagnóstico específico para ${olt.connectionType === "mysql" ? "MySQL/Zabbix" : olt.vendor}`);
                       const diagnosis = await queryOltAlarm(olt, link.onuId);
                       
                       if (diagnosis.alarmType) {
