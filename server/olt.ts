@@ -115,7 +115,16 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
       reject(new Error("SSH connection timeout"));
     }, 60000);
 
+    conn.on("banner", (message) => {
+      console.log(`[OLT SSH] Banner de ${olt.ipAddress}: ${message.substring(0, 100)}`);
+    });
+    
+    conn.on("handshake", (negotiated) => {
+      console.log(`[OLT SSH] Handshake OK com ${olt.ipAddress}: kex=${negotiated.kex}, cipher=${negotiated.cs.cipher}`);
+    });
+    
     conn.on("ready", () => {
+      console.log(`[OLT SSH] Ready - conexão estabelecida com ${olt.ipAddress}`);
       conn.shell((err, stream) => {
         if (err) {
           clearTimeout(timeout);
