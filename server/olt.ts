@@ -140,7 +140,8 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
         const sendCommand = () => {
           if (!commandSent) {
             console.log(`[OLT SSH] Enviando comando para ${olt.ipAddress}: ${command}`);
-            stream.write(command + "\n");
+            // Alguns equipamentos precisam de \r\n em vez de apenas \n
+            stream.write(command + "\r\n");
             commandSent = true;
             resetInactivityTimer();
           }
