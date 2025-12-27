@@ -282,14 +282,20 @@ export class DatabaseStorage {
     await db.delete(hosts).where(eq(hosts.id, id));
   }
 
-  async getLinkMetrics(linkId: number, limit?: number): Promise<Metric[]> {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  async getLinkMetrics(linkId: number, limit?: number, hours?: number): Promise<Metric[]> {
+    // Se hours for especificado, filtra por intervalo de tempo
+    // Caso contrário, usa os últimos 6 meses como padrão
+    const startDate = new Date();
+    if (hours) {
+      startDate.setHours(startDate.getHours() - hours);
+    } else {
+      startDate.setMonth(startDate.getMonth() - 6);
+    }
     
     const query = db
       .select()
       .from(metrics)
-      .where(and(eq(metrics.linkId, linkId), gte(metrics.timestamp, sixMonthsAgo)))
+      .where(and(eq(metrics.linkId, linkId), gte(metrics.timestamp, startDate)))
       .orderBy(desc(metrics.timestamp));
     
     if (limit) {

@@ -331,8 +331,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
-      const metricsData = await storage.getLinkMetrics(linkId, Math.min(limit, 1000));
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      const hours = req.query.hours ? parseInt(req.query.hours as string, 10) : 24; // Padrão 24h
+      const metricsData = await storage.getLinkMetrics(linkId, limit ? Math.min(limit, 5000) : undefined, hours);
       res.json(metricsData);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link metrics" });

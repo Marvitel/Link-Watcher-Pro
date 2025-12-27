@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart } from "@/components/bandwidth-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Activity,
   AlertTriangle,
@@ -30,6 +32,15 @@ import {
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// Opções de período para os gráficos
+const PERIOD_OPTIONS = [
+  { value: "1", label: "1h", hours: 1 },
+  { value: "6", label: "6h", hours: 6 },
+  { value: "24", label: "24h", hours: 24 },
+  { value: "168", label: "7d", hours: 168 },
+  { value: "720", label: "30d", hours: 720 },
+] as const;
 
 function getFailureIcon(reason: string | null) {
   switch (reason) {
@@ -65,6 +76,7 @@ function getStatusLabel(status: string) {
 export default function LinkDetail() {
   const [, params] = useRoute("/link/:id");
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
+  const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
@@ -79,7 +91,14 @@ export default function LinkDetail() {
   });
 
   const { data: metrics } = useQuery<Metric[]>({
-    queryKey: ["/api/links", linkId, "metrics"],
+    queryKey: ["/api/links", linkId, "metrics", { hours: selectedPeriod }],
+    queryFn: async () => {
+      const res = await fetch(`/api/links/${linkId}/metrics?hours=${selectedPeriod}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch metrics");
+      return res.json();
+    },
     enabled: !isNaN(linkId),
     refetchInterval: 5000,
   });
@@ -102,18 +121,21 @@ export default function LinkDetail() {
     refetchInterval: 10000,
   });
 
-  const bandwidthData = metrics?.map((m) => ({
-    timestamp: m.timestamp,
+  // Inverter a ordem para timeline da esquerda (mais antigo) para direita (mais recente)
+  const sortedMetrics = metrics ? [...metrics].reverse() : [];
+
+  const bandwidthData = sortedMetrics.map((m) => ({
+    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     download: m.download,
     upload: m.upload,
     status: m.status,
-  })) || [];
+  }));
 
-  const latencyData = metrics?.map((m) => ({
-    timestamp: m.timestamp,
+  const latencyData = sortedMetrics.map((m) => ({
+    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     latency: m.latency,
     status: m.status,
-  })) || [];
+  }));
 
   if (linkLoading) {
     return (
@@ -272,17 +294,38 @@ export default function LinkDetail() {
 
         <TabsContent value="bandwidth" className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 flex-wrap">
               <CardTitle className="text-lg">Consumo de Banda</CardTitle>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-blue-500" />
-                  Download
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
-                  Upload
-                </span>
+              <div className="flex items-center gap-4 flex-wrap">
+                <ToggleGroup 
+                  type="single" 
+                  value={selectedPeriod} 
+                  onValueChange={(value) => value && setSelectedPeriod(value)}
+                  className="border rounded-md"
+                  data-testid="toggle-period-bandwidth"
+                >
+                  {PERIOD_OPTIONS.map((option) => (
+                    <ToggleGroupItem 
+                      key={option.value} 
+                      value={option.value}
+                      size="sm"
+                      className="px-3 text-xs"
+                      data-testid={`toggle-period-${option.label}`}
+                    >
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-full bg-blue-500" />
+                    Download
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-full bg-green-500" />
+                    Upload
+                  </span>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
