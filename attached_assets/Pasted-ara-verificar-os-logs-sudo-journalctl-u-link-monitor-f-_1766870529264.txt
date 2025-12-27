@@ -1,0 +1,106 @@
+ara verificar os logs:
+  sudo journalctl -u link-monitor -f
+
+root@link-monitor:~# sudo journalctl -u link-monitor -n 50 --no-pager
+dez 27 18:15:45 link-monitor npm[62784]: 6:15:45 PM [express] GET /api/events 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:45 link-monitor npm[62784]: 6:15:45 PM [express] GET /api/clients 200 in 56ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","slug":"dpe-se","cnpj":"09.264.424/0001-00","address":"Aracaju, SE","phone":null,"email":"contato@defensoria.se.def.br","logoUrl":null,"isActive":true,"createdAt":"2025-12-26T12:06:18.504Z","updatedAt":"2025-12-26T12:06:18.504Z"}]
+dez 27 18:15:48 link-monitor npm[62784]: 6:15:48 PM [express] GET /api/links 401 in 3ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:48 link-monitor npm[62784]: 6:15:48 PM [express] GET /api/events 401 in 2ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:48 link-monitor npm[62784]: 6:15:48 PM [express] GET /api/stats 401 in 3ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/events 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/stats 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/stats 401 in 8ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/clients 304 in 7ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","slug":"dpe-se","cnpj":"09.264.424/0001-00","address":"Aracaju, SE","phone":null,"email":"contato@defensoria.se.def.br","logoUrl":null,"isActive":true,"createdAt":"2025-12-26T12:06:18.504Z","updatedAt":"2025-12-26T12:06:18.504Z"}]
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/events 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/stats 401 in 15ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/events 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.2ms, loss=0.0%, down=0.66Mbps, up=1.10Mbps, cpu=16.0%, mem=0.0%, status=operational
+dez 27 18:16:01 link-monitor npm[62784]: 6:16:01 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.57Mbps, up=0.96Mbps, cpu=16.0%, mem=0.0%, status=operational
+dez 27 18:16:04 link-monitor npm[62784]: 6:16:04 PM [express] GET /api/links 401 in 7ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:04 link-monitor npm[62784]: 6:16:04 PM [express] GET /api/snmp-profiles 401 in 7ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:08 link-monitor npm[62784]: 6:16:08 PM [express] GET /api/olts 401 in 8ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:08 link-monitor npm[62784]: 6:16:08 PM [express] GET /api/equipment-vendors 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:26 link-monitor npm[62784]: 6:16:26 PM [express] GET /api/olts 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.20Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:16:31 link-monitor npm[62784]: 6:16:31 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.23Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:16:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.16Mbps, up=0.55Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:17:01 link-monitor npm[62784]: 6:17:01 PM [express] GET /api/links 401 in 4ms :: {"error":"Autenticação necessária"}
+dez 27 18:17:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.1ms, loss=0.0%, down=0.24Mbps, up=0.78Mbps, cpu=18.0%, mem=0.0%, status=operational
+dez 27 18:17:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.66Mbps, up=2.99Mbps, cpu=42.0%, mem=0.0%, status=operational
+dez 27 18:17:31 link-monitor npm[62784]: 6:17:31 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:17:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.3ms, loss=0.0%, down=0.74Mbps, up=2.81Mbps, cpu=42.0%, mem=0.0%, status=operational
+dez 27 18:17:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.1ms, loss=0.0%, down=0.20Mbps, up=0.60Mbps, cpu=40.0%, mem=0.0%, status=operational
+dez 27 18:18:01 link-monitor npm[62784]: 6:18:01 PM [express] GET /api/links 401 in 9ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.20Mbps, up=0.57Mbps, cpu=37.0%, mem=0.0%, status=operational
+dez 27 18:18:23 link-monitor npm[62784]: 6:18:23 PM [express] POST /api/olts 401 in 9ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.17Mbps, up=0.63Mbps, cpu=13.0%, mem=0.0%, status=operational
+dez 27 18:18:31 link-monitor npm[62784]: 6:18:31 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.21Mbps, up=0.63Mbps, cpu=13.0%, mem=0.0%, status=operational
+dez 27 18:18:36 link-monitor npm[62784]: 6:18:36 PM [express] POST /api/olts 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.4ms, loss=0.0%, down=0.19Mbps, up=0.59Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:19:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.22Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:19:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.1ms, loss=0.0%, down=0.20Mbps, up=0.61Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:19:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.23Mbps, up=0.61Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:19:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.2ms, loss=0.0%, down=0.24Mbps, up=0.64Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:20:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.28Mbps, up=0.65Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:20:27 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.2ms, loss=0.0%, down=0.60Mbps, up=10.05Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 27 18:20:31 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.44Mbps, up=4.91Mbps, cpu=22.0%, mem=0.0%, status=operational
+dez 27 18:20:57 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.19Mbps, up=0.84Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 27 18:21:02 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.17Mbps, up=0.68Mbps, cpu=21.0%, mem=0.0%, status=operational
+root@link-monitor:~# sudo journalctl -u link-monitor -n 50 --no-pager
+dez 27 18:15:48 link-monitor npm[62784]: 6:15:48 PM [express] GET /api/events 401 in 2ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:48 link-monitor npm[62784]: 6:15:48 PM [express] GET /api/stats 401 in 3ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/events 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/stats 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:50 link-monitor npm[62784]: 6:15:50 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/stats 401 in 8ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/clients 304 in 7ms :: [{"id":1,"name":"Defensoria Pública do Estado de Sergipe","slug":"dpe-se","cnpj":"09.264.424/0001-00","address":"Aracaju, SE","phone":null,"email":"contato@defensoria.se.def.br","logoUrl":null,"isActive":true,"createdAt":"2025-12-26T12:06:18.504Z","updatedAt":"2025-12-26T12:06:18.504Z"}]
+dez 27 18:15:55 link-monitor npm[62784]: 6:15:55 PM [express] GET /api/events 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/stats 401 in 15ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: 6:15:57 PM [express] GET /api/events 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:15:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.2ms, loss=0.0%, down=0.66Mbps, up=1.10Mbps, cpu=16.0%, mem=0.0%, status=operational
+dez 27 18:16:01 link-monitor npm[62784]: 6:16:01 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.57Mbps, up=0.96Mbps, cpu=16.0%, mem=0.0%, status=operational
+dez 27 18:16:04 link-monitor npm[62784]: 6:16:04 PM [express] GET /api/links 401 in 7ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:04 link-monitor npm[62784]: 6:16:04 PM [express] GET /api/snmp-profiles 401 in 7ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:08 link-monitor npm[62784]: 6:16:08 PM [express] GET /api/olts 401 in 8ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:08 link-monitor npm[62784]: 6:16:08 PM [express] GET /api/equipment-vendors 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:26 link-monitor npm[62784]: 6:16:26 PM [express] GET /api/olts 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.20Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:16:31 link-monitor npm[62784]: 6:16:31 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:16:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.23Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:16:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.16Mbps, up=0.55Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:17:01 link-monitor npm[62784]: 6:17:01 PM [express] GET /api/links 401 in 4ms :: {"error":"Autenticação necessária"}
+dez 27 18:17:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.1ms, loss=0.0%, down=0.24Mbps, up=0.78Mbps, cpu=18.0%, mem=0.0%, status=operational
+dez 27 18:17:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.66Mbps, up=2.99Mbps, cpu=42.0%, mem=0.0%, status=operational
+dez 27 18:17:31 link-monitor npm[62784]: 6:17:31 PM [express] GET /api/links 401 in 6ms :: {"error":"Autenticação necessária"}
+dez 27 18:17:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.3ms, loss=0.0%, down=0.74Mbps, up=2.81Mbps, cpu=42.0%, mem=0.0%, status=operational
+dez 27 18:17:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.1ms, loss=0.0%, down=0.20Mbps, up=0.60Mbps, cpu=40.0%, mem=0.0%, status=operational
+dez 27 18:18:01 link-monitor npm[62784]: 6:18:01 PM [express] GET /api/links 401 in 9ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.20Mbps, up=0.57Mbps, cpu=37.0%, mem=0.0%, status=operational
+dez 27 18:18:23 link-monitor npm[62784]: 6:18:23 PM [express] POST /api/olts 401 in 9ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.17Mbps, up=0.63Mbps, cpu=13.0%, mem=0.0%, status=operational
+dez 27 18:18:31 link-monitor npm[62784]: 6:18:31 PM [express] GET /api/links 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.21Mbps, up=0.63Mbps, cpu=13.0%, mem=0.0%, status=operational
+dez 27 18:18:36 link-monitor npm[62784]: 6:18:36 PM [express] POST /api/olts 401 in 5ms :: {"error":"Autenticação necessária"}
+dez 27 18:18:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.4ms, loss=0.0%, down=0.19Mbps, up=0.59Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:19:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.22Mbps, up=0.60Mbps, cpu=14.0%, mem=0.0%, status=operational
+dez 27 18:19:27 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.1ms, loss=0.0%, down=0.20Mbps, up=0.61Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:19:31 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.23Mbps, up=0.61Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:19:57 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.2ms, loss=0.0%, down=0.24Mbps, up=0.64Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:20:01 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.28Mbps, up=0.65Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:20:27 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.2ms, loss=0.0%, down=0.60Mbps, up=10.05Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 27 18:20:31 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.44Mbps, up=4.91Mbps, cpu=22.0%, mem=0.0%, status=operational
+dez 27 18:20:57 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.4ms, loss=0.0%, down=0.19Mbps, up=0.84Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 27 18:21:02 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.3ms, loss=0.0%, down=0.17Mbps, up=0.68Mbps, cpu=21.0%, mem=0.0%, status=operational
+dez 27 18:21:27 link-monitor npm[62784]: [Monitor] Sede Administrativa: latency=1.3ms, loss=0.0%, down=0.26Mbps, up=0.64Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:21:32 link-monitor npm[62784]: [Monitor] Central de Atendimento: latency=1.5ms, loss=0.0%, down=0.21Mbps, up=0.63Mbps, cpu=15.0%, mem=0.0%, status=operational
+dez 27 18:21:37 link-monitor npm[62784]: 6:21:37 PM [express] POST /api/olts 401 in 4ms :: {"error":"Autenticação necessária"}
+root@link-monitor:~# 
