@@ -2932,6 +2932,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
     connectionType: "telnet",
     vendor: "datacom",
     model: "",
+    database: "",
     isActive: true,
   });
 
@@ -2945,6 +2946,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       connectionType: "telnet",
       vendor: "datacom",
       model: "",
+      database: "",
       isActive: true,
     });
     setEditingOlt(undefined);
@@ -2961,6 +2963,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       connectionType: olt.connectionType,
       vendor: olt.vendor || "datacom",
       model: olt.model || "",
+      database: olt.database || "",
       isActive: olt.isActive,
     });
     setDialogOpen(true);
@@ -3071,7 +3074,12 @@ function OltsTab({ clients }: { clients: Client[] }) {
                 <Label htmlFor="olt-connection">Tipo de Conexao</Label>
                 <Select
                   value={formData.connectionType}
-                  onValueChange={(v) => setFormData({ ...formData, connectionType: v, port: v === "ssh" ? 22 : 23 })}
+                  onValueChange={(v) => setFormData({ 
+                    ...formData, 
+                    connectionType: v, 
+                    port: v === "ssh" ? 22 : v === "mysql" ? 3306 : 23,
+                    vendor: v === "mysql" ? "zabbix" : formData.vendor
+                  })}
                 >
                   <SelectTrigger data-testid="select-olt-connection">
                     <SelectValue />
@@ -3079,9 +3087,23 @@ function OltsTab({ clients }: { clients: Client[] }) {
                   <SelectContent>
                     <SelectItem value="telnet">Telnet</SelectItem>
                     <SelectItem value="ssh">SSH</SelectItem>
+                    <SelectItem value="mysql">MySQL (Zabbix)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              
+              {formData.connectionType === "mysql" && (
+                <div className="space-y-2">
+                  <Label htmlFor="olt-database">Nome do Banco</Label>
+                  <Input
+                    id="olt-database"
+                    value={formData.database}
+                    onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+                    placeholder="db_django_olts"
+                    data-testid="input-olt-database"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="olt-username">Usuario</Label>
@@ -3122,6 +3144,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
                       <SelectItem value="huawei">Huawei</SelectItem>
                       <SelectItem value="nokia">Nokia</SelectItem>
                       <SelectItem value="fiberhome">Fiberhome</SelectItem>
+                      <SelectItem value="zabbix">Zabbix (MySQL)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
