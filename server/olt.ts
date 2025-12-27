@@ -368,6 +368,10 @@ interface VendorConfig {
   parseAlarms: (output: string) => OltAlarm[];
   // Mapeamento de alarmes específicos do fabricante para nomes padronizados
   alarmNameMapping?: Record<string, string>;
+  // Comando para consulta de diagnóstico específico de uma ONU (usa {onuId} como placeholder)
+  diagnosisCommand?: (onuId: string) => string;
+  // Parser para resposta de diagnóstico específico
+  parseDiagnosis?: (output: string, onuId: string) => OltDiagnosis | null;
 }
 
 // Comando e parser para Datacom (DmOS) - VALIDADO
@@ -415,10 +419,63 @@ const fiberhomeConfig: VendorConfig = {
   parseAlarms: parseFiberhomeAlarms,
 };
 
-// Comando e parser para Furukawa - A VALIDAR
+// Parser de diagnóstico específico para Furukawa
+// Comando: show onu serial <serial_number>
+// Resposta contém: deactivate reason..........: Onu Dying-Gasp (ou LOS, etc.)
+function parseFurukawaDiagnosis(output: string, onuId: string): OltDiagnosis | null {
+  const cleanOutput = stripAnsiCodes(output);
+  
+  // Procurar por "deactivate reason" na resposta
+  const deactivateMatch = cleanOutput.match(/deactivate\s+reason[.:\s]+([^\n\r]+)/i);
+  
+  if (deactivateMatch) {
+    const reason = deactivateMatch[1].trim();
+    console.log(`[Furukawa] Deactivate reason encontrado: ${reason}`);
+    
+    // Mapear razões Furukawa para alarmes padronizados
+    let alarmType = "UNKNOWN";
+    if (reason.toLowerCase().includes("dying-gasp") || reason.toLowerCase().includes("dying gasp")) {
+      alarmType = "GPON_DGi";
+    } else if (reason.toLowerCase().includes("los") || reason.toLowerCase().includes("loss of signal")) {
+      alarmType = "GPON_LOSi";
+    } else if (reason.toLowerCase().includes("power") || reason.toLowerCase().includes("low rx")) {
+      alarmType = "GPON_DOWi";
+    } else if (reason.toLowerCase().includes("suf") || reason.toLowerCase().includes("startup")) {
+      alarmType = "GPON_SUFi";
+    }
+    
+    const mapping = ALARM_MAPPINGS[alarmType];
+    
+    return {
+      alarmType,
+      alarmCode: onuId,
+      description: mapping?.description || `Furukawa: ${reason}`,
+      diagnosis: mapping?.diagnosis || reason,
+      rawOutput: cleanOutput,
+    };
+  }
+  
+  // Se não encontrou deactivate reason, verificar se ONU está online
+  if (cleanOutput.toLowerCase().includes("active") || cleanOutput.toLowerCase().includes("online")) {
+    return {
+      alarmType: null,
+      alarmCode: null,
+      description: "ONU está online/ativa",
+      diagnosis: "Sem alarmes ativos",
+      rawOutput: cleanOutput,
+    };
+  }
+  
+  return null;
+}
+
+// Comando e parser para Furukawa - VALIDADO
 const furukawaConfig: VendorConfig = {
   listAlarmsCommand: "show gpon onu alarm",
-  parseAlarms: parseDatacomAlarms, // Usar parser genérico até validar
+  parseAlarms: parseDatacomAlarms, // Parser para listagem de alarmes
+  // Comando específico para diagnóstico por serial
+  diagnosisCommand: (onuId: string) => `show onu serial ${onuId}`,
+  parseDiagnosis: parseFurukawaDiagnosis,
 };
 
 // Comando e parser para Intelbras - A VALIDAR
@@ -715,12 +772,40 @@ export function getDiagnosisFromAlarms(alarms: OltAlarm[], onuId: string): OltDi
 }
 
 export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnosis> {
-  // Usa comando abreviado e filtra pelo ONU ID normalizado (apenas números slot/port/pon/onu)
   const normalizedId = normalizeOnuId(onuId);
-  const command = `sh alarm | include ${normalizedId}`;
+  const vendorConfig = getVendorConfig(olt.vendor);
   let rawOutput = "";
   
   try {
+    // Se o fabricante tem comando específico de diagnóstico (ex: Furukawa), usar ele
+    if (vendorConfig.diagnosisCommand && vendorConfig.parseDiagnosis) {
+      const command = vendorConfig.diagnosisCommand(onuId);
+      console.log(`[OLT] Usando comando de diagnóstico específico para ${olt.vendor}: ${command}`);
+      
+      if (olt.connectionType === "ssh") {
+        rawOutput = await connectSSH(olt, command);
+      } else {
+        rawOutput = await connectTelnet(olt, command);
+      }
+      
+      const diagnosis = vendorConfig.parseDiagnosis(rawOutput, onuId);
+      if (diagnosis) {
+        return diagnosis;
+      }
+      
+      // Se o parser específico não encontrou nada, retorna sem alarmes
+      return {
+        alarmType: null,
+        alarmCode: null,
+        description: "Nenhuma informação de diagnóstico encontrada",
+        diagnosis: "Sem alarmes ativos",
+        rawOutput,
+      };
+    }
+    
+    // Comando padrão (para Datacom e outros): filtrar alarmes pelo ONU ID
+    const command = `sh alarm | include ${normalizedId}`;
+    
     if (olt.connectionType === "ssh") {
       rawOutput = await connectSSH(olt, command);
     } else {
@@ -763,7 +848,8 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
 
 export async function testOltConnection(olt: Olt): Promise<{ success: boolean; message: string }> {
   try {
-    const command = "sh alarm";
+    const vendorConfig = getVendorConfig(olt.vendor);
+    const command = vendorConfig.listAlarmsCommand;
     if (olt.connectionType === "ssh") {
       await connectSSH(olt, command);
     } else {
