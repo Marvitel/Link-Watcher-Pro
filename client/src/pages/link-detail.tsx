@@ -83,6 +83,7 @@ export default function LinkDetail() {
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isCustomRange, setIsCustomRange] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
@@ -337,7 +338,7 @@ export default function LinkDetail() {
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
-                <Popover>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button 
                       variant={isCustomRange ? "default" : "outline"} 
@@ -361,9 +362,6 @@ export default function LinkDetail() {
                       selected={dateRange}
                       onSelect={(range) => {
                         setDateRange(range);
-                        if (range?.from && range?.to) {
-                          setIsCustomRange(true);
-                        }
                       }}
                       numberOfMonths={2}
                       locale={ptBR}
@@ -376,6 +374,7 @@ export default function LinkDetail() {
                           size="sm" 
                           onClick={() => {
                             setIsCustomRange(true);
+                            setCalendarOpen(false);
                           }}
                           data-testid="button-apply-range"
                         >
