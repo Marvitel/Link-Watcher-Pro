@@ -1,6 +1,29 @@
 import { Client as SSHClient } from "ssh2";
 import { Socket } from "net";
+import mysql from "mysql2/promise";
 import type { Olt } from "@shared/schema";
+
+// Interface para resultado da consulta Zabbix
+interface ZabbixOnuResult {
+  OLT: string;
+  ONUID: string;
+  PON: string;
+  SPLITTER: string | null;
+  "PORTA SPLITTER": string | null;
+  SN: string;
+  DESCRIÇÃO: string | null;
+  ONURX: number | null;
+  ONUTX: number | null;
+  OLTRX: number | null;
+  DISTANCIA: string | null;
+  MODELO: string | null;
+  STATUS: string;
+  "ULT.MOT.OFF": string | null;
+  "ÚLTIMO DGi": string | null;
+  UPTIME: string | null;
+  "ULT.VEZ.OFFLINE": string | null;
+  "ULT.VERIFICACAO": string;
+}
 
 export interface OltAlarm {
   timestamp: string;
@@ -49,6 +72,215 @@ const ALARM_MAPPINGS: Record<string, { diagnosis: string; description: string }>
     description: "ONU Remote defect indication - Defeito remoto indicado"
   },
 };
+
+// Consulta ao banco de dados MySQL Zabbix para buscar informações de ONU por serial
+async function queryZabbixMySQL(olt: Olt, serial: string): Promise<OltDiagnosis> {
+  console.log(`[OLT Zabbix] Consultando MySQL ${olt.ipAddress}:${olt.port} por serial ${serial}...`);
+  
+  try {
+    const connection = await mysql.createConnection({
+      host: olt.ipAddress,
+      port: olt.port,
+      user: olt.username,
+      password: olt.password,
+      database: olt.database || "db_django_olts",
+      connectTimeout: 10000,
+    });
+
+    // Query simplificada para buscar ONU por serial
+    const query = `
+      SELECT 
+        olt.nome AS OLT,
+        fo.onuid AS ONUID,
+        fo.pon AS PON,
+        fo.splitter AS SPLITTER,
+        fo.porta_splitter AS 'PORTA SPLITTER',
+        fo.serial AS SN,
+        fo.description AS 'DESCRIÇÃO',
+        h.onurx AS ONURX,
+        h.onutx AS ONUTX,
+        h.oltrx AS OLTRX,
+        fo.distance AS 'DISTANCIA',
+        fo.model AS MODELO,
+        fo.status AS STATUS,
+        CASE 
+          WHEN alarms_active.alarm_name = 'GPON_LOSi' THEN 'los'
+          WHEN alarms_active.alarm_name = 'GPON_LOFi' THEN 'lof'
+          WHEN alarms_active.alarm_name = 'GPON_DGi'  THEN 'dying-gasp'
+          WHEN alarms_active.alarm_name = 'GPON_SFi'  THEN 'sf'
+          WHEN alarms_active.alarm_name = 'GPON_SDi'  THEN 'sd'
+          WHEN alarms_active.alarm_name = 'GPON_LOAMi'THEN 'loam'
+          WHEN alarms_active.alarm_name = 'GPON_DFi'  THEN 'df'
+          ELSE COALESCE(fo.reason, '-')
+        END AS 'ULT.MOT.OFF',
+        CASE 
+          WHEN fo.last_dying_gasp IS NOT NULL THEN DATE_FORMAT(fo.last_dying_gasp, '%d/%m %H:%i')
+          ELSE '-'
+        END AS 'ÚLTIMO DGi',
+        CASE 
+          WHEN fo.status = 'online' AND fo.uptime IS NOT NULL THEN fo.uptime
+          WHEN fo.status = 'online' THEN '0d 0h 0m'
+          ELSE '-'
+        END AS 'UPTIME',
+        CASE 
+          WHEN alarms_active.triggered_on IS NOT NULL THEN 
+            CONCAT('há ', DATEDIFF(NOW(), alarms_active.triggered_on), ' dias')
+          WHEN fo.status = 'offline' AND fo.last_downtime IS NOT NULL THEN 
+            CONCAT('há ', DATEDIFF(NOW(), STR_TO_DATE(fo.last_downtime, '%d-%m-%Y %H:%i:%s')), ' dias')
+          WHEN fo.status = 'offline' THEN 'Offline (sem dados)'
+          ELSE '-'
+        END AS 'ULT.VEZ.OFFLINE',
+        DATE_FORMAT(CONVERT_TZ(fo.timestamp, '+00:00', '-03:00'), '%d-%m-%Y %H:%i:%s') AS 'ULT.VERIFICACAO'
+      FROM ftth_onu AS fo
+      LEFT JOIN (
+        SELECT foh.onu_fk_id, onurx, onutx, oltrx
+        FROM ftth_onuhistory AS foh
+        INNER JOIN (
+          SELECT onu_fk_id, MAX(timestamp) AS max_timestamp
+          FROM ftth_onuhistory
+          GROUP BY onu_fk_id
+        ) AS foh_max ON foh.onu_fk_id = foh_max.onu_fk_id AND foh.timestamp = foh_max.max_timestamp
+      ) AS h ON fo.id = h.onu_fk_id 
+      LEFT JOIN (
+        SELECT 
+          onu_fk_id,
+          alarm_name,
+          triggered_on,
+          status AS alarm_status
+        FROM (
+          SELECT 
+            onu_fk_id,
+            alarm_name,
+            triggered_on,
+            status,
+            ROW_NUMBER() OVER (PARTITION BY onu_fk_id ORDER BY 
+              CASE alarm_name 
+                WHEN 'GPON_LOSi'  THEN 1
+                WHEN 'GPON_LOFi'  THEN 2
+                WHEN 'GPON_DGi'   THEN 3
+                WHEN 'GPON_SFi'   THEN 4
+                WHEN 'GPON_SDi'   THEN 5
+                WHEN 'GPON_LOAMi' THEN 6
+                WHEN 'GPON_DFi'   THEN 7
+                ELSE 99
+              END, triggered_on DESC) as rn
+          FROM ftth_onu_alarm 
+          WHERE status = 'Active' 
+          AND alarm_name IN ('GPON_DGi', 'GPON_LOSi', 'GPON_SFi', 'GPON_SDi', 'GPON_LOAMi', 'GPON_DFi', 'GPON_LOFi')
+        ) ranked_alarms
+        WHERE rn = 1
+      ) AS alarms_active ON fo.id = alarms_active.onu_fk_id
+      INNER JOIN ftth_olt olt ON (fo.olt_fk_id = olt.id) 
+      WHERE fo.serial = ?
+      LIMIT 1
+    `;
+
+    const [rows] = await connection.execute(query, [serial]);
+    await connection.end();
+
+    const results = rows as ZabbixOnuResult[];
+    
+    if (results.length === 0) {
+      console.log(`[OLT Zabbix] ONU ${serial} não encontrada no banco`);
+      return {
+        alarmType: null,
+        alarmCode: null,
+        description: "ONU não encontrada no banco de dados Zabbix",
+        diagnosis: "ONU não cadastrada",
+        rawOutput: JSON.stringify({ serial, message: "not found" }),
+      };
+    }
+
+    const onu = results[0];
+    console.log(`[OLT Zabbix] ONU encontrada: ${onu.OLT} - ${onu.PON} - Status: ${onu.STATUS} - Motivo: ${onu["ULT.MOT.OFF"]}`);
+
+    // Mapear o motivo de desconexão para diagnóstico
+    const motivo = onu["ULT.MOT.OFF"];
+    let alarmType: string | null = null;
+    let diagnosis = "Status desconhecido";
+    let description = `ONU ${serial} - ${onu["DESCRIÇÃO"] || "Sem descrição"}`;
+
+    if (motivo) {
+      switch (motivo.toLowerCase()) {
+        case "los":
+          alarmType = "GPON_LOSi";
+          diagnosis = "Rompimento de Fibra";
+          description = "ONU Loss of signal - Perda de sinal óptico detectada";
+          break;
+        case "lof":
+          alarmType = "GPON_LOFi";
+          diagnosis = "Perda de Frame";
+          description = "ONU Loss of frame - Perda de sincronização";
+          break;
+        case "dying-gasp":
+          alarmType = "GPON_DGi";
+          diagnosis = "Queda de Energia";
+          description = "ONU Dying Gasp - Equipamento sem energia";
+          break;
+        case "sf":
+          alarmType = "GPON_SFi";
+          diagnosis = "Atenuação de Fibra";
+          description = "ONU Signal Fail - Falha de sinal";
+          break;
+        case "sd":
+          alarmType = "GPON_SDi";
+          diagnosis = "Degradação de Sinal";
+          description = "ONU Signal Degrade - Sinal degradado";
+          break;
+        case "loam":
+          alarmType = "GPON_LOAMi";
+          diagnosis = "Atenuação de Fibra";
+          description = "ONU Loss of PLOAM - Perda de mensagens de controle";
+          break;
+        case "df":
+          alarmType = "GPON_DFi";
+          diagnosis = "Falha de Equipamento";
+          description = "ONU Disable Fail - Falha de desativação";
+          break;
+        default:
+          if (motivo !== "-") {
+            diagnosis = motivo;
+            description = `Motivo: ${motivo}`;
+          }
+      }
+    }
+
+    // Montar informação detalhada
+    const detalhes = [
+      `OLT: ${onu.OLT}`,
+      `PON: ${onu.PON}`,
+      `Status: ${onu.STATUS}`,
+      `Modelo: ${onu.MODELO || "-"}`,
+      `ONURX: ${onu.ONURX || "-"} dBm`,
+      `ONUTX: ${onu.ONUTX || "-"} dBm`,
+      `OLTRX: ${onu.OLTRX || "-"} dBm`,
+      `Distância: ${onu.DISTANCIA || "-"}`,
+      `Uptime: ${onu.UPTIME || "-"}`,
+      `Último DGi: ${onu["ÚLTIMO DGi"] || "-"}`,
+      `Offline: ${onu["ULT.VEZ.OFFLINE"] || "-"}`,
+      `Última verificação: ${onu["ULT.VERIFICACAO"]}`,
+    ];
+
+    return {
+      alarmType,
+      alarmCode: alarmType,
+      description: `${description}\n\n${detalhes.join("\n")}`,
+      diagnosis,
+      rawOutput: JSON.stringify(onu, null, 2),
+    };
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[OLT Zabbix] Erro ao consultar MySQL: ${errorMsg}`);
+    return {
+      alarmType: null,
+      alarmCode: null,
+      description: `Erro ao consultar banco de dados: ${errorMsg}`,
+      diagnosis: "Erro de conexão",
+      rawOutput: errorMsg,
+    };
+  }
+}
 
 async function connectTelnet(olt: Olt, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -876,6 +1108,13 @@ export function getDiagnosisFromAlarms(alarms: OltAlarm[], onuId: string): OltDi
 
 export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnosis> {
   const normalizedId = normalizeOnuId(onuId);
+  
+  // Se for conexão MySQL (Zabbix), usar consulta direta ao banco
+  if (olt.connectionType === "mysql") {
+    console.log(`[OLT] Usando consulta MySQL para ${olt.name} - Serial: ${onuId}`);
+    return await queryZabbixMySQL(olt, onuId);
+  }
+  
   const vendorConfig = getVendorConfig(olt.vendor);
   let rawOutput = "";
   
