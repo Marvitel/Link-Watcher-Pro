@@ -135,9 +135,20 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
         let output = "";
         let commandSent = false;
         let inactivityTimer: NodeJS.Timeout | null = null;
+        let promptFallbackTimer: NodeJS.Timeout | null = null;
+        
+        const sendCommand = () => {
+          if (!commandSent) {
+            console.log(`[OLT SSH] Enviando comando para ${olt.ipAddress}: ${command}`);
+            stream.write(command + "\n");
+            commandSent = true;
+            resetInactivityTimer();
+          }
+        };
         
         const finishCommand = () => {
           if (inactivityTimer) clearTimeout(inactivityTimer);
+          if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
           console.log(`[OLT SSH] Comando completo em ${olt.ipAddress}, saindo...`);
           clearTimeout(timeout);
           stream.write("exit\n");
@@ -154,6 +165,14 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
             }, 5000);
           }
         };
+        
+        // Fallback: se o prompt não for detectado em 3s, enviar comando mesmo assim
+        promptFallbackTimer = setTimeout(() => {
+          if (!commandSent) {
+            console.log(`[OLT SSH] Fallback: prompt não detectado em 3s, enviando comando mesmo assim`);
+            sendCommand();
+          }
+        }, 3000);
 
         stream.on("data", (data: Buffer) => {
           const str = data.toString();
@@ -178,11 +197,8 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
             const lastLine = output.trim().split('\n').pop() || '';
             if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
               console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
-              console.log(`[OLT SSH] Enviando comando: ${command}`);
-              stream.write(command + "\n");
-              commandSent = true;
-              promptCount = 0;
-              resetInactivityTimer();
+              if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
+              sendCommand();
             }
           } else if (commandSent && hasPrompt) {
             const lastLine = output.trim().split('\n').pop() || '';
