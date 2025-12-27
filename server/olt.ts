@@ -84,7 +84,8 @@ async function queryZabbixMySQL(olt: Olt, serial: string): Promise<OltDiagnosis>
       user: olt.username,
       password: olt.password,
       database: olt.database || "db_django_olts",
-      connectTimeout: 10000,
+      connectTimeout: 15000,
+      ssl: { rejectUnauthorized: false },  // Aceita certificados auto-assinados
     });
 
     // Query simplificada para buscar ONU por serial
