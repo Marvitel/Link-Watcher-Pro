@@ -162,24 +162,37 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
           // Log para debug (sem quebras de linha para melhor visualização)
           const cleanStr = str.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
           if (cleanStr.length > 0) {
-            console.log(`[OLT SSH] Data de ${olt.ipAddress}: ${cleanStr.substring(0, 150)}`);
+            console.log(`[OLT SSH] Data de ${olt.ipAddress}: ${cleanStr.substring(0, 200)}`);
           }
           
           // Reset do timer de inatividade a cada dado recebido
           resetInactivityTimer();
 
-          if (!commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
-            console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}, enviando comando: ${command}`);
-            stream.write(command + "\n");
-            commandSent = true;
-            promptCount = 0;
-            resetInactivityTimer();
-          } else if (commandSent && (str.includes("#") || str.includes(">") || str.includes("$"))) {
-            promptCount++;
-            console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
-            // Esperar pelo segundo prompt
-            if (promptCount >= 2) {
-              finishCommand();
+          // Detectar prompt - inclui padrões comuns de OLTs
+          // #, >, $, ou fim de linha com letra/número seguido de > ou #
+          const hasPrompt = str.includes("#") || str.includes(">") || str.includes("$") || 
+                           /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(output.trim());
+          
+          if (!commandSent && hasPrompt) {
+            // Verificar se não é apenas "Last login" - esperar pelo prompt real
+            const lastLine = output.trim().split('\n').pop() || '';
+            if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
+              console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
+              console.log(`[OLT SSH] Enviando comando: ${command}`);
+              stream.write(command + "\n");
+              commandSent = true;
+              promptCount = 0;
+              resetInactivityTimer();
+            }
+          } else if (commandSent && hasPrompt) {
+            const lastLine = output.trim().split('\n').pop() || '';
+            if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
+              promptCount++;
+              console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
+              // Esperar pelo segundo prompt
+              if (promptCount >= 2) {
+                finishCommand();
+              }
             }
           }
         });
