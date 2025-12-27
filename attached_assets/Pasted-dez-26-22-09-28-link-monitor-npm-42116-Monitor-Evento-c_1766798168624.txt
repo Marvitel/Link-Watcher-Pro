@@ -1,0 +1,75 @@
+dez 26 22:09:28 link-monitor npm[42116]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 22:09:28 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.19Mbps, up=0.79Mbps, cpu=20.0%, mem=0.0%, status=>
+dez 26 22:09:33 link-monitor npm[42116]: 10:09:33 PM [express] GET /api/events 200 in 14ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:09:43 link-monitor npm[42116]: 10:09:43 PM [express] GET /api/events 304 in 44ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:09:50 link-monitor npm[42116]: 10:09:50 PM [express] GET /api/links 200 in 10ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de>
+dez 26 22:09:51 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, down=0.33Mbps, up=1.32Mbps, cpu=27.0%, mem=0.0%, status>
+dez 26 22:09:53 link-monitor npm[42116]: 10:09:53 PM [express] GET /api/events 304 in 13ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:09:57 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:10:01 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.51Mbps, up=2.40Mbps, cpu=37.0%, mem=0.0%, status=>
+dez 26 22:10:03 link-monitor npm[42116]: 10:10:03 PM [express] GET /api/events 304 in 9ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"Pe>
+dez 26 22:10:13 link-monitor npm[42116]: 10:10:13 PM [express] GET /api/events 304 in 22ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:10:20 link-monitor npm[42116]: 10:10:20 PM [express] GET /api/links 200 in 9ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de >
+dez 26 22:10:21 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=2.7ms, loss=0.0%, down=0.51Mbps, up=2.55Mbps, cpu=48.0%, mem=0.0%, status>
+dez 26 22:10:23 link-monitor npm[42116]: 10:10:23 PM [express] GET /api/events 304 in 12ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:10:27 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:10:27 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.48Mbps, up=2.12Mbps, cpu=48.0%, mem=0.0%, status=>
+dez 26 22:10:33 link-monitor npm[42116]: 10:10:33 PM [express] GET /api/events 304 in 12ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:10:43 link-monitor npm[42116]: 10:10:43 PM [express] GET /api/events 304 in 50ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:10:50 link-monitor npm[42116]: 10:10:50 PM [express] GET /api/links 200 in 10ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de>
+dez 26 22:10:51 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.17Mbps, up=0.59Mbps, cpu=40.0%, mem=0.0%, status>
+dez 26 22:10:53 link-monitor npm[42116]: 10:10:53 PM [express] GET /api/events 304 in 13ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:10:57 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:10:57 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.19Mbps, up=0.78Mbps, cpu=33.0%, mem=0.0%, status=>
+dez 26 22:11:03 link-monitor npm[42116]: 10:11:03 PM [express] GET /api/events 304 in 12ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:11:13 link-monitor npm[42116]: 10:11:13 PM [express] GET /api/events 304 in 46ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:11:20 link-monitor npm[42116]: 10:11:20 PM [express] GET /api/links 200 in 9ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de >
+dez 26 22:11:21 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.15Mbps, up=0.56Mbps, cpu=19.0%, mem=0.0%, status>
+dez 26 22:11:27 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:11:27 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.18Mbps, up=0.74Mbps, cpu=19.0%, mem=0.0%, status=>
+dez 26 22:11:39 link-monitor npm[42116]: 10:11:39 PM [express] GET /api/events 304 in 46ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:11:49 link-monitor npm[42116]: 10:11:49 PM [express] GET /api/events 304 in 13ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:11:51 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.12Mbps, up=0.46Mbps, cpu=19.0%, mem=0.0%, status>
+dez 26 22:11:55 link-monitor npm[42116]: 10:11:55 PM [express] GET /api/links 200 in 8ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administr>
+dez 26 22:11:57 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:11:58 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.15Mbps, up=0.64Mbps, cpu=19.0%, mem=0.0%, status=>
+dez 26 22:11:59 link-monitor npm[42116]: 10:11:59 PM [express] GET /api/events 304 in 13ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:12:09 link-monitor npm[42116]: 10:12:09 PM [express] GET /api/events 304 in 45ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:12:19 link-monitor npm[42116]: 10:12:19 PM [express] GET /api/events 304 in 7ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"Pe>
+dez 26 22:12:21 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.17Mbps, up=0.58Mbps, cpu=20.0%, mem=0.0%, status>
+dez 26 22:12:25 link-monitor npm[42116]: 10:12:25 PM [express] GET /api/links 200 in 5ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administr>
+dez 26 22:12:27 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:12:27 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.21Mbps, up=0.78Mbps, cpu=20.0%, mem=0.0%, status=>
+dez 26 22:12:29 link-monitor npm[42116]: 10:12:29 PM [express] GET /api/events 304 in 14ms :: [{"id":103,"linkId":1,"clientId":1,"type":"warning","title":"P>
+dez 26 22:12:51 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.15Mbps, up=0.55Mbps, cpu=21.0%, mem=0.0%, status>
+dez 26 22:12:57 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:12:57 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.18Mbps, up=0.75Mbps, cpu=20.0%, mem=0.0%, status=>
+dez 26 22:13:16 link-monitor npm[42116]: 10:13:16 PM [express] GET /api/equipment-vendors 304 in 32ms :: [{"id":1,"name":"Fortinet (FortiGate)","slug":"fort>
+dez 26 22:13:23 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:13:23 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.18Mbps, up=0.76Mbps, cpu=19.0%, mem=0.0%, status=>
+dez 26 22:13:27 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, down=0.15Mbps, up=0.56Mbps, cpu=19.0%, mem=0.0%, status>
+dez 26 22:13:53 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:13:53 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.16Mbps, up=0.80Mbps, cpu=18.0%, mem=0.0%, status=>
+dez 26 22:13:57 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.13Mbps, up=0.58Mbps, cpu=19.0%, mem=0.0%, status>
+dez 26 22:14:21 link-monitor npm[42116]: [Monitor] Cache de diagnóstico OLT limpo para Sede Administrativa
+dez 26 22:14:21 link-monitor npm[42116]: [Monitor] Link Sede Administrativa - oltId: 4, onuId: 54504C477971B99D
+dez 26 22:14:21 link-monitor npm[42116]: [Monitor] Evento criado: Link Sede Administrativa restaurado
+dez 26 22:14:21 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.23Mbps, up=0.81Mbps, cpu=20.0%, mem=0.0%, status=op>
+dez 26 22:14:25 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.19Mbps, up=0.59Mbps, cpu=20.0%, mem=0.0%, status>
+dez 26 22:14:52 link-monitor npm[42116]: [Monitor] Link Sede Administrativa - oltId: 4, onuId: 54504C477971B99D
+dez 26 22:14:52 link-monitor npm[42116]: [Monitor] Evento criado: Link Sede Administrativa degradado
+dez 26 22:14:52 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=1.6ms, loss=40.0%, down=0.18Mbps, up=0.74Mbps, cpu=21.0%, mem=0.0%, status=d>
+dez 26 22:14:56 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.14Mbps, up=0.53Mbps, cpu=21.0%, mem=0.0%, status>
+dez 26 22:15:23 link-monitor npm[42116]: Ping failed for 191.52.248.26: Command failed: ping -c 5 -W 2 191.52.248.26 2>&1
+dez 26 22:15:23 link-monitor npm[42116]: [Monitor] Link Sede Administrativa - oltId: 4, onuId: 54504C477971B99D
+dez 26 22:15:23 link-monitor npm[42116]: [Monitor] Buscando diagnóstico para Sede Administrativa (ONU: 54504C477971B99D)...
+dez 26 22:15:23 link-monitor npm[42116]: [OLT] Consultando TODOS os alarmes de OLT-FKW-MARCOS-FREIRE (vendor: furukawa, comando: show gpon onu alarm)...
+dez 26 22:15:23 link-monitor npm[42116]: [OLT SSH] Conectando a 100.65.128.226:22...
+dez 26 22:15:24 link-monitor npm[42116]: [OLT SSH] Handshake OK com 100.65.128.226: kex=ecdh-sha2-nistp256, cipher=aes128-ctr
+dez 26 22:15:24 link-monitor npm[42116]: [OLT SSH] Ready - conexão estabelecida com 100.65.128.226
+dez 26 22:15:24 link-monitor npm[42116]: [OLT SSH] Data de 100.65.128.226: Last login: Sat Dec 27 01:09:28 2025 from 100.66.128.84
+dez 26 22:15:24 link-monitor npm[42116]: [OLT] 0 alarmes encontrados em OLT-FKW-MARCOS-FREIRE
+dez 26 22:15:24 link-monitor npm[42116]: [Monitor] Evento criado: Link Sede Administrativa offline
+dez 26 22:15:24 link-monitor npm[42116]: [Monitor] Sede Administrativa: latency=0.0ms, loss=100.0%, down=0.20Mbps, up=0.79Mbps, cpu=20.0%, mem=0.0%, status=>
+dez 26 22:15:28 link-monitor npm[42116]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.17Mbps, up=0.58Mbps, cpu=20.0%, mem=0.0%, status>
+lines 61-100/100 (END)

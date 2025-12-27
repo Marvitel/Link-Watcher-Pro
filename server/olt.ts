@@ -525,6 +525,12 @@ function getVendorConfig(vendor: string | null | undefined): VendorConfig {
   return vendorConfigs[normalizedVendor] || vendorConfigs["default"];
 }
 
+// Verifica se o vendor tem comando de diagnóstico específico (ex: Furukawa usa show onu serial)
+export function hasSpecificDiagnosisCommand(vendor: string | null | undefined): boolean {
+  const config = getVendorConfig(vendor);
+  return !!(config.diagnosisCommand && config.parseDiagnosis);
+}
+
 // Parser para Datacom (DmOS) - VALIDADO EM PRODUÇÃO
 function parseDatacomAlarms(output: string): OltAlarm[] {
   const alarms: OltAlarm[] = [];

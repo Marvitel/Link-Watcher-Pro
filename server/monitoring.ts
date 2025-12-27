@@ -4,7 +4,7 @@ import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { queryAllOltAlarms, getDiagnosisFromAlarms, type OltAlarm } from "./olt";
+import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, type OltAlarm } from "./olt";
 
 const execAsync = promisify(exec);
 
@@ -636,19 +636,35 @@ export async function collectAllLinksMetrics(): Promise<void> {
                   const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
                   
                   if (olt && olt.isActive) {
-                    // Usa queryAllOltAlarms que tem cache de 1 minuto por OLT
-                    // Se múltiplos links da mesma OLT caírem, apenas UMA consulta é feita
                     console.log(`[Monitor] Buscando diagnóstico para ${link.name} (ONU: ${link.onuId})...`);
-                    const allAlarms = await queryAllOltAlarms(olt);
-                    const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
                     
                     let diagnosisSuffix = "";
-                    if (diagnosis.alarmType) {
-                      diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
-                      console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
+                    
+                    // Se o vendor tem comando de diagnóstico específico (ex: Furukawa), usar ele
+                    if (hasSpecificDiagnosisCommand(olt.vendor)) {
+                      console.log(`[Monitor] Usando diagnóstico específico para ${olt.vendor}`);
+                      const diagnosis = await queryOltAlarm(olt, link.onuId);
+                      
+                      if (diagnosis.alarmType) {
+                        diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
+                        console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
+                      } else {
+                        diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
+                      }
                     } else {
-                      diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
+                      // Usa queryAllOltAlarms que tem cache de 1 minuto por OLT
+                      // Se múltiplos links da mesma OLT caírem, apenas UMA consulta é feita
+                      const allAlarms = await queryAllOltAlarms(olt);
+                      const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
+                      
+                      if (diagnosis.alarmType) {
+                        diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
+                        console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
+                      } else {
+                        diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
+                      }
                     }
+                    
                     eventDescription += diagnosisSuffix;
                     // Armazenar em cache por link
                     oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
