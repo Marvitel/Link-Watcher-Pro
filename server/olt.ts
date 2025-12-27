@@ -176,8 +176,6 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
           if (inactivityTimer) clearTimeout(inactivityTimer);
           if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
           console.log(`[OLT SSH] Comando completo em ${olt.ipAddress}, saindo...`);
-          // Log do output completo para debug (primeiros 2000 chars)
-          console.log(`[OLT SSH] Output completo de ${olt.ipAddress}:\n${output.substring(0, 2000)}`);
           clearTimeout(timeout);
           stream.write("exit\n");
           stream.end();
