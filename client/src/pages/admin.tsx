@@ -123,7 +123,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     onuId: link?.onuId || "",
   });
 
-  const filteredOlts = olts?.filter(olt => olt.clientId === formData.clientId && olt.isActive);
+  // OLTs são globais, filtrar apenas por isActive
+  const filteredOlts = olts?.filter(olt => olt.isActive);
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
@@ -2923,7 +2924,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
   });
 
   const [formData, setFormData] = useState({
-    clientId: clients && clients.length > 0 ? clients[0].id : 1,
     name: "",
     ipAddress: "",
     port: 23,
@@ -2937,7 +2937,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
 
   const resetForm = () => {
     setFormData({
-      clientId: clients && clients.length > 0 ? clients[0].id : 1,
       name: "",
       ipAddress: "",
       port: 23,
@@ -2954,7 +2953,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
   const handleEdit = (olt: Olt) => {
     setEditingOlt(olt);
     setFormData({
-      clientId: olt.clientId,
       name: olt.name,
       ipAddress: olt.ipAddress,
       port: olt.port,
@@ -3037,24 +3035,6 @@ function OltsTab({ clients }: { clients: Client[] }) {
               <DialogTitle>{editingOlt ? "Editar OLT" : "Nova OLT"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="olt-client">Cliente *</Label>
-                <Select
-                  value={formData.clientId.toString()}
-                  onValueChange={(v) => setFormData({ ...formData, clientId: parseInt(v, 10) })}
-                >
-                  <SelectTrigger data-testid="select-olt-client">
-                    <SelectValue placeholder="Selecione o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id.toString()}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="olt-name">Nome</Label>
                 <Input

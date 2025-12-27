@@ -318,9 +318,10 @@ export const clientEventSettings = pgTable("client_event_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// OLTs são recursos globais - não vinculadas a um cliente específico
+// A relação cliente-OLT é feita através dos links (link.oltId + link.clientId)
 export const olts = pgTable("olts", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").notNull(),
   name: text("name").notNull(),
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
   port: integer("port").notNull().default(23),
