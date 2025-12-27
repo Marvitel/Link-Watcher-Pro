@@ -1195,6 +1195,23 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
 
 export async function testOltConnection(olt: Olt): Promise<{ success: boolean; message: string }> {
   try {
+    if (olt.connectionType === "mysql") {
+      // Teste de conexão MySQL (Zabbix)
+      console.log(`[OLT Test] Testando conexão MySQL ${olt.ipAddress}:${olt.port}...`);
+      const connection = await mysql.createConnection({
+        host: olt.ipAddress,
+        port: olt.port,
+        user: olt.username,
+        password: olt.password,
+        database: olt.database || "db_django_olts",
+        connectTimeout: 30000,
+      });
+      const [rows] = await connection.execute("SELECT 1 as test");
+      await connection.end();
+      console.log(`[OLT Test] Conexão MySQL bem-sucedida:`, rows);
+      return { success: true, message: "Conexão MySQL bem-sucedida" };
+    }
+    
     const vendorConfig = getVendorConfig(olt.vendor);
     const command = vendorConfig.listAlarmsCommand;
     if (olt.connectionType === "ssh") {
@@ -1204,6 +1221,7 @@ export async function testOltConnection(olt: Olt): Promise<{ success: boolean; m
     }
     return { success: true, message: "Conexão bem-sucedida" };
   } catch (error) {
+    console.error(`[OLT Test] Erro:`, error);
     return { 
       success: false, 
       message: error instanceof Error ? error.message : "Erro de conexão" 
