@@ -1124,10 +1124,8 @@ export class DatabaseStorage {
     console.log("Initialized super admin user");
   }
 
-  async getOlts(clientId?: number): Promise<Olt[]> {
-    if (clientId) {
-      return db.select().from(olts).where(eq(olts.clientId, clientId)).orderBy(olts.name);
-    }
+  async getOlts(): Promise<Olt[]> {
+    // OLTs são recursos globais - não filtrar por clientId
     return db.select().from(olts).orderBy(olts.name);
   }
 
