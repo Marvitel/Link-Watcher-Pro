@@ -1,0 +1,117 @@
+SELECT 
+    olt.nome AS OLT,
+    fo.onuid AS ONUID,
+    fo.pon AS PON,
+    fo.splitter AS SPLITTER,
+    fo.porta_splitter AS 'PORTA SPLITTER',
+    fo.serial AS SN,
+    fo.description AS "DESCRIÇÃO",
+    h.onurx AS ONURX,
+    h.onutx AS ONUTX,
+    h.oltrx AS OLTRX,
+    fo.distance AS 'DISTANCIA',
+    fo.model AS MODELO,
+    fo.status AS STATUS,
+    -- ULT.MOT.OFF baseado no alarme ativo de maior prioridade
+    CASE 
+        WHEN alarms_active.alarm_name = 'GPON_LOSi' THEN 'los'
+        WHEN alarms_active.alarm_name = 'GPON_LOFi' THEN 'lof'
+        WHEN alarms_active.alarm_name = 'GPON_DGi'  THEN 'dying-gasp'
+        WHEN alarms_active.alarm_name = 'GPON_SFi'  THEN 'sf'
+        WHEN alarms_active.alarm_name = 'GPON_SDi'  THEN 'sd'
+        WHEN alarms_active.alarm_name = 'GPON_LOAMi'THEN 'loam'
+        WHEN alarms_active.alarm_name = 'GPON_DFi'  THEN 'df'
+        ELSE COALESCE(fo.reason, '-') -- Fallback se não houver alarme ativo da lista
+    END AS 'ULT.MOT.OFF',
+    CASE 
+        WHEN fo.last_dying_gasp IS NOT NULL THEN DATE_FORMAT(fo.last_dying_gasp, '%d/%m %H:%i')
+        ELSE '-'
+    END AS 'ÚLTIMO DGi',
+    -- UPTIME formatado (19d 16h 10m)
+    CASE 
+        WHEN fo.status = 'online' AND fo.uptime IS NOT NULL THEN 
+            CASE 
+                WHEN fo.uptime REGEXP '[0-9]+d[0-9]+h[0-9]+m' THEN REPLACE(REPLACE(REPLACE(fo.uptime, 'd', 'd '), 'h', 'h '), 'm', 'm')
+                WHEN fo.uptime REGEXP '[0-9]+d[0-9]+h$' THEN CONCAT(REPLACE(REPLACE(fo.uptime, 'd', 'd '), 'h', 'h'), ' 0m')
+                WHEN fo.uptime REGEXP '[0-9]+d[0-9]+$' THEN CONCAT(SUBSTRING_INDEX(fo.uptime, 'd', 1), 'd ', SUBSTRING_INDEX(fo.uptime, 'd', -1), 'h 0m')
+                WHEN fo.uptime REGEXP '^[0-9]+d$' THEN CONCAT(fo.uptime, ' 0h 0m')
+                WHEN fo.uptime REGEXP '[0-9]+h[0-9]+m' THEN CONCAT('0d ', REPLACE(REPLACE(fo.uptime, 'h', 'h '), 'm', 'm'))
+                WHEN fo.uptime REGEXP '^[0-9]+h$' THEN CONCAT('0d ', fo.uptime, ' 0m')
+                WHEN fo.uptime REGEXP '^[0-9]+m$' THEN CONCAT('0d 0h ', fo.uptime)
+                ELSE COALESCE(fo.uptime, '0d 0h 0m')
+            END
+        WHEN fo.status = 'online' THEN '0d 0h 0m'
+        ELSE '-'
+    END AS 'UPTIME',
+    -- ULT.VEZ.OFFLINE em quantitativo de dias
+    CASE 
+        WHEN alarms_active.triggered_on IS NOT NULL THEN 
+            CONCAT('há ', DATEDIFF(NOW(), alarms_active.triggered_on), ' dias')
+        WHEN fo.status = 'offline' AND fo.last_downtime IS NOT NULL THEN 
+            -- Tenta converter o formato de last_downtime se ele for diferente
+            -- Se last_downtime já é DATETIME, STR_TO_DATE não é necessário ou precisa do formato correto
+            -- Assumindo que last_downtime pode ser 'dd-mm-yyyy HH:ii:ss'
+            CONCAT('há ', DATEDIFF(NOW(), STR_TO_DATE(fo.last_downtime, '%d-%m-%Y %H:%i:%s')), ' dias')
+        WHEN fo.status = 'offline' THEN 
+            'Offline (sem dados)'
+        ELSE 
+            '-'
+    END AS 'ULT.VEZ.OFFLINE',
+    DATE_FORMAT(CONVERT_TZ(fo.timestamp, '+00:00', '-03:00'), '%d-%m-%Y %H:%i:%s') AS 'ULT.VERIFICACAO'
+FROM ftth_onu AS fo
+LEFT JOIN (
+    SELECT foh.onu_fk_id, onurx, onutx, oltrx
+    FROM ftth_onuhistory AS foh
+    INNER JOIN (
+        SELECT onu_fk_id, MAX(timestamp) AS max_timestamp
+        FROM ftth_onuhistory
+        GROUP BY onu_fk_id
+    ) AS foh_max ON foh.onu_fk_id = foh_max.onu_fk_id AND foh.timestamp = foh_max.max_timestamp
+) AS h ON fo.id = h.onu_fk_id 
+-- LEFT JOIN com alarmes ATIVOS (modificado para priorizar e incluir mais alarmes)
+LEFT JOIN (
+    SELECT 
+        onu_fk_id,
+        alarm_name,
+        triggered_on,
+        alarm_status -- Renomeado de 'status'
+    FROM (
+        SELECT 
+            onu_fk_id,
+            alarm_name,
+            triggered_on,
+            status AS alarm_status,
+            ROW_NUMBER() OVER (PARTITION BY onu_fk_id ORDER BY 
+                CASE alarm_name 
+                    WHEN 'GPON_LOSi'  THEN 1
+                    WHEN 'GPON_LOFi'  THEN 2
+                    WHEN 'GPON_DGi'   THEN 3
+                    WHEN 'GPON_SFi'   THEN 4
+                    WHEN 'GPON_SDi'   THEN 5
+                    WHEN 'GPON_LOAMi' THEN 6
+                    WHEN 'GPON_DFi'   THEN 7
+                    ELSE 99 -- Outros alarmes teriam prioridade menor
+                END, triggered_on DESC) as rn -- Pega o mais recente dentro da maior prioridade
+        FROM ftth_onu_alarm 
+        WHERE status = 'Active' 
+        AND alarm_name IN ('GPON_DGi', 'GPON_LOSi', 'GPON_SFi', 'GPON_SDi', 'GPON_LOAMi', 'GPON_DFi', 'GPON_LOFi')
+    ) ranked_alarms
+    WHERE rn = 1
+) AS alarms_active ON fo.id = alarms_active.onu_fk_id
+INNER JOIN ftth_olt olt ON (fo.olt_fk_id = olt.id) 
+WHERE olt.nome LIKE CONCAT('%', '$olt', '%') -- Ajustado para usar CONCAT com wildcards
+AND (
+    fo.status IN ($onu_status) -- $onu_status deve ser uma lista de strings, ex: ('online', 'offline')
+    OR alarms_active.onu_fk_id IS NOT NULL -- Inclui se tiver um alarme ativo relevante
+)
+AND (
+    fo.reason IN ($reason) -- $reason deve ser uma lista de strings
+    OR fo.reason IS NULL
+    OR alarms_active.onu_fk_id IS NOT NULL -- Inclui se tiver um alarme ativo relevante
+)
+ORDER BY
+    -- Ordenação por PON (ex: 1/1/1/1, 1/1/1/2, 1/1/2/1)
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(fo.pon, '/', 1), '-', -1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(fo.pon, '/', 2), '/', -1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(fo.pon, '/', 3), '/', -1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(fo.pon, '/', -1) AS UNSIGNED);

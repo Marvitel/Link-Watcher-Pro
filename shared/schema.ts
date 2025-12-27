@@ -320,6 +320,7 @@ export const clientEventSettings = pgTable("client_event_settings", {
 
 // OLTs são recursos globais - não vinculadas a um cliente específico
 // A relação cliente-OLT é feita através dos links (link.oltId + link.clientId)
+// connectionType pode ser: telnet, ssh, mysql (para consultas ao banco Zabbix)
 export const olts = pgTable("olts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -330,6 +331,7 @@ export const olts = pgTable("olts", {
   connectionType: varchar("connection_type", { length: 20 }).notNull().default("telnet"),
   vendor: varchar("vendor", { length: 50 }),
   model: varchar("model", { length: 100 }),
+  database: varchar("database", { length: 100 }), // Para conexões MySQL (ex: Zabbix)
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
