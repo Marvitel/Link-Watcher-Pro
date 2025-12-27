@@ -78,15 +78,17 @@ async function queryZabbixMySQL(olt: Olt, serial: string): Promise<OltDiagnosis>
   console.log(`[OLT Zabbix] Consultando MySQL ${olt.ipAddress}:${olt.port} por serial ${serial}...`);
   
   try {
+    console.log(`[OLT Zabbix] Conectando ao MySQL...`);
     const connection = await mysql.createConnection({
       host: olt.ipAddress,
       port: olt.port,
       user: olt.username,
       password: olt.password,
       database: olt.database || "db_django_olts",
-      connectTimeout: 15000,
-      ssl: { rejectUnauthorized: false },  // Aceita certificados auto-assinados
+      connectTimeout: 30000,
+      // Não usar SSL - conexão em rede interna
     });
+    console.log(`[OLT Zabbix] Conexão estabelecida com sucesso`);
 
     // Query simplificada para buscar ONU por serial
     const query = `
