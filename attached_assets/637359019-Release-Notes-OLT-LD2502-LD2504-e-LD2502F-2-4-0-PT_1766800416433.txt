@@ -1,0 +1,241 @@
+                                                           OLT LightDrive 2502, 2502F e 2504
+                                                                                    2.4.0-GD
+                                                                                 28/09/2021
+
+
+
+                    Notas de Lançamento revisão 1
+                   OLT LightDrive:
+                  2502, 2502F e 2504
+1     INTRODUÇÃO
+
+1.1    Informações dos Arquivos
+
+      Nome: LightDrive-2502F-G2-L3-AsGOS-2.4.0-GD.bin
+      Tamanho: 12MB
+      Hash MD5: 703f34745892767aa7503d7bdad985e7
+
+      Nome: LightDrive-2504-G2-L3-AsGOS-2.4.0-GD.bin
+      Tamanho: 12MB
+      Hash MD5: cbcaee14b72f46f909c3a65d47f845d9
+
+      Nome: LightDrive-2502-G2-L3-AsGOS-2.4.0-GD.bin
+      Tamanho: 12MB
+      Hash MD5: a2258d49767b4a90d5331325bf44c9d2
+
+      Nome: LightDrive-25xx-G2-Lx-System-2.4.0-GD.bin
+      Tamanho: 4,8MB
+      Hash MD5: 8966310796462e8970d0fde3095c0f7c
+
+
+
+
+1.2    Datas de Lançamento
+
+                Datas                 Versão de Software
+              31/08/2021                   2.4.0-GD
+              22/04/2019                   2.1.1-GD
+              21/09/2018                   2.0.0-GD
+              03/05/2018                  1.14.3-GD
+              31/01/2018                  1.13.5-GD
+
+
+
+
+                                                                                           1
+                                                                          OLT LightDrive 2502, 2502F e 2504
+                                                                                                   2.4.0-GD
+                                                                                                28/09/2021
+
+
+
+
+2     INFORMAÇÕES DO LANÇAMENTO
+
+2.1   Lista de Erros/Problemas Corrigidos
+
+                                                          Descrição
+      OLT para de responder à coletas SNMP da árvore de OID .1.3.6.1.4.1.3979.6.4.2.1.2.6
+      A partir dessa versão foi alterado a forma de como são coletadas as informações via SNMP. O problema não ocorre
+      mais.
+      Perda de gerência inband
+      Após um tempo de uso não era mais possível acessar remotamente a OLT utilizado a interface inband, isto é,
+      utilizando um IP previamente configurado em uma interface de VLAN. O acesso out-of-band (porta network) e serial
+      continuavam operacionais.
+      Nesta versão foi criado sistema para recuperação das conexões inband o que garante que o acesso não será
+      interrompido.
+      ONUs apresentam Status Profile Failed
+      Essa situação poderia ocorrer nas seguintes situações:
+            •   Após queda massiva de energia das ONTs.
+            •   Após rompimento de fibra.
+      Nesta versão foi implementada uma melhoria no processo de verificação de status dos profiles.
+
+
+2.2   Novas Funcionalidades
+
+                                                       Descrição
+      Não foram implementadas novas funcionalidades nesta versão.
+
+
+
+
+                                                                                                                         2
+                                                                             OLT LightDrive 2502, 2502F e 2504
+                                                                                                      2.4.0-GD
+                                                                                                   28/09/2021
+
+
+
+3     RESTRIÇÕES E DEPENDÊNCIAS
+
+3.1       Dependências
+
+
+3.1.1       Compatibilidade de Hardware
+
+                  Product                                                 Description
+                                    - 6 (seis) Interfaces ópticas 1 Gbps (Slot SFP) 2 (dois) Combo Port elétricos
+                                    10/100/1000 Mbps 2 (dois) Interfaces ópticas 10 Gbps (Slot XFP).
+                                    - 2 slots para fontes redundantes 1+1.
+          LightDrive 2502 FIT OLT
+                                    - 200Mb de memória flash disponível para imagens de software e arquivos.
+                                    - PON MAC (Broadcom)
+                                    - Temperatura de Operação: 0 ºC até 50 ºC.
+                                    - 6 (seis) Interfaces ópticas 1 Gbps (Slot SFP) 2 (dois) Combo Port elétricos
+                                    10/100/1000 Mbps 2 (dois) Interfaces ópticas 10 Gbps (Slot XFP).
+                                    - 2 slots para fontes redundantes 1+1.
+          LightDrive 2502 OLT
+                                    - 200Mb de memória flash disponível para imagens de software e arquivos.
+                                    - PON MAC (Broadcom)
+                                    - Temperatura de Operação: 0 ºC até 50 ºC.
+                                    - 6 (seis) Interfaces ópticas 1 Gbps (Slot SFP) 2 (dois) Combo Port elétricos
+                                    10/100/1000 Mbps 4 (quatro) Interfaces ópticas 10 Gbps (Slot XFP).
+                                    - 2 slots para fontes redundantes 1+1.
+          LightDrive 2504 OLT
+                                    - 200Mb de memória flash disponível para imagens de software e arquivos.
+                                    - PON MAC (Broadcom)
+                                    - Temperatura de Operação: 0 ºC até 50 ºC.
+
+
+
+3.2       Dicas de Operação
+
+      ●     Em casos de excesso de mensagens de erros como REI ou BER, ativar nas portas GPON o
+            controle de FEC de upstream para diminuição das taxas de erros e redução da intermitência
+            da rede, ex:
+
+              LD2502.223>enable
+              LD2502.223#configure terminal
+              LD2502.223(config)#interface gpon0.1
+              LD2502.223(config)#protocol-profile
+              LD2502.223(config-gpon-proto)#us-fec enable
+
+
+
+
+                                                                                                                    3
+                                                                OLT LightDrive 2502, 2502F e 2504
+                                                                                         2.4.0-GD
+                                                                                      28/09/2021
+
+
+4   Compatibilidade de OLT
+
+              Equipamento
+                 ONT100
+               LD510-20B
+               LD111-21B
+               LD111-21R
+                LD1102W
+                 LD582B
+                 LD582R
+               LD420-10R
+               LD421-21W
+                 630-10B
+
+
+
+5   Pontos de Atenção
+
+    ●   A configuração de 4000 vlans (vlan database) pode deixar o sistema lento e travar os processos
+        por alguns segundos após configurar uma interface como ‘switchport mode trunk’. Não é
+        recomendado a utilização de comandos para criação ou remoção de 4000 vlans de uma única
+        vez.
+
+    ●   Para atualização de ONU update via OMCI recomenda-se realizar o processo em no máximo
+        10 ONUs ao mesmo tempo, e somente uma interface GPON por vez, ex:
+
+          LD2502.223>enable
+          LD2502.223#configure terminal
+          LD2502.223(config)#interface gpon0.1
+          LD2502.223(config-if)#onu package update model-name <modelo_da_ONT>
+          <nome_do_arquivo_de_firmware> onu-index 0-9
+
+
+
+    ●   Eventualmente ainda pode ocorrer falha de status de profile. Caso ocorra, recomenda-se utilizar
+        os comandos conforme exemplos abaixo:
+
+
+          LD2502.223>enable
+          LD2502.223#configure terminal
+          LD2502.223(config)#interface gpon0.1
+          LD2502.223(config-if)# onu send omci mib-uploading onu-index 1
+
+         ou
+
+          LD2502.223>enable
+          LD2502.223#configure terminal
+          LD2502.223(config)#interface gpon0.1
+          LD2502.223(config-if)# onu reboot onu-index 1
+
+
+
+
+                                                                                                          4
+                                                             OLT LightDrive 2502, 2502F e 2504
+                                                                                      2.4.0-GD
+                                                                                   28/09/2021
+
+
+      ●    O SNMP pode deixar de responder a coletas WALK quando existe mais de 200 ONUs ativas.
+           Para coletas SNMP de GET, GETNEXT e BULK esse comportamento não é observado.
+
+
+6     Procedimentos de Instalação
+
+6.1       Procedimentos de Instalação Padrão
+
+      Para uma operação segura do GPON OLT e atualização de firmware seguras, consulte o manual
+      de usuário do GPON OLT ou consulte os vídeos disponíveis em Lista de Reprodução no Canal do
+      Suporte Técnico Furukawa no YouTube.
+
+      Para mais documentação, consulte a área de Suporte Técnico no website da Furukawa.
+
+
+
+
+                                                                                                    5
+                                                                    OLT LightDrive 2502, 2502F e 2504
+                                                                                             2.4.0-GD
+                                                                                          28/09/2021
+
+
+6.2    Documentos Relacionados
+
+                   Documento                                           Descrição
+                                       https://www.furukawalatam.com/pt-br/versao-et-pdf/olt-lightdrive-gpon-
+       Especificação Técnica
+                                       ld2502f-ld2504-e-ld2504s
+       Manual do usuário               https://helpcenter.furukawalatam.com/helpCenter/6
+
+      OBS.: As versões na tabela acima são válidas na data deste release. Esteja ciente de que uma
+      versão atualizada pode estar disponível.
+
+      Para mais documentação, consulte a área de Suporte Técnico no website da Furukawa.
+
+
+
+
+                                                                                                                6
+

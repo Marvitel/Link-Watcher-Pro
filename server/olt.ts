@@ -106,10 +106,16 @@ async function connectTelnet(olt: Olt, command: string): Promise<string> {
   });
 }
 
-async function connectSSH(olt: Olt, command: string): Promise<string> {
+interface SSHOptions {
+  requiresEnable?: boolean;
+}
+
+async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new SSHClient();
     let promptCount = 0;
+    let enableSent = false;
+    let enableCompleted = !options.requiresEnable; // Se não precisa de enable, já está "completo"
     const timeout = setTimeout(() => {
       conn.end();
       reject(new Error("SSH connection timeout"));
@@ -137,14 +143,18 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
         let inactivityTimer: NodeJS.Timeout | null = null;
         let promptFallbackTimer: NodeJS.Timeout | null = null;
         
+        const sendEnable = () => {
+          if (options.requiresEnable && !enableSent) {
+            console.log(`[OLT SSH] Enviando 'enable' para ${olt.ipAddress}`);
+            stream.write("enable\r\n");
+            enableSent = true;
+          }
+        };
+        
         const sendCommand = () => {
           if (!commandSent) {
             console.log(`[OLT SSH] Enviando comando para ${olt.ipAddress}: ${command}`);
-            // Enviar Enter primeiro para "acordar" o terminal, depois o comando
-            stream.write("\r\n");
-            setTimeout(() => {
-              stream.write(command + "\r\n");
-            }, 500);
+            stream.write(command + "\r\n");
             commandSent = true;
             resetInactivityTimer();
           }
@@ -170,10 +180,20 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
           }
         };
         
-        // Fallback: se o prompt não for detectado em 3s, enviar comando mesmo assim
+        // Fallback: se o prompt não for detectado em 3s, enviar enable ou comando
         promptFallbackTimer = setTimeout(() => {
-          if (!commandSent) {
-            console.log(`[OLT SSH] Fallback: prompt não detectado em 3s, enviando comando mesmo assim`);
+          if (options.requiresEnable && !enableSent) {
+            console.log(`[OLT SSH] Fallback: prompt não detectado em 3s, enviando 'enable'`);
+            sendEnable();
+            // Agendar envio do comando após 2s
+            setTimeout(() => {
+              if (!commandSent) {
+                console.log(`[OLT SSH] Fallback: enviando comando após enable`);
+                sendCommand();
+              }
+            }, 2000);
+          } else if (!commandSent) {
+            console.log(`[OLT SSH] Fallback: prompt não detectado em 3s, enviando comando`);
             sendCommand();
           }
         }, 3000);
@@ -191,27 +211,54 @@ async function connectSSH(olt: Olt, command: string): Promise<string> {
           // Reset do timer de inatividade a cada dado recebido
           resetInactivityTimer();
 
-          // Detectar prompt - inclui padrões comuns de OLTs
-          // #, >, $, ou fim de linha com letra/número seguido de > ou #
-          const hasPrompt = str.includes("#") || str.includes(">") || str.includes("$") || 
-                           /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(output.trim());
+          const lastLine = output.trim().split('\n').pop() || '';
           
-          if (!commandSent && hasPrompt) {
-            // Verificar se não é apenas "Last login" - esperar pelo prompt real
-            const lastLine = output.trim().split('\n').pop() || '';
-            if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
-              console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
+          // Para OLTs que precisam de enable (AsGOS/Cisco-like):
+          // Primeiro detectar prompt ">", enviar enable
+          // Depois detectar prompt "#", enviar comando
+          if (options.requiresEnable) {
+            // Verificar se está no prompt de usuário ">" e precisa enviar enable
+            if (!enableSent && lastLine.match(/[a-zA-Z0-9\.\-_]+>\s*$/)) {
+              console.log(`[OLT SSH] Prompt usuário detectado: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
               if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
-              sendCommand();
+              sendEnable();
+              return;
             }
-          } else if (commandSent && hasPrompt) {
-            const lastLine = output.trim().split('\n').pop() || '';
-            if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
+            
+            // Verificar se está no prompt privilegiado "#" e precisa enviar comando
+            if (enableSent && !commandSent && lastLine.match(/[a-zA-Z0-9\.\-_]+#\s*$/)) {
+              console.log(`[OLT SSH] Prompt privilegiado detectado: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
+              enableCompleted = true;
+              sendCommand();
+              return;
+            }
+            
+            // Após enviar comando, esperar pelo próximo prompt # para finalizar
+            if (commandSent && lastLine.match(/[a-zA-Z0-9\.\-_]+#\s*$/)) {
               promptCount++;
               console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
-              // Esperar pelo segundo prompt
               if (promptCount >= 2) {
                 finishCommand();
+              }
+            }
+          } else {
+            // Fluxo normal para OLTs sem enable
+            const hasPrompt = str.includes("#") || str.includes(">") || str.includes("$") || 
+                             /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(output.trim());
+            
+            if (!commandSent && hasPrompt) {
+              if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
+                console.log(`[OLT SSH] Prompt detectado em ${olt.ipAddress}: "${lastLine.substring(Math.max(0, lastLine.length - 50))}"`);
+                if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
+                sendCommand();
+              }
+            } else if (commandSent && hasPrompt) {
+              if (lastLine.includes('#') || lastLine.includes('>') || /[a-zA-Z0-9\]]\s*[#>$]\s*$/.test(lastLine)) {
+                promptCount++;
+                console.log(`[OLT SSH] Prompt count: ${promptCount} em ${olt.ipAddress}`);
+                if (promptCount >= 2) {
+                  finishCommand();
+                }
               }
             }
           }
@@ -362,8 +409,9 @@ export async function queryAllOltAlarms(olt: Olt): Promise<OltAlarm[]> {
   
   try {
     console.log(`[OLT] Consultando TODOS os alarmes de ${olt.name} (vendor: ${olt.vendor || 'default'}, comando: ${command})...`);
+    const sshOptions: SSHOptions = { requiresEnable: vendorConfig.requiresEnable };
     if (olt.connectionType === "ssh") {
-      rawOutput = await connectSSH(olt, command);
+      rawOutput = await connectSSH(olt, command, sshOptions);
     } else {
       rawOutput = await connectTelnet(olt, command);
     }
@@ -405,6 +453,8 @@ interface VendorConfig {
   diagnosisCommand?: (onuId: string) => string;
   // Parser para resposta de diagnóstico específico
   parseDiagnosis?: (output: string, onuId: string) => OltDiagnosis | null;
+  // Se true, envia "enable" antes do comando (para OLTs tipo Cisco/AsGOS)
+  requiresEnable?: boolean;
 }
 
 // Comando e parser para Datacom (DmOS) - VALIDADO
@@ -502,13 +552,15 @@ function parseFurukawaDiagnosis(output: string, onuId: string): OltDiagnosis | n
   return null;
 }
 
-// Comando e parser para Furukawa - VALIDADO
+// Comando e parser para Furukawa (AsGOS) - LD2502/LD2504
+// Requer "enable" para entrar no modo privilegiado antes de comandos
 const furukawaConfig: VendorConfig = {
   listAlarmsCommand: "show gpon onu alarm",
   parseAlarms: parseDatacomAlarms, // Parser para listagem de alarmes
   // Comando específico para diagnóstico por serial
   diagnosisCommand: (onuId: string) => `show onu serial ${onuId}`,
   parseDiagnosis: parseFurukawaDiagnosis,
+  requiresEnable: true, // AsGOS precisa de "enable" primeiro
 };
 
 // Comando e parser para Intelbras - A VALIDAR
@@ -821,8 +873,10 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
       const command = vendorConfig.diagnosisCommand(onuId);
       console.log(`[OLT] Usando comando de diagnóstico específico para ${olt.vendor}: ${command}`);
       
+      const sshOptions: SSHOptions = { requiresEnable: vendorConfig.requiresEnable };
+      
       if (olt.connectionType === "ssh") {
-        rawOutput = await connectSSH(olt, command);
+        rawOutput = await connectSSH(olt, command, sshOptions);
       } else {
         rawOutput = await connectTelnet(olt, command);
       }
