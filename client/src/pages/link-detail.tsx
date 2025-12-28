@@ -126,7 +126,7 @@ export default function LinkDetail() {
   });
 
   const { data: slaIndicators } = useQuery<SLAIndicator[]>({
-    queryKey: ["/api/links", linkId, "sla"],
+    queryKey: [`/api/sla?linkId=${linkId}&type=accumulated`],
     enabled: !isNaN(linkId),
     refetchInterval: 30000,
   });

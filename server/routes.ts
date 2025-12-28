@@ -524,15 +524,16 @@ export async function registerRoutes(
       const type = req.query.type as string | undefined; // "monthly" | "accumulated" | undefined
       const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
       const month = req.query.month ? parseInt(req.query.month as string, 10) - 1 : undefined; // Convert 1-indexed to 0-indexed
+      const linkId = req.query.linkId ? parseInt(req.query.linkId as string, 10) : undefined;
       
       let sla;
       if (type === "monthly") {
-        sla = await storage.getSLAIndicatorsMonthly(clientId, year, month);
+        sla = await storage.getSLAIndicatorsMonthly(clientId, year, month, linkId);
       } else if (type === "accumulated") {
-        sla = await storage.getSLAIndicatorsAccumulated(clientId);
+        sla = await storage.getSLAIndicatorsAccumulated(clientId, linkId);
       } else {
         // Default: accumulated (full period)
-        sla = await storage.getSLAIndicatorsAccumulated(clientId);
+        sla = await storage.getSLAIndicatorsAccumulated(clientId, linkId);
       }
       res.json(sla);
     } catch (error) {

@@ -446,10 +446,27 @@ export class DatabaseStorage {
     return result.length;
   }
 
-  async calculateSLAFromMetrics(clientId?: number, fromDate?: Date, toDate?: Date): Promise<SLACalculation> {
-    const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
+  async calculateSLAFromMetrics(clientId?: number, fromDate?: Date, toDate?: Date, linkId?: number): Promise<SLACalculation> {
+    // If linkId provided, filter to that specific link only
+    let targetLinks: Link[];
+    if (linkId) {
+      const link = await this.getLink(linkId);
+      if (!link) {
+        return {
+          availability: 0,
+          avgLatency: 0,
+          avgPacketLoss: 0,
+          totalMetrics: 0,
+          operationalMetrics: 0,
+          avgRepairTime: 0,
+        };
+      }
+      targetLinks = [link];
+    } else {
+      targetLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
+    }
     
-    if (allLinks.length === 0) {
+    if (targetLinks.length === 0) {
       return {
         availability: 0,
         avgLatency: 0,
@@ -476,17 +493,17 @@ export class DatabaseStorage {
       conditions.push(gte(metrics.timestamp, sixMonthsAgo));
     }
 
-    // Filter by links of the client
-    const linkIds = allLinks.map(l => l.id);
+    // Filter by target links
+    const targetLinkIds = targetLinks.map(l => l.id);
     
     // Get all metrics for the period
     let allMetrics: Metric[] = [];
-    for (const linkId of linkIds) {
+    for (const lid of targetLinkIds) {
       const linkMetrics = await db
         .select()
         .from(metrics)
         .where(and(
-          eq(metrics.linkId, linkId),
+          eq(metrics.linkId, lid),
           ...conditions
         ));
       allMetrics = allMetrics.concat(linkMetrics);
@@ -494,9 +511,9 @@ export class DatabaseStorage {
 
     if (allMetrics.length === 0) {
       // Fall back to current link values if no metrics
-      const avgUptime = allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length;
-      const avgLatency = allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length;
-      const avgPacketLoss = allLinks.reduce((sum, l) => sum + l.packetLoss, 0) / allLinks.length;
+      const avgUptime = targetLinks.reduce((sum, l) => sum + l.uptime, 0) / targetLinks.length;
+      const avgLatency = targetLinks.reduce((sum, l) => sum + l.latency, 0) / targetLinks.length;
+      const avgPacketLoss = targetLinks.reduce((sum, l) => sum + l.packetLoss, 0) / targetLinks.length;
       return {
         availability: avgUptime,
         avgLatency: avgLatency,
@@ -559,12 +576,12 @@ export class DatabaseStorage {
     };
   }
 
-  async getSLAIndicators(clientId?: number, fromDate?: Date, toDate?: Date): Promise<SLAIndicator[]> {
-    const calc = await this.calculateSLAFromMetrics(clientId, fromDate, toDate);
+  async getSLAIndicators(clientId?: number, fromDate?: Date, toDate?: Date, linkId?: number): Promise<SLAIndicator[]> {
+    const calc = await this.calculateSLAFromMetrics(clientId, fromDate, toDate, linkId);
     return buildSLAIndicators(calc);
   }
   
-  async getSLAIndicatorsMonthly(clientId?: number, year?: number, month?: number): Promise<SLAIndicator[]> {
+  async getSLAIndicatorsMonthly(clientId?: number, year?: number, month?: number, linkId?: number): Promise<SLAIndicator[]> {
     const now = new Date();
     const targetYear = year ?? now.getFullYear();
     const targetMonth = month ?? now.getMonth(); // 0-indexed
@@ -572,15 +589,15 @@ export class DatabaseStorage {
     const fromDate = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
     const toDate = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
     
-    return this.getSLAIndicators(clientId, fromDate, toDate);
+    return this.getSLAIndicators(clientId, fromDate, toDate, linkId);
   }
   
-  async getSLAIndicatorsAccumulated(clientId?: number): Promise<SLAIndicator[]> {
+  async getSLAIndicatorsAccumulated(clientId?: number, linkId?: number): Promise<SLAIndicator[]> {
     // Use full retention period (6 months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    return this.getSLAIndicators(clientId, sixMonthsAgo, new Date());
+    return this.getSLAIndicators(clientId, sixMonthsAgo, new Date(), linkId);
   }
 
   async getDashboardStats(clientId?: number): Promise<DashboardStats> {

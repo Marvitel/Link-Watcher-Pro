@@ -15,6 +15,7 @@ import {
   TrendingUp,
   BarChart3,
   Loader2,
+  Network,
 } from "lucide-react";
 import type { SLAIndicator, DashboardStats, Link } from "@shared/schema";
 import { useState } from "react";
@@ -32,15 +33,17 @@ export default function Reports() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-indexed for API
+  const [selectedLinkId, setSelectedLinkId] = useState<number | null>(null);
   
-  // Build URLs with client filter
+  // Build URLs with client and link filter
   const clientParam = selectedClientId ? `clientId=${selectedClientId}&` : "";
+  const linkParam = selectedLinkId ? `linkId=${selectedLinkId}&` : "";
   
   // SLA Accumulated (default - for tab "Indicadores SLA")
-  const slaAccumulatedUrl = `/api/sla?${clientParam}type=accumulated`;
+  const slaAccumulatedUrl = `/api/sla?${clientParam}${linkParam}type=accumulated`;
   
   // SLA Monthly (for selected month)
-  const slaMonthlyUrl = `/api/sla?${clientParam}type=monthly&year=${selectedYear}&month=${selectedMonth}`;
+  const slaMonthlyUrl = `/api/sla?${clientParam}${linkParam}type=monthly&year=${selectedYear}&month=${selectedMonth}`;
   
   const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
@@ -148,6 +151,43 @@ export default function Reports() {
         </div>
       </div>
 
+      <Card className="mb-4">
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Network className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filtrar por Link:</span>
+            </div>
+            <Select
+              value={selectedLinkId?.toString() || "all"}
+              onValueChange={(val) => setSelectedLinkId(val === "all" ? null : parseInt(val, 10))}
+            >
+              <SelectTrigger className="w-[250px]" data-testid="select-link-filter">
+                <SelectValue placeholder="Todos os links" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os links</SelectItem>
+                {links?.map((link) => (
+                  <SelectItem key={link.id} value={link.id.toString()}>
+                    {link.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedLinkId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedLinkId(null)}
+                data-testid="button-clear-link-filter"
+              >
+                Limpar filtro
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="sla" className="space-y-4">
         <TabsList>
           <TabsTrigger value="sla" data-testid="tab-sla">
@@ -167,7 +207,14 @@ export default function Reports() {
         <TabsContent value="sla" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Acordo de Nível de Serviço (ANS/SLA) - Acumulado</CardTitle>
+              <CardTitle className="text-lg">
+                Acordo de Nível de Serviço (ANS/SLA) - Acumulado
+                {selectedLinkId && links?.find(l => l.id === selectedLinkId) && (
+                  <span className="text-muted-foreground font-normal text-sm ml-2">
+                    ({links.find(l => l.id === selectedLinkId)?.name})
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">

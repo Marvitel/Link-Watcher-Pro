@@ -19,7 +19,7 @@ import {
   RefreshCw,
   Building2,
 } from "lucide-react";
-import type { Link as LinkType, Event, DashboardStats, Metric, Client } from "@shared/schema";
+import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator } from "@shared/schema";
 
 function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
@@ -98,6 +98,18 @@ export default function Dashboard() {
     queryKey: [eventsUrl],
     refetchInterval: 10000,
   });
+
+  const slaUrl = selectedClientId ? `/api/sla?clientId=${selectedClientId}&type=accumulated` : "/api/sla?type=accumulated";
+  const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
+    queryKey: [slaUrl],
+    refetchInterval: 30000,
+  });
+
+  // Helper to get SLA indicator by id
+  const getSLAIndicator = (id: string) => slaIndicators?.find(i => i.id === id);
+  const availability = getSLAIndicator("sla-de"); // Disponibilidade do Enlace
+  const latency = getSLAIndicator("sla-lat"); // Latência
+  const packetLoss = getSLAIndicator("sla-dp"); // Descarte de Pacotes
 
   if (isSuperAdmin && !isViewingAsClient) {
     return (
@@ -324,37 +336,47 @@ export default function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-3">
-            <SLACompactCard
-              title="Disponibilidade"
-              current={stats?.averageUptime || 99.5}
-              target="≥ 99%"
-              status={
-                (stats?.averageUptime || 99.5) >= 99
-                  ? "compliant"
-                  : (stats?.averageUptime || 99.5) >= 97
-                  ? "warning"
-                  : "non_compliant"
-              }
-            />
-            <SLACompactCard
-              title="Latência"
-              current={stats?.averageLatency || 45}
-              target="≤ 80ms"
-              status={
-                (stats?.averageLatency || 45) <= 80
-                  ? "compliant"
-                  : (stats?.averageLatency || 45) <= 100
-                  ? "warning"
-                  : "non_compliant"
-              }
-              unit="ms"
-            />
-            <SLACompactCard
-              title="Perda de Pacotes"
-              current={0.5}
-              target="≤ 2%"
-              status="compliant"
-            />
+            {slaLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <SLACompactCard
+                  title="Disponibilidade"
+                  current={availability?.current || stats?.averageUptime || 99.5}
+                  target={availability?.target || "≥ 99%"}
+                  status={availability?.status || (
+                    (stats?.averageUptime || 99.5) >= 99
+                      ? "compliant"
+                      : (stats?.averageUptime || 99.5) >= 97
+                      ? "warning"
+                      : "non_compliant"
+                  )}
+                />
+                <SLACompactCard
+                  title="Latência"
+                  current={latency?.current || stats?.averageLatency || 45}
+                  target={latency?.target || "≤ 80ms"}
+                  status={latency?.status || (
+                    (stats?.averageLatency || 45) <= 80
+                      ? "compliant"
+                      : (stats?.averageLatency || 45) <= 100
+                      ? "warning"
+                      : "non_compliant"
+                  )}
+                  unit="ms"
+                />
+                <SLACompactCard
+                  title="Perda de Pacotes"
+                  current={packetLoss?.current || 0.5}
+                  target={packetLoss?.target || "≤ 2%"}
+                  status={packetLoss?.status || "compliant"}
+                />
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
