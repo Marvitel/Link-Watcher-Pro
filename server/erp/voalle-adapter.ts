@@ -5,11 +5,19 @@ interface VoalleAuthResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  refresh_token?: string;
+}
+
+interface VoalleProviderConfig {
+  apiUsername?: string;
+  apiPassword?: string;
+  apiSynData?: string;
 }
 
 export class VoalleAdapter implements ErpAdapter {
   readonly provider = "voalle";
   private config: ErpIntegration | null = null;
+  private providerConfig: VoalleProviderConfig | null = null;
   private accessToken: string | null = null;
   private tokenExpiresAt: Date | null = null;
 
@@ -23,11 +31,31 @@ export class VoalleAdapter implements ErpAdapter {
       apiUrl = apiUrl.replace(/:(\d+)$/, "");
     }
     this.config = { ...config, apiUrl };
+    
+    // Parse providerConfig for Voalle-specific credentials
+    if (config.providerConfig) {
+      try {
+        this.providerConfig = JSON.parse(config.providerConfig);
+      } catch {
+        this.providerConfig = null;
+      }
+    } else {
+      this.providerConfig = null;
+    }
+    
     this.accessToken = null;
     this.tokenExpiresAt = null;
   }
 
   isConfigured(): boolean {
+    // Check if we have password grant credentials (preferred)
+    if (this.config && this.config.apiUrl && this.providerConfig) {
+      const { apiUsername, apiPassword, apiSynData } = this.providerConfig;
+      if (apiUsername && apiPassword && apiSynData) {
+        return true;
+      }
+    }
+    // Fallback to client_credentials if configured
     return this.config !== null &&
       this.config.apiUrl !== "" &&
       this.config.apiClientId !== "" &&
@@ -45,6 +73,39 @@ export class VoalleAdapter implements ErpAdapter {
 
     const authUrl = `${this.config.apiUrl}:45700/connect/token`;
 
+    // Check if we should use password grant (preferred method)
+    if (this.providerConfig?.apiUsername && this.providerConfig?.apiPassword && this.providerConfig?.apiSynData) {
+      const body = new URLSearchParams({
+        grant_type: "password",
+        scope: "syngw synpaygw offline_access",
+        client_id: "synauth",
+        client_secret: "df956154024a425eb80f1a2fc12fef0c",
+        username: this.providerConfig.apiUsername,
+        password: this.providerConfig.apiPassword,
+        syndata: this.providerConfig.apiSynData,
+      });
+
+      const response = await fetch(authUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Falha na autenticação Voalle (password): ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json() as VoalleAuthResponse;
+      this.accessToken = data.access_token;
+      this.tokenExpiresAt = new Date(Date.now() + (data.expires_in - 60) * 1000);
+
+      return this.accessToken;
+    }
+
+    // Fallback to client_credentials grant
     const body = new URLSearchParams({
       grant_type: "client_credentials",
       scope: "syngw",
