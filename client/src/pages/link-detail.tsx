@@ -183,10 +183,15 @@ export default function LinkDetail() {
     );
   }
 
-  // Proteção contra valores nulos/undefined
-  const safeUptime = link.uptime ?? 0;
-  const safeLatency = link.latency ?? 0;
-  const safePacketLoss = link.packetLoss ?? 0;
+  // Usar valores do SLA calculado quando disponíveis (mais precisos)
+  const slaDE = slaIndicators?.find(i => i.id === "sla-de");
+  const slaLAT = slaIndicators?.find(i => i.id === "sla-lat");
+  const slaDP = slaIndicators?.find(i => i.id === "sla-dp");
+  
+  // Proteção contra valores nulos/undefined - priorizar SLA calculado
+  const safeUptime = slaDE?.current ?? link.uptime ?? 0;
+  const safeLatency = slaLAT?.current ?? link.latency ?? 0;
+  const safePacketLoss = slaDP?.current ?? link.packetLoss ?? 0;
   const safeCurrentDownload = link.currentDownload ?? 0;
   const safeCurrentUpload = link.currentUpload ?? 0;
   const safeBandwidth = link.bandwidth ?? 1;
