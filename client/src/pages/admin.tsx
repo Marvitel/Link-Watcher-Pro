@@ -46,7 +46,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import type { Link, Client, User, Olt } from "@shared/schema";
+import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
+import { Database, Globe, Plug } from "lucide-react";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -1273,6 +1274,538 @@ function VoalleIntegration({ clients }: { clients: Client[] }) {
   );
 }
 
+const ERP_PROVIDERS = [
+  { value: "voalle", label: "Voalle" },
+  { value: "ixc", label: "IXC Soft" },
+  { value: "sgp", label: "SGP" },
+];
+
+const CONNECTION_TYPES = [
+  { value: "api", label: "API REST" },
+  { value: "database", label: "Banco de Dados" },
+];
+
+const DB_TYPES = [
+  { value: "mysql", label: "MySQL" },
+  { value: "postgresql", label: "PostgreSQL" },
+  { value: "sqlserver", label: "SQL Server" },
+];
+
+function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingIntegration, setEditingIntegration] = useState<ErpIntegration | null>(null);
+  const [showSecrets, setShowSecrets] = useState(false);
+  const [testingId, setTestingId] = useState<number | null>(null);
+
+  const { data: integrations, isLoading, refetch } = useQuery<ErpIntegration[]>({
+    queryKey: ["/api/erp-integrations"],
+  });
+
+  const [formData, setFormData] = useState({
+    name: "",
+    provider: "voalle",
+    connectionType: "api",
+    isActive: true,
+    isDefault: false,
+    apiUrl: "",
+    apiClientId: "",
+    apiClientSecret: "",
+    apiSynV1Token: "",
+    dbHost: "",
+    dbPort: 3306,
+    dbName: "",
+    dbUser: "",
+    dbPassword: "",
+    dbType: "mysql",
+    defaultSolicitationTypeCode: "",
+    autoCreateTicket: false,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      provider: "voalle",
+      connectionType: "api",
+      isActive: true,
+      isDefault: false,
+      apiUrl: "",
+      apiClientId: "",
+      apiClientSecret: "",
+      apiSynV1Token: "",
+      dbHost: "",
+      dbPort: 3306,
+      dbName: "",
+      dbUser: "",
+      dbPassword: "",
+      dbType: "mysql",
+      defaultSolicitationTypeCode: "",
+      autoCreateTicket: false,
+    });
+    setEditingIntegration(null);
+    setShowSecrets(false);
+  };
+
+  const openEditDialog = (integration: ErpIntegration) => {
+    setEditingIntegration(integration);
+    setFormData({
+      name: integration.name,
+      provider: integration.provider,
+      connectionType: integration.connectionType,
+      isActive: integration.isActive,
+      isDefault: integration.isDefault,
+      apiUrl: integration.apiUrl || "",
+      apiClientId: integration.apiClientId || "",
+      apiClientSecret: "",
+      apiSynV1Token: "",
+      dbHost: integration.dbHost || "",
+      dbPort: integration.dbPort || 3306,
+      dbName: integration.dbName || "",
+      dbUser: integration.dbUser || "",
+      dbPassword: "",
+      dbType: integration.dbType || "mysql",
+      defaultSolicitationTypeCode: integration.defaultSolicitationTypeCode || "",
+      autoCreateTicket: integration.autoCreateTicket,
+    });
+    setDialogOpen(true);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest("POST", "/api/erp-integrations", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/erp-integrations"] });
+      setDialogOpen(false);
+      resetForm();
+      toast({ title: "Integração ERP criada com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar integração ERP", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { id: number; data: typeof formData }) => {
+      return await apiRequest("PATCH", `/api/erp-integrations/${data.id}`, data.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/erp-integrations"] });
+      setDialogOpen(false);
+      resetForm();
+      toast({ title: "Integração ERP atualizada com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar integração ERP", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest("DELETE", `/api/erp-integrations/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/erp-integrations"] });
+      toast({ title: "Integração ERP removida com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao remover integração ERP", variant: "destructive" });
+    },
+  });
+
+  const handleTestConnection = async (id: number) => {
+    setTestingId(id);
+    try {
+      const response = await fetch(`/api/erp-integrations/${id}/test`, { method: "POST" });
+      const result = await response.json();
+      if (result.success) {
+        toast({ title: "Conexão bem-sucedida", description: result.message });
+      } else {
+        toast({ title: "Falha na conexão", description: result.message, variant: "destructive" });
+      }
+      refetch();
+    } catch {
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleSave = () => {
+    if (editingIntegration) {
+      // Filter out empty secret fields to preserve existing values on backend
+      const updateData: Record<string, unknown> = { ...formData };
+      if (!formData.apiClientSecret) delete updateData.apiClientSecret;
+      if (!formData.apiSynV1Token) delete updateData.apiSynV1Token;
+      if (!formData.dbPassword) delete updateData.dbPassword;
+      updateMutation.mutate({ id: editingIntegration.id, data: updateData as typeof formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Plug className="w-5 h-5" />
+            Integrações ERP Globais
+          </div>
+          <Button
+            size="sm"
+            onClick={() => { resetForm(); setDialogOpen(true); }}
+            data-testid="button-add-erp-integration"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Integração
+          </Button>
+        </CardTitle>
+        <CardDescription>
+          Configure integrações globais com sistemas ERP (Voalle, IXC, SGP)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">Carregando integrações...</div>
+        ) : integrations && integrations.length > 0 ? (
+          <div className="space-y-3">
+            {integrations.map((integration) => (
+              <div
+                key={integration.id}
+                className="flex items-center justify-between p-4 border rounded-lg"
+                data-testid={`erp-integration-${integration.id}`}
+              >
+                <div className="flex items-center gap-3">
+                  {integration.connectionType === "api" ? (
+                    <Globe className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <Database className="w-5 h-5 text-muted-foreground" />
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{integration.name}</span>
+                      <Badge variant="outline">
+                        {ERP_PROVIDERS.find(p => p.value === integration.provider)?.label}
+                      </Badge>
+                      {integration.isDefault && (
+                        <Badge variant="default">Padrão</Badge>
+                      )}
+                      {!integration.isActive && (
+                        <Badge variant="secondary">Inativo</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                      <span>{CONNECTION_TYPES.find(t => t.value === integration.connectionType)?.label}</span>
+                      {integration.lastTestedAt && (
+                        <>
+                          <span>|</span>
+                          <span className="flex items-center gap-1">
+                            {integration.lastTestStatus === "success" ? (
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <XCircle className="w-3 h-3 text-red-500" />
+                            )}
+                            Último teste: {new Date(integration.lastTestedAt).toLocaleString("pt-BR")}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTestConnection(integration.id)}
+                    disabled={testingId === integration.id}
+                    data-testid={`button-test-erp-${integration.id}`}
+                  >
+                    {testingId === integration.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEditDialog(integration)}
+                    data-testid={`button-edit-erp-${integration.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteMutation.mutate(integration.id)}
+                    data-testid={`button-delete-erp-${integration.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Plug className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhuma integração ERP configurada.</p>
+            <p className="text-sm">Clique em "Nova Integração" para começar.</p>
+          </div>
+        )}
+
+        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingIntegration ? "Editar Integração ERP" : "Nova Integração ERP"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Voalle Produção"
+                    data-testid="input-erp-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sistema ERP</Label>
+                  <Select
+                    value={formData.provider}
+                    onValueChange={(value) => setFormData({ ...formData, provider: value })}
+                  >
+                    <SelectTrigger data-testid="select-erp-provider">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ERP_PROVIDERS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Conexão</Label>
+                  <Select
+                    value={formData.connectionType}
+                    onValueChange={(value) => setFormData({ ...formData, connectionType: value })}
+                  >
+                    <SelectTrigger data-testid="select-erp-connection-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONNECTION_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-4 pt-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.isActive}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                      data-testid="switch-erp-active"
+                    />
+                    <Label>Ativo</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.isDefault}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
+                      data-testid="switch-erp-default"
+                    />
+                    <Label>Padrão</Label>
+                  </div>
+                </div>
+              </div>
+
+              {formData.connectionType === "api" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>URL da API</Label>
+                    <Input
+                      value={formData.apiUrl}
+                      onChange={(e) => setFormData({ ...formData, apiUrl: e.target.value })}
+                      placeholder="https://erp.empresa.com.br"
+                      data-testid="input-erp-api-url"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Client ID</Label>
+                      <Input
+                        value={formData.apiClientId}
+                        onChange={(e) => setFormData({ ...formData, apiClientId: e.target.value })}
+                        placeholder="ID do cliente integrador"
+                        data-testid="input-erp-client-id"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Client Secret</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type={showSecrets ? "text" : "password"}
+                          value={formData.apiClientSecret}
+                          onChange={(e) => setFormData({ ...formData, apiClientSecret: e.target.value })}
+                          placeholder={editingIntegration ? "Deixe vazio para manter" : "Secret do cliente"}
+                          data-testid="input-erp-client-secret"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowSecrets(!showSecrets)}
+                        >
+                          {showSecrets ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  {formData.provider === "voalle" && (
+                    <div className="space-y-2">
+                      <Label>Token SynV1 (opcional)</Label>
+                      <Input
+                        type={showSecrets ? "text" : "password"}
+                        value={formData.apiSynV1Token}
+                        onChange={(e) => setFormData({ ...formData, apiSynV1Token: e.target.value })}
+                        placeholder="Token syn-v1 se necessário"
+                        data-testid="input-erp-syn-token"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {formData.connectionType === "database" && (
+                <>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de Banco</Label>
+                      <Select
+                        value={formData.dbType}
+                        onValueChange={(value) => setFormData({ ...formData, dbType: value })}
+                      >
+                        <SelectTrigger data-testid="select-erp-db-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DB_TYPES.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Host</Label>
+                      <Input
+                        value={formData.dbHost}
+                        onChange={(e) => setFormData({ ...formData, dbHost: e.target.value })}
+                        placeholder="192.168.1.100"
+                        data-testid="input-erp-db-host"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Porta</Label>
+                      <Input
+                        type="number"
+                        value={formData.dbPort}
+                        onChange={(e) => setFormData({ ...formData, dbPort: parseInt(e.target.value) || 3306 })}
+                        data-testid="input-erp-db-port"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Banco de Dados</Label>
+                      <Input
+                        value={formData.dbName}
+                        onChange={(e) => setFormData({ ...formData, dbName: e.target.value })}
+                        placeholder="nome_banco"
+                        data-testid="input-erp-db-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Usuário</Label>
+                      <Input
+                        value={formData.dbUser}
+                        onChange={(e) => setFormData({ ...formData, dbUser: e.target.value })}
+                        placeholder="usuario"
+                        data-testid="input-erp-db-user"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Senha</Label>
+                      <Input
+                        type={showSecrets ? "text" : "password"}
+                        value={formData.dbPassword}
+                        onChange={(e) => setFormData({ ...formData, dbPassword: e.target.value })}
+                        placeholder={editingIntegration ? "Deixe vazio para manter" : "senha"}
+                        data-testid="input-erp-db-password"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-medium">Configurações de Chamados</h4>
+                <div className="space-y-2">
+                  <Label>Código do Tipo de Solicitação</Label>
+                  <Input
+                    value={formData.defaultSolicitationTypeCode}
+                    onChange={(e) => setFormData({ ...formData, defaultSolicitationTypeCode: e.target.value })}
+                    placeholder="Ex: suporte_link"
+                    data-testid="input-erp-solicitation-code"
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <p className="font-medium">Abertura Automática de Chamados</p>
+                    <p className="text-xs text-muted-foreground">
+                      Criar automaticamente chamado ao detectar incidente
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.autoCreateTicket}
+                    onCheckedChange={(checked) => setFormData({ ...formData, autoCreateTicket: checked })}
+                    data-testid="switch-erp-auto-ticket"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={createMutation.isPending || updateMutation.isPending || !formData.name}
+                data-testid="button-save-erp"
+              >
+                {(createMutation.isPending || updateMutation.isPending) && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Admin() {
   const { toast } = useToast();
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
@@ -1732,8 +2265,8 @@ export default function Admin() {
             </p>
           </div>
 
+          <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
-          <VoalleIntegration clients={clients || []} />
         </TabsContent>
 
         <TabsContent value="users-groups" className="space-y-4">

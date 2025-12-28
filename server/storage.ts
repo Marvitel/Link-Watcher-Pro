@@ -19,6 +19,8 @@ import {
   clientEventSettings,
   equipmentVendors,
   olts,
+  erpIntegrations,
+  clientErpMappings,
   type Client,
   type User,
   type Link,
@@ -39,6 +41,8 @@ import {
   type ClientEventSetting,
   type EquipmentVendor,
   type Olt,
+  type ErpIntegration,
+  type ClientErpMapping,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -52,6 +56,8 @@ import {
   type InsertEventType,
   type InsertClientEventSetting,
   type InsertOlt,
+  type InsertErpIntegration,
+  type InsertClientErpMapping,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -1169,6 +1175,121 @@ export class DatabaseStorage {
 
   async deleteOlt(id: number): Promise<void> {
     await db.delete(olts).where(eq(olts.id, id));
+  }
+
+  // ============ ERP Integrations ============
+  
+  async getErpIntegrations(): Promise<ErpIntegration[]> {
+    return db.select().from(erpIntegrations).orderBy(erpIntegrations.name);
+  }
+
+  async getErpIntegration(id: number): Promise<ErpIntegration | undefined> {
+    const result = await db.select().from(erpIntegrations).where(eq(erpIntegrations.id, id));
+    return result[0];
+  }
+
+  async getErpIntegrationByProvider(provider: string): Promise<ErpIntegration | undefined> {
+    const result = await db.select().from(erpIntegrations)
+      .where(and(eq(erpIntegrations.provider, provider), eq(erpIntegrations.isActive, true)))
+      .orderBy(desc(erpIntegrations.isDefault));
+    return result[0];
+  }
+
+  async getDefaultErpIntegration(): Promise<ErpIntegration | undefined> {
+    const result = await db.select().from(erpIntegrations)
+      .where(and(eq(erpIntegrations.isDefault, true), eq(erpIntegrations.isActive, true)));
+    return result[0];
+  }
+
+  async createErpIntegration(data: InsertErpIntegration): Promise<ErpIntegration> {
+    // If this is being set as default, unset other defaults
+    if (data.isDefault) {
+      await db.update(erpIntegrations).set({ isDefault: false });
+    }
+    const result = await db.insert(erpIntegrations).values(data).returning();
+    return result[0];
+  }
+
+  async updateErpIntegration(id: number, data: Partial<InsertErpIntegration>): Promise<ErpIntegration | undefined> {
+    // If this is being set as default, unset other defaults
+    if (data.isDefault) {
+      await db.update(erpIntegrations).set({ isDefault: false }).where(sql`${erpIntegrations.id} != ${id}`);
+    }
+    const result = await db.update(erpIntegrations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(erpIntegrations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteErpIntegration(id: number): Promise<void> {
+    // First delete related mappings
+    await db.delete(clientErpMappings).where(eq(clientErpMappings.erpIntegrationId, id));
+    await db.delete(erpIntegrations).where(eq(erpIntegrations.id, id));
+  }
+
+  async updateErpIntegrationTestStatus(id: number, status: string, error?: string): Promise<void> {
+    await db.update(erpIntegrations).set({
+      lastTestedAt: new Date(),
+      lastTestStatus: status,
+      lastTestError: error || null,
+      updatedAt: new Date(),
+    }).where(eq(erpIntegrations.id, id));
+  }
+
+  // ============ Client ERP Mappings ============
+
+  async getClientErpMappings(erpIntegrationId?: number): Promise<ClientErpMapping[]> {
+    if (erpIntegrationId) {
+      return db.select().from(clientErpMappings)
+        .where(eq(clientErpMappings.erpIntegrationId, erpIntegrationId))
+        .orderBy(clientErpMappings.clientId);
+    }
+    return db.select().from(clientErpMappings).orderBy(clientErpMappings.clientId);
+  }
+
+  async getClientErpMapping(clientId: number, erpIntegrationId?: number): Promise<ClientErpMapping | undefined> {
+    if (erpIntegrationId) {
+      const result = await db.select().from(clientErpMappings)
+        .where(and(
+          eq(clientErpMappings.clientId, clientId),
+          eq(clientErpMappings.erpIntegrationId, erpIntegrationId)
+        ));
+      return result[0];
+    }
+    // Get any active mapping for this client
+    const result = await db.select().from(clientErpMappings)
+      .where(and(eq(clientErpMappings.clientId, clientId), eq(clientErpMappings.isActive, true)));
+    return result[0];
+  }
+
+  async createClientErpMapping(data: InsertClientErpMapping): Promise<ClientErpMapping> {
+    const result = await db.insert(clientErpMappings).values(data).returning();
+    return result[0];
+  }
+
+  async updateClientErpMapping(id: number, data: Partial<InsertClientErpMapping>): Promise<ClientErpMapping | undefined> {
+    const result = await db.update(clientErpMappings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(clientErpMappings.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteClientErpMapping(id: number): Promise<void> {
+    await db.delete(clientErpMappings).where(eq(clientErpMappings.id, id));
+  }
+
+  async getClientErpMappingsByErpIntegration(erpIntegrationId: number): Promise<(ClientErpMapping & { client: Client | null })[]> {
+    const mappings = await db.select().from(clientErpMappings)
+      .where(eq(clientErpMappings.erpIntegrationId, erpIntegrationId));
+    
+    const result = await Promise.all(mappings.map(async (mapping) => {
+      const client = await this.getClient(mapping.clientId);
+      return { ...mapping, client: client || null };
+    }));
+    
+    return result;
   }
 }
 

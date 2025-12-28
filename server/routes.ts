@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { wanguardService } from "./wanguard";
 import { VoalleService } from "./voalle";
+import { getErpAdapter, configureErpAdapter, clearErpAdapter } from "./erp";
 import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { queryOltAlarm, testOltConnection } from "./olt";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
@@ -17,6 +18,8 @@ import {
   insertMibConfigSchema,
   insertClientEventSettingSchema,
   insertOltSchema,
+  insertErpIntegrationSchema,
+  insertClientErpMappingSchema,
   type AuthUser 
 } from "@shared/schema";
 
@@ -1259,12 +1262,8 @@ export async function registerRoutes(
 
   app.get("/api/olts", requireAuth, async (req, res) => {
     try {
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string, 10) : undefined;
-      if (!req.user?.isSuperAdmin && clientId && req.user?.clientId !== clientId) {
-        return res.status(403).json({ error: "Acesso negado" });
-      }
-      const filterClientId = req.user?.isSuperAdmin ? clientId : req.user?.clientId || undefined;
-      const oltList = await storage.getOlts(filterClientId);
+      // OLTs são recursos globais - disponíveis para todos os usuários autenticados
+      const oltList = await storage.getOlts();
       res.json(oltList);
     } catch (error) {
       res.status(500).json({ error: "Falha ao buscar OLTs" });
@@ -1277,9 +1276,7 @@ export async function registerRoutes(
       if (!olt) {
         return res.status(404).json({ error: "OLT não encontrada" });
       }
-      if (!req.user?.isSuperAdmin && req.user?.clientId !== olt.clientId) {
-        return res.status(403).json({ error: "Acesso negado" });
-      }
+      // OLTs são recursos globais - sem verificação de clientId
       res.json(olt);
     } catch (error) {
       res.status(500).json({ error: "Falha ao buscar OLT" });
@@ -1339,9 +1336,7 @@ export async function registerRoutes(
       if (!olt) {
         return res.status(404).json({ error: "OLT não encontrada" });
       }
-      if (!req.user?.isSuperAdmin && req.user?.clientId !== olt.clientId) {
-        return res.status(403).json({ error: "Acesso negado" });
-      }
+      // OLTs são recursos globais - disponível para todos os usuários autenticados
       const { onuId } = req.body;
       if (!onuId) {
         return res.status(400).json({ error: "ONU ID é obrigatório" });
@@ -1350,6 +1345,250 @@ export async function registerRoutes(
       res.json(diagnosis);
     } catch (error) {
       res.status(500).json({ error: "Falha ao consultar alarme" });
+    }
+  });
+
+  // ============ ERP Integrations Routes ============
+
+  app.get("/api/erp-integrations", requireSuperAdmin, async (req, res) => {
+    try {
+      const integrations = await storage.getErpIntegrations();
+      res.json(integrations.map(i => ({
+        ...i,
+        apiClientSecret: i.apiClientSecret ? "********" : null,
+        dbPassword: i.dbPassword ? "********" : null,
+      })));
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao listar integrações ERP" });
+    }
+  });
+
+  app.get("/api/erp-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getErpIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração ERP não encontrada" });
+      }
+      res.json({
+        ...integration,
+        apiClientSecret: integration.apiClientSecret ? "********" : null,
+        dbPassword: integration.dbPassword ? "********" : null,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar integração ERP" });
+    }
+  });
+
+  app.post("/api/erp-integrations", requireSuperAdmin, async (req, res) => {
+    try {
+      const data = insertErpIntegrationSchema.parse(req.body);
+      const integration = await storage.createErpIntegration(data);
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error("Error creating ERP integration:", error);
+      res.status(400).json({ error: "Dados de integração ERP inválidos" });
+    }
+  });
+
+  app.patch("/api/erp-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getErpIntegration(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Integração ERP não encontrada" });
+      }
+      
+      const updateData = { ...req.body };
+      if (updateData.apiClientSecret === "********") {
+        delete updateData.apiClientSecret;
+      }
+      if (updateData.dbPassword === "********") {
+        delete updateData.dbPassword;
+      }
+      
+      const integration = await storage.updateErpIntegration(id, updateData);
+      clearErpAdapter(id);
+      res.json(integration);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar integração ERP" });
+    }
+  });
+
+  app.delete("/api/erp-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteErpIntegration(id);
+      clearErpAdapter(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir integração ERP" });
+    }
+  });
+
+  app.post("/api/erp-integrations/:id/test", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getErpIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração ERP não encontrada" });
+      }
+
+      const adapter = configureErpAdapter(integration);
+      const result = await adapter.testConnection();
+      
+      await storage.updateErpIntegrationTestStatus(
+        id,
+        result.success ? "success" : "error",
+        result.success ? undefined : result.message
+      );
+
+      res.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido";
+      await storage.updateErpIntegrationTestStatus(
+        parseInt(req.params.id, 10),
+        "error",
+        message
+      );
+      res.status(500).json({ success: false, message });
+    }
+  });
+
+  app.get("/api/erp-integrations/:id/solicitation-types", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getErpIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração ERP não encontrada" });
+      }
+
+      const adapter = getErpAdapter(integration);
+      const types = await adapter.getSolicitationTypes();
+      res.json(types);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar tipos de solicitação" });
+    }
+  });
+
+  app.get("/api/erp-integrations/:id/customers/search", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getErpIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração ERP não encontrada" });
+      }
+
+      const query = req.query.q as string || "";
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+
+      const adapter = getErpAdapter(integration);
+      const customers = await adapter.searchCustomers(query);
+      res.json(customers);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar clientes no ERP" });
+    }
+  });
+
+  // ============ Client ERP Mappings Routes ============
+
+  app.get("/api/erp-integrations/:id/mappings", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const mappings = await storage.getClientErpMappingsByErpIntegration(id);
+      res.json(mappings);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao listar mapeamentos" });
+    }
+  });
+
+  app.post("/api/erp-integrations/:id/mappings", requireSuperAdmin, async (req, res) => {
+    try {
+      const erpIntegrationId = parseInt(req.params.id, 10);
+      const data = insertClientErpMappingSchema.parse({
+        ...req.body,
+        erpIntegrationId,
+      });
+      const mapping = await storage.createClientErpMapping(data);
+      res.status(201).json(mapping);
+    } catch (error) {
+      console.error("Error creating ERP mapping:", error);
+      res.status(400).json({ error: "Dados de mapeamento inválidos" });
+    }
+  });
+
+  app.patch("/api/client-erp-mappings/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const mapping = await storage.updateClientErpMapping(id, req.body);
+      res.json(mapping);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar mapeamento" });
+    }
+  });
+
+  app.delete("/api/client-erp-mappings/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteClientErpMapping(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir mapeamento" });
+    }
+  });
+
+  // ERP Ticket Creation (using global ERP integration)
+  app.post("/api/erp/create-ticket", requireAuth, async (req, res) => {
+    try {
+      const { incidentId, erpIntegrationId } = req.body;
+      
+      const incident = await storage.getIncident(incidentId);
+      if (!incident) {
+        return res.status(404).json({ error: "Incidente não encontrado" });
+      }
+
+      const link = await storage.getLink(incident.linkId!);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      let integration;
+      if (erpIntegrationId) {
+        integration = await storage.getErpIntegration(erpIntegrationId);
+      } else {
+        integration = await storage.getDefaultErpIntegration();
+      }
+
+      if (!integration) {
+        return res.status(400).json({ error: "Nenhuma integração ERP configurada" });
+      }
+
+      const adapter = getErpAdapter(integration);
+      
+      const clientMapping = await storage.getClientErpMapping(link.clientId, integration.id);
+
+      const result = await adapter.createTicket({
+        solicitationTypeCode: integration.defaultSolicitationTypeCode || "",
+        incident,
+        linkName: link.name,
+        linkLocation: link.location,
+        customerId: clientMapping?.erpCustomerId,
+      });
+
+      if (result.success && result.protocol) {
+        await storage.updateIncident(incidentId, {
+          erpSystem: integration.provider,
+          erpTicketId: result.protocol,
+          erpTicketStatus: "aberto",
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error creating ERP ticket:", error);
+      res.status(500).json({ error: "Falha ao criar chamado no ERP" });
     }
   });
 

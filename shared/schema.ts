@@ -400,6 +400,71 @@ export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 export type Olt = typeof olts.$inferSelect;
 
+// ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
+export const erpIntegrations = pgTable("erp_integrations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  provider: varchar("provider", { length: 20 }).notNull(), // voalle, ixc, sgp
+  connectionType: varchar("connection_type", { length: 20 }).notNull(), // api, database
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  
+  // API Configuration
+  apiUrl: text("api_url"),
+  apiAuthUrl: text("api_auth_url"),
+  apiClientId: varchar("api_client_id", { length: 255 }),
+  apiClientSecret: text("api_client_secret"),
+  apiToken: text("api_token"),
+  apiSynV1Token: text("api_syn_v1_token"), // Voalle specific
+  
+  // Database Configuration
+  dbHost: varchar("db_host", { length: 255 }),
+  dbPort: integer("db_port"),
+  dbName: varchar("db_name", { length: 100 }),
+  dbUser: varchar("db_user", { length: 100 }),
+  dbPassword: text("db_password"),
+  dbType: varchar("db_type", { length: 20 }), // mysql, postgresql, sqlserver
+  
+  // Provider-specific settings (JSON)
+  providerConfig: text("provider_config"), // JSON with provider-specific fields
+  
+  // Ticket/Solicitation settings
+  defaultSolicitationTypeCode: varchar("default_solicitation_type_code", { length: 50 }),
+  autoCreateTicket: boolean("auto_create_ticket").notNull().default(false),
+  
+  lastTestedAt: timestamp("last_tested_at"),
+  lastTestStatus: varchar("last_test_status", { length: 20 }), // success, error
+  lastTestError: text("last_test_error"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Mapping between Link Monitor clients and ERP customers
+export const clientErpMappings = pgTable("client_erp_mappings", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(), // Link Monitor client
+  erpIntegrationId: integer("erp_integration_id").notNull(), // Which ERP integration
+  erpCustomerId: varchar("erp_customer_id", { length: 100 }).notNull(), // Customer ID in ERP
+  erpCustomerCode: varchar("erp_customer_code", { length: 50 }), // Customer code in ERP
+  erpCustomerName: text("erp_customer_name"), // Cached customer name from ERP
+  isActive: boolean("is_active").notNull().default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertErpIntegrationSchema = createInsertSchema(erpIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertClientErpMappingSchema = createInsertSchema(clientErpMappings).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type InsertErpIntegration = z.infer<typeof insertErpIntegrationSchema>;
+export type InsertClientErpMapping = z.infer<typeof insertClientErpMappingSchema>;
+export type ErpIntegration = typeof erpIntegrations.$inferSelect;
+export type ClientErpMapping = typeof clientErpMappings.$inferSelect;
+
+export type ErpProvider = "voalle" | "ixc" | "sgp";
+export type ErpConnectionType = "api" | "database";
+
 export type UserRole = "admin" | "operator" | "viewer";
 export type LinkStatus = "operational" | "degraded" | "down" | "maintenance";
 export type HostStatus = "online" | "offline" | "degraded" | "unknown";
