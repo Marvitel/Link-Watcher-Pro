@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { useClientContext } from "@/lib/client-context";
 import { exportToPDF, exportToCSV } from "@/lib/export-utils";
@@ -18,17 +19,39 @@ import {
 import type { SLAIndicator, DashboardStats, Link } from "@shared/schema";
 import { useState } from "react";
 
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 export default function Reports() {
   const { selectedClientId, selectedClientName } = useClientContext();
   const { toast } = useToast();
   const [exporting, setExporting] = useState<"pdf" | "csv" | null>(null);
   
-  const slaUrl = selectedClientId ? `/api/sla?clientId=${selectedClientId}` : "/api/sla";
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // 1-indexed for API
+  
+  // Build URLs with client filter
+  const clientParam = selectedClientId ? `clientId=${selectedClientId}&` : "";
+  
+  // SLA Accumulated (default - for tab "Indicadores SLA")
+  const slaAccumulatedUrl = `/api/sla?${clientParam}type=accumulated`;
+  
+  // SLA Monthly (for selected month)
+  const slaMonthlyUrl = `/api/sla?${clientParam}type=monthly&year=${selectedYear}&month=${selectedMonth}`;
+  
   const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
   
-  const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
-    queryKey: [slaUrl],
+  const { data: slaAccumulated, isLoading: slaAccumulatedLoading } = useQuery<SLAIndicator[]>({
+    queryKey: [slaAccumulatedUrl],
+    refetchInterval: 30000,
+  });
+  
+  const { data: slaMonthly, isLoading: slaMonthlyLoading } = useQuery<SLAIndicator[]>({
+    queryKey: [slaMonthlyUrl],
     refetchInterval: 30000,
   });
 
@@ -39,9 +62,12 @@ export default function Reports() {
   const { data: links } = useQuery<Link[]>({
     queryKey: [linksUrl],
   });
+  
+  // Available years (last 2 years)
+  const availableYears = [now.getFullYear(), now.getFullYear() - 1];
 
   const handleExport = (type: "pdf" | "csv") => {
-    if (!slaIndicators || !stats || !links) {
+    if (!slaAccumulated || !stats || !links) {
       toast({
         title: "Dados não disponíveis",
         description: "Aguarde o carregamento dos dados antes de exportar.",
@@ -54,7 +80,7 @@ export default function Reports() {
     
     const reportData = {
       clientName: selectedClientName || "Todos os Clientes",
-      slaIndicators,
+      slaIndicators: slaAccumulated,
       stats,
       links,
       generatedAt: new Date(),
@@ -141,14 +167,14 @@ export default function Reports() {
         <TabsContent value="sla" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Acordo de Nível de Serviço (ANS/SLA)</CardTitle>
+              <CardTitle className="text-lg">Acordo de Nível de Serviço (ANS/SLA) - Acumulado</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Conforme especificado no item 5.2 do Termo de Referência, os serviços são
-                monitorados pelos seguintes indicadores:
+                Indicadores calculados com base no histórico completo de métricas (últimos 6 meses).
+                Conforme especificado no item 5.2 do Termo de Referência.
               </p>
-              {slaLoading ? (
+              {slaAccumulatedLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <Card key={i}>
@@ -163,7 +189,7 @@ export default function Reports() {
                   ))}
                 </div>
               ) : (
-                <SLAIndicators indicators={slaIndicators || []} />
+                <SLAIndicators indicators={slaAccumulated || []} />
               )}
             </CardContent>
           </Card>
@@ -272,57 +298,94 @@ export default function Reports() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Relatório Gerencial de Serviços
+                <Calendar className="w-5 h-5" />
+                Indicadores SLA - Mês Selecionado
               </CardTitle>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Baixar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={selectedMonth.toString()}
+                  onValueChange={(val) => setSelectedMonth(parseInt(val, 10))}
+                >
+                  <SelectTrigger className="w-[140px]" data-testid="select-month">
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_NAMES.map((name, idx) => (
+                      <SelectItem key={idx + 1} value={(idx + 1).toString()}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={selectedYear.toString()}
+                  onValueChange={(val) => setSelectedYear(parseInt(val, 10))}
+                >
+                  <SelectTrigger className="w-[100px]" data-testid="select-year">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Conforme item 7.1.1 do Termo de Referência, o relatório gerencial é apresentado
-                mensalmente ao Gestor do Contrato até o primeiro dia útil do mês subsequente.
+                Indicadores calculados para o período de {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}.
               </p>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-md border">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Relatório Dezembro 2025</p>
-                      <p className="text-xs text-muted-foreground">Gerado em 01/01/2026</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <Download className="w-4 h-4" />
-                  </Button>
+              {slaMonthlyLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Card key={i}>
+                      <CardHeader className="pb-2">
+                        <Skeleton className="h-4 w-32" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-24 mb-2" />
+                        <Skeleton className="h-2 w-full" />
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-md border">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Relatório Novembro 2025</p>
-                      <p className="text-xs text-muted-foreground">Gerado em 01/12/2025</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <Download className="w-4 h-4" />
-                  </Button>
+              ) : (
+                <SLAIndicators indicators={slaMonthly || []} />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Indicadores SLA - Acumulado (6 meses)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Indicadores acumulados considerando todo o período de retenção de dados.
+              </p>
+              {slaAccumulatedLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Card key={i}>
+                      <CardHeader className="pb-2">
+                        <Skeleton className="h-4 w-32" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-24 mb-2" />
+                        <Skeleton className="h-2 w-full" />
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-md border">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Relatório Outubro 2025</p>
-                      <p className="text-xs text-muted-foreground">Gerado em 01/11/2025</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <Download className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+              ) : (
+                <SLAIndicators indicators={slaAccumulated || []} />
+              )}
             </CardContent>
           </Card>
 
@@ -342,7 +405,9 @@ export default function Reports() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Dados disponíveis desde</span>
-                  <span className="font-mono font-medium">Julho 2025</span>
+                  <span className="font-mono font-medium">
+                    {MONTH_NAMES[new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000).getMonth()]} {new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000).getFullYear()}
+                  </span>
                 </div>
               </div>
             </CardContent>

@@ -72,10 +72,20 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
 }
 
-function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPacketLoss?: number): SLAIndicator[] {
-  const uptime = linkUptime ?? 99.85;
-  const latency = linkLatency ?? 45;
-  const packetLoss = linkPacketLoss ?? 0.45;
+interface SLACalculation {
+  availability: number;  // % de tempo operacional
+  avgLatency: number;    // latência média em ms
+  avgPacketLoss: number; // % perda de pacotes média
+  totalMetrics: number;  // total de amostras
+  operationalMetrics: number; // amostras com status "operational"
+  avgRepairTime: number; // tempo médio de reparo em horas
+}
+
+function buildSLAIndicators(calc: SLACalculation): SLAIndicator[] {
+  const uptime = calc.availability;
+  const latency = calc.avgLatency;
+  const packetLoss = calc.avgPacketLoss;
+  const repairTime = calc.avgRepairTime;
   
   return [
     {
@@ -124,11 +134,23 @@ function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPa
       description: "Tempo entre a abertura do chamado e o restabelecimento do serviço",
       formula: "N/A",
       target: "Máximo 6 horas",
-      current: 100,
+      current: repairTime <= 6 ? 100 : Math.max(0, 100 - ((repairTime - 6) * 10)),
       periodicity: "Mensal",
-      status: "compliant",
+      status: repairTime <= 6 ? "compliant" : repairTime <= 8 ? "warning" : "non_compliant",
     },
   ];
+}
+
+// Legacy function for backwards compatibility
+function generateSLAIndicators(linkUptime?: number, linkLatency?: number, linkPacketLoss?: number): SLAIndicator[] {
+  return buildSLAIndicators({
+    availability: linkUptime ?? 99.85,
+    avgLatency: linkLatency ?? 45,
+    avgPacketLoss: linkPacketLoss ?? 0.45,
+    totalMetrics: 0,
+    operationalMetrics: 0,
+    avgRepairTime: 2,
+  });
 }
 
 export class DatabaseStorage {
@@ -424,15 +446,141 @@ export class DatabaseStorage {
     return result.length;
   }
 
-  async getSLAIndicators(clientId?: number): Promise<SLAIndicator[]> {
+  async calculateSLAFromMetrics(clientId?: number, fromDate?: Date, toDate?: Date): Promise<SLACalculation> {
     const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
-    if (allLinks.length === 0) return generateSLAIndicators();
     
-    const avgUptime = allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length;
-    const avgLatency = allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length;
-    const avgPacketLoss = allLinks.reduce((sum, l) => sum + l.packetLoss, 0) / allLinks.length;
+    if (allLinks.length === 0) {
+      return {
+        availability: 0,
+        avgLatency: 0,
+        avgPacketLoss: 0,
+        totalMetrics: 0,
+        operationalMetrics: 0,
+        avgRepairTime: 0,
+      };
+    }
+
+    // Build date conditions
+    const conditions: any[] = [];
+    if (fromDate) {
+      conditions.push(gte(metrics.timestamp, fromDate));
+    }
+    if (toDate) {
+      conditions.push(lte(metrics.timestamp, toDate));
+    }
     
-    return generateSLAIndicators(avgUptime, avgLatency, avgPacketLoss);
+    // If no dates, use last 6 months (default retention)
+    if (!fromDate && !toDate) {
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      conditions.push(gte(metrics.timestamp, sixMonthsAgo));
+    }
+
+    // Filter by links of the client
+    const linkIds = allLinks.map(l => l.id);
+    
+    // Get all metrics for the period
+    let allMetrics: Metric[] = [];
+    for (const linkId of linkIds) {
+      const linkMetrics = await db
+        .select()
+        .from(metrics)
+        .where(and(
+          eq(metrics.linkId, linkId),
+          ...conditions
+        ));
+      allMetrics = allMetrics.concat(linkMetrics);
+    }
+
+    if (allMetrics.length === 0) {
+      // Fall back to current link values if no metrics
+      const avgUptime = allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length;
+      const avgLatency = allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length;
+      const avgPacketLoss = allLinks.reduce((sum, l) => sum + l.packetLoss, 0) / allLinks.length;
+      return {
+        availability: avgUptime,
+        avgLatency: avgLatency,
+        avgPacketLoss: avgPacketLoss,
+        totalMetrics: 0,
+        operationalMetrics: 0,
+        avgRepairTime: 2,
+      };
+    }
+
+    // Calculate availability: % of metrics where status is "operational"
+    const operationalMetrics = allMetrics.filter(m => m.status === "operational").length;
+    const availability = (operationalMetrics / allMetrics.length) * 100;
+
+    // Calculate average latency (ignoring zeros)
+    const latencyMetrics = allMetrics.filter(m => m.latency > 0);
+    const avgLatency = latencyMetrics.length > 0
+      ? latencyMetrics.reduce((sum, m) => sum + m.latency, 0) / latencyMetrics.length
+      : 0;
+
+    // Calculate average packet loss
+    const avgPacketLoss = allMetrics.reduce((sum, m) => sum + m.packetLoss, 0) / allMetrics.length;
+
+    // Calculate average repair time from incidents
+    const incidentConditions: any[] = [];
+    if (clientId) {
+      incidentConditions.push(eq(incidents.clientId, clientId));
+    }
+    if (fromDate) {
+      incidentConditions.push(gte(incidents.openedAt, fromDate));
+    }
+    if (toDate) {
+      incidentConditions.push(lte(incidents.openedAt, toDate));
+    }
+    
+    const closedIncidents = await db
+      .select()
+      .from(incidents)
+      .where(incidentConditions.length > 0 ? and(...incidentConditions, sql`${incidents.closedAt} IS NOT NULL`) : sql`${incidents.closedAt} IS NOT NULL`);
+    
+    let avgRepairTime = 2; // Default 2 hours if no incidents
+    if (closedIncidents.length > 0) {
+      const totalRepairHours = closedIncidents.reduce((sum, inc) => {
+        if (inc.closedAt && inc.openedAt) {
+          const diffMs = new Date(inc.closedAt).getTime() - new Date(inc.openedAt).getTime();
+          return sum + (diffMs / (1000 * 60 * 60)); // convert to hours
+        }
+        return sum;
+      }, 0);
+      avgRepairTime = totalRepairHours / closedIncidents.length;
+    }
+
+    return {
+      availability,
+      avgLatency,
+      avgPacketLoss,
+      totalMetrics: allMetrics.length,
+      operationalMetrics,
+      avgRepairTime,
+    };
+  }
+
+  async getSLAIndicators(clientId?: number, fromDate?: Date, toDate?: Date): Promise<SLAIndicator[]> {
+    const calc = await this.calculateSLAFromMetrics(clientId, fromDate, toDate);
+    return buildSLAIndicators(calc);
+  }
+  
+  async getSLAIndicatorsMonthly(clientId?: number, year?: number, month?: number): Promise<SLAIndicator[]> {
+    const now = new Date();
+    const targetYear = year ?? now.getFullYear();
+    const targetMonth = month ?? now.getMonth(); // 0-indexed
+    
+    const fromDate = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const toDate = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
+    
+    return this.getSLAIndicators(clientId, fromDate, toDate);
+  }
+  
+  async getSLAIndicatorsAccumulated(clientId?: number): Promise<SLAIndicator[]> {
+    // Use full retention period (6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    return this.getSLAIndicators(clientId, sixMonthsAgo, new Date());
   }
 
   async getDashboardStats(clientId?: number): Promise<DashboardStats> {

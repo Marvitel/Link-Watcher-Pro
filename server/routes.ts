@@ -521,7 +521,19 @@ export async function registerRoutes(
   app.get("/api/sla", requireAuth, async (req, res) => {
     try {
       const clientId = getEffectiveClientId(req);
-      const sla = await storage.getSLAIndicators(clientId);
+      const type = req.query.type as string | undefined; // "monthly" | "accumulated" | undefined
+      const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+      const month = req.query.month ? parseInt(req.query.month as string, 10) - 1 : undefined; // Convert 1-indexed to 0-indexed
+      
+      let sla;
+      if (type === "monthly") {
+        sla = await storage.getSLAIndicatorsMonthly(clientId, year, month);
+      } else if (type === "accumulated") {
+        sla = await storage.getSLAIndicatorsAccumulated(clientId);
+      } else {
+        // Default: accumulated (full period)
+        sla = await storage.getSLAIndicatorsAccumulated(clientId);
+      }
       res.json(sla);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch SLA indicators" });
