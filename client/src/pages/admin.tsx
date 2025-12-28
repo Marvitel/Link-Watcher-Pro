@@ -1312,6 +1312,9 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
     apiClientId: "",
     apiClientSecret: "",
     apiSynV1Token: "",
+    apiUsername: "",
+    apiPassword: "",
+    apiSynData: "",
     dbHost: "",
     dbPort: 3306,
     dbName: "",
@@ -1333,6 +1336,9 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       apiClientId: "",
       apiClientSecret: "",
       apiSynV1Token: "",
+      apiUsername: "",
+      apiPassword: "",
+      apiSynData: "",
       dbHost: "",
       dbPort: 3306,
       dbName: "",
@@ -1348,6 +1354,15 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
 
   const openEditDialog = (integration: ErpIntegration) => {
     setEditingIntegration(integration);
+    // Parse providerConfig for Voalle-specific fields
+    let providerConfigData: { apiUsername?: string; apiSynData?: string } = {};
+    if (integration.providerConfig) {
+      try {
+        providerConfigData = JSON.parse(integration.providerConfig);
+      } catch (e) {
+        console.error("Failed to parse providerConfig", e);
+      }
+    }
     setFormData({
       name: integration.name,
       provider: integration.provider,
@@ -1358,6 +1373,9 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       apiClientId: integration.apiClientId || "",
       apiClientSecret: "",
       apiSynV1Token: "",
+      apiUsername: providerConfigData.apiUsername || "",
+      apiPassword: "",
+      apiSynData: providerConfigData.apiSynData || "",
       dbHost: integration.dbHost || "",
       dbPort: integration.dbPort || 3306,
       dbName: integration.dbName || "",
@@ -1432,15 +1450,42 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
   };
 
   const handleSave = () => {
+    // Build providerConfig JSON for Voalle-specific fields
+    const providerConfig: Record<string, string> = {};
+    if (formData.provider === "voalle" && formData.connectionType === "api") {
+      if (formData.apiUsername) providerConfig.apiUsername = formData.apiUsername;
+      if (formData.apiPassword) providerConfig.apiPassword = formData.apiPassword;
+      if (formData.apiSynData) providerConfig.apiSynData = formData.apiSynData;
+    }
+    
+    // Build save data with providerConfig
+    const saveData: Record<string, unknown> = {
+      ...formData,
+      providerConfig: Object.keys(providerConfig).length > 0 ? JSON.stringify(providerConfig) : null,
+    };
+    
     if (editingIntegration) {
       // Filter out empty secret fields to preserve existing values on backend
-      const updateData: Record<string, unknown> = { ...formData };
-      if (!formData.apiClientSecret) delete updateData.apiClientSecret;
-      if (!formData.apiSynV1Token) delete updateData.apiSynV1Token;
-      if (!formData.dbPassword) delete updateData.dbPassword;
-      updateMutation.mutate({ id: editingIntegration.id, data: updateData as typeof formData });
+      if (!formData.apiClientSecret) delete saveData.apiClientSecret;
+      if (!formData.apiSynV1Token) delete saveData.apiSynV1Token;
+      if (!formData.dbPassword) delete saveData.dbPassword;
+      // Preserve existing providerConfig secrets if new ones not provided
+      if (formData.provider === "voalle" && formData.connectionType === "api") {
+        let existingConfig: Record<string, string> = {};
+        if (editingIntegration.providerConfig) {
+          try { existingConfig = JSON.parse(editingIntegration.providerConfig); } catch {}
+        }
+        const mergedConfig: Record<string, string> = { ...existingConfig };
+        if (formData.apiUsername) mergedConfig.apiUsername = formData.apiUsername;
+        if (formData.apiPassword) mergedConfig.apiPassword = formData.apiPassword;
+        else if (existingConfig.apiPassword) mergedConfig.apiPassword = existingConfig.apiPassword;
+        if (formData.apiSynData) mergedConfig.apiSynData = formData.apiSynData;
+        else if (existingConfig.apiSynData) mergedConfig.apiSynData = existingConfig.apiSynData;
+        saveData.providerConfig = Object.keys(mergedConfig).length > 0 ? JSON.stringify(mergedConfig) : null;
+      }
+      updateMutation.mutate({ id: editingIntegration.id, data: saveData as typeof formData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(saveData as typeof formData);
     }
   };
 
@@ -1672,16 +1717,49 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                     </div>
                   </div>
                   {formData.provider === "voalle" && (
-                    <div className="space-y-2">
-                      <Label>Token SynV1 (opcional)</Label>
-                      <Input
-                        type={showSecrets ? "text" : "password"}
-                        value={formData.apiSynV1Token}
-                        onChange={(e) => setFormData({ ...formData, apiSynV1Token: e.target.value })}
-                        placeholder="Token syn-v1 se necessário"
-                        data-testid="input-erp-syn-token"
-                      />
-                    </div>
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Usuário</Label>
+                          <Input
+                            value={formData.apiUsername}
+                            onChange={(e) => setFormData({ ...formData, apiUsername: e.target.value })}
+                            placeholder="CNPJ ou usuário integrador"
+                            data-testid="input-erp-username"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Senha</Label>
+                          <Input
+                            type={showSecrets ? "text" : "password"}
+                            value={formData.apiPassword}
+                            onChange={(e) => setFormData({ ...formData, apiPassword: e.target.value })}
+                            placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do usuário"}
+                            data-testid="input-erp-password"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>SynData</Label>
+                        <Input
+                          type={showSecrets ? "text" : "password"}
+                          value={formData.apiSynData}
+                          onChange={(e) => setFormData({ ...formData, apiSynData: e.target.value })}
+                          placeholder={editingIntegration ? "Deixe vazio para manter" : "Token SynData para autenticação"}
+                          data-testid="input-erp-syndata"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Token SynV1 (opcional)</Label>
+                        <Input
+                          type={showSecrets ? "text" : "password"}
+                          value={formData.apiSynV1Token}
+                          onChange={(e) => setFormData({ ...formData, apiSynV1Token: e.target.value })}
+                          placeholder="Token syn-v1 se necessário"
+                          data-testid="input-erp-syn-token"
+                        />
+                      </div>
+                    </>
                   )}
                 </>
               )}
