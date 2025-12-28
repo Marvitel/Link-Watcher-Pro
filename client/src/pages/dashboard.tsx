@@ -25,6 +25,7 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: ["/api/links", link.id, "metrics"],
     refetchInterval: 5000,
+    staleTime: 0, // Sempre buscar dados frescos
   });
 
   // Ordenar ASC por timestamp: mais antigo à esquerda, mais recente à direita
