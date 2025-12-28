@@ -279,7 +279,7 @@ export default function Reports() {
               <CardContent className="pt-4">
                 <p className="text-sm text-muted-foreground">Disponibilidade Média</p>
                 <p className="text-2xl font-semibold font-mono">
-                  {(stats?.averageUptime || 99.5).toFixed(2)}%
+                  {(slaAccumulated?.find(i => i.id === "sla-de")?.current ?? stats?.averageUptime ?? 99.5).toFixed(2)}%
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">Meta: ≥ 99%</p>
               </CardContent>
@@ -288,52 +288,56 @@ export default function Reports() {
               <CardContent className="pt-4">
                 <p className="text-sm text-muted-foreground">Latência Média</p>
                 <p className="text-2xl font-semibold font-mono">
-                  {(stats?.averageLatency || 45).toFixed(1)} ms
+                  {(slaAccumulated?.find(i => i.id === "sla-lat")?.current ?? stats?.averageLatency ?? 45).toFixed(1)} ms
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">Meta: ≤ 80ms</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-sm text-muted-foreground">Perda de Pacotes (núcleo)</p>
-                <p className="text-2xl font-semibold font-mono">0.3%</p>
-                <p className="text-xs text-green-600 dark:text-green-400">Meta: &lt; 1%</p>
+                <p className="text-sm text-muted-foreground">Perda de Pacotes</p>
+                <p className="text-2xl font-semibold font-mono">
+                  {(slaAccumulated?.find(i => i.id === "sla-dp")?.current ?? 0.3).toFixed(2)}%
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">Meta: ≤ 2%</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-sm text-muted-foreground">Latência Máxima (núcleo)</p>
-                <p className="text-2xl font-semibold font-mono">72 ms</p>
-                <p className="text-xs text-green-600 dark:text-green-400">Meta: ≤ 100ms</p>
+                <p className="text-sm text-muted-foreground">Prazo de Reparo</p>
+                <p className="text-2xl font-semibold font-mono">
+                  {(slaAccumulated?.find(i => i.id === "sla-repair")?.current ?? 100).toFixed(0)}%
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400">Meta: Máximo 6 horas</p>
               </CardContent>
             </Card>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Indicadores de Desempenho do Backbone</CardTitle>
+              <CardTitle className="text-lg">Indicadores de Desempenho - Dados Reais</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Conforme item 5.2.2 do Termo de Referência
+                Calculados a partir do histórico de métricas coletadas
               </p>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                  <span>Perda média de pacotes (núcleo)</span>
-                  <span className="font-mono font-medium text-green-600 dark:text-green-400">
-                    0.3% (Meta: &lt; 1%)
+                  <span>Perda média de pacotes</span>
+                  <span className={`font-mono font-medium ${(slaAccumulated?.find(i => i.id === "sla-dp")?.current ?? 0) <= 2 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {(slaAccumulated?.find(i => i.id === "sla-dp")?.current ?? 0).toFixed(2)}% (Meta: ≤ 2%)
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                  <span>Latência média mensal (núcleo)</span>
-                  <span className="font-mono font-medium text-green-600 dark:text-green-400">
-                    45 ms (Meta: ≤ 80ms)
+                  <span>Latência média</span>
+                  <span className={`font-mono font-medium ${(slaAccumulated?.find(i => i.id === "sla-lat")?.current ?? 0) <= 80 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {(slaAccumulated?.find(i => i.id === "sla-lat")?.current ?? 0).toFixed(1)} ms (Meta: ≤ 80ms)
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-md bg-muted/50">
-                  <span>Latência máxima (núcleo)</span>
-                  <span className="font-mono font-medium text-green-600 dark:text-green-400">
-                    72 ms (Meta: ≤ 100ms)
+                  <span>Disponibilidade do enlace</span>
+                  <span className={`font-mono font-medium ${(slaAccumulated?.find(i => i.id === "sla-de")?.current ?? 0) >= 99 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {(slaAccumulated?.find(i => i.id === "sla-de")?.current ?? 0).toFixed(2)}% (Meta: ≥ 99%)
                   </span>
                 </div>
               </div>
