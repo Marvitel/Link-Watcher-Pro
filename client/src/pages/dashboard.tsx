@@ -27,13 +27,15 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
     refetchInterval: 5000,
   });
 
-  // Inverter ordem: API retorna DESC (mais recente primeiro), mas timeline precisa ASC (mais antigo à esquerda)
-  const metricsHistory = metrics ? [...metrics].reverse().map((m) => ({
-    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
-    download: m.download,
-    upload: m.upload,
-    status: m.status,
-  })) : [];
+  // Ordenar ASC por timestamp: mais antigo à esquerda, mais recente à direita
+  const metricsHistory = metrics ? [...metrics]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((m) => ({
+      timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
+      download: m.download,
+      upload: m.upload,
+      status: m.status,
+    })) : [];
 
   return <LinkCard link={link} metricsHistory={metricsHistory} />;
 }
