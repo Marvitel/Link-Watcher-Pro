@@ -34,8 +34,8 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
         <StatusBadge status={link.status} />
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="h-32">
-          <BandwidthChart data={metricsHistory} height={128} showAxes={true} />
+        <div className="h-24">
+          <BandwidthChart data={metricsHistory} height={96} />
         </div>
         
         <div className="grid grid-cols-2 gap-4">

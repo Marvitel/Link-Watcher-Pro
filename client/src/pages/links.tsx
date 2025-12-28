@@ -18,14 +18,18 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: [`/api/links/${link.id}/metrics`],
     refetchInterval: 5000,
+    staleTime: 0,
   });
 
-  const metricsHistory = metrics?.map((m) => ({
-    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
-    download: m.download,
-    upload: m.upload,
-    status: m.status,
-  })) || [];
+  // Ordenar ASC por timestamp: mais antigo à esquerda, mais recente à direita
+  const metricsHistory = metrics ? [...metrics]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((m) => ({
+      timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
+      download: m.download,
+      upload: m.upload,
+      status: m.status,
+    })) : [];
 
   return <LinkCard link={link} metricsHistory={metricsHistory} />;
 }
