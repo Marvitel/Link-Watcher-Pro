@@ -1897,6 +1897,7 @@ export default function Admin() {
     slug: "",
     cnpj: "",
     isActive: true,
+    voalleCustomerId: "" as string | number,
   });
 
   // Estados para importação de clientes do Voalle
@@ -1994,7 +1995,7 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       setClientDialogOpen(false);
       setEditingClient(undefined);
-      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
       toast({ title: "Cliente criado com sucesso" });
     },
     onError: () => {
@@ -2010,7 +2011,7 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       setClientDialogOpen(false);
       setEditingClient(undefined);
-      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
       toast({ title: "Cliente atualizado com sucesso" });
     },
     onError: () => {
@@ -2112,10 +2113,14 @@ export default function Admin() {
   };
 
   const handleSaveClient = () => {
+    const dataToSend = {
+      ...clientFormData,
+      voalleCustomerId: clientFormData.voalleCustomerId ? Number(clientFormData.voalleCustomerId) : null,
+    };
     if (editingClient) {
-      updateClientMutation.mutate({ id: editingClient.id, data: clientFormData });
+      updateClientMutation.mutate({ id: editingClient.id, data: dataToSend });
     } else {
-      createClientMutation.mutate(clientFormData);
+      createClientMutation.mutate(dataToSend);
     }
   };
 
@@ -2126,6 +2131,7 @@ export default function Admin() {
       slug: client.slug,
       cnpj: client.cnpj || "",
       isActive: client.isActive,
+      voalleCustomerId: client.voalleCustomerId || "",
     });
     setClientDialogOpen(true);
   };
@@ -2439,7 +2445,7 @@ export default function Admin() {
                 setClientDialogOpen(open);
                 if (!open) {
                   setEditingClient(undefined);
-                  setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+                  setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
                 }
               }}>
                 <DialogTrigger asChild>
@@ -2482,6 +2488,20 @@ export default function Admin() {
                       placeholder="00.000.000/0001-00"
                       data-testid="input-client-cnpj"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-voalle-id">ID do Cliente no Voalle (Opcional)</Label>
+                    <Input
+                      id="client-voalle-id"
+                      type="number"
+                      value={clientFormData.voalleCustomerId}
+                      onChange={(e) => setClientFormData({ ...clientFormData, voalleCustomerId: e.target.value })}
+                      placeholder="Ex: 12345"
+                      data-testid="input-client-voalle-id"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Vincule este cliente ao cadastro do Voalle para integração automática
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
