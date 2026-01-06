@@ -1,0 +1,15 @@
+rrentDownload":0.18075316,"currentUpload":0.48160225,"latency":1.83,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2026-01-06T19:57:38.864Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"}]
+jan 06 16:57:42 link-monitor npm[4391]: [Monitor] Sede Administrativa: latency=2.1ms, loss=0.0%, down=0.17Mbps, up=0.39Mbps, cpu=21.0%, mem=0.0%, status=operational
+jan 06 16:57:45 link-monitor npm[4391]: [SNMP Discovery] Starting discovery for 100.65.131.122 with timeout 15000ms
+jan 06 16:58:04 link-monitor npm[4391]: [Monitor] BGP 20G : latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 16:58:05 link-monitor npm[4391]: [SNMP Discovery] Failed for 100.65.131.122 after 20004ms: Error: Timeout walking OID 1.3.6.1.2.1.2.2.1.1
+jan 06 16:58:05 link-monitor npm[4391]:     at Timeout.<anonymous> (/opt/link-monitor/dist/index.cjs:224:3107)
+jan 06 16:58:05 link-monitor npm[4391]:     at listOnTimeout (node:internal/timers:581:17)
+jan 06 16:58:05 link-monitor npm[4391]:     at process.processTimers (node:internal/timers:519:7)
+jan 06 16:58:05 link-monitor npm[4391]: SNMP discovery error: Error: Timeout walking OID 1.3.6.1.2.1.2.2.1.1
+jan 06 16:58:05 link-monitor npm[4391]:     at Timeout.<anonymous> (/opt/link-monitor/dist/index.cjs:224:3107)
+jan 06 16:58:05 link-monitor npm[4391]:     at listOnTimeout (node:internal/timers:581:17)
+jan 06 16:58:05 link-monitor npm[4391]:     at process.processTimers (node:internal/timers:519:7)
+jan 06 16:58:05 link-monitor npm[4391]: 4:58:05 PM [express] POST /api/snmp/discover-interfaces 504 in 20030ms :: {"error":"Tempo esgotado ao conectar ao dispositivo SNMP"}
+jan 06 16:58:08 link-monitor npm[4391]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.11Mbps, up=0.32Mbps, cpu=20.0%, mem=0.0%, status=operational
+jan 06 16:58:12 link-monitor npm[4391]: 4:58:12 PM [express] GET /api/links 200 in 9ms :: [{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administrativa","location
