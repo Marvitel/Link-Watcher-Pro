@@ -207,7 +207,7 @@ export class VoalleAdapter implements ErpAdapter {
           page: number;
           pageSize: number;
         };
-      }>("GET", `/getclient?page=1&pageSize=100`);
+      }>("GET", `/getclient?page=1&pageSize=500`);
 
       console.log("[Voalle Search] API response:", JSON.stringify(result).substring(0, 500));
 
