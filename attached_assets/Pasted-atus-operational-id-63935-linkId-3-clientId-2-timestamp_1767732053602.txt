@@ -1,0 +1,27 @@
+atus":"operational"},{"id":63935,"linkId":3,"clientId":2,"timestamp":"2026-01-06T19:38:52.832Z","download":0,"upload":0,"latency":1.557,"packetLoss":0,"cpuUsage":0,"memoryUsage":0,"errorRate":0,"status":"operational"},{"id":63932,"linkId":3,"clientId":2,"timestamp":"2026-01-06T19:38:22.814Z","download":0,"upload":0,"latency":1.637,"packetLoss":0,"cpuUsage":0,"memoryUsage":0,"errorRate":0,"status":"operational"}]
+jan 06 17:38:06 link-monitor npm[5485]: SNMP error for 100.65.131.122: Socket forcibly closed
+jan 06 17:38:13 link-monitor npm[5485]: [Monitor] Link IP BGP 20G: latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 17:38:17 link-monitor npm[5485]: [Monitor] Sede Administrativa: latency=2.3ms, loss=0.0%, down=0.48Mbps, up=1.84Mbps, cpu=31.0%, mem=0.0%, status=operational
+jan 06 17:38:22 link-monitor npm[5485]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.58Mbps, up=2.87Mbps, cpu=33.0%, mem=0.0%, status=operational
+jan 06 17:38:36 link-monitor npm[5485]: SNMP error for 100.65.131.122: Socket forcibly closed
+jan 06 17:38:43 link-monitor npm[5485]: [Monitor] Link IP BGP 20G: latency=1.6ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 17:38:48 link-monitor npm[5485]: [Monitor] Sede Administrativa: latency=3.2ms, loss=0.0%, down=0.43Mbps, up=3.09Mbps, cpu=34.0%, mem=0.0%, status=operational
+jan 06 17:38:52 link-monitor npm[5485]: [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.23Mbps, up=1.65Mbps, cpu=36.0%, mem=0.0%, status=operational
+jan 06 17:39:06 link-monitor npm[5485]: SNMP error for 100.65.131.122: Socket forcibly closed
+jan 06 17:39:13 link-monitor npm[5485]: [Monitor] Link IP BGP 20G: latency=1.6ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 17:39:18 link-monitor npm[5485]: [Monitor] Sede Administrativa: latency=2.0ms, loss=0.0%, down=0.19Mbps, up=0.40Mbps, cpu=34.0%, mem=0.0%, status=operational
+jan 06 17:39:22 link-monitor npm[5485]: [Monitor] Central de Atendimento: latency=2.2ms, loss=0.0%, down=0.16Mbps, up=0.40Mbps, cpu=35.0%, mem=0.0%, status=operational
+jan 06 17:39:36 link-monitor npm[5485]: SNMP error for 100.65.131.122: Socket forcibly closed
+jan 06 17:39:43 link-monitor npm[5485]: [Monitor] Link IP BGP 20G: latency=1.6ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 17:39:47 link-monitor npm[5485]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.22Mbps, up=0.45Mbps, cpu=34.0%, mem=0.0%, status=operational
+jan 06 17:39:52 link-monitor npm[5485]: [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, down=0.17Mbps, up=0.40Mbps, cpu=35.0%, mem=0.0%, status=operational
+jan 06 17:40:06 link-monitor npm[5485]: SNMP error for 100.65.131.122: Socket forcibly closed
+jan 06 17:40:13 link-monitor npm[5485]: [Monitor] Link IP BGP 20G: latency=1.6ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 17:40:17 link-monitor npm[5485]: [Monitor] Sede Administrativa: latency=2.0ms, loss=0.0%, down=0.18Mbps, up=0.35Mbps, cpu=31.0%, mem=0.0%, status=operational
+jan 06 17:40:22 link-monitor npm[5485]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.16Mbps, up=0.42Mbps, cpu=22.0%, mem=0.0%, status=operational
+^C
+root@link-monitor:/opt/link-monitor# sudo -u postgres psql -d linkmonitor -c "SELECT l.name, h.ip, h.snmp_profile_id, h.snmp_interface_index FROM links l LEFT JOIN hosts h ON l.host_id = h.id WHERE l.snmp_enabled = true;"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  database "linkmonitor" does not exist
+root@link-monitor:/opt/link-monitor# sudo -u postgres psql -d linkmonitor -c "SELECT id, name, ip, snmp_profile_id, snmp_interface_index FROM hosts WHERE snmp_profile_id IS NOT NULL;"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  database "linkmonitor" does not exist
+root@link-monitor:/opt/link-monitor# 
