@@ -927,7 +927,23 @@ export async function registerRoutes(
         return res.json({ customers: [] });
       }
 
-      // Get first client with Voalle configured
+      // First try ERP Integrations (new system)
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      
+      if (voalleIntegration && voalleIntegration.isActive && voalleIntegration.apiUrl && voalleIntegration.apiClientId && voalleIntegration.apiClientSecret) {
+        const searchVoalleService = new VoalleService();
+        searchVoalleService.configure({
+          apiUrl: voalleIntegration.apiUrl,
+          clientId: voalleIntegration.apiClientId,
+          clientSecret: voalleIntegration.apiClientSecret,
+          synV1Token: voalleIntegration.apiSynV1Token || undefined,
+        });
+
+        const customers = await searchVoalleService.searchCustomers(query);
+        return res.json({ customers });
+      }
+
+      // Fallback: check client_settings (legacy)
       const allClients = await storage.getClients();
       let voalleConfigured = false;
       let configuredSettings: any = null;
@@ -944,7 +960,7 @@ export async function registerRoutes(
       if (!voalleConfigured || !configuredSettings) {
         return res.status(400).json({ 
           error: "Voalle não configurado", 
-          message: "Configure o Voalle nas integrações de algum cliente primeiro" 
+          message: "Configure o Voalle nas Integrações ERP Globais" 
         });
       }
 
