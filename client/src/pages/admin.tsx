@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useAuth } from "@/lib/auth";
+import { useAuth, getAuthToken } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2079,7 +2079,10 @@ export default function Admin() {
     
     setVoalleSearching(true);
     try {
-      const response = await fetch(`/api/voalle/customers/search?q=${encodeURIComponent(voalleSearchQuery)}`);
+      const token = getAuthToken();
+      const response = await fetch(`/api/voalle/customers/search?q=${encodeURIComponent(voalleSearchQuery)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || data.error || "Erro ao buscar clientes no Voalle");
