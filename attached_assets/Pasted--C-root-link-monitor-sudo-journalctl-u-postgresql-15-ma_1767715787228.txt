@@ -1,0 +1,52 @@
+^C
+root@link-monitor:~# sudo journalctl -u postgresql@15-main.service -n 20 --no-pager
+jan 06 12:31:28 link-monitor systemd[1]: Started postgresql@15-main.service - PostgreSQL Cluster 15-main.
+jan 06 12:44:08 link-monitor systemd[1]: Stopping postgresql@15-main.service - PostgreSQL Cluster 15-main...
+jan 06 12:45:09 link-monitor postgresql@15-main[284404]: pg_ctl: servidor não desligou
+jan 06 12:45:09 link-monitor systemd[1]: postgresql@15-main.service: Control process exited, code=exited, status=1/FAILURE
+-- Boot 1e96e0c4daf3413aac7bb816e938762f --
+jan 06 13:06:59 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+jan 06 13:07:01 link-monitor postgresql@15-main[515]: Removed stale pid file.
+jan 06 13:07:02 link-monitor postgresql@15-main[515]: Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1:
+jan 06 13:07:02 link-monitor systemd[1]: postgresql@15-main.service: Can't open PID file /run/postgresql/15-main.pid (yet?) after start: No such file or directory
+jan 06 13:07:02 link-monitor systemd[1]: postgresql@15-main.service: Failed with result 'protocol'.
+jan 06 13:07:02 link-monitor systemd[1]: Failed to start postgresql@15-main.service - PostgreSQL Cluster 15-main.
+jan 06 13:07:52 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+jan 06 13:07:52 link-monitor postgresql@15-main[818]: Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1:
+jan 06 13:07:52 link-monitor systemd[1]: postgresql@15-main.service: Can't open PID file /run/postgresql/15-main.pid (yet?) after start: No such file or directory
+jan 06 13:07:52 link-monitor systemd[1]: postgresql@15-main.service: Failed with result 'protocol'.
+jan 06 13:07:52 link-monitor systemd[1]: Failed to start postgresql@15-main.service - PostgreSQL Cluster 15-main.
+jan 06 13:08:06 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+jan 06 13:08:06 link-monitor postgresql@15-main[854]: Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1:
+jan 06 13:08:06 link-monitor systemd[1]: postgresql@15-main.service: Can't open PID file /run/postgresql/15-main.pid (yet?) after start: No such file or directory
+jan 06 13:08:06 link-monitor systemd[1]: postgresql@15-main.service: Failed with result 'protocol'.
+jan 06 13:08:06 link-monitor systemd[1]: Failed to start postgresql@15-main.service - PostgreSQL Cluster 15-main.
+root@link-monitor:~# sudo tail -n 20 /var/log/postgresql/postgresql-15-main.log
+2026-01-06 12:36:25.523 -03 [280322] LOG:  all server processes terminated; reinitializing
+2026-01-06 12:36:25.564 -03 [280632] LOG:  database system was interrupted; last known up at 2026-01-06 12:31:25 -03
+2026-01-06 12:36:25.790 -03 [280632] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-01-06 12:36:25.815 -03 [280632] LOG:  redo starts at 0/A9E8E20
+2026-01-06 12:36:25.815 -03 [280632] LOG:  invalid record length at 0/A9ED788: wanted 24, got 0
+2026-01-06 12:36:25.815 -03 [280632] LOG:  redo done at 0/A9ED760 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-01-06 12:36:25.849 -03 [280633] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-01-06 12:36:25.864 -03 [280633] PANIC:  could not write to file "pg_logical/replorigin_checkpoint.tmp": Não há espaço disponível no dispositivo
+2026-01-06 12:36:25.865 -03 [280322] LOG:  checkpointer process (PID 280633) was terminated by signal 6: Abortado
+2026-01-06 12:36:25.865 -03 [280322] LOG:  terminating any other active server processes
+2026-01-06 12:36:25.866 -03 [280322] LOG:  all server processes terminated; reinitializing
+2026-01-06 12:36:25.913 -03 [280636] LOG:  database system shutdown was interrupted; last known up at 2026-01-06 12:36:25 -03
+2026-01-06 12:36:26.202 -03 [280636] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-01-06 12:36:26.225 -03 [280636] LOG:  redo starts at 0/A9E8E20
+2026-01-06 12:36:26.227 -03 [280636] LOG:  invalid record length at 0/A9ED788: wanted 24, got 0
+2026-01-06 12:36:26.227 -03 [280636] LOG:  redo done at 0/A9ED760 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2026-01-06 12:36:26.257 -03 [280637] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-01-06 12:36:26.271 -03 [280637] PANIC:  could not write to file "pg_logical/replorigin_checkpoint.tmp": Não há espaço disponível no dispositivo
+2026-01-06 12:36:26.272 -03 [280322] LOG:  checkpointer process (PID 280637) was terminated by signal 6: Abortado
+2026-01-06 12:36:26.272 -03root@link-monitor:~# df -h
+Sist. Arq.      Tam. Usado Disp. Uso% Montado em
+udev            3,9G     0  3,9G   0% /dev
+tmpfs           794M  504K  794M   1% /run
+/dev/sda1        62G   60G     0 100% /
+tmpfs           3,9G     0  3,9G   0% /dev/shm
+tmpfs           5,0M     0  5,0M   0% /run/lock
+tmpfs           794M     0  794M   0% /run/user/1000
+root@link-monitor:~# 
