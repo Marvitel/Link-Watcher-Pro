@@ -236,6 +236,8 @@ export class VoalleAdapter implements ErpAdapter {
           document: p.txIdFormated || p.txId,
           email: p.email || p.emailNfe,
           phone: p.phone || p.cellPhone1,
+          city: p.city,
+          state: p.state,
         }));
     } catch (error) {
       console.error("Erro ao buscar clientes Voalle:", error);

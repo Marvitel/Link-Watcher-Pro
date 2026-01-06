@@ -1904,29 +1904,25 @@ export default function Admin() {
   const [voalleImportDialogOpen, setVoalleImportDialogOpen] = useState(false);
   const [voalleSearchQuery, setVoalleSearchQuery] = useState("");
   const [voalleSearchResults, setVoalleSearchResults] = useState<Array<{
-    id: number;
+    id: number | string;
     name: string;
-    txId?: string;
+    document?: string;
+    code?: string;
     email?: string;
     phone?: string;
     city?: string;
     state?: string;
-    address?: string;
-    neighborhood?: string;
-    number?: string;
   }>>([]);
   const [voalleSearching, setVoalleSearching] = useState(false);
   const [selectedVoalleCustomer, setSelectedVoalleCustomer] = useState<{
-    id: number;
+    id: number | string;
     name: string;
-    txId?: string;
+    document?: string;
+    code?: string;
     email?: string;
     phone?: string;
     city?: string;
     state?: string;
-    address?: string;
-    neighborhood?: string;
-    number?: string;
   } | null>(null);
 
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
@@ -2036,6 +2032,7 @@ export default function Admin() {
     mutationFn: async (customer: {
       name: string;
       txId?: string;
+      document?: string;
       voalleCustomerId: number;
     }) => {
       const slug = customer.name
@@ -2049,7 +2046,7 @@ export default function Admin() {
       return await apiRequest("POST", "/api/clients", {
         name: customer.name,
         slug: slug,
-        cnpj: customer.txId || "",
+        cnpj: customer.txId || customer.document || "",
         voalleCustomerId: customer.voalleCustomerId,
         isActive: true,
       });
@@ -2107,8 +2104,8 @@ export default function Admin() {
     
     importVoalleCustomerMutation.mutate({
       name: selectedVoalleCustomer.name,
-      txId: selectedVoalleCustomer.txId,
-      voalleCustomerId: selectedVoalleCustomer.id,
+      document: selectedVoalleCustomer.document || selectedVoalleCustomer.code,
+      voalleCustomerId: typeof selectedVoalleCustomer.id === 'string' ? parseInt(selectedVoalleCustomer.id) : selectedVoalleCustomer.id,
     });
   };
 
@@ -2378,7 +2375,7 @@ export default function Admin() {
                               <div>
                                 <p className="font-medium">{customer.name}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  {customer.txId && `CPF/CNPJ: ${customer.txId}`}
+                                  {customer.document && `CPF/CNPJ: ${customer.document}`}
                                   {customer.city && customer.state && ` - ${customer.city}/${customer.state}`}
                                 </p>
                               </div>
@@ -2408,7 +2405,7 @@ export default function Admin() {
                             </div>
                             <div>
                               <span className="text-muted-foreground">CPF/CNPJ:</span>{" "}
-                              {selectedVoalleCustomer.txId || "-"}
+                              {selectedVoalleCustomer.document || "-"}
                             </div>
                             <div>
                               <span className="text-muted-foreground">Cidade:</span>{" "}
