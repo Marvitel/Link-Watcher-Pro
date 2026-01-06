@@ -234,6 +234,102 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return [];
     }
   }
+
+  async searchCustomers(query: string): Promise<VoalleCustomer[]> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    try {
+      const result = await this.apiRequest<VoalleCustomerSearchResponse>(
+        "GET",
+        `/v1/people?search=${encodeURIComponent(query)}&limit=50`
+      );
+      
+      return result.data || [];
+    } catch (error) {
+      console.error("Erro ao buscar clientes no Voalle:", error);
+      throw error;
+    }
+  }
+
+  async getCustomer(customerId: number): Promise<VoalleCustomer | null> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    try {
+      const result = await this.apiRequest<VoalleCustomer>(
+        "GET",
+        `/v1/people/${customerId}`
+      );
+      
+      return result;
+    } catch (error) {
+      console.error(`Erro ao buscar cliente ${customerId} no Voalle:`, error);
+      return null;
+    }
+  }
+
+  async getCustomerContracts(customerId: number): Promise<VoalleContract[]> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    try {
+      const result = await this.apiRequest<VoalleContractResponse>(
+        "GET",
+        `/v1/people/${customerId}/contracts`
+      );
+      
+      return result.data || [];
+    } catch (error) {
+      console.error(`Erro ao buscar contratos do cliente ${customerId}:`, error);
+      return [];
+    }
+  }
+}
+
+export interface VoalleCustomer {
+  id: number;
+  name: string;
+  txId?: string; // CPF/CNPJ
+  email?: string;
+  phone?: string;
+  cellPhone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  neighborhood?: string;
+  number?: string;
+  complement?: string;
+  personType?: string; // PF ou PJ
+  fantasyName?: string;
+  stateRegistration?: string;
+}
+
+interface VoalleCustomerSearchResponse {
+  data: VoalleCustomer[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface VoalleContract {
+  id: number;
+  personId: number;
+  planId: number;
+  planName: string;
+  status: string;
+  value: number;
+  startDate: string;
+  endDate?: string;
+}
+
+interface VoalleContractResponse {
+  data: VoalleContract[];
+  total: number;
 }
 
 export const voalleService = new VoalleService();
