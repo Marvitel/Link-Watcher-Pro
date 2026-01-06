@@ -2571,7 +2571,6 @@ export default function Admin() {
           </div>
 
           <ErpIntegrationsManager clients={clients || []} />
-          <VoalleIntegration clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
         </TabsContent>
 
