@@ -475,7 +475,7 @@ export default function LinkDetail() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Modelo</span>
-                  <span className="font-medium">FortiGate FG-201F</span>
+                  <span className="font-medium">{link.equipmentModel || "Não informado"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bloco IP</span>
@@ -491,7 +491,7 @@ export default function LinkDetail() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Interface WAN</span>
-                  <span className="font-mono">1 Gbps</span>
+                  <span className="font-mono">{link.snmpInterfaceName || link.snmpInterfaceDescr || "Não configurada"}</span>
                 </div>
               </CardContent>
             </Card>
