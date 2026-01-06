@@ -927,71 +927,24 @@ export async function registerRoutes(
         return res.json({ customers: [] });
       }
 
-      // First try ERP Integrations (new system)
+      // Use the global ERP Integration (VoalleAdapter) which handles providerConfig correctly
       const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
-      console.log("[Voalle Search] Integration found:", voalleIntegration ? { 
-        id: voalleIntegration.id, 
-        name: voalleIntegration.name,
-        isActive: voalleIntegration.isActive,
-        hasUrl: !!voalleIntegration.apiUrl,
-        hasClientId: !!voalleIntegration.apiClientId,
-        hasClientSecret: !!voalleIntegration.apiClientSecret
-      } : null);
       
-      if (voalleIntegration && voalleIntegration.isActive && voalleIntegration.apiUrl && voalleIntegration.apiClientId && voalleIntegration.apiClientSecret) {
-        console.log("[Voalle Search] Using global ERP integration:", voalleIntegration.name);
-        const searchVoalleService = new VoalleService();
-        searchVoalleService.configure({
-          apiUrl: voalleIntegration.apiUrl,
-          clientId: voalleIntegration.apiClientId,
-          clientSecret: voalleIntegration.apiClientSecret,
-          synV1Token: voalleIntegration.apiSynV1Token || undefined,
-        });
-
-        const customers = await searchVoalleService.searchCustomers(query);
+      if (voalleIntegration && voalleIntegration.isActive) {
+        console.log("[Voalle Search] Using VoalleAdapter with integration:", voalleIntegration.name);
+        const adapter = configureErpAdapter(voalleIntegration);
+        const customers = await adapter.searchCustomers(query);
         console.log("[Voalle Search] Found", customers.length, "customers");
         return res.json({ customers });
       }
 
-      // Fallback: check client_settings (legacy)
-      console.log("[Voalle Search] No global integration, checking legacy client_settings...");
-      const allClients = await storage.getClients();
-      let voalleConfigured = false;
-      let configuredSettings: any = null;
-
-      for (const client of allClients) {
-        const settings = await storage.getClientSettings(client.id);
-        if (settings?.voalleEnabled && settings.voalleApiUrl && settings.voalleClientId && settings.voalleClientSecret) {
-          voalleConfigured = true;
-          configuredSettings = settings;
-          break;
-        }
-      }
-
-      if (!voalleConfigured || !configuredSettings) {
-        console.log("[Voalle Search] No Voalle configuration found");
-        return res.status(400).json({ 
-          error: "Voalle não configurado", 
-          message: "Configure o Voalle nas Integrações ERP Globais" 
-        });
-      }
-
-      const searchVoalleService = new VoalleService();
-      searchVoalleService.configure({
-        apiUrl: configuredSettings.voalleApiUrl,
-        clientId: configuredSettings.voalleClientId,
-        clientSecret: configuredSettings.voalleClientSecret,
-        synV1Token: configuredSettings.voalleSynV1Token || undefined,
+      console.log("[Voalle Search] No active Voalle integration found");
+      return res.status(400).json({ 
+        error: "Voalle não configurado", 
+        message: "Configure o Voalle nas Integrações ERP Globais" 
       });
-
-      const customers = await searchVoalleService.searchCustomers(query);
-      res.json({ customers });
     } catch (error: any) {
       console.error("[Voalle Search] Error:", error?.message || error);
-      if (error?.response) {
-        console.error("[Voalle Search] Response status:", error.response.status);
-        console.error("[Voalle Search] Response data:", error.response.data);
-      }
       res.status(500).json({ 
         error: "Erro ao buscar clientes no Voalle",
         details: error?.message || "Erro desconhecido"
