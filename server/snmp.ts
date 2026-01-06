@@ -24,6 +24,9 @@ export interface SnmpProfile {
   retries: number;
 }
 
+// Standard MIB-II OIDs
+const IF_NUMBER_OID = "1.3.6.1.2.1.2.1.0"; // ifNumber - total interfaces count
+
 const IF_TABLE_OIDS = {
   ifIndex: "1.3.6.1.2.1.2.2.1.1",
   ifDescr: "1.3.6.1.2.1.2.2.1.2",
@@ -52,6 +55,9 @@ const ADMIN_STATUS_MAP: Record<number, string> = {
   2: "down",
   3: "testing",
 };
+
+// Maximum interfaces to discover (safety limit)
+const MAX_INTERFACES = 256;
 
 function createSession(
   targetIp: string,
@@ -172,32 +178,154 @@ async function subtreeWalkWithSession(
   });
 }
 
+// Get ifNumber (total interface count) using SNMP GET
+async function getIfNumber(
+  targetIp: string,
+  profile: SnmpProfile
+): Promise<number> {
+  const session = createSession(targetIp, profile) as any;
+  
+  return new Promise((resolve, reject) => {
+    let completed = false;
+    const timeoutId = setTimeout(() => {
+      if (!completed) {
+        completed = true;
+        try { session.close(); } catch {}
+        reject(new Error("Timeout getting ifNumber"));
+      }
+    }, profile.timeout + 2000);
+
+    session.get([IF_NUMBER_OID], (error: any, varbinds: any[]) => {
+      if (!completed) {
+        completed = true;
+        clearTimeout(timeoutId);
+        try { session.close(); } catch {}
+        
+        if (error) {
+          reject(error);
+        } else if (varbinds && varbinds.length > 0 && varbinds[0].value !== undefined) {
+          resolve(Number(varbinds[0].value) || MAX_INTERFACES);
+        } else {
+          resolve(MAX_INTERFACES); // Fallback to max
+        }
+      }
+    });
+  });
+}
+
+// Uses subtree walk with early termination based on interface count
+async function getBulkColumn(
+  targetIp: string,
+  profile: SnmpProfile,
+  baseOid: string,
+  maxRepetitions: number
+): Promise<Map<number, string | number>> {
+  const session = createSession(targetIp, profile);
+  
+  return new Promise((resolve, reject) => {
+    const results = new Map<number, string | number>();
+    let completed = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      try { session.close(); } catch {}
+    };
+
+    timeoutId = setTimeout(() => {
+      if (!completed) {
+        completed = true;
+        cleanup();
+        // Return partial results instead of rejecting on timeout
+        resolve(results);
+      }
+    }, profile.timeout + 5000);
+
+    let count = 0;
+
+    session.subtree(
+      baseOid,
+      (varbinds: any[]) => {
+        if (!varbinds) return;
+        
+        for (const vb of varbinds) {
+          // Stop if we've collected enough interfaces
+          if (count >= maxRepetitions) {
+            return;
+          }
+          
+          const oidParts = vb.oid.split(".");
+          const ifIndex = parseInt(oidParts[oidParts.length - 1], 10);
+
+          let value: string | number;
+          if (Buffer.isBuffer(vb.value)) {
+            value = vb.value.toString("utf8");
+          } else if (typeof vb.value === "number") {
+            value = vb.value;
+          } else {
+            value = String(vb.value);
+          }
+
+          results.set(ifIndex, value);
+          count++;
+        }
+      },
+      (error: any) => {
+        if (!completed) {
+          completed = true;
+          cleanup();
+          if (error) {
+            // Return partial results on error too
+            resolve(results);
+          } else {
+            resolve(results);
+          }
+        }
+      }
+    );
+  });
+}
+
 export async function discoverInterfaces(
   targetIp: string,
   profile: SnmpProfile
 ): Promise<SnmpInterface[]> {
-  // Use reasonable timeout for discovery (15 seconds per column)
   const discoveryProfile = {
     ...profile,
-    timeout: Math.max(profile.timeout, 15000), // At least 15 seconds per column
-    retries: 1, // Reduce retries to speed up
+    timeout: Math.max(profile.timeout, 10000), // 10 seconds per operation
+    retries: 1,
   };
 
-  console.log(`[SNMP Discovery] Starting discovery for ${targetIp} with timeout ${discoveryProfile.timeout}ms`);
+  console.log(`[SNMP Discovery] Starting discovery for ${targetIp}`);
   const startTime = Date.now();
 
   try {
-    // Use separate sessions for each column to enable true parallelism
-    // net-snmp queues requests on a single session, so we need separate sessions
+    // First get ifNumber to know how many interfaces exist
+    let ifCount: number;
+    try {
+      ifCount = await getIfNumber(targetIp, discoveryProfile);
+      console.log(`[SNMP Discovery] Device reports ${ifCount} interfaces`);
+    } catch {
+      ifCount = MAX_INTERFACES;
+      console.log(`[SNMP Discovery] Could not get ifNumber, using max ${MAX_INTERFACES}`);
+    }
+    
+    // Limit to reasonable number
+    const maxReps = Math.min(ifCount + 5, MAX_INTERFACES);
+
+    // Fetch all columns in parallel with GET-BULK limited to ifNumber
     const [ifIndexMap, ifDescrMap, ifSpeedMap, ifAdminStatusMap, ifOperStatusMap, ifNameMap, ifHighSpeedMap] =
       await Promise.all([
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifIndex),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifSpeed),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName).catch(() => new Map()),
-        subtreeWalkWithSession(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed).catch(() => new Map()),
+        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifIndex, maxReps),
+        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr, maxReps),
+        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifSpeed, maxReps),
+        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus, maxReps),
+        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus, maxReps),
+        getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName, maxReps).catch(() => new Map()),
+        getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed, maxReps).catch(() => new Map()),
       ]);
 
     console.log(`[SNMP Discovery] Completed for ${targetIp} in ${Date.now() - startTime}ms, found ${ifIndexMap.size} interfaces`);
