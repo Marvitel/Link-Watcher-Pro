@@ -222,7 +222,7 @@ async function getBulkColumn(
 ): Promise<Map<number, string | number>> {
   const session = createSession(targetIp, profile);
   
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const results = new Map<number, string | number>();
     let completed = false;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -235,14 +235,15 @@ async function getBulkColumn(
       try { session.close(); } catch {}
     };
 
+    // Long timeout to allow full subtree walk
     timeoutId = setTimeout(() => {
       if (!completed) {
         completed = true;
+        console.log(`[SNMP] Timeout for OID ${baseOid}, returning ${results.size} partial results`);
         cleanup();
-        // Return partial results instead of rejecting on timeout
         resolve(results);
       }
-    }, profile.timeout + 5000);
+    }, 30000); // 30 second timeout
 
     let count = 0;
 
@@ -252,7 +253,7 @@ async function getBulkColumn(
         if (!varbinds) return;
         
         for (const vb of varbinds) {
-          // Stop if we've collected enough interfaces
+          // Stop collecting if we have enough
           if (count >= maxRepetitions) {
             return;
           }
@@ -278,11 +279,9 @@ async function getBulkColumn(
           completed = true;
           cleanup();
           if (error) {
-            // Return partial results on error too
-            resolve(results);
-          } else {
-            resolve(results);
+            console.log(`[SNMP] Error for OID ${baseOid}: ${error.message}, returning ${results.size} results`);
           }
+          resolve(results);
         }
       }
     );
