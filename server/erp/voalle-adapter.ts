@@ -185,47 +185,72 @@ export class VoalleAdapter implements ErpAdapter {
   async searchCustomers(query: string): Promise<ErpCustomer[]> {
     try {
       // Voalle uses /getclient endpoint with pagination
-      // First get a list of clients, then filter by query on our side
-      const result = await this.apiRequest<{
+      // We need to fetch all pages to find the customer
+      type VoalleClient = {
+        id: number;
+        name: string;
+        name2?: string;
+        txId?: string;
+        txIdFormated?: string;
+        email?: string;
+        emailNfe?: string;
+        phone?: string;
+        cellPhone1?: string;
+        city?: string;
+        state?: string;
+        client?: boolean;
+      };
+
+      type VoalleResponse = {
         success: boolean;
         response: {
-          data: Array<{
-            id: number;
-            name: string;
-            name2?: string;
-            txId?: string;
-            txIdFormated?: string;
-            email?: string;
-            emailNfe?: string;
-            phone?: string;
-            cellPhone1?: string;
-            city?: string;
-            state?: string;
-            client?: boolean;
-          }>;
+          data: VoalleClient[];
           totalRecords: number;
           page: number;
           pageSize: number;
         };
-      }>("GET", `/getclient?page=1&pageSize=500`);
+      };
 
-      console.log("[Voalle Search] API response:", JSON.stringify(result).substring(0, 500));
+      const allClients: VoalleClient[] = [];
+      const pageSize = 500;
+      let currentPage = 1;
+      let totalRecords = 0;
+      const maxPages = 20; // Safety limit: 10,000 clients max
 
-      if (!result.success || !result.response?.data) {
-        console.log("[Voalle Search] No data in response, success:", result.success);
-        return [];
-      }
+      // Fetch all pages
+      do {
+        const result = await this.apiRequest<VoalleResponse>(
+          "GET", 
+          `/getclient?page=${currentPage}&pageSize=${pageSize}`
+        );
 
-      console.log("[Voalle Search] Total records:", result.response.totalRecords, "Data count:", result.response.data.length);
+        if (!result.success || !result.response?.data) {
+          console.log("[Voalle Search] No data in response at page:", currentPage);
+          break;
+        }
+
+        if (currentPage === 1) {
+          totalRecords = result.response.totalRecords;
+          console.log("[Voalle Search] Total records in Voalle:", totalRecords);
+        }
+
+        allClients.push(...result.response.data);
+        console.log(`[Voalle Search] Page ${currentPage}: fetched ${result.response.data.length} clients (total: ${allClients.length})`);
+
+        currentPage++;
+      } while (allClients.length < totalRecords && currentPage <= maxPages);
+
+      console.log("[Voalle Search] Total clients fetched:", allClients.length);
 
       // Filter by query (name, document, email) on our side
       const queryLower = query.toLowerCase();
-      return result.response.data
+      const queryClean = queryLower.replace(/[.\-\/]/g, "");
+      
+      return allClients
         .filter(p => {
           const name = (p.name || "").toLowerCase();
           const name2 = (p.name2 || "").toLowerCase();
           const doc = (p.txId || p.txIdFormated || "").toLowerCase().replace(/[.\-\/]/g, "");
-          const queryClean = queryLower.replace(/[.\-\/]/g, "");
           return name.includes(queryLower) || name2.includes(queryLower) || doc.includes(queryClean);
         })
         .slice(0, 50)
