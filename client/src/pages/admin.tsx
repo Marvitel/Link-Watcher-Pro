@@ -2068,19 +2068,28 @@ export default function Admin() {
 
   const handleVoalleSearch = async () => {
     if (!voalleSearchQuery.trim()) return;
+    if (voalleSearchQuery.trim().length < 2) {
+      toast({ 
+        title: "Busca muito curta", 
+        description: "Digite pelo menos 2 caracteres para buscar",
+        variant: "destructive" 
+      });
+      return;
+    }
     
     setVoalleSearching(true);
     try {
       const response = await fetch(`/api/voalle/customers/search?q=${encodeURIComponent(voalleSearchQuery)}`);
-      if (!response.ok) {
-        throw new Error("Erro ao buscar clientes no Voalle");
-      }
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Erro ao buscar clientes no Voalle");
+      }
       setVoalleSearchResults(data.customers || []);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       toast({ 
         title: "Erro ao buscar clientes", 
-        description: "Verifique se o Voalle está configurado corretamente",
+        description: errorMessage,
         variant: "destructive" 
       });
       setVoalleSearchResults([]);
