@@ -1,0 +1,148 @@
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/opt/link-monitor/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+error: the database system is in recovery mode
+    at /opt/link-monitor/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.query (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:80622:26)
+    at async fromDatabase2 (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:19276:25) {
+  length: 109,
+  severity: 'FATAL',
+  code: '57P03',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postmaster.c',
+  line: '2415',
+  routine: 'ProcessStartupPacket'
+}
+
+[8/8] Reiniciando o serviço...
+      Aguardando serviço iniciar...
+
+ERRO: Serviço não iniciou corretamente!
+Restaurando backup...
+Backup restaurado. Sistema voltou ao estado anterior.
+root@link-monitor:~# sudo systemctl restart postgresql
+# Aguardar 30 segundos
+sleep 30
+# Tentar o deploy novamente
+sudo bash /opt/link-monitor/deploy/update-from-github.sh
+
+^C
+
+
+
+
+
+
+
+
+==========================================
+  Link Monitor - Atualização via GitHub
+==========================================
+
+[1/6] Criando backup em /opt/link-monitor-backups/backup-20260106-124626...
+      Backup criado com sucesso!
+
+[2/6] Baixando código do GitHub...
+Cloning into '/tmp/link-monitor-update/repo'...
+remote: Enumerating objects: 227, done.
+remote: Counting objects: 100% (227/227), done.
+remote: Compressing objects: 100% (189/189), done.
+remote: Total 227 (delta 45), reused 180 (delta 33), pack-reused 0 (from 0)
+Receiving objects: 100% (227/227), 6.88 MiB | 11.47 MiB/s, done.
+Resolving deltas: 100% (45/45), done.
+
+[3/6] Parando o serviço...
+
+[4/6] Atualizando arquivos...
+
+[5/7] Instalando dependências...
+
+up to date, audited 539 packages in 5s
+
+70 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+[6/8] Compilando aplicação...
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3444 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-CdkZ7zz0.css              74.64 kB │ gzip:  12.09 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-CqxXzNjF.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-Do3p6PeY.js            1,412.64 kB │ gzip: 415.78 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 27.01s
+building server...
+
+  dist/index.cjs  1.2mb ⚠️
+
+⚡ Done in 390ms
+
+[7/8] Atualizando banco de dados...
+
+> rest-express@1.0.0 db:push
+> drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/opt/link-monitor/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+error: the database system is shutting down
+    at /opt/link-monitor/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.query (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:80622:26)
+    at async fromDatabase2 (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:19276:25) {
+  length: 106,
+  severity: 'FATAL',
+  code: '57P03',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postmaster.c',
+  line: '2410',
+  routine: 'ProcessStartupPacket'
+}
+
+[8/8] Reiniciando o serviço...
