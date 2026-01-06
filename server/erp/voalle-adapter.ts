@@ -209,9 +209,14 @@ export class VoalleAdapter implements ErpAdapter {
         };
       }>("GET", `/getclient?page=1&pageSize=100`);
 
+      console.log("[Voalle Search] API response:", JSON.stringify(result).substring(0, 500));
+
       if (!result.success || !result.response?.data) {
+        console.log("[Voalle Search] No data in response, success:", result.success);
         return [];
       }
+
+      console.log("[Voalle Search] Total records:", result.response.totalRecords, "Data count:", result.response.data.length);
 
       // Filter by query (name, document, email) on our side
       const queryLower = query.toLowerCase();
