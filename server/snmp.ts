@@ -104,12 +104,20 @@ function createSession(
   }
 }
 
-async function subtreeWalk(
-  session: snmp.Session,
+// Creates a dedicated session and performs subtree walk, then closes the session
+async function subtreeWalkWithSession(
+  targetIp: string,
+  profile: SnmpProfile,
   oid: string
 ): Promise<Map<number, string | number>> {
+  const session = createSession(targetIp, profile);
+  
   return new Promise((resolve, reject) => {
     const results = new Map<number, string | number>();
+    const timeoutId = setTimeout(() => {
+      session.close();
+      reject(new Error(`Timeout walking OID ${oid}`));
+    }, profile.timeout + 5000); // Add buffer to profile timeout
 
     session.subtree(
       oid,
@@ -131,6 +139,8 @@ async function subtreeWalk(
         }
       },
       (error) => {
+        clearTimeout(timeoutId);
+        session.close();
         if (error) {
           reject(error);
         } else {
@@ -145,25 +155,31 @@ export async function discoverInterfaces(
   targetIp: string,
   profile: SnmpProfile
 ): Promise<SnmpInterface[]> {
-  // Use longer timeout for discovery (30 seconds) as some devices respond slowly
+  // Use reasonable timeout for discovery (15 seconds per column)
   const discoveryProfile = {
     ...profile,
-    timeout: Math.max(profile.timeout, 30000), // At least 30 seconds
-    retries: Math.max(profile.retries, 2), // At least 2 retries
+    timeout: Math.max(profile.timeout, 15000), // At least 15 seconds per column
+    retries: 1, // Reduce retries to speed up
   };
-  const session = createSession(targetIp, discoveryProfile);
+
+  console.log(`[SNMP Discovery] Starting discovery for ${targetIp} with timeout ${discoveryProfile.timeout}ms`);
+  const startTime = Date.now();
 
   try {
+    // Use separate sessions for each column to enable true parallelism
+    // net-snmp queues requests on a single session, so we need separate sessions
     const [ifIndexMap, ifDescrMap, ifSpeedMap, ifAdminStatusMap, ifOperStatusMap, ifNameMap, ifHighSpeedMap] =
       await Promise.all([
-        subtreeWalk(session, IF_TABLE_OIDS.ifIndex),
-        subtreeWalk(session, IF_TABLE_OIDS.ifDescr),
-        subtreeWalk(session, IF_TABLE_OIDS.ifSpeed),
-        subtreeWalk(session, IF_TABLE_OIDS.ifAdminStatus),
-        subtreeWalk(session, IF_TABLE_OIDS.ifOperStatus),
-        subtreeWalk(session, IF_X_TABLE_OIDS.ifName).catch(() => new Map()),
-        subtreeWalk(session, IF_X_TABLE_OIDS.ifHighSpeed).catch(() => new Map()),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifIndex),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifSpeed),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName).catch(() => new Map()),
+        subtreeWalkWithSession(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed).catch(() => new Map()),
       ]);
+
+    console.log(`[SNMP Discovery] Completed for ${targetIp} in ${Date.now() - startTime}ms, found ${ifIndexMap.size} interfaces`);
 
     const interfaces: SnmpInterface[] = [];
 
@@ -193,8 +209,9 @@ export async function discoverInterfaces(
     interfaces.sort((a, b) => a.ifIndex - b.ifIndex);
 
     return interfaces;
-  } finally {
-    session.close();
+  } catch (error) {
+    console.log(`[SNMP Discovery] Failed for ${targetIp} after ${Date.now() - startTime}ms:`, error);
+    throw error;
   }
 }
 

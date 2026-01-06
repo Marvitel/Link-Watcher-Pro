@@ -1052,7 +1052,6 @@ export class DatabaseStorage {
       await db.insert(clientSettings).values({
         clientId,
         ...data,
-        createdAt: new Date(),
         updatedAt: new Date(),
       });
     }
