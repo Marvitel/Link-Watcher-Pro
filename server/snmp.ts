@@ -288,44 +288,59 @@ async function getBulkColumn(
   });
 }
 
+// Single-session sequential discovery to avoid overwhelming devices
 export async function discoverInterfaces(
   targetIp: string,
   profile: SnmpProfile
 ): Promise<SnmpInterface[]> {
   const discoveryProfile = {
     ...profile,
-    timeout: Math.max(profile.timeout, 10000), // 10 seconds per operation
-    retries: 1,
+    timeout: Math.max(profile.timeout, 15000), // 15 seconds per OID walk
+    retries: 2,
   };
 
-  console.log(`[SNMP Discovery] Starting discovery for ${targetIp}`);
+  console.log(`[SNMP Discovery] Starting discovery for ${targetIp} (community: ${profile.community}, port: ${profile.port})`);
   const startTime = Date.now();
 
   try {
-    // First get ifNumber to know how many interfaces exist
-    let ifCount: number;
-    try {
-      ifCount = await getIfNumber(targetIp, discoveryProfile);
-      console.log(`[SNMP Discovery] Device reports ${ifCount} interfaces`);
-    } catch {
-      ifCount = MAX_INTERFACES;
-      console.log(`[SNMP Discovery] Could not get ifNumber, using max ${MAX_INTERFACES}`);
-    }
+    // Use sequential discovery to avoid overwhelming the device
+    console.log(`[SNMP Discovery] Fetching ifIndex...`);
+    const ifIndexMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifIndex, MAX_INTERFACES);
+    console.log(`[SNMP Discovery] Found ${ifIndexMap.size} interface indexes`);
     
-    // Limit to reasonable number
-    const maxReps = Math.min(ifCount + 5, MAX_INTERFACES);
+    if (ifIndexMap.size === 0) {
+      console.log(`[SNMP Discovery] No interfaces found, trying ifDescr...`);
+      // Try ifDescr as fallback
+      const ifDescrFallback = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr, MAX_INTERFACES);
+      if (ifDescrFallback.size > 0) {
+        for (const [idx] of Array.from(ifDescrFallback.entries())) {
+          ifIndexMap.set(idx, idx);
+        }
+        console.log(`[SNMP Discovery] Found ${ifIndexMap.size} interfaces via ifDescr fallback`);
+      }
+    }
 
-    // Fetch all columns in parallel with GET-BULK limited to ifNumber
-    const [ifIndexMap, ifDescrMap, ifSpeedMap, ifAdminStatusMap, ifOperStatusMap, ifNameMap, ifHighSpeedMap] =
-      await Promise.all([
-        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifIndex, maxReps),
-        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr, maxReps),
-        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifSpeed, maxReps),
-        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus, maxReps),
-        getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus, maxReps),
-        getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName, maxReps).catch(() => new Map()),
-        getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed, maxReps).catch(() => new Map()),
-      ]);
+    if (ifIndexMap.size === 0) {
+      console.log(`[SNMP Discovery] No interfaces discovered for ${targetIp}`);
+      return [];
+    }
+
+    // Fetch remaining columns sequentially
+    console.log(`[SNMP Discovery] Fetching interface details...`);
+    const ifDescrMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifDescr, MAX_INTERFACES);
+    const ifSpeedMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifSpeed, MAX_INTERFACES);
+    const ifAdminStatusMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus, MAX_INTERFACES);
+    const ifOperStatusMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus, MAX_INTERFACES);
+    
+    // Optional extended tables
+    let ifNameMap = new Map<number, string | number>();
+    let ifHighSpeedMap = new Map<number, string | number>();
+    try {
+      ifNameMap = await getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName, MAX_INTERFACES);
+      ifHighSpeedMap = await getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed, MAX_INTERFACES);
+    } catch {
+      console.log(`[SNMP Discovery] IF-MIB extended tables not available`);
+    }
 
     console.log(`[SNMP Discovery] Completed for ${targetIp} in ${Date.now() - startTime}ms, found ${ifIndexMap.size} interfaces`);
 
