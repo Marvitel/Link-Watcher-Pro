@@ -184,23 +184,43 @@ export class VoalleAdapter implements ErpAdapter {
 
   async searchCustomers(query: string): Promise<ErpCustomer[]> {
     try {
-      const result = await this.apiRequest<Array<{
-        id: number;
-        tx_id: string;
-        tx_name: string;
-        cpf_cnpj?: string;
-        email?: string;
-        phone?: string;
-      }>>("GET", `/people/search?q=${encodeURIComponent(query)}`);
+      // Voalle uses a paginated /people endpoint with filter parameter
+      const result = await this.apiRequest<{
+        success: boolean;
+        response: {
+          data: Array<{
+            id: number;
+            name: string;
+            txId?: string;
+            txIdFormated?: string;
+            email?: string;
+            phone?: string;
+            cellPhone1?: string;
+            city?: string;
+            state?: string;
+            client?: boolean;
+          }>;
+          totalRecords: number;
+          page: number;
+          pageSize: number;
+        };
+      }>("GET", `/people?page=1&pageSize=50&filter=${encodeURIComponent(query)}`);
 
-      return result.map(p => ({
-        id: p.id.toString(),
-        code: p.tx_id,
-        name: p.tx_name,
-        document: p.cpf_cnpj,
-        email: p.email,
-        phone: p.phone,
-      }));
+      if (!result.success || !result.response?.data) {
+        return [];
+      }
+
+      // Filter only clients and map to ErpCustomer format
+      return result.response.data
+        .filter(p => p.client === true)
+        .map(p => ({
+          id: p.id.toString(),
+          code: p.txId || p.txIdFormated || "",
+          name: p.name,
+          document: p.txIdFormated || p.txId,
+          email: p.email,
+          phone: p.phone || p.cellPhone1,
+        }));
     } catch (error) {
       console.error("Erro ao buscar clientes Voalle:", error);
       return [];
