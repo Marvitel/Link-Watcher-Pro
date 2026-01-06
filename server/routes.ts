@@ -919,6 +919,51 @@ export async function registerRoutes(
     }
   });
 
+  // Voalle Customer Search (for importing clients)
+  app.get("/api/voalle/customers/search", requireSuperAdmin, async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json({ customers: [] });
+      }
+
+      // Get first client with Voalle configured
+      const allClients = await storage.getClients();
+      let voalleConfigured = false;
+      let configuredSettings: any = null;
+
+      for (const client of allClients) {
+        const settings = await storage.getClientSettings(client.id);
+        if (settings?.voalleEnabled && settings.voalleApiUrl && settings.voalleClientId && settings.voalleClientSecret) {
+          voalleConfigured = true;
+          configuredSettings = settings;
+          break;
+        }
+      }
+
+      if (!voalleConfigured || !configuredSettings) {
+        return res.status(400).json({ 
+          error: "Voalle não configurado", 
+          message: "Configure o Voalle nas integrações de algum cliente primeiro" 
+        });
+      }
+
+      const searchVoalleService = new VoalleService();
+      searchVoalleService.configure({
+        apiUrl: configuredSettings.voalleApiUrl,
+        clientId: configuredSettings.voalleClientId,
+        clientSecret: configuredSettings.voalleClientSecret,
+        synV1Token: configuredSettings.voalleSynV1Token || undefined,
+      });
+
+      const customers = await searchVoalleService.searchCustomers(query);
+      res.json({ customers });
+    } catch (error) {
+      console.error("Erro ao buscar clientes no Voalle:", error);
+      res.status(500).json({ error: "Erro ao buscar clientes no Voalle" });
+    }
+  });
+
   app.get("/api/super-admin/users", requireSuperAdmin, async (req, res) => {
     try {
       const allUsers = await storage.getUsers();

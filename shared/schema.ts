@@ -12,6 +12,7 @@ export const clients = pgTable("clients", {
   email: varchar("email", { length: 255 }),
   logoUrl: text("logo_url"),
   isActive: boolean("is_active").notNull().default(true),
+  voalleCustomerId: integer("voalle_customer_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

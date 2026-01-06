@@ -44,6 +44,7 @@ import {
   Radio,
   Eye,
   EyeOff,
+  Download,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
@@ -1898,6 +1899,35 @@ export default function Admin() {
     isActive: true,
   });
 
+  // Estados para importação de clientes do Voalle
+  const [voalleImportDialogOpen, setVoalleImportDialogOpen] = useState(false);
+  const [voalleSearchQuery, setVoalleSearchQuery] = useState("");
+  const [voalleSearchResults, setVoalleSearchResults] = useState<Array<{
+    id: number;
+    name: string;
+    txId?: string;
+    email?: string;
+    phone?: string;
+    city?: string;
+    state?: string;
+    address?: string;
+    neighborhood?: string;
+    number?: string;
+  }>>([]);
+  const [voalleSearching, setVoalleSearching] = useState(false);
+  const [selectedVoalleCustomer, setSelectedVoalleCustomer] = useState<{
+    id: number;
+    name: string;
+    txId?: string;
+    email?: string;
+    phone?: string;
+    city?: string;
+    state?: string;
+    address?: string;
+    neighborhood?: string;
+    number?: string;
+  } | null>(null);
+
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
     enabled: isSuperAdmin,
@@ -2000,6 +2030,74 @@ export default function Admin() {
       toast({ title: "Erro ao excluir cliente", variant: "destructive" });
     },
   });
+
+  const importVoalleCustomerMutation = useMutation({
+    mutationFn: async (customer: {
+      name: string;
+      txId?: string;
+      voalleCustomerId: number;
+    }) => {
+      const slug = customer.name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .substring(0, 50);
+      
+      return await apiRequest("POST", "/api/clients", {
+        name: customer.name,
+        slug: slug,
+        cnpj: customer.txId || "",
+        voalleCustomerId: customer.voalleCustomerId,
+        isActive: true,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      setVoalleImportDialogOpen(false);
+      setVoalleSearchQuery("");
+      setVoalleSearchResults([]);
+      setSelectedVoalleCustomer(null);
+      toast({ title: "Cliente importado do Voalle com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao importar cliente do Voalle", variant: "destructive" });
+    },
+  });
+
+  const handleVoalleSearch = async () => {
+    if (!voalleSearchQuery.trim()) return;
+    
+    setVoalleSearching(true);
+    try {
+      const response = await fetch(`/api/voalle/customers/search?q=${encodeURIComponent(voalleSearchQuery)}`);
+      if (!response.ok) {
+        throw new Error("Erro ao buscar clientes no Voalle");
+      }
+      const data = await response.json();
+      setVoalleSearchResults(data.customers || []);
+    } catch (error) {
+      toast({ 
+        title: "Erro ao buscar clientes", 
+        description: "Verifique se o Voalle está configurado corretamente",
+        variant: "destructive" 
+      });
+      setVoalleSearchResults([]);
+    } finally {
+      setVoalleSearching(false);
+    }
+  };
+
+  const handleImportVoalleCustomer = () => {
+    if (!selectedVoalleCustomer) return;
+    
+    importVoalleCustomerMutation.mutate({
+      name: selectedVoalleCustomer.name,
+      txId: selectedVoalleCustomer.txId,
+      voalleCustomerId: selectedVoalleCustomer.id,
+    });
+  };
 
   const handleSaveClient = () => {
     if (editingClient) {
@@ -2199,26 +2297,145 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-lg font-medium">Clientes</h2>
               <p className="text-sm text-muted-foreground">
                 Organizações cadastradas no sistema
               </p>
             </div>
-            <Dialog open={clientDialogOpen} onOpenChange={(open) => {
-              setClientDialogOpen(open);
-              if (!open) {
-                setEditingClient(undefined);
-                setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
-              }
-            }}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-client">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Cliente
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              <Dialog open={voalleImportDialogOpen} onOpenChange={(open) => {
+                setVoalleImportDialogOpen(open);
+                if (!open) {
+                  setVoalleSearchQuery("");
+                  setVoalleSearchResults([]);
+                  setSelectedVoalleCustomer(null);
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" data-testid="button-import-voalle">
+                    <Download className="w-4 h-4 mr-2" />
+                    Importar do Voalle
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Importar Cliente do Voalle</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Buscar por nome, CPF ou CNPJ..."
+                        value={voalleSearchQuery}
+                        onChange={(e) => setVoalleSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleVoalleSearch()}
+                        data-testid="input-voalle-search"
+                      />
+                      <Button 
+                        onClick={handleVoalleSearch}
+                        disabled={voalleSearching || !voalleSearchQuery.trim()}
+                        data-testid="button-voalle-search"
+                      >
+                        {voalleSearching ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+
+                    {voalleSearchResults.length > 0 && (
+                      <div className="border rounded-md max-h-64 overflow-y-auto">
+                        {voalleSearchResults.map((customer) => (
+                          <div
+                            key={customer.id}
+                            className={`p-3 cursor-pointer border-b last:border-b-0 hover-elevate ${
+                              selectedVoalleCustomer?.id === customer.id ? "bg-accent" : ""
+                            }`}
+                            onClick={() => setSelectedVoalleCustomer(customer)}
+                            data-testid={`voalle-customer-${customer.id}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium">{customer.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {customer.txId && `CPF/CNPJ: ${customer.txId}`}
+                                  {customer.city && customer.state && ` - ${customer.city}/${customer.state}`}
+                                </p>
+                              </div>
+                              {selectedVoalleCustomer?.id === customer.id && (
+                                <CheckCircle className="w-5 h-5 text-primary" />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {voalleSearchResults.length === 0 && voalleSearchQuery && !voalleSearching && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhum cliente encontrado. Tente outra busca.
+                      </p>
+                    )}
+
+                    {selectedVoalleCustomer && (
+                      <Card>
+                        <CardContent className="py-4">
+                          <h4 className="font-medium mb-2">Cliente selecionado:</h4>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Nome:</span>{" "}
+                              {selectedVoalleCustomer.name}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">CPF/CNPJ:</span>{" "}
+                              {selectedVoalleCustomer.txId || "-"}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Cidade:</span>{" "}
+                              {selectedVoalleCustomer.city || "-"}
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Estado:</span>{" "}
+                              {selectedVoalleCustomer.state || "-"}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setVoalleImportDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleImportVoalleCustomer}
+                      disabled={!selectedVoalleCustomer || importVoalleCustomerMutation.isPending}
+                      data-testid="button-import-voalle-confirm"
+                    >
+                      {importVoalleCustomerMutation.isPending && (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      )}
+                      Importar Cliente
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={clientDialogOpen} onOpenChange={(open) => {
+                setClientDialogOpen(open);
+                if (!open) {
+                  setEditingClient(undefined);
+                  setClientFormData({ name: "", slug: "", cnpj: "", isActive: true });
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-add-client">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Cliente
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingClient ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
@@ -2277,7 +2494,8 @@ export default function Admin() {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           </div>
 
           {clientsLoading ? (
