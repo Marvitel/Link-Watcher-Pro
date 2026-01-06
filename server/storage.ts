@@ -58,6 +58,7 @@ import {
   type InsertOlt,
   type InsertErpIntegration,
   type InsertClientErpMapping,
+  type InsertEquipmentVendor,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -1139,9 +1140,26 @@ export class DatabaseStorage {
     return await db.select().from(equipmentVendors).where(eq(equipmentVendors.isActive, true));
   }
 
+  async getAllEquipmentVendors(): Promise<EquipmentVendor[]> {
+    return await db.select().from(equipmentVendors).orderBy(equipmentVendors.name);
+  }
+
   async getEquipmentVendor(id: number): Promise<EquipmentVendor | undefined> {
     const [vendor] = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, id));
     return vendor || undefined;
+  }
+
+  async createEquipmentVendor(data: InsertEquipmentVendor): Promise<EquipmentVendor> {
+    const [vendor] = await db.insert(equipmentVendors).values(data).returning();
+    return vendor;
+  }
+
+  async updateEquipmentVendor(id: number, data: Partial<EquipmentVendor>): Promise<void> {
+    await db.update(equipmentVendors).set({ ...data, updatedAt: new Date() }).where(eq(equipmentVendors.id, id));
+  }
+
+  async deleteEquipmentVendor(id: number): Promise<void> {
+    await db.delete(equipmentVendors).where(eq(equipmentVendors.id, id));
   }
 
   async getSnmpProfiles(clientId: number): Promise<SnmpProfile[]> {

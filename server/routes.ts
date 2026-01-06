@@ -1253,10 +1253,64 @@ export async function registerRoutes(
 
   app.get("/api/equipment-vendors", requireAuth, async (req, res) => {
     try {
-      const vendors = await storage.getEquipmentVendors();
+      const all = req.query.all === "true";
+      const vendors = all ? await storage.getAllEquipmentVendors() : await storage.getEquipmentVendors();
       res.json(vendors);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch equipment vendors" });
+    }
+  });
+
+  app.get("/api/equipment-vendors/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const vendor = await storage.getEquipmentVendor(id);
+      if (!vendor) {
+        return res.status(404).json({ error: "Fabricante não encontrado" });
+      }
+      res.json(vendor);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch equipment vendor" });
+    }
+  });
+
+  app.post("/api/equipment-vendors", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem criar fabricantes" });
+      }
+      const data = req.body;
+      const vendor = await storage.createEquipmentVendor(data);
+      res.status(201).json(vendor);
+    } catch (error) {
+      res.status(400).json({ error: "Falha ao criar fabricante" });
+    }
+  });
+
+  app.patch("/api/equipment-vendors/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem editar fabricantes" });
+      }
+      const id = parseInt(req.params.id, 10);
+      await storage.updateEquipmentVendor(id, req.body);
+      const vendor = await storage.getEquipmentVendor(id);
+      res.json(vendor);
+    } catch (error) {
+      res.status(400).json({ error: "Falha ao atualizar fabricante" });
+    }
+  });
+
+  app.delete("/api/equipment-vendors/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem excluir fabricantes" });
+      }
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteEquipmentVendor(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir fabricante" });
     }
   });
 

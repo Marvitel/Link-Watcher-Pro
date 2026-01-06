@@ -45,6 +45,7 @@ import {
   Eye,
   EyeOff,
   Download,
+  Cpu,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
@@ -2201,6 +2202,10 @@ export default function Admin() {
             <Radio className="w-4 h-4" />
             OLTs
           </TabsTrigger>
+          <TabsTrigger value="vendors" className="gap-2">
+            <Cpu className="w-4 h-4" />
+            Fabricantes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -2604,6 +2609,10 @@ export default function Admin() {
 
         <TabsContent value="olts" className="space-y-4">
           <OltsTab clients={clients || []} />
+        </TabsContent>
+
+        <TabsContent value="vendors" className="space-y-4">
+          <EquipmentVendorsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -4275,6 +4284,332 @@ function OltsTab({ clients }: { clients: Client[] }) {
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 Nenhuma OLT cadastrada. Clique em "Adicionar OLT" para comecar.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface EquipmentVendor {
+  id: number;
+  name: string;
+  slug: string;
+  cpuOid: string | null;
+  memoryOid: string | null;
+  memoryTotalOid: string | null;
+  memoryUsedOid: string | null;
+  memoryIsPercentage: boolean;
+  description: string | null;
+  isBuiltIn: boolean;
+  isActive: boolean;
+}
+
+function EquipmentVendorsTab() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingVendor, setEditingVendor] = useState<EquipmentVendor | undefined>(undefined);
+
+  const { data: vendors, isLoading, refetch } = useQuery<EquipmentVendor[]>({
+    queryKey: ["/api/equipment-vendors", "all"],
+    queryFn: async () => {
+      const res = await fetch("/api/equipment-vendors?all=true", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const [formData, setFormData] = useState({
+    name: "",
+    slug: "",
+    cpuOid: "",
+    memoryOid: "",
+    memoryTotalOid: "",
+    memoryUsedOid: "",
+    memoryIsPercentage: true,
+    description: "",
+    isActive: true,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      slug: "",
+      cpuOid: "",
+      memoryOid: "",
+      memoryTotalOid: "",
+      memoryUsedOid: "",
+      memoryIsPercentage: true,
+      description: "",
+      isActive: true,
+    });
+    setEditingVendor(undefined);
+  };
+
+  const handleEdit = (vendor: EquipmentVendor) => {
+    setEditingVendor(vendor);
+    setFormData({
+      name: vendor.name,
+      slug: vendor.slug,
+      cpuOid: vendor.cpuOid || "",
+      memoryOid: vendor.memoryOid || "",
+      memoryTotalOid: vendor.memoryTotalOid || "",
+      memoryUsedOid: vendor.memoryUsedOid || "",
+      memoryIsPercentage: vendor.memoryIsPercentage,
+      description: vendor.description || "",
+      isActive: vendor.isActive,
+    });
+    setDialogOpen(true);
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return apiRequest("POST", "/api/equipment-vendors", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Fabricante criado com sucesso" });
+      refetch();
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar fabricante", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
+      return apiRequest("PATCH", `/api/equipment-vendors/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Fabricante atualizado com sucesso" });
+      refetch();
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar fabricante", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/equipment-vendors/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Fabricante excluido com sucesso" });
+      refetch();
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir fabricante", variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (editingVendor) {
+      updateMutation.mutate({ id: editingVendor.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir este fabricante?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">Fabricantes de Equipamentos</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure OIDs SNMP para cada fabricante de equipamento
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-vendor">
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Fabricante
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>{editingVendor ? "Editar Fabricante" : "Novo Fabricante"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: Datacom"
+                    data-testid="input-vendor-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Slug (identificador)</Label>
+                  <Input
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                    placeholder="Ex: datacom"
+                    data-testid="input-vendor-slug"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descricao</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descricao do fabricante"
+                  data-testid="input-vendor-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OID de CPU (%)</Label>
+                <Input
+                  value={formData.cpuOid}
+                  onChange={(e) => setFormData({ ...formData, cpuOid: e.target.value })}
+                  placeholder="Ex: 1.3.6.1.4.1.3709.3.5.201.1.1.1.1.0"
+                  className="font-mono text-sm"
+                  data-testid="input-vendor-cpu-oid"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>OID de Memoria (% ou usado)</Label>
+                <Input
+                  value={formData.memoryOid}
+                  onChange={(e) => setFormData({ ...formData, memoryOid: e.target.value })}
+                  placeholder="Ex: 1.3.6.1.4.1.3709.3.5.201.1.1.1.2.0"
+                  className="font-mono text-sm"
+                  data-testid="input-vendor-memory-oid"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>OID Memoria Total (opcional)</Label>
+                  <Input
+                    value={formData.memoryTotalOid}
+                    onChange={(e) => setFormData({ ...formData, memoryTotalOid: e.target.value })}
+                    placeholder="Apenas se calcular %"
+                    className="font-mono text-sm"
+                    data-testid="input-vendor-memory-total-oid"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>OID Memoria Usada (opcional)</Label>
+                  <Input
+                    value={formData.memoryUsedOid}
+                    onChange={(e) => setFormData({ ...formData, memoryUsedOid: e.target.value })}
+                    placeholder="Apenas se calcular %"
+                    className="font-mono text-sm"
+                    data-testid="input-vendor-memory-used-oid"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.memoryIsPercentage}
+                  onCheckedChange={(checked) => setFormData({ ...formData, memoryIsPercentage: checked })}
+                  data-testid="switch-memory-is-percentage"
+                />
+                <Label>Memoria ja retorna percentual</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                  data-testid="switch-vendor-active"
+                />
+                <Label>Ativo</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={createMutation.isPending || updateMutation.isPending}
+                data-testid="button-save-vendor"
+              >
+                {(createMutation.isPending || updateMutation.isPending) && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                {editingVendor ? "Salvar" : "Criar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {vendors?.map((vendor) => (
+            <Card key={vendor.id}>
+              <CardContent className="py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{vendor.name}</span>
+                      <Badge variant="outline">{vendor.slug}</Badge>
+                      {vendor.isBuiltIn && <Badge variant="secondary">Built-in</Badge>}
+                      {!vendor.isActive && <Badge variant="destructive">Inativo</Badge>}
+                    </div>
+                    {vendor.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{vendor.description}</p>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-2 space-y-1 font-mono">
+                      {vendor.cpuOid && <div>CPU: {vendor.cpuOid}</div>}
+                      {vendor.memoryOid && <div>Mem: {vendor.memoryOid}</div>}
+                      {!vendor.cpuOid && !vendor.memoryOid && (
+                        <div className="text-amber-600">Nenhum OID configurado</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(vendor)}
+                      data-testid={`button-edit-vendor-${vendor.id}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    {!vendor.isBuiltIn && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(vendor.id)}
+                        data-testid={`button-delete-vendor-${vendor.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {(!vendors || vendors.length === 0) && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Nenhum fabricante cadastrado. Clique em "Adicionar Fabricante" para comecar.
               </CardContent>
             </Card>
           )}
