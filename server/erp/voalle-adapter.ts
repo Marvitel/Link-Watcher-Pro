@@ -184,16 +184,19 @@ export class VoalleAdapter implements ErpAdapter {
 
   async searchCustomers(query: string): Promise<ErpCustomer[]> {
     try {
-      // Voalle uses a paginated /people endpoint with filter parameter
+      // Voalle uses /getclient endpoint with pagination
+      // First get a list of clients, then filter by query on our side
       const result = await this.apiRequest<{
         success: boolean;
         response: {
           data: Array<{
             id: number;
             name: string;
+            name2?: string;
             txId?: string;
             txIdFormated?: string;
             email?: string;
+            emailNfe?: string;
             phone?: string;
             cellPhone1?: string;
             city?: string;
@@ -204,21 +207,29 @@ export class VoalleAdapter implements ErpAdapter {
           page: number;
           pageSize: number;
         };
-      }>("GET", `/people?page=1&pageSize=50&filter=${encodeURIComponent(query)}`);
+      }>("GET", `/getclient?page=1&pageSize=100`);
 
       if (!result.success || !result.response?.data) {
         return [];
       }
 
-      // Filter only clients and map to ErpCustomer format
+      // Filter by query (name, document, email) on our side
+      const queryLower = query.toLowerCase();
       return result.response.data
-        .filter(p => p.client === true)
+        .filter(p => {
+          const name = (p.name || "").toLowerCase();
+          const name2 = (p.name2 || "").toLowerCase();
+          const doc = (p.txId || p.txIdFormated || "").toLowerCase().replace(/[.\-\/]/g, "");
+          const queryClean = queryLower.replace(/[.\-\/]/g, "");
+          return name.includes(queryLower) || name2.includes(queryLower) || doc.includes(queryClean);
+        })
+        .slice(0, 50)
         .map(p => ({
           id: p.id.toString(),
           code: p.txId || p.txIdFormated || "",
           name: p.name,
           document: p.txIdFormated || p.txId,
-          email: p.email,
+          email: p.email || p.emailNfe,
           phone: p.phone || p.cellPhone1,
         }));
     } catch (error) {
