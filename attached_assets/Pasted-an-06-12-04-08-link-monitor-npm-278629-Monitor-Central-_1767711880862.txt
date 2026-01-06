@@ -1,0 +1,37 @@
+an 06 12:04:08 link-monitor npm[278629]: [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.67Mbps, up=1.04Mbps, cpu=21.0%, mem=0.0%, status=operational
+jan 06 12:04:10 link-monitor npm[278629]: [Voalle Search] Integration found: {
+jan 06 12:04:10 link-monitor npm[278629]:   id: 1,
+jan 06 12:04:10 link-monitor npm[278629]:   name: 'Voalle Produção',
+jan 06 12:04:10 link-monitor npm[278629]:   isActive: true,
+jan 06 12:04:10 link-monitor npm[278629]:   hasUrl: true,
+jan 06 12:04:10 link-monitor npm[278629]:   hasClientId: true,
+jan 06 12:04:10 link-monitor npm[278629]:   hasClientSecret: true
+jan 06 12:04:10 link-monitor npm[278629]: }
+jan 06 12:04:10 link-monitor npm[278629]: [Voalle Search] Using global ERP integration: Voalle Produção
+jan 06 12:04:10 link-monitor npm[278629]: Erro ao buscar clientes no Voalle: Error: Falha na autenticação Voalle: 400 - {"error":"invalid_client"}
+jan 06 12:04:10 link-monitor npm[278629]:     at un.authenticate (/opt/link-monitor/dist/index.cjs:198:42496)
+jan 06 12:04:10 link-monitor npm[278629]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:04:10 link-monitor npm[278629]:     at async un.apiRequest (/opt/link-monitor/dist/index.cjs:198:42795)
+jan 06 12:04:10 link-monitor npm[278629]:     at async un.searchCustomers (/opt/link-monitor/dist/index.cjs:211:922)
+jan 06 12:04:10 link-monitor npm[278629]:     at async /opt/link-monitor/dist/index.cjs:224:21979
+jan 06 12:04:10 link-monitor npm[278629]: [Voalle Search] Error: Falha na autenticação Voalle: 400 - {"error":"invalid_client"}
+jan 06 12:04:10 link-monitor npm[278629]: 12:04:10 PM [express] GET /api/voalle/customers/search 500 in 21ms :: {"error":"Erro ao buscar clientes no Voalle","details":"Falha na autenticação Voalle: 400 - {\"error\":\"invalid_client\"}"}
+jan 06 12:04:12 link-monitor npm[278629]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.72Mbps, up=1.03Mbps, cpu=22.0%, mem=0.0%, status=operational
+jan 06 12:04:18 link-monitor npm[278629]: 12:04:18 PM [express] GET /api/links 200 in 11ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de Atendimento","location":"Jardins, Aracaju/SE","address":"Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010","ipBlock":"/28","totalIps":16,"usableIps":14,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0.67362696,"currentUpload":1.0405537,"latency":1.64,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2026-01-06T15:04:08.046Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"},{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administrativa","location":"Centro, Aracaju/SE","address":"Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360","ipBlock":"/29","totalIps":8,"usableIps":6,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0.7202562,"currentUpload":1.0274674,"latency":1.889,"packetLoss":0,"cpuUsage":22,"memoryUsage":0,"lastUpdated":"2026-01-06T15:04:12.114Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":1,"snmpInterfaceName":"ether1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.26","monitoredIp":"191.52.248.26","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTEROS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":6,"onuId":"TPLGCE70A998","createdAt":"2025-12-26T12:06:18.538Z"}]
+jan 06 12:04:24 link-monitor npm[278629]: [Voalle Search] Integration found: {
+jan 06 12:04:24 link-monitor npm[278629]:   id: 1,
+jan 06 12:04:24 link-monitor npm[278629]:   name: 'Voalle Produção',
+jan 06 12:04:24 link-monitor npm[278629]:   isActive: true,
+jan 06 12:04:24 link-monitor npm[278629]:   hasUrl: true,
+jan 06 12:04:24 link-monitor npm[278629]:   hasClientId: true,
+jan 06 12:04:24 link-monitor npm[278629]:   hasClientSecret: true
+jan 06 12:04:24 link-monitor npm[278629]: }
+jan 06 12:04:24 link-monitor npm[278629]: [Voalle Search] Using global ERP integration: Voalle Produção
+jan 06 12:04:24 link-monitor npm[278629]: Erro ao buscar clientes no Voalle: Error: Falha na autenticação Voalle: 400 - {"error":"invalid_client"}
+jan 06 12:04:24 link-monitor npm[278629]:     at un.authenticate (/opt/link-monitor/dist/index.cjs:198:42496)
+jan 06 12:04:24 link-monitor npm[278629]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:04:24 link-monitor npm[278629]:     at async un.apiRequest (/opt/link-monitor/dist/index.cjs:198:42795)
+jan 06 12:04:24 link-monitor npm[278629]:     at async un.searchCustomers (/opt/link-monitor/dist/index.cjs:211:922)
+jan 06 12:04:24 link-monitor npm[278629]:     at async /opt/link-monitor/dist/index.cjs:224:21979
+jan 06 12:04:24 link-monitor npm[278629]: [Voalle Search] Error: Falha na autenticação Voalle: 400 - {"error":"invalid_client"}
+jan 06 12:04:24 link-monitor npm[278629]: 12:04:24 PM [express] GET /api/voalle/customers/search 500 in 39ms :: {"error":"Erro ao buscar clientes no Voalle","details":"Falha na autenticação Voalle: 400 - {\"error\":\"invalid_client\"}"}
