@@ -1039,7 +1039,23 @@ export class DatabaseStorage {
   }
 
   async updateClientSettings(clientId: number, data: Partial<ClientSettings>): Promise<void> {
-    await db.update(clientSettings).set({ ...data, updatedAt: new Date() }).where(eq(clientSettings.clientId, clientId));
+    // Check if settings exist for this client
+    const existing = await this.getClientSettings(clientId);
+    
+    if (existing) {
+      // Update existing settings
+      await db.update(clientSettings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(clientSettings.clientId, clientId));
+    } else {
+      // Create new settings for this client
+      await db.insert(clientSettings).values({
+        clientId,
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
   }
 
   async getGroups(clientId?: number): Promise<Group[]> {
