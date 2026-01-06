@@ -63,10 +63,15 @@ function createSession(
   targetIp: string,
   profile: SnmpProfile
 ): snmp.Session {
-  const options: snmp.SessionOptions = {
+  // Determine SNMP version - net-snmp uses numeric constants
+  // Version1 = 0, Version2c = 1
+  const snmpVersion = profile.version === "v1" ? 0 : 1;
+  
+  const options: any = {
     port: profile.port,
     timeout: profile.timeout,
     retries: profile.retries,
+    version: snmpVersion,
   };
 
   if (profile.version === "v3") {
