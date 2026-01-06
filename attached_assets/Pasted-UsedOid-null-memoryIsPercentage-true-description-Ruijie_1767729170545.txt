@@ -1,0 +1,57 @@
+UsedOid":null,"memoryIsPercentage":true,"description":"Ruijie network devices","isBuiltIn":true,"isActive":true,"createdAt":"2025-12-26T15:31:28.249Z","updatedAt":"2025-12-26T15:31:28.249Z"},{"id":8,"name":"TP-Link","slug":"tplink","cpuOid":"1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1","memoryOid":"1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1","memoryTotalOid":null,"memoryUsedOid":null,"memoryIsPercentage":true,"description":"TP-Link managed switches and routers","isBuiltIn":true,"isActive":true,"createdAt":"2025-12-26T15:31:28.327Z","updatedAt":"2025-12-26T15:31:28.327Z"},{"id":9,"name":"Personalizado","slug":"custom","cpuOid":null,"memoryOid":null,"memoryTotalOid":null,"memoryUsedOid":null,"memoryIsPercentage":true,"description":"Configure OIDs manually in the link settings","isBuiltIn":true,"isActive":true,"createdAt":"2025-12-26T15:31:28.381Z","updatedAt":"2025-12-26T15:31:28.381Z"}]
+jan 06 16:51:27 link-monitor npm[4093]: [SNMP Discovery] Starting discovery for 100.65.131.122 with timeout 15000ms
+jan 06 16:51:41 link-monitor npm[4093]: [Monitor] BGP 20G : latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 16:51:45 link-monitor npm[4093]: [Monitor] Central de Atendimento: latency=2.1ms, loss=0.0%, down=0.20Mbps, up=0.52Mbps, cpu=21.0%, mem=0.0%, status=operational
+jan 06 16:51:47 link-monitor npm[4093]: node:dgram:929
+jan 06 16:51:47 link-monitor npm[4093]:     throw new ERR_SOCKET_DGRAM_NOT_RUNNING();
+jan 06 16:51:47 link-monitor npm[4093]:     ^
+jan 06 16:51:47 link-monitor npm[4093]: Error [ERR_SOCKET_DGRAM_NOT_RUNNING]: Not running
+jan 06 16:51:47 link-monitor npm[4093]:     at healthCheck (node:dgram:929:11)
+jan 06 16:51:47 link-monitor npm[4093]:     at Socket.close (node:dgram:754:3)
+jan 06 16:51:47 link-monitor npm[4093]:     at Session.close (/opt/link-monitor/node_modules/net-snmp/index.js:2100:13)
+jan 06 16:51:47 link-monitor npm[4093]:     at Object.doneCb (/opt/link-monitor/dist/index.cjs:224:3315)
+jan 06 16:51:47 link-monitor npm[4093]:     at Session.walkCb (/opt/link-monitor/node_modules/net-snmp/index.js:2903:8)
+jan 06 16:51:47 link-monitor npm[4093]:     at Session.cancelRequests (/opt/link-monitor/node_modules/net-snmp/index.js:2109:7)
+jan 06 16:51:47 link-monitor npm[4093]:     at Session.onClose (/opt/link-monitor/node_modules/net-snmp/index.js:2402:7)
+jan 06 16:51:47 link-monitor npm[4093]:     at Socket.emit (node:events:524:28)
+jan 06 16:51:47 link-monitor npm[4093]:     at socketCloseNT (node:dgram:775:8)
+jan 06 16:51:47 link-monitor npm[4093]:     at process.processTicksAndRejections (node:internal/process/task_queues:81:21) {
+jan 06 16:51:47 link-monitor npm[4093]:   code: 'ERR_SOCKET_DGRAM_NOT_RUNNING'
+jan 06 16:51:47 link-monitor npm[4093]: }
+jan 06 16:51:47 link-monitor npm[4093]: Node.js v20.19.6
+jan 06 16:51:47 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 06 16:51:47 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 06 16:51:47 link-monitor systemd[1]: link-monitor.service: Consumed 2.142s CPU time.
+jan 06 16:51:57 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 1.
+jan 06 16:51:57 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 06 16:51:57 link-monitor systemd[1]: link-monitor.service: Consumed 2.142s CPU time.
+jan 06 16:51:57 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+jan 06 16:51:57 link-monitor npm[4125]: > rest-express@1.0.0 start
+jan 06 16:51:57 link-monitor npm[4125]: > NODE_ENV=production node dist/index.cjs
+jan 06 16:51:58 link-monitor npm[4137]: [Monitor] Starting real-time monitoring with 30s interval
+jan 06 16:51:58 link-monitor npm[4137]: 4:51:58 PM [express] serving on port 5000
+jan 06 16:52:02 link-monitor npm[4137]: [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+jan 06 16:52:13 link-monitor npm[4137]: [Monitor] BGP 20G : latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+jan 06 16:52:18 link-monitor npm[4137]: [Monitor] Central de Atendimento: latency=2.1ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=21.0%, mem=0.0%, status=operational
+jan 06 16:52:18 link-monitor npm[4137]: [SNMP Discovery] Starting discovery for 100.65.131.122 with timeout 15000ms
+jan 06 16:52:23 link-monitor npm[4137]: 4:52:23 PM [express] GET /api/links 200 in 14ms :: [{"id":3,"clientId":2,"identifier":"Emgetis","name":"BGP 20G ","location":"Aracaju/SE","address":"Leite Neto","ipBlock":"/30","totalIps":4,"usableIps":2,"bandwidth":20000,"status":"operational","uptime":99.051,"currentDownload":0,"currentUpload":0,"latency":1.664,"packetLoss":0,"cpuUsage":0,"memoryUsage":0,"lastUpdated":"2026-01-06T19:52:13.919Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":2,"snmpInterfaceIndex":null,"snmpInterfaceName":"","snmpInterfaceDescr":"","snmpRouterIp":"100.65.131.122","monitoredIp":"100.65.131.122","equipmentVendorId":5,"customCpuOid":"","customMemoryOid":"","equipmentModel":"Datacom DM4250","latencyThreshold":80,"packetLossThreshold":2,"oltId":null,"onuId":"","createdAt":"2026-01-06T16:24:39.278Z"},{"id":2,"clientId":1,"identifier":"central","name":"Central de Atendimento","location":"Jardins, Aracaju/SE","address":"Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010","ipBlock":"/28","totalIps":16,"usableIps":14,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0,"currentUpload":0,"latency":2.073,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2026-01-06T19:52:17.996Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"},{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administrativa","location":"Centro, Aracaju/SE","address":"Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360","ipBlock":"/29","totalIps":8,"usableIps":6,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0,"currentUpload":0,"latency":1.852,"packetLoss":0,"cpuUsage":21,"memoryUsage":0,"lastUpdated":"2026-01-06T19:52:02.840Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":1,"snmpInterfaceName":"ether1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.26","monitoredIp":"191.52.248.26","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTEROS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":6,"onuId":"TPLGCE70A998","createdAt":"2025-12-26T12:06:18.538Z"}]
+jan 06 16:52:38 link-monitor npm[4137]: node:dgram:929
+jan 06 16:52:38 link-monitor npm[4137]:     throw new ERR_SOCKET_DGRAM_NOT_RUNNING();
+jan 06 16:52:38 link-monitor npm[4137]:     ^
+jan 06 16:52:38 link-monitor npm[4137]: Error [ERR_SOCKET_DGRAM_NOT_RUNNING]: Not running
+jan 06 16:52:38 link-monitor npm[4137]:     at healthCheck (node:dgram:929:11)
+jan 06 16:52:38 link-monitor npm[4137]:     at Socket.close (node:dgram:754:3)
+jan 06 16:52:38 link-monitor npm[4137]:     at Session.close (/opt/link-monitor/node_modules/net-snmp/index.js:2100:13)
+jan 06 16:52:38 link-monitor npm[4137]:     at Object.doneCb (/opt/link-monitor/dist/index.cjs:224:3315)
+jan 06 16:52:38 link-monitor npm[4137]:     at Session.walkCb (/opt/link-monitor/node_modules/net-snmp/index.js:2903:8)
+jan 06 16:52:38 link-monitor npm[4137]:     at Session.cancelRequests (/opt/link-monitor/node_modules/net-snmp/index.js:2109:7)
+jan 06 16:52:38 link-monitor npm[4137]:     at Session.onClose (/opt/link-monitor/node_modules/net-snmp/index.js:2402:7)
+jan 06 16:52:38 link-monitor npm[4137]:     at Socket.emit (node:events:524:28)
+jan 06 16:52:38 link-monitor npm[4137]:     at socketCloseNT (node:dgram:775:8)
+jan 06 16:52:38 link-monitor npm[4137]:     at processTicksAndRejections (node:internal/process/task_queues:81:21) {
+jan 06 16:52:38 link-monitor npm[4137]:   code: 'ERR_SOCKET_DGRAM_NOT_RUNNING'
+jan 06 16:52:38 link-monitor npm[4137]: }
+jan 06 16:52:38 link-monitor npm[4137]: Node.js v20.19.6
+jan 06 16:52:38 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 06 16:52:38 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 06 16:52:38 link-monitor systemd[1]: link-monitor.service: Consumed 2.306s CPU time.

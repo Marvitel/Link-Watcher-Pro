@@ -114,9 +114,28 @@ async function subtreeWalkWithSession(
   
   return new Promise((resolve, reject) => {
     const results = new Map<number, string | number>();
-    const timeoutId = setTimeout(() => {
-      session.close();
-      reject(new Error(`Timeout walking OID ${oid}`));
+    let completed = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Only close if not already closed
+      try {
+        session.close();
+      } catch {
+        // Session already closed, ignore
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      if (!completed) {
+        completed = true;
+        cleanup();
+        reject(new Error(`Timeout walking OID ${oid}`));
+      }
     }, profile.timeout + 5000); // Add buffer to profile timeout
 
     session.subtree(
@@ -139,12 +158,14 @@ async function subtreeWalkWithSession(
         }
       },
       (error) => {
-        clearTimeout(timeoutId);
-        session.close();
-        if (error) {
-          reject(error);
-        } else {
-          resolve(results);
+        if (!completed) {
+          completed = true;
+          cleanup();
+          if (error) {
+            reject(error);
+          } else {
+            resolve(results);
+          }
         }
       }
     );
