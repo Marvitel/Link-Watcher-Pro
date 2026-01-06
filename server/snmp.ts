@@ -145,7 +145,13 @@ export async function discoverInterfaces(
   targetIp: string,
   profile: SnmpProfile
 ): Promise<SnmpInterface[]> {
-  const session = createSession(targetIp, profile);
+  // Use longer timeout for discovery (30 seconds) as some devices respond slowly
+  const discoveryProfile = {
+    ...profile,
+    timeout: Math.max(profile.timeout, 30000), // At least 30 seconds
+    retries: Math.max(profile.retries, 2), // At least 2 retries
+  };
+  const session = createSession(targetIp, discoveryProfile);
 
   try {
     const [ifIndexMap, ifDescrMap, ifSpeedMap, ifAdminStatusMap, ifOperStatusMap, ifNameMap, ifHighSpeedMap] =
