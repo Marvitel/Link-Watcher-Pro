@@ -1,0 +1,39 @@
+root@link-monitor:~# sudo journalctl -u link-monitor -f
+jan 06 12:11:31 link-monitor npm[278919]: [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.62Mbps, up=0.88Mbps, cpu=22.0%, mem=0.0%, status=operational
+jan 06 12:11:35 link-monitor npm[278919]: [Monitor] Sede Administrativa: latency=2.2ms, loss=0.0%, down=0.77Mbps, up=1.02Mbps, cpu=23.0%, mem=0.0%, status=operational
+jan 06 12:11:36 link-monitor npm[278919]: [Voalle Search] Using VoalleAdapter with integration: Voalle Produção
+jan 06 12:11:39 link-monitor npm[278919]: Erro ao buscar clientes Voalle: Error: Voalle API error: 404 -
+jan 06 12:11:39 link-monitor npm[278919]:     at ou.apiRequest (/opt/link-monitor/dist/index.cjs:211:4248)
+jan 06 12:11:39 link-monitor npm[278919]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:11:39 link-monitor npm[278919]:     at async ou.searchCustomers (/opt/link-monitor/dist/index.cjs:211:4663)
+jan 06 12:11:39 link-monitor npm[278919]:     at async /opt/link-monitor/dist/index.cjs:224:21629
+jan 06 12:11:39 link-monitor npm[278919]: [Voalle Search] Found 0 customers
+jan 06 12:11:39 link-monitor npm[278919]: 12:11:39 PM [express] GET /api/voalle/customers/search 200 in 2818ms :: {"customers":[]}
+jan 06 12:11:55 link-monitor npm[278919]: [Voalle Search] Using VoalleAdapter with integration: Voalle Produção
+jan 06 12:11:55 link-monitor npm[278919]: Erro ao buscar clientes Voalle: Error: Voalle API error: 404 -
+jan 06 12:11:55 link-monitor npm[278919]:     at ou.apiRequest (/opt/link-monitor/dist/index.cjs:211:4248)
+jan 06 12:11:55 link-monitor npm[278919]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:11:55 link-monitor npm[278919]:     at async ou.searchCustomers (/opt/link-monitor/dist/index.cjs:211:4663)
+jan 06 12:11:55 link-monitor npm[278919]:     at async /opt/link-monitor/dist/index.cjs:224:21629
+jan 06 12:11:55 link-monitor npm[278919]: [Voalle Search] Found 0 customers
+jan 06 12:11:55 link-monitor npm[278919]: 12:11:55 PM [express] GET /api/voalle/customers/search 200 in 113ms :: {"customers":[]}
+jan 06 12:11:56 link-monitor npm[278919]: 12:11:56 PM [express] GET /api/links 200 in 12ms :: [{"id":2,"clientId":1,"identifier":"central","name":"Central de Atendimento","location":"Jardins, Aracaju/SE","address":"Avenida Ministro Geraldo Barreto Sobral, nº 1436, Jardins – Aracaju/SE, CEP 49.026-010","ipBlock":"/28","totalIps":16,"usableIps":14,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0.6243843,"currentUpload":0.8844168,"latency":1.816,"packetLoss":0,"cpuUsage":22,"memoryUsage":0,"lastUpdated":"2026-01-06T15:11:31.899Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":17,"snmpInterfaceName":"bridge1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.227","monitoredIp":"191.52.248.227","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTER OS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":1,"onuId":"1/1/1/18","createdAt":"2025-12-26T12:06:18.553Z"},{"id":1,"clientId":1,"identifier":"sede","name":"Sede Administrativa","location":"Centro, Aracaju/SE","address":"Travessa João Francisco da Silveira, nº 44, Centro – Aracaju/SE, CEP 49.010-360","ipBlock":"/29","totalIps":8,"usableIps":6,"bandwidth":200,"status":"operational","uptime":100,"currentDownload":0.77081054,"currentUpload":1.0153487,"latency":2.237,"packetLoss":0,"cpuUsage":23,"memoryUsage":0,"lastUpdated":"2026-01-06T15:11:35.976Z","failureReason":null,"failureSource":null,"lastFailureAt":null,"monitoringEnabled":true,"oltEndpoint":null,"snmpCommunity":"","icmpInterval":30,"snmpProfileId":1,"snmpInterfaceIndex":1,"snmpInterfaceName":"ether1","snmpInterfaceDescr":"Link Marvitel","snmpRouterIp":"191.52.248.26","monitoredIp":"191.52.248.26","equipmentVendorId":2,"customCpuOid":"","customMemoryOid":"","equipmentModel":"VM ROUTEROS X86","latencyThreshold":10,"packetLossThreshold":2,"oltId":6,"onuId":"TPLGCE70A998","createdAt":"2025-12-26T12:06:18.538Z"}]
+jan 06 12:12:01 link-monitor npm[278919]: [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.72Mbps, up=1.01Mbps, cpu=20.0%, mem=0.0%, status=operational
+jan 06 12:12:05 link-monitor npm[278919]: [Monitor] Sede Administrativa: latency=2.2ms, loss=0.0%, down=0.75Mbps, up=0.99Mbps, cpu=20.0%, mem=0.0%, status=operational
+jan 06 12:12:16 link-monitor npm[278919]: [Voalle Search] Using VoalleAdapter with integration: Voalle Produção
+jan 06 12:12:16 link-monitor npm[278919]: Erro ao buscar clientes Voalle: Error: Voalle API error: 404 -
+jan 06 12:12:16 link-monitor npm[278919]:     at ou.apiRequest (/opt/link-monitor/dist/index.cjs:211:4248)
+jan 06 12:12:16 link-monitor npm[278919]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:12:16 link-monitor npm[278919]:     at async ou.searchCustomers (/opt/link-monitor/dist/index.cjs:211:4663)
+jan 06 12:12:16 link-monitor npm[278919]:     at async /opt/link-monitor/dist/index.cjs:224:21629
+jan 06 12:12:16 link-monitor npm[278919]: [Voalle Search] Found 0 customers
+jan 06 12:12:16 link-monitor npm[278919]: 12:12:16 PM [express] GET /api/voalle/customers/search 304 in 134ms :: {"customers":[]}
+jan 06 12:12:26 link-monitor npm[278919]: [Voalle Search] Using VoalleAdapter with integration: Voalle Produção
+jan 06 12:12:26 link-monitor npm[278919]: Erro ao buscar clientes Voalle: Error: Voalle API error: 404 -
+jan 06 12:12:26 link-monitor npm[278919]:     at ou.apiRequest (/opt/link-monitor/dist/index.cjs:211:4248)
+jan 06 12:12:26 link-monitor npm[278919]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 06 12:12:26 link-monitor npm[278919]:     at async ou.searchCustomers (/opt/link-monitor/dist/index.cjs:211:4663)
+jan 06 12:12:26 link-monitor npm[278919]:     at async /opt/link-monitor/dist/index.cjs:224:21629
+jan 06 12:12:26 link-monitor npm[278919]: [Voalle Search] Found 0 customers
+jan 06 12:12:26 link-monitor npm[278919]: 12:12:26 PM [express] GET /api/voalle/customers/search 200 in 96ms :: {"customers":[]}
+jan 06 12:12:26 link-monitor npm[278919]: 12:12:26 PM [express] GET /api/links 200 in 10ms :: [{"id":2,"clientId":1,"identifier":"centra
