@@ -166,7 +166,7 @@ export default function Dashboard() {
             value={stats?.activeAlerts || 0}
             icon={AlertTriangle}
             trend={{ value: 0, direction: "neutral" }}
-            subtitle={stats?.ddosEventsToday ? `${stats.ddosEventsToday} DDoS hoje` : "nenhum DDoS"}
+            subtitle="alertas pendentes"
             testId="metric-all-alerts"
           />
         </div>
@@ -274,7 +274,7 @@ export default function Dashboard() {
                 value: 0,
                 direction: "neutral",
               }}
-              subtitle={stats?.ddosEventsToday ? `${stats.ddosEventsToday} DDoS hoje` : "nenhum DDoS"}
+              subtitle={showDdosCard && stats?.ddosEventsToday ? `${stats.ddosEventsToday} DDoS hoje` : (showDdosCard ? "nenhum DDoS" : "alertas pendentes")}
               testId="metric-alerts"
             />
           </>
