@@ -87,11 +87,19 @@ export default function Dashboard() {
   const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
   const eventsUrl = selectedClientId ? `/api/events?clientId=${selectedClientId}` : "/api/events";
+  const settingsUrl = selectedClientId ? `/api/my-settings?clientId=${selectedClientId}` : "/api/my-settings";
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: [statsUrl],
     refetchInterval: 5000,
   });
+
+  const { data: clientSettings } = useQuery<{ wanguardEnabled: boolean; voalleEnabled: boolean }>({
+    queryKey: [settingsUrl],
+    staleTime: 60000,
+  });
+
+  const showDdosCard = isSuperAdmin || clientSettings?.wanguardEnabled;
 
   const { data: links, isLoading: linksLoading } = useQuery<LinkType[]>({
     queryKey: [linksUrl],
@@ -386,32 +394,34 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-green-500" />
-            <CardTitle className="text-lg">Proteção Anti-DDoS</CardTitle>
-          </div>
-          <Link href="/security">
-            <Button variant="outline" size="sm" data-testid="button-view-security">
-              Ver detalhes
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-green-500" />
+      {showDdosCard && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-green-500" />
+              <CardTitle className="text-lg">Proteção Anti-DDoS</CardTitle>
             </div>
-            <div>
-              <p className="font-medium">Sistema operando normalmente</p>
-              <p className="text-sm text-muted-foreground">
-                Monitoramento 24x7 ativo - Nenhum ataque detectado nas últimas 24h
-              </p>
+            <Link href="/security">
+              <Button variant="outline" size="sm" data-testid="button-view-security">
+                Ver detalhes
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-green-500" />
+              </div>
+              <div>
+                <p className="font-medium">Sistema operando normalmente</p>
+                <p className="text-sm text-muted-foreground">
+                  Monitoramento 24x7 ativo - Nenhum ataque detectado nas últimas 24h
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

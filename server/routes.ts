@@ -245,6 +245,22 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/my-settings", requireAuth, async (req, res) => {
+    try {
+      const clientId = getEffectiveClientId(req);
+      if (!clientId) {
+        return res.json({ wanguardEnabled: true, voalleEnabled: true });
+      }
+      const settings = await storage.getClientSettings(clientId);
+      res.json({
+        wanguardEnabled: settings?.wanguardEnabled ?? false,
+        voalleEnabled: settings?.voalleEnabled ?? false,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
   app.get("/api/links", requireAuth, async (req, res) => {
     try {
       const clientId = getEffectiveClientId(req);

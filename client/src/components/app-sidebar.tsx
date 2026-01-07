@@ -26,16 +26,27 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useClientContext } from "@/lib/client-context";
 
+interface ClientSettings {
+  wanguardEnabled: boolean;
+  voalleEnabled: boolean;
+}
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, isViewingAsClient } = useClientContext();
 
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
+  const settingsUrl = selectedClientId ? `/api/my-settings?clientId=${selectedClientId}` : "/api/my-settings";
   
   const { data: links } = useQuery<LinkType[]>({
     queryKey: [linksUrl],
     refetchInterval: 30000,
+  });
+
+  const { data: clientSettings } = useQuery<ClientSettings>({
+    queryKey: [settingsUrl],
+    staleTime: 60000,
   });
 
   const navigationItems = [
@@ -43,8 +54,13 @@ export function AppSidebar() {
     { title: "Links", url: "/links", icon: Network },
   ];
 
-  const securityItems = [
+  const showSecurity = isSuperAdmin || clientSettings?.wanguardEnabled;
+
+  const securityItems = showSecurity ? [
     { title: "Segurança", url: "/security", icon: Shield },
+    { title: "Eventos", url: "/events", icon: Activity },
+    { title: "Relatórios", url: "/reports", icon: FileText },
+  ] : [
     { title: "Eventos", url: "/events", icon: Activity },
     { title: "Relatórios", url: "/reports", icon: FileText },
   ];
