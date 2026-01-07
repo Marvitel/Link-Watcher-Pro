@@ -97,18 +97,42 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Configuration**: Per-client settings in clientSettings table (wanguardApiEndpoint, wanguardApiUser, wanguardApiPassword, wanguardEnabled, wanguardSyncInterval)
 - **Data Mapping**: Wanguard anomalies are mapped to ddosEvents with wanguardAnomalyId, wanguardSensor, targetIp, decoder fields
 
-### Voalle ERP
-- **Purpose**: Ticket/incident management via Service Desk
-- **API**: REST API with OAuth2 client_credentials
+### Voalle ERP - Dual API Architecture
+- **Purpose**: Ticket/incident management e busca de etiquetas de contrato
+- **Dual API Support**: 
+  - **API Para Terceiros** (autenticação principal, clientes, solicitações)
+  - **API Portal** (etiquetas de contrato com campo serviceTag e filtro active)
+
+#### API Para Terceiros (Principal)
 - **Auth Endpoint**: `https://<erp_url>:45700/connect/token`
 - **API Endpoint**: `https://<erp_url>:45715/external/integrations/thirdparty/`
-- **Service**: `server/voalle.ts` - VoalleService class
-- **Configuration**: Per-client settings in clientSettings table (voalleApiUrl, voalleClientId, voalleClientSecret, voalleSynV1Token, voalleSolicitationTypeCode, voalleEnabled, voalleAutoCreateTicket)
-- **Features**: Test connection, create tickets for incidents, automatic ticket creation on incident detection
+- **Auth**: OAuth2 password grant (username/password/syndata)
+- **Usa**: CNPJ como identificador do cliente
+
+#### API Portal (Etiquetas)
+- **Auth Endpoint**: `https://<portal_url>/api/oauth/token`
+- **API Endpoint**: `https://<portal_url>/api/contract_service_tags`
+- **Auth**: OAuth2 password grant (client_id/client_secret/username/password) + Verify-Token header
+- **Usa**: voalleCustomerId como identificador do cliente
+- **Retorna**: serviceTag, title, description, active
+
+#### Fluxo de Etiquetas
+1. Se Portal API configurada + voalleCustomerId disponível: usar Portal API
+2. Se Portal API falhar ou não configurada + CNPJ disponível: usar API Para Terceiros
+3. Se nenhum identificador disponível: retorna lista vazia
+
+#### Requisitos para Funcionamento
+- **Portal API**: Cliente deve ter `voalleCustomerId` cadastrado
+- **API Para Terceiros**: Cliente deve ter `cnpj` cadastrado
+- **Recomendação**: Cadastrar ambos os campos para garantir fallback
+
+- **Service**: `server/erp/voalle-adapter.ts` - VoalleAdapter class
+- **Configuration**: Integração global em erpIntegrations table com providerConfig contendo credenciais de ambas as APIs
 
 ### Voalle Integration Endpoints
 - `POST /api/clients/:clientId/voalle/test` - Test Voalle connection
 - `POST /api/clients/:clientId/voalle/create-ticket` - Create ticket for an incident
+- `GET /api/clients/:clientId/voalle/contract-tags` - Get contract tags (etiquetas de contrato)
 
 ## External Dependencies
 

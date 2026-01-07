@@ -539,16 +539,42 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
-  async getContractTags(clientId: string, page: number = 1, pageSize: number = 50): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean }>> {
-    if (!clientId) {
-      console.log("[VoalleAdapter] getContractTags: clientId não fornecido");
-      return [];
+  async getContractTags(
+    voalleCustomerIdOrLegacy: string | null | { voalleCustomerId?: string | null; cnpj?: string | null }, 
+    cnpjParam?: string | null, 
+    page: number = 1, 
+    pageSize: number = 50
+  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean }>> {
+    // Handle both old and new signatures for backward compatibility
+    let voalleCustomerId: string | null = null;
+    let cnpj: string | null = null;
+    
+    if (typeof voalleCustomerIdOrLegacy === 'object' && voalleCustomerIdOrLegacy !== null) {
+      // New object-based signature
+      voalleCustomerId = voalleCustomerIdOrLegacy.voalleCustomerId || null;
+      cnpj = voalleCustomerIdOrLegacy.cnpj || null;
+    } else if (typeof voalleCustomerIdOrLegacy === 'string') {
+      // Old single-string signature - detect if it's CNPJ (11+ digits) or voalleCustomerId (shorter numeric)
+      const cleanId = voalleCustomerIdOrLegacy.replace(/\D/g, '');
+      if (cleanId.length >= 11) {
+        // Looks like a CNPJ (11+ digits) - use for legacy API
+        cnpj = cleanId;
+        console.log(`[VoalleAdapter] Legado: identificador ${cleanId} detectado como CNPJ`);
+      } else {
+        // Shorter numeric - use as voalleCustomerId for Portal API
+        voalleCustomerId = voalleCustomerIdOrLegacy;
+        console.log(`[VoalleAdapter] Legado: identificador ${voalleCustomerIdOrLegacy} detectado como voalleCustomerId`);
+      }
+      // Also accept second param if provided
+      if (cnpjParam) {
+        cnpj = cnpjParam.replace(/\D/g, '');
+      }
     }
-
+    
     // Prefer Portal API if configured (has serviceTag field and active filter)
-    if (this.isPortalConfigured()) {
+    if (this.isPortalConfigured() && voalleCustomerId) {
       try {
-        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (clientId: ${clientId})`);
+        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (voalleCustomerId: ${voalleCustomerId})`);
         
         const result = await this.portalApiRequest<{
           data: Array<{
@@ -566,7 +592,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           count: number;
           filtered: number;
           total: number;
-        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(clientId)}`);
+        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(voalleCustomerId)}`);
 
         if (!result.data) {
           console.log("[VoalleAdapter] Portal API: resposta sem dados");
@@ -589,12 +615,18 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         console.error("[VoalleAdapter] Erro na Portal API, tentando API antiga:", error);
         // Fall through to legacy API
       }
+    } else if (voalleCustomerId && !this.isPortalConfigured()) {
+      console.log(`[VoalleAdapter] Portal API não configurada, voalleCustomerId ${voalleCustomerId} não pode ser usado com API antiga`);
     }
 
     // Fallback to legacy API (using txId/CNPJ)
+    if (!cnpj) {
+      console.log("[VoalleAdapter] API antiga: CNPJ não fornecido");
+      return [];
+    }
     try {
-      const path = `/contractservicetagspaged?txId=${encodeURIComponent(clientId)}&Page=${page}&PageSize=${pageSize}`;
-      console.log(`[VoalleAdapter] Usando API antiga para etiquetas: ${path}`);
+      const path = `/contractservicetagspaged?txId=${encodeURIComponent(cnpj)}&Page=${page}&PageSize=${pageSize}`;
+      console.log(`[VoalleAdapter] Usando API antiga para etiquetas (CNPJ: ${cnpj}): ${path}`);
       
       const result = await this.apiRequest<{
         success: boolean;
