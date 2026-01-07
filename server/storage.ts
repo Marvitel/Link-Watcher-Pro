@@ -4,6 +4,8 @@ import {
   links,
   hosts,
   metrics,
+  metricsHourly,
+  metricsDaily,
   events,
   ddosEvents,
   incidents,
@@ -313,9 +315,6 @@ export class DatabaseStorage {
   }
 
   async getLinkMetrics(linkId: number, limit?: number, hours?: number, fromDate?: Date, toDate?: Date): Promise<Metric[]> {
-    // Se fromDate/toDate especificados, usa intervalo personalizado
-    // Se hours especificado, calcula a partir de agora
-    // Caso contrário, usa os últimos 6 meses como padrão
     let startDate: Date;
     let endDate: Date | undefined;
     
@@ -328,6 +327,71 @@ export class DatabaseStorage {
     } else {
       startDate = new Date();
       startDate.setMonth(startDate.getMonth() - 6);
+    }
+    
+    const now = new Date();
+    const hoursSpan = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursSpan > 24 * 30) {
+      const conditions = [eq(metricsDaily.linkId, linkId), gte(metricsDaily.bucketStart, startDate)];
+      if (endDate) conditions.push(lte(metricsDaily.bucketStart, endDate));
+      
+      const dailyData = await db
+        .select()
+        .from(metricsDaily)
+        .where(and(...conditions))
+        .orderBy(desc(metricsDaily.bucketStart));
+      
+      return dailyData.map(d => {
+        const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
+        const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+          : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+        return {
+          id: d.id,
+          linkId: d.linkId,
+          clientId: d.clientId,
+          timestamp: d.bucketStart,
+          download: d.downloadAvg,
+          upload: d.uploadAvg,
+          latency: d.latencyAvg,
+          packetLoss: d.packetLossAvg,
+          cpuUsage: d.cpuUsageAvg,
+          memoryUsage: d.memoryUsageAvg,
+          errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+          status: dominantStatus,
+        };
+      });
+    }
+    
+    if (hoursSpan > 24 * 7) {
+      const conditions = [eq(metricsHourly.linkId, linkId), gte(metricsHourly.bucketStart, startDate)];
+      if (endDate) conditions.push(lte(metricsHourly.bucketStart, endDate));
+      
+      const hourlyData = await db
+        .select()
+        .from(metricsHourly)
+        .where(and(...conditions))
+        .orderBy(desc(metricsHourly.bucketStart));
+      
+      return hourlyData.map(d => {
+        const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
+        const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+          : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+        return {
+          id: d.id,
+          linkId: d.linkId,
+          clientId: d.clientId,
+          timestamp: d.bucketStart,
+          download: d.downloadAvg,
+          upload: d.uploadAvg,
+          latency: d.latencyAvg,
+          packetLoss: d.packetLossAvg,
+          cpuUsage: d.cpuUsageAvg,
+          memoryUsage: d.memoryUsageAvg,
+          errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+          status: dominantStatus,
+        };
+      });
     }
     
     const conditions = [eq(metrics.linkId, linkId), gte(metrics.timestamp, startDate)];
