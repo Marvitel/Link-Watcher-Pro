@@ -125,10 +125,17 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     snmpCommunity: "",
     oltId: link?.oltId || null,
     onuId: link?.onuId || "",
+    voalleContractTagId: link?.voalleContractTagId || null,
   });
 
   // OLTs são globais, filtrar apenas por isActive
   const filteredOlts = olts?.filter(olt => olt.isActive);
+
+  // Buscar etiquetas de contrato do Voalle para o cliente selecionado
+  const { data: voalleContractTags, isLoading: isLoadingTags } = useQuery<{ tags: Array<{ id: number }>; cnpj?: string }>({
+    queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
+    enabled: !!formData.clientId,
+  });
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
@@ -608,6 +615,50 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
           </p>
         )}
+      </div>
+
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3">Integração ERP (Voalle)</h4>
+        <p className="text-sm text-muted-foreground mb-3">
+          Associe este link a uma etiqueta de contrato no Voalle para filtrar solicitações
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="voalleContractTagId">Etiqueta de Contrato</Label>
+          {isLoadingTags ? (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">Carregando etiquetas...</span>
+            </div>
+          ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
+            <Select
+              value={formData.voalleContractTagId?.toString() || "none"}
+              onValueChange={(value) => setFormData({ ...formData, voalleContractTagId: value === "none" ? null : parseInt(value, 10) })}
+            >
+              <SelectTrigger data-testid="select-voalle-contract-tag">
+                <SelectValue placeholder="Selecione uma etiqueta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhuma (buscar todas solicitações)</SelectItem>
+                {voalleContractTags.tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id.toString()}>
+                    Etiqueta #{tag.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+              <span className="text-sm text-muted-foreground">
+                {voalleContractTags?.cnpj 
+                  ? "Nenhuma etiqueta encontrada no Voalle" 
+                  : "Configure o CNPJ do cliente para buscar etiquetas"}
+              </span>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Etiquetas de contrato permitem filtrar solicitações específicas deste link
+          </p>
+        </div>
       </div>
       
       <div className="border-t pt-4 mt-4">
