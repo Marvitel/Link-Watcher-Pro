@@ -545,6 +545,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       // If no custom OIDs, try vendor OIDs
       if ((!cpuOid || !memoryOid) && link.equipmentVendorId) {
         const vendor = await getEquipmentVendor(link.equipmentVendorId);
+        console.log(`[Monitor] ${link.name} - vendorId: ${link.equipmentVendorId}, vendor: ${vendor?.name}, cpuOid: ${vendor?.cpuOid}, memOid: ${vendor?.memoryOid}`);
         if (vendor) {
           if (!cpuOid && vendor.cpuOid) {
             cpuOid = vendor.cpuOid;
@@ -556,11 +557,15 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
 
       if (cpuOid || memoryOid) {
+        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, memOid: ${memoryOid}`);
         const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryOid);
+        console.log(`[Monitor] ${link.name} - Resultado CPU/Mem: cpu=${systemResources?.cpuUsage}, mem=${systemResources?.memoryUsage}`);
         if (systemResources) {
           cpuUsage = systemResources.cpuUsage;
           memoryUsage = systemResources.memoryUsage;
         }
+      } else {
+        console.log(`[Monitor] ${link.name} - Sem OIDs para CPU/Mem. vendorId: ${link.equipmentVendorId}, customCpu: ${link.customCpuOid}, customMem: ${link.customMemoryOid}`);
       }
     }
   }
