@@ -1015,12 +1015,16 @@ export async function registerRoutes(
   app.get("/api/clients/:clientId/voalle/contract-tags", requireAuth, async (req, res) => {
     try {
       const clientId = parseInt(req.params.clientId, 10);
+      console.log(`[Voalle Contract Tags] Buscando etiquetas para cliente ${clientId}`);
       
       // Buscar cliente
       const client = await storage.getClient(clientId);
       if (!client) {
-        return res.status(404).json({ error: "Cliente não encontrado" });
+        console.log(`[Voalle Contract Tags] Cliente ${clientId} não encontrado`);
+        return res.status(404).json({ error: "Cliente não encontrado", tags: [] });
       }
+
+      console.log(`[Voalle Contract Tags] Cliente: ${client.name}, CNPJ: ${client.cnpj || 'não definido'}`);
 
       // Verificar se o cliente tem CNPJ
       if (!client.cnpj) {
@@ -1033,6 +1037,7 @@ export async function registerRoutes(
       // Buscar integração Voalle ativa
       const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
       if (!voalleIntegration || !voalleIntegration.isActive) {
+        console.log("[Voalle Contract Tags] Integração Voalle não encontrada ou inativa");
         return res.status(400).json({ 
           error: "Integração Voalle não configurada",
           tags: [] 
@@ -1051,9 +1056,11 @@ export async function registerRoutes(
 
       // Remover formatação do CNPJ
       const txId = client.cnpj.replace(/\D/g, '');
+      console.log(`[Voalle Contract Tags] Buscando com txId: ${txId}`);
       
       // Buscar etiquetas de contrato
       const tags = await voalle.getContractTags(txId);
+      console.log(`[Voalle Contract Tags] Encontradas ${tags.length} etiquetas`);
 
       res.json({ 
         tags,
