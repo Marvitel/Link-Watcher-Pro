@@ -225,8 +225,9 @@ export default function Dashboard() {
               value={`${stats?.operationalLinks || 0}/${stats?.totalLinks || 0}`}
               icon={Activity}
               trend={{
-                value: 0,
-                direction: "neutral",
+                value: stats?.totalLinks ? Math.round((stats.operationalLinks / stats.totalLinks) * 100) : 0,
+                direction: stats?.operationalLinks === stats?.totalLinks ? "up" : stats?.operationalLinks === 0 ? "down" : "neutral",
+                isGood: stats?.operationalLinks === stats?.totalLinks,
               }}
               subtitle="links ativos"
               testId="metric-operational-links"
