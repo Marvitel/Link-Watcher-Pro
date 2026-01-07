@@ -132,9 +132,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const filteredOlts = olts?.filter(olt => olt.isActive);
 
   // Buscar etiquetas de contrato do Voalle para o cliente selecionado
-  const { data: voalleContractTags, isLoading: isLoadingTags } = useQuery<{ tags: Array<{ id: number }>; cnpj?: string }>({
+  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number }>; cnpj?: string; error?: string }>({
     queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
     enabled: !!formData.clientId,
+    staleTime: 0,
+    retry: false,
   });
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
@@ -623,11 +625,33 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           Associe este link a uma etiqueta de contrato no Voalle para filtrar solicitações
         </p>
         <div className="space-y-2">
-          <Label htmlFor="voalleContractTagId">Etiqueta de Contrato</Label>
-          {isLoadingTags ? (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="voalleContractTagId">Etiqueta de Contrato</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchTags()}
+              disabled={isLoadingTags}
+              data-testid="button-refresh-tags"
+            >
+              {isLoadingTags ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            </Button>
+          </div>
+          {tagsError ? (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
+              <span className="text-sm text-destructive">
+                Erro ao buscar etiquetas: {(tagsError as any)?.message || "Erro desconhecido"}
+              </span>
+            </div>
+          ) : isLoadingTags ? (
             <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-sm text-muted-foreground">Carregando etiquetas...</span>
+            </div>
+          ) : voalleContractTags?.error ? (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
+              <span className="text-sm text-destructive">{voalleContractTags.error}</span>
             </div>
           ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
             <Select
