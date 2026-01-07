@@ -332,7 +332,11 @@ export class DatabaseStorage {
     const now = new Date();
     const hoursSpan = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60);
     
-    if (hoursSpan > 24 * 30) {
+    // Mínimo de pontos esperados para considerar dados agregados suficientes
+    const expectedDailyPoints = Math.ceil(hoursSpan / 24);
+    const expectedHourlyPoints = Math.ceil(hoursSpan);
+    
+    if (hoursSpan >= 24 * 30) {
       const conditions = [eq(metricsDaily.linkId, linkId), gte(metricsDaily.bucketStart, startDate)];
       if (endDate) conditions.push(lte(metricsDaily.bucketStart, endDate));
       
@@ -342,7 +346,8 @@ export class DatabaseStorage {
         .where(and(...conditions))
         .orderBy(desc(metricsDaily.bucketStart));
       
-      if (dailyData.length > 0) {
+      // Usar dados diários somente se tiver pelo menos 50% dos pontos esperados
+      if (dailyData.length >= expectedDailyPoints * 0.5) {
         return dailyData.map(d => {
           const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
           const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
@@ -365,7 +370,7 @@ export class DatabaseStorage {
       }
     }
     
-    if (hoursSpan > 24 * 7) {
+    if (hoursSpan >= 24 * 7) {
       const conditions = [eq(metricsHourly.linkId, linkId), gte(metricsHourly.bucketStart, startDate)];
       if (endDate) conditions.push(lte(metricsHourly.bucketStart, endDate));
       
@@ -375,7 +380,8 @@ export class DatabaseStorage {
         .where(and(...conditions))
         .orderBy(desc(metricsHourly.bucketStart));
       
-      if (hourlyData.length > 0) {
+      // Usar dados horários somente se tiver pelo menos 30% dos pontos esperados
+      if (hourlyData.length >= expectedHourlyPoints * 0.3) {
         return hourlyData.map(d => {
           const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
           const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
