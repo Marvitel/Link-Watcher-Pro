@@ -39,6 +39,9 @@ export class VoalleService {
   constructor() {}
 
   configure(config: VoalleConfig) {
+    if (!config.apiUrl) {
+      throw new Error("Voalle apiUrl não configurado");
+    }
     let apiUrl = config.apiUrl.trim();
     if (apiUrl.endsWith("/")) {
       apiUrl = apiUrl.slice(0, -1);

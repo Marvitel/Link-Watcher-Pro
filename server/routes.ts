@@ -1034,7 +1034,7 @@ export async function registerRoutes(
         });
       }
 
-      // Buscar integração Voalle ativa
+      // Buscar integração Voalle ativa usando configuração global
       const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
       if (!voalleIntegration || !voalleIntegration.isActive) {
         console.log("[Voalle Contract Tags] Integração Voalle não encontrada ou inativa");
@@ -1044,22 +1044,16 @@ export async function registerRoutes(
         });
       }
 
-      // Configurar serviço Voalle
-      const config = voalleIntegration.providerConfig as any;
-      const voalle = new VoalleService();
-      voalle.configure({
-        apiUrl: config.apiUrl || config.baseUrl,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        synV1Token: config.synV1Token,
-      });
+      // Usar VoalleAdapter com configuração global
+      console.log("[Voalle Contract Tags] Usando VoalleAdapter com integração:", voalleIntegration.name);
+      const adapter = configureErpAdapter(voalleIntegration) as any;
 
       // Remover formatação do CNPJ
       const txId = client.cnpj.replace(/\D/g, '');
       console.log(`[Voalle Contract Tags] Buscando com txId: ${txId}`);
       
-      // Buscar etiquetas de contrato
-      const tags = await voalle.getContractTags(txId);
+      // Buscar etiquetas de contrato usando o adapter
+      const tags = await adapter.getContractTags(txId);
       console.log(`[Voalle Contract Tags] Encontradas ${tags.length} etiquetas`);
 
       res.json({ 

@@ -428,4 +428,41 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return [];
     }
   }
+
+  async getContractTags(txId: string, page: number = 1, pageSize: number = 50): Promise<Array<{ id: number; description?: string }>> {
+    if (!txId) {
+      console.log("[VoalleAdapter] getContractTags: txId não fornecido");
+      return [];
+    }
+
+    try {
+      const path = `/contractservicetagspaged?txId=${encodeURIComponent(txId)}&Page=${page}&PageSize=${pageSize}`;
+      console.log(`[VoalleAdapter] Buscando etiquetas de contrato: ${path}`);
+      
+      const result = await this.apiRequest<{
+        success: boolean;
+        messages: string | null;
+        response: {
+          data: Array<{ id: number; description?: string }>;
+          totalRecords: number;
+        };
+      }>("GET", path);
+
+      if (!result.success || !result.response?.data) {
+        console.log("[VoalleAdapter] Resposta sem dados:", result);
+        return [];
+      }
+
+      const tags = result.response.data.map((raw) => ({
+        id: raw.id,
+        description: raw.description,
+      }));
+
+      console.log(`[VoalleAdapter] Encontradas ${tags.length} etiquetas de contrato`);
+      return tags;
+    } catch (error) {
+      console.error("[VoalleAdapter] Erro ao buscar etiquetas de contrato:", error);
+      return [];
+    }
+  }
 }
