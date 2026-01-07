@@ -342,25 +342,27 @@ export class DatabaseStorage {
         .where(and(...conditions))
         .orderBy(desc(metricsDaily.bucketStart));
       
-      return dailyData.map(d => {
-        const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
-        const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
-          : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
-        return {
-          id: d.id,
-          linkId: d.linkId,
-          clientId: d.clientId,
-          timestamp: d.bucketStart,
-          download: d.downloadAvg,
-          upload: d.uploadAvg,
-          latency: d.latencyAvg,
-          packetLoss: d.packetLossAvg,
-          cpuUsage: d.cpuUsageAvg,
-          memoryUsage: d.memoryUsageAvg,
-          errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
-          status: dominantStatus,
-        };
-      });
+      if (dailyData.length > 0) {
+        return dailyData.map(d => {
+          const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
+          const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+            : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+          return {
+            id: d.id,
+            linkId: d.linkId,
+            clientId: d.clientId,
+            timestamp: d.bucketStart,
+            download: d.downloadAvg,
+            upload: d.uploadAvg,
+            latency: d.latencyAvg,
+            packetLoss: d.packetLossAvg,
+            cpuUsage: d.cpuUsageAvg,
+            memoryUsage: d.memoryUsageAvg,
+            errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+            status: dominantStatus,
+          };
+        });
+      }
     }
     
     if (hoursSpan > 24 * 7) {
@@ -373,25 +375,27 @@ export class DatabaseStorage {
         .where(and(...conditions))
         .orderBy(desc(metricsHourly.bucketStart));
       
-      return hourlyData.map(d => {
-        const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
-        const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
-          : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
-        return {
-          id: d.id,
-          linkId: d.linkId,
-          clientId: d.clientId,
-          timestamp: d.bucketStart,
-          download: d.downloadAvg,
-          upload: d.uploadAvg,
-          latency: d.latencyAvg,
-          packetLoss: d.packetLossAvg,
-          cpuUsage: d.cpuUsageAvg,
-          memoryUsage: d.memoryUsageAvg,
-          errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
-          status: dominantStatus,
-        };
-      });
+      if (hourlyData.length > 0) {
+        return hourlyData.map(d => {
+          const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
+          const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+            : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+          return {
+            id: d.id,
+            linkId: d.linkId,
+            clientId: d.clientId,
+            timestamp: d.bucketStart,
+            download: d.downloadAvg,
+            upload: d.uploadAvg,
+            latency: d.latencyAvg,
+            packetLoss: d.packetLossAvg,
+            cpuUsage: d.cpuUsageAvg,
+            memoryUsage: d.memoryUsageAvg,
+            errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+            status: dominantStatus,
+          };
+        });
+      }
     }
     
     const conditions = [eq(metrics.linkId, linkId), gte(metrics.timestamp, startDate)];
