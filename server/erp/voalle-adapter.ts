@@ -182,17 +182,17 @@ export class VoalleAdapter implements ErpAdapter {
 
   // ========== Portal API (segunda API do Voalle) ==========
   
-  // CNPJ do cliente atual para autenticação no Portal (usuário/senha = CNPJ)
-  private currentClientCnpj: string | null = null;
+  // Credenciais do cliente atual para autenticação no Portal
+  private currentPortalUsername: string | null = null;
   
   private isPortalConfigured(): boolean {
     if (!this.providerConfig) return false;
     const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret } = this.providerConfig;
-    // Não exigimos portalUsername/portalPassword pois usamos CNPJ do cliente dinamicamente
+    // Não exigimos portalUsername/portalPassword globais - são definidos por cliente
     return !!(portalApiUrl && portalVerifyToken && portalClientId && portalClientSecret);
   }
 
-  private async portalAuthenticate(cnpj: string): Promise<string> {
+  private async portalAuthenticate(portalUsername: string, portalPassword: string): Promise<string> {
     if (!this.providerConfig) {
       throw new Error("Portal Voalle não configurado");
     }
@@ -203,25 +203,22 @@ export class VoalleAdapter implements ErpAdapter {
       throw new Error("Credenciais do Portal Voalle incompletas");
     }
     
-    if (!cnpj) {
-      throw new Error("CNPJ do cliente necessário para autenticação no Portal");
+    if (!portalUsername || !portalPassword) {
+      throw new Error("Credenciais do Portal (username/password) necessárias para autenticação");
     }
-    
-    // Limpar CNPJ (apenas números)
-    const cleanCnpj = cnpj.replace(/\D/g, '');
 
     // Check if token is still valid AND for the same client
-    if (this.portalAccessToken && this.portalTokenExpiresAt && new Date() < this.portalTokenExpiresAt && this.currentClientCnpj === cleanCnpj) {
+    if (this.portalAccessToken && this.portalTokenExpiresAt && new Date() < this.portalTokenExpiresAt && this.currentPortalUsername === portalUsername) {
       return this.portalAccessToken;
     }
 
-    // Build authentication URL - usuário e senha são o CNPJ do cliente
+    // Build authentication URL - usa credenciais específicas do cliente
     let baseUrl = portalApiUrl.trim();
     if (baseUrl.endsWith("/")) {
       baseUrl = baseUrl.slice(0, -1);
     }
     
-    const authUrl = `${baseUrl}/portal_authentication?verify_token=${encodeURIComponent(portalVerifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}&grant_type=client_credentials&username=${encodeURIComponent(cleanCnpj)}&password=${encodeURIComponent(cleanCnpj)}`;
+    const authUrl = `${baseUrl}/portal_authentication?verify_token=${encodeURIComponent(portalVerifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}&grant_type=client_credentials&username=${encodeURIComponent(portalUsername)}&password=${encodeURIComponent(portalPassword)}`;
 
     console.log(`[VoalleAdapter] Portal auth URL: ${baseUrl}/portal_authentication`);
 
@@ -246,23 +243,24 @@ export class VoalleAdapter implements ErpAdapter {
 
     this.portalAccessToken = data.access_token;
     this.portalTokenExpiresAt = new Date(Date.now() + (data.expires_in - 60) * 1000);
-    this.currentClientCnpj = cleanCnpj;
+    this.currentPortalUsername = portalUsername;
 
-    console.log(`[VoalleAdapter] Portal autenticado para CNPJ ${cleanCnpj}, token expira em ${data.expires_in}s`);
+    console.log(`[VoalleAdapter] Portal autenticado para ${portalUsername}, token expira em ${data.expires_in}s`);
     return this.portalAccessToken;
   }
 
   private async portalApiRequest<T>(
     method: string,
     path: string,
-    cnpj: string,
+    portalUsername: string,
+    portalPassword: string,
     body?: unknown
   ): Promise<T> {
     if (!this.providerConfig?.portalApiUrl) {
       throw new Error("Portal Voalle não configurado");
     }
 
-    const token = await this.portalAuthenticate(cnpj);
+    const token = await this.portalAuthenticate(portalUsername, portalPassword);
     
     let baseUrl = this.providerConfig.portalApiUrl.trim();
     if (baseUrl.endsWith("/")) {
@@ -553,42 +551,21 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   async getContractTags(
-    voalleCustomerIdOrLegacy: string | null | { voalleCustomerId?: string | null; cnpj?: string | null }, 
-    cnpjParam?: string | null, 
+    params: { 
+      voalleCustomerId?: string | null; 
+      cnpj?: string | null;
+      portalUsername?: string | null;
+      portalPassword?: string | null;
+    }, 
     page: number = 1, 
     pageSize: number = 50
   ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean }>> {
-    // Handle both old and new signatures for backward compatibility
-    let voalleCustomerId: string | null = null;
-    let cnpj: string | null = null;
+    const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
-    if (typeof voalleCustomerIdOrLegacy === 'object' && voalleCustomerIdOrLegacy !== null) {
-      // New object-based signature
-      voalleCustomerId = voalleCustomerIdOrLegacy.voalleCustomerId || null;
-      cnpj = voalleCustomerIdOrLegacy.cnpj || null;
-    } else if (typeof voalleCustomerIdOrLegacy === 'string') {
-      // Old single-string signature - detect if it's CNPJ (11+ digits) or voalleCustomerId (shorter numeric)
-      const cleanId = voalleCustomerIdOrLegacy.replace(/\D/g, '');
-      if (cleanId.length >= 11) {
-        // Looks like a CNPJ (11+ digits) - use for legacy API
-        cnpj = cleanId;
-        console.log(`[VoalleAdapter] Legado: identificador ${cleanId} detectado como CNPJ`);
-      } else {
-        // Shorter numeric - use as voalleCustomerId for Portal API
-        voalleCustomerId = voalleCustomerIdOrLegacy;
-        console.log(`[VoalleAdapter] Legado: identificador ${voalleCustomerIdOrLegacy} detectado como voalleCustomerId`);
-      }
-      // Also accept second param if provided
-      if (cnpjParam) {
-        cnpj = cnpjParam.replace(/\D/g, '');
-      }
-    }
-    
-    // Prefer Portal API if configured (has serviceTag field and active filter)
-    // Portal API requires CNPJ for authentication (username/password) AND voalleCustomerId for querying
-    if (this.isPortalConfigured() && voalleCustomerId && cnpj) {
+    // Prefer Portal API if configured AND client has portal credentials
+    if (this.isPortalConfigured() && voalleCustomerId && portalUsername && portalPassword) {
       try {
-        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (voalleCustomerId: ${voalleCustomerId}, auth CNPJ: ${cnpj})`);
+        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (voalleCustomerId: ${voalleCustomerId}, user: ${portalUsername})`);
         
         const result = await this.portalApiRequest<{
           data: Array<{
@@ -606,7 +583,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           count: number;
           filtered: number;
           total: number;
-        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(voalleCustomerId)}`, cnpj);
+        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(voalleCustomerId)}`, portalUsername, portalPassword);
 
         if (!result.data) {
           console.log("[VoalleAdapter] Portal API: resposta sem dados");
@@ -629,10 +606,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         console.error("[VoalleAdapter] Erro na Portal API, tentando API antiga:", error);
         // Fall through to legacy API
       }
-    } else if (this.isPortalConfigured() && voalleCustomerId && !cnpj) {
-      console.log(`[VoalleAdapter] Portal API configurada mas CNPJ não fornecido para autenticação`);
-    } else if (this.isPortalConfigured() && !voalleCustomerId && cnpj) {
-      console.log(`[VoalleAdapter] Portal API configurada mas voalleCustomerId não fornecido para busca`);
+    } else if (this.isPortalConfigured() && voalleCustomerId && (!portalUsername || !portalPassword)) {
+      console.log(`[VoalleAdapter] Portal API configurada mas credenciais do portal não fornecidas para cliente`);
     } else if (!this.isPortalConfigured() && voalleCustomerId) {
       console.log(`[VoalleAdapter] Portal API não configurada, voalleCustomerId ${voalleCustomerId} não pode ser usado`);
     }

@@ -1041,12 +1041,14 @@ export async function registerRoutes(
       const adapter = configureErpAdapter(voalleIntegration) as any;
 
       // Preparar identificadores para o adapter:
-      // - Portal API usa voalleCustomerId (ID do cliente no Voalle)
+      // - Portal API usa voalleCustomerId + credenciais do portal do cliente
       // - API antiga usa CNPJ (txId)
       const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
       const cnpj = client.cnpj ? client.cnpj.replace(/\D/g, '') : null;
+      const portalUsername = client.voallePortalUsername || null;
+      const portalPassword = client.voallePortalPassword || null;
       
-      console.log(`[Voalle Contract Tags] voalleCustomerId: ${voalleCustomerId || 'não definido'}, CNPJ: ${cnpj || 'não definido'}`);
+      console.log(`[Voalle Contract Tags] voalleCustomerId: ${voalleCustomerId || 'não definido'}, CNPJ: ${cnpj || 'não definido'}, portalUser: ${portalUsername ? 'definido' : 'não definido'}`);
       
       if (!voalleCustomerId && !cnpj) {
         return res.json({ 
@@ -1055,8 +1057,8 @@ export async function registerRoutes(
         });
       }
       
-      // Buscar etiquetas de contrato usando o adapter (passa ambos identificadores)
-      const tags = await adapter.getContractTags(voalleCustomerId, cnpj);
+      // Buscar etiquetas de contrato usando o adapter
+      const tags = await adapter.getContractTags({ voalleCustomerId, cnpj, portalUsername, portalPassword });
       console.log(`[Voalle Contract Tags] Encontradas ${tags.length} etiquetas`);
 
       res.json({ 

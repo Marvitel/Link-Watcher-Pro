@@ -132,7 +132,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const filteredOlts = olts?.filter(olt => olt.isActive);
 
   // Buscar etiquetas de contrato do Voalle para o cliente selecionado
-  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number }>; cnpj?: string; error?: string }>({
+  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string }>; cnpj?: string; error?: string }>({
     queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
     enabled: !!formData.clientId,
     staleTime: 0,
@@ -665,7 +665,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 <SelectItem value="none">Nenhuma (buscar todas solicitações)</SelectItem>
                 {voalleContractTags.tags.map((tag) => (
                   <SelectItem key={tag.id} value={tag.id.toString()}>
-                    Etiqueta #{tag.id}
+                    {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1409,13 +1409,11 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
     apiUsername: "",
     apiPassword: "",
     apiSynData: "",
-    // API Portal fields
+    // API Portal fields (credenciais por cliente, não globais)
     portalApiUrl: "",
     portalVerifyToken: "",
     portalClientId: "",
     portalClientSecret: "",
-    portalUsername: "",
-    portalPassword: "",
     dbHost: "",
     dbPort: 3306,
     dbName: "",
@@ -1444,8 +1442,6 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken: "",
       portalClientId: "",
       portalClientSecret: "",
-      portalUsername: "",
-      portalPassword: "",
       dbHost: "",
       dbPort: 3306,
       dbName: "",
@@ -1469,8 +1465,6 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken?: string;
       portalClientId?: string;
       portalClientSecret?: string;
-      portalUsername?: string;
-      portalPassword?: string;
     } = {};
     if (integration.providerConfig) {
       try {
@@ -1496,8 +1490,6 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken: providerConfigData.portalVerifyToken || "",
       portalClientId: providerConfigData.portalClientId || "",
       portalClientSecret: "",
-      portalUsername: providerConfigData.portalUsername || "",
-      portalPassword: "",
       dbHost: integration.dbHost || "",
       dbPort: integration.dbPort || 3306,
       dbName: integration.dbName || "",
@@ -1579,13 +1571,11 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       if (formData.apiUsername) providerConfig.apiUsername = formData.apiUsername;
       if (formData.apiPassword) providerConfig.apiPassword = formData.apiPassword;
       if (formData.apiSynData) providerConfig.apiSynData = formData.apiSynData;
-      // API Portal
+      // API Portal (credenciais do portal são por cliente, não globais)
       if (formData.portalApiUrl) providerConfig.portalApiUrl = formData.portalApiUrl;
       if (formData.portalVerifyToken) providerConfig.portalVerifyToken = formData.portalVerifyToken;
       if (formData.portalClientId) providerConfig.portalClientId = formData.portalClientId;
       if (formData.portalClientSecret) providerConfig.portalClientSecret = formData.portalClientSecret;
-      if (formData.portalUsername) providerConfig.portalUsername = formData.portalUsername;
-      if (formData.portalPassword) providerConfig.portalPassword = formData.portalPassword;
     }
     
     // Build save data with providerConfig
@@ -1621,10 +1611,6 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
         else if (existingConfig.portalClientId) mergedConfig.portalClientId = existingConfig.portalClientId;
         if (formData.portalClientSecret) mergedConfig.portalClientSecret = formData.portalClientSecret;
         else if (existingConfig.portalClientSecret) mergedConfig.portalClientSecret = existingConfig.portalClientSecret;
-        if (formData.portalUsername) mergedConfig.portalUsername = formData.portalUsername;
-        else if (existingConfig.portalUsername) mergedConfig.portalUsername = existingConfig.portalUsername;
-        if (formData.portalPassword) mergedConfig.portalPassword = formData.portalPassword;
-        else if (existingConfig.portalPassword) mergedConfig.portalPassword = existingConfig.portalPassword;
         saveData.providerConfig = Object.keys(mergedConfig).length > 0 ? JSON.stringify(mergedConfig) : null;
       }
       updateMutation.mutate({ id: editingIntegration.id, data: saveData as typeof formData });
@@ -1955,8 +1941,8 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                             </div>
                           </div>
                           <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
-                            <strong>Autenticação:</strong> O usuário e senha da API Portal são o CNPJ/CPF do cliente, 
-                            usado dinamicamente a cada requisição. Não é necessário configurar aqui.
+                            <strong>Autenticação:</strong> As credenciais do Portal (usuário e senha) são configuradas 
+                            individualmente no cadastro de cada cliente, nos campos "Usuário Portal Voalle" e "Senha Portal Voalle".
                           </div>
                         </div>
                       </div>
@@ -2098,6 +2084,8 @@ export default function Admin() {
     cnpj: "",
     isActive: true,
     voalleCustomerId: "" as string | number,
+    voallePortalUsername: "",
+    voallePortalPassword: "",
   });
 
   // Estados para importação de clientes do Voalle
@@ -2191,7 +2179,7 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       setClientDialogOpen(false);
       setEditingClient(undefined);
-      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "", voallePortalUsername: "", voallePortalPassword: "" });
       toast({ title: "Cliente criado com sucesso" });
     },
     onError: () => {
@@ -2207,7 +2195,7 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
       setClientDialogOpen(false);
       setEditingClient(undefined);
-      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
+      setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "", voallePortalUsername: "", voallePortalPassword: "" });
       toast({ title: "Cliente atualizado com sucesso" });
     },
     onError: () => {
@@ -2329,6 +2317,8 @@ export default function Admin() {
       cnpj: client.cnpj || "",
       isActive: client.isActive,
       voalleCustomerId: client.voalleCustomerId || "",
+      voallePortalUsername: client.voallePortalUsername || "",
+      voallePortalPassword: "",
     });
     setClientDialogOpen(true);
   };
@@ -2650,7 +2640,7 @@ export default function Admin() {
                 setClientDialogOpen(open);
                 if (!open) {
                   setEditingClient(undefined);
-                  setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "" });
+                  setClientFormData({ name: "", slug: "", cnpj: "", isActive: true, voalleCustomerId: "", voallePortalUsername: "", voallePortalPassword: "" });
                 }
               }}>
                 <DialogTrigger asChild>
@@ -2707,6 +2697,30 @@ export default function Admin() {
                     <p className="text-xs text-muted-foreground">
                       Vincule este cliente ao cadastro do Voalle para integração automática
                     </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-voalle-portal-username">Usuário Portal Voalle (Opcional)</Label>
+                    <Input
+                      id="client-voalle-portal-username"
+                      value={clientFormData.voallePortalUsername}
+                      onChange={(e) => setClientFormData({ ...clientFormData, voallePortalUsername: e.target.value })}
+                      placeholder="Ex: usuario@empresa.com.br"
+                      data-testid="input-client-voalle-portal-username"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Credenciais do Portal API para buscar etiquetas de contrato
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-voalle-portal-password">Senha Portal Voalle (Opcional)</Label>
+                    <Input
+                      id="client-voalle-portal-password"
+                      type="password"
+                      value={clientFormData.voallePortalPassword}
+                      onChange={(e) => setClientFormData({ ...clientFormData, voallePortalPassword: e.target.value })}
+                      placeholder={editingClient ? "Deixe vazio para manter a senha atual" : "Senha do portal"}
+                      data-testid="input-client-voalle-portal-password"
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
