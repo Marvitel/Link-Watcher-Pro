@@ -346,10 +346,22 @@ export class DatabaseStorage {
     return await query;
   }
 
-  async getLinkEvents(linkId: number): Promise<Event[]> {
+  async getLinkEvents(linkId: number): Promise<(Event & { linkName?: string | null })[]> {
     return await db
-      .select()
+      .select({
+        id: events.id,
+        linkId: events.linkId,
+        clientId: events.clientId,
+        type: events.type,
+        title: events.title,
+        description: events.description,
+        timestamp: events.timestamp,
+        resolved: events.resolved,
+        resolvedAt: events.resolvedAt,
+        linkName: links.name,
+      })
       .from(events)
+      .leftJoin(links, eq(events.linkId, links.id))
       .where(eq(events.linkId, linkId))
       .orderBy(desc(events.timestamp));
   }
