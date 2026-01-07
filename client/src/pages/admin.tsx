@@ -50,6 +50,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
 import { Database, Globe, Plug } from "lucide-react";
+import { formatBandwidth } from "@/lib/export-utils";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -2283,7 +2284,7 @@ export default function Admin() {
                             <p className="font-medium">{link.name}</p>
                             <p className="text-sm text-muted-foreground">
                               {clientName && <span className="text-primary">{clientName}</span>}
-                              {clientName && " - "}{link.location} - {link.ipBlock} - {link.bandwidth} Mbps
+                              {clientName && " - "}{link.location} - {link.ipBlock} - {formatBandwidth(link.bandwidth)}
                             </p>
                           </div>
                         </div>

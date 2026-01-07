@@ -5,6 +5,7 @@ import { Activity, ArrowDownToLine, ArrowUpFromLine, Clock, Gauge, Percent } fro
 import { Link as RouterLink } from "wouter";
 import type { Link } from "@shared/schema";
 import { BandwidthChart } from "./bandwidth-chart";
+import { formatBandwidth } from "@/lib/export-utils";
 
 interface LinkCardProps {
   link: Link;
@@ -46,7 +47,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
             <div>
               <p className="text-xs text-muted-foreground">Download</p>
               <p className="text-sm font-mono font-medium" data-testid={`text-download-${link.id}`}>
-                {currentDownload.toFixed(1)} Mbps
+                {formatBandwidth(currentDownload)}
               </p>
             </div>
           </div>
@@ -57,7 +58,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
             <div>
               <p className="text-xs text-muted-foreground">Upload</p>
               <p className="text-sm font-mono font-medium" data-testid={`text-upload-${link.id}`}>
-                {currentUpload.toFixed(1)} Mbps
+                {formatBandwidth(currentUpload)}
               </p>
             </div>
           </div>

@@ -27,7 +27,7 @@ function formatNumberPtBR(value: number | null | undefined, decimals: number = 2
   });
 }
 
-function formatBandwidth(mbps: number | null | undefined): string {
+export function formatBandwidth(mbps: number | null | undefined): string {
   if (!mbps || isNaN(mbps)) return "0 Mbps";
   if (mbps >= 1000) {
     return `${formatNumberPtBR(mbps / 1000, 1)} Gbps`;

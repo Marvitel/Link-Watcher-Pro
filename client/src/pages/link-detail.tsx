@@ -36,6 +36,7 @@ import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident } fr
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
+import { formatBandwidth } from "@/lib/export-utils";
 
 // Opções de período para os gráficos
 const PERIOD_OPTIONS = [
@@ -283,8 +284,7 @@ export default function LinkDetail() {
         />
         <MetricCard
           title="Banda Total"
-          value={link.bandwidth}
-          unit="Mbps"
+          value={formatBandwidth(link.bandwidth)}
           icon={Gauge}
           subtitle="simétrico garantido"
           testId="metric-bandwidth"

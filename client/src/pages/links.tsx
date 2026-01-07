@@ -13,6 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useClientContext } from "@/lib/client-context";
 import { getAuthToken } from "@/lib/auth";
 import type { Link as LinkType, Metric } from "@shared/schema";
+import { formatBandwidth } from "@/lib/export-utils";
 
 function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
@@ -207,7 +208,7 @@ export default function Links() {
             <div className="p-4 rounded-md bg-muted/50">
               <p className="text-sm text-muted-foreground">Banda Total Contratada</p>
               <p className="text-lg font-semibold font-mono">
-                {links ? links.reduce((sum, l) => sum + (l.bandwidth || 0), 0) : 0} Mbps
+                {formatBandwidth(links ? links.reduce((sum, l) => sum + (l.bandwidth || 0), 0) : 0)}
               </p>
               <p className="text-xs text-muted-foreground">
                 {links?.length || 0} link(s) ativo(s)
