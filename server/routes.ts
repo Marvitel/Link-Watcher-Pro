@@ -126,7 +126,12 @@ export async function registerRoutes(
       const client = await storage.createClient(validatedData);
       res.status(201).json(client);
     } catch (error) {
-      res.status(400).json({ error: "Invalid client data" });
+      console.error("[POST /api/clients] Validation error:", error);
+      if (error instanceof Error) {
+        res.status(400).json({ error: "Invalid client data", details: error.message });
+      } else {
+        res.status(400).json({ error: "Invalid client data" });
+      }
     }
   });
 
