@@ -351,14 +351,36 @@ function parseSnmpValue(value: unknown): number {
   return 0;
 }
 
+export interface MemoryOids {
+  memoryOid?: string | null;
+  memoryTotalOid?: string | null;
+  memoryUsedOid?: string | null;
+  memoryIsPercentage?: boolean;
+}
+
 export async function getSystemResources(
   targetIp: string,
   profile: SnmpProfile,
   cpuOid?: string | null,
-  memoryOid?: string | null
+  memoryConfig?: string | null | MemoryOids
 ): Promise<SystemResourceResult | null> {
+  // Parse memory config - can be a simple OID string or an object with multiple OIDs
+  let memoryOid: string | null = null;
+  let memoryTotalOid: string | null = null;
+  let memoryUsedOid: string | null = null;
+  let memoryIsPercentage = true;
+
+  if (typeof memoryConfig === 'string') {
+    memoryOid = memoryConfig;
+  } else if (memoryConfig && typeof memoryConfig === 'object') {
+    memoryOid = memoryConfig.memoryOid || null;
+    memoryTotalOid = memoryConfig.memoryTotalOid || null;
+    memoryUsedOid = memoryConfig.memoryUsedOid || null;
+    memoryIsPercentage = memoryConfig.memoryIsPercentage ?? true;
+  }
+
   // If no OIDs provided, return null
-  if (!cpuOid && !memoryOid) {
+  if (!cpuOid && !memoryOid && !memoryTotalOid) {
     return null;
   }
 
@@ -368,7 +390,9 @@ export async function getSystemResources(
 
       // Use provided OIDs or skip if not available
       const oids: string[] = [];
-      const oidMap: { cpu: number; memory: number } = { cpu: -1, memory: -1 };
+      const oidMap: { cpu: number; memory: number; memoryTotal: number; memoryUsed: number } = { 
+        cpu: -1, memory: -1, memoryTotal: -1, memoryUsed: -1 
+      };
       
       if (cpuOid) {
         oidMap.cpu = oids.length;
@@ -377,6 +401,14 @@ export async function getSystemResources(
       if (memoryOid) {
         oidMap.memory = oids.length;
         oids.push(memoryOid);
+      }
+      if (memoryTotalOid) {
+        oidMap.memoryTotal = oids.length;
+        oids.push(memoryTotalOid);
+      }
+      if (memoryUsedOid) {
+        oidMap.memoryUsed = oids.length;
+        oids.push(memoryUsedOid);
       }
 
       if (oids.length === 0) {
@@ -396,7 +428,6 @@ export async function getSystemResources(
         closeSession();
 
         if (error) {
-          // FortiGate OIDs failed, return null (could try generic OIDs as fallback)
           resolve(null);
           return;
         }
@@ -421,10 +452,28 @@ export async function getSystemResources(
             }
           }
 
+          // Try to get memory from percentage OID first
           if (oidMap.memory >= 0 && varbinds[oidMap.memory]) {
             const vb = varbinds[oidMap.memory];
             if (vb.type !== noSuchObject && vb.type !== noSuchInstance) {
               memoryUsage = parseSnmpValue(vb.value);
+            }
+          }
+          
+          // If no percentage OID or value is 0, try to calculate from total/used
+          if (memoryUsage === 0 && oidMap.memoryTotal >= 0 && oidMap.memoryUsed >= 0) {
+            const vbTotal = varbinds[oidMap.memoryTotal];
+            const vbUsed = varbinds[oidMap.memoryUsed];
+            
+            if (vbTotal && vbUsed && 
+                vbTotal.type !== noSuchObject && vbTotal.type !== noSuchInstance &&
+                vbUsed.type !== noSuchObject && vbUsed.type !== noSuchInstance) {
+              const total = parseSnmpValue(vbTotal.value);
+              const used = parseSnmpValue(vbUsed.value);
+              
+              if (total > 0) {
+                memoryUsage = (used / total) * 100;
+              }
             }
           }
 
@@ -532,33 +581,39 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
       // Collect CPU and memory usage - determine which OIDs to use
       let cpuOid: string | null = null;
-      let memoryOid: string | null = null;
+      let memoryConfig: MemoryOids = {};
 
       // Priority: custom OIDs > vendor OIDs
       if (link.customCpuOid) {
         cpuOid = link.customCpuOid;
       }
       if (link.customMemoryOid) {
-        memoryOid = link.customMemoryOid;
+        memoryConfig.memoryOid = link.customMemoryOid;
       }
 
       // If no custom OIDs, try vendor OIDs
-      if ((!cpuOid || !memoryOid) && link.equipmentVendorId) {
+      if ((!cpuOid || !memoryConfig.memoryOid) && link.equipmentVendorId) {
         const vendor = await getEquipmentVendor(link.equipmentVendorId);
-        console.log(`[Monitor] ${link.name} - vendorId: ${link.equipmentVendorId}, vendor: ${vendor?.name}, cpuOid: ${vendor?.cpuOid}, memOid: ${vendor?.memoryOid}`);
+        console.log(`[Monitor] ${link.name} - vendorId: ${link.equipmentVendorId}, vendor: ${vendor?.name}, cpuOid: ${vendor?.cpuOid}, memOid: ${vendor?.memoryOid}, memTotalOid: ${vendor?.memoryTotalOid}, memUsedOid: ${vendor?.memoryUsedOid}`);
         if (vendor) {
           if (!cpuOid && vendor.cpuOid) {
             cpuOid = vendor.cpuOid;
           }
-          if (!memoryOid && vendor.memoryOid) {
-            memoryOid = vendor.memoryOid;
+          if (!memoryConfig.memoryOid) {
+            memoryConfig = {
+              memoryOid: vendor.memoryOid,
+              memoryTotalOid: vendor.memoryTotalOid,
+              memoryUsedOid: vendor.memoryUsedOid,
+              memoryIsPercentage: vendor.memoryIsPercentage ?? true,
+            };
           }
         }
       }
 
-      if (cpuOid || memoryOid) {
-        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, memOid: ${memoryOid}`);
-        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryOid);
+      const hasMemoryOids = memoryConfig.memoryOid || (memoryConfig.memoryTotalOid && memoryConfig.memoryUsedOid);
+      if (cpuOid || hasMemoryOids) {
+        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, memConfig: ${JSON.stringify(memoryConfig)}`);
+        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryConfig);
         console.log(`[Monitor] ${link.name} - Resultado CPU/Mem: cpu=${systemResources?.cpuUsage}, mem=${systemResources?.memoryUsage}`);
         if (systemResources) {
           cpuUsage = systemResources.cpuUsage;
