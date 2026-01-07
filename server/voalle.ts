@@ -288,6 +288,50 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return [];
     }
   }
+
+  async getOpenSolicitations(customerId?: number, contractId?: number): Promise<VoalleSolicitation[]> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    try {
+      let path = "/servicedesk/solicitations?status=open";
+      if (customerId) {
+        path += `&personId=${customerId}`;
+      }
+      if (contractId) {
+        path += `&contractId=${contractId}`;
+      }
+      
+      const result = await this.apiRequest<VoalleSolicitationResponse>(
+        "GET",
+        path
+      );
+      
+      return result.data || [];
+    } catch (error) {
+      console.error("Erro ao buscar solicitações abertas:", error);
+      return [];
+    }
+  }
+
+  async getSolicitationsByProtocol(protocol: string): Promise<VoalleSolicitation | null> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    try {
+      const result = await this.apiRequest<VoalleSolicitation>(
+        "GET",
+        `/servicedesk/protocol/${protocol}`
+      );
+      
+      return result;
+    } catch (error) {
+      console.error(`Erro ao buscar solicitação ${protocol}:`, error);
+      return null;
+    }
+  }
 }
 
 export interface VoalleCustomer {
@@ -330,6 +374,32 @@ export interface VoalleContract {
 interface VoalleContractResponse {
   data: VoalleContract[];
   total: number;
+}
+
+export interface VoalleSolicitation {
+  id: number;
+  protocol: string;
+  subject: string;
+  description?: string;
+  status: string;
+  priority?: string;
+  personId?: number;
+  personName?: string;
+  contractId?: number;
+  solicitationTypeCode?: string;
+  solicitationTypeName?: string;
+  createdAt: string;
+  updatedAt?: string;
+  closedAt?: string;
+  assignedTo?: string;
+  assignedToName?: string;
+}
+
+interface VoalleSolicitationResponse {
+  data: VoalleSolicitation[];
+  total: number;
+  page?: number;
+  limit?: number;
 }
 
 export const voalleService = new VoalleService();

@@ -936,6 +936,81 @@ export async function registerRoutes(
     }
   });
 
+  // Buscar solicitações em aberto do Voalle para um link
+  app.get("/api/links/:linkId/voalle/solicitations", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const link = await storage.getLink(linkId);
+      
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      // Verificar permissão de acesso ao link
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      // Buscar cliente do Link Monitor
+      const client = await storage.getClient(link.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ 
+          error: "Integração Voalle não configurada",
+          solicitations: [] 
+        });
+      }
+
+      // Verificar se o cliente tem ID no Voalle
+      let voalleCustomerId = client.voalleCustomerId;
+      
+      if (!voalleCustomerId) {
+        // Tentar buscar pelo mapeamento ERP
+        const voalleMapping = await storage.getClientErpMapping(link.clientId, voalleIntegration.id);
+        
+        if (!voalleMapping) {
+          return res.json({ 
+            solicitations: [],
+            message: "Cliente não mapeado no Voalle" 
+          });
+        }
+        voalleCustomerId = parseInt(voalleMapping.erpCustomerId, 10) || null;
+      }
+
+      // Configurar serviço Voalle
+      const config = voalleIntegration.providerConfig as any;
+      const voalle = new VoalleService();
+      voalle.configure({
+        apiUrl: config.apiUrl || config.baseUrl,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        synV1Token: config.synV1Token,
+      });
+
+      // Buscar solicitações em aberto
+      const solicitations = await voalle.getOpenSolicitations(voalleCustomerId ?? undefined);
+
+      res.json({ 
+        solicitations,
+        clientName: client.name,
+        voalleCustomerId 
+      });
+    } catch (error: any) {
+      console.error("[Voalle Solicitations] Error:", error?.message || error);
+      res.status(500).json({ 
+        error: "Erro ao buscar solicitações no Voalle",
+        details: error?.message || "Erro desconhecido",
+        solicitations: [] 
+      });
+    }
+  });
+
   // Voalle Customer Search (for importing clients)
   app.get("/api/voalle/customers/search", requireSuperAdmin, async (req, res) => {
     try {
