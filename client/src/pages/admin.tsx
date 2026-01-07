@@ -2223,6 +2223,10 @@ export default function Admin() {
             <Cpu className="w-4 h-4" />
             Fabricantes
           </TabsTrigger>
+          <TabsTrigger value="database" className="gap-2">
+            <Database className="w-4 h-4" />
+            Banco de Dados
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -2630,6 +2634,10 @@ export default function Admin() {
 
         <TabsContent value="vendors" className="space-y-4">
           <EquipmentVendorsTab />
+        </TabsContent>
+
+        <TabsContent value="database" className="space-y-4">
+          <DatabaseConfigTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -4632,6 +4640,325 @@ function EquipmentVendorsTab() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function DatabaseConfigTab() {
+  const { toast } = useToast();
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    host: "",
+    port: "5432",
+    database: "",
+    username: "",
+    password: "",
+    ssl: false,
+  });
+
+  const { data: dbStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery<{
+    connected: boolean;
+    host: string;
+    database: string;
+    version: string;
+    tableCount: number;
+    connectionType: string;
+  }>({
+    queryKey: ["/api/database/status"],
+    refetchInterval: 30000,
+  });
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    try {
+      const response = await apiRequest("POST", "/api/database/test", formData);
+      const result = await response.json();
+      if (result.success) {
+        toast({
+          title: "Conexao bem-sucedida",
+          description: `Conectado ao banco ${formData.database} em ${formData.host}`,
+        });
+      } else {
+        toast({
+          title: "Falha na conexao",
+          description: result.error || "Nao foi possivel conectar ao banco de dados",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao testar conexao",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const [connectionStringResult, setConnectionStringResult] = useState<string | null>(null);
+  
+  const handleSaveConfig = async () => {
+    setIsSaving(true);
+    setConnectionStringResult(null);
+    try {
+      const response = await apiRequest("POST", "/api/database/configure", formData);
+      const result = await response.json();
+      if (result.success) {
+        setConnectionStringResult(result.connectionString);
+        toast({
+          title: "Conexao validada com sucesso",
+          description: "Copie a string de conexao e configure nas variaveis de ambiente.",
+        });
+      } else {
+        toast({
+          title: "Erro na validacao",
+          description: result.error || "Nao foi possivel validar a conexao",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao validar configuracao",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-medium">Banco de Dados</h2>
+        <p className="text-sm text-muted-foreground">
+          Configure a conexao com o banco de dados PostgreSQL
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Status da Conexao Atual
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {statusLoading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : dbStatus?.connected ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="font-medium text-green-600">Conectado</span>
+                <Badge variant="outline">{dbStatus.connectionType}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Host:</span>
+                  <span className="ml-2 font-mono">{dbStatus.host}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Banco:</span>
+                  <span className="ml-2 font-mono">{dbStatus.database}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Versao:</span>
+                  <span className="ml-2">{dbStatus.version}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tabelas:</span>
+                  <span className="ml-2">{dbStatus.tableCount}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-destructive" />
+              <span className="text-destructive">Desconectado</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Nova Configuracao
+          </CardTitle>
+          <CardDescription>
+            Configure uma nova conexao com banco de dados local ou remoto
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="db-host">Host</Label>
+              <Input
+                id="db-host"
+                placeholder="localhost ou IP remoto"
+                value={formData.host}
+                onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                data-testid="input-db-host"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="db-port">Porta</Label>
+              <Input
+                id="db-port"
+                placeholder="5432"
+                value={formData.port}
+                onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+                data-testid="input-db-port"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="db-database">Nome do Banco</Label>
+            <Input
+              id="db-database"
+              placeholder="link_monitor"
+              value={formData.database}
+              onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+              data-testid="input-db-database"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="db-username">Usuario</Label>
+              <Input
+                id="db-username"
+                placeholder="postgres"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                data-testid="input-db-username"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="db-password">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="db-password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="********"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  data-testid="input-db-password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Switch
+              id="db-ssl"
+              checked={formData.ssl}
+              onCheckedChange={(checked) => setFormData({ ...formData, ssl: checked })}
+            />
+            <Label htmlFor="db-ssl">Usar conexao SSL</Label>
+          </div>
+
+          <div className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={isTesting || !formData.host || !formData.database}
+              data-testid="button-test-db-connection"
+            >
+              {isTesting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Testar Conexao
+            </Button>
+            <Button
+              onClick={handleSaveConfig}
+              disabled={isSaving || !formData.host || !formData.database}
+              data-testid="button-save-db-config"
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4 mr-2" />
+              )}
+              Validar e Gerar String
+            </Button>
+          </div>
+          
+          {connectionStringResult && (
+            <div className="mt-4 p-4 bg-muted rounded-md">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">String de Conexao (DATABASE_URL)</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const realString = connectionStringResult.replace("***", formData.password);
+                    navigator.clipboard.writeText(realString);
+                    toast({
+                      title: "Copiado!",
+                      description: "String de conexao copiada para a area de transferencia.",
+                    });
+                  }}
+                  data-testid="button-copy-db-string"
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Copiar
+                </Button>
+              </div>
+              <div className="mt-2 p-2 bg-background rounded border font-mono text-xs break-all">
+                {connectionStringResult}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Clique em "Copiar" para copiar a string com a senha real. A senha exibida esta mascarada por seguranca.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-600">
+            <Shield className="w-5 h-5" />
+            Como Configurar
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>
+            <strong>1.</strong> Preencha os dados do novo banco e clique em "Validar e Gerar String"
+          </p>
+          <p>
+            <strong>2.</strong> Copie a string de conexao gerada (DATABASE_URL)
+          </p>
+          <p>
+            <strong>3.</strong> Configure a variavel DATABASE_URL no painel de Secrets do Replit ou nas variaveis de ambiente do servidor
+          </p>
+          <p>
+            <strong>4.</strong> Reinicie a aplicacao para aplicar a nova configuracao
+          </p>
+          <p className="pt-2 border-t">
+            Um banco vazio sera inicializado automaticamente com as tabelas necessarias.
+            Para migrar dados, utilize ferramentas de backup/restore do PostgreSQL (pg_dump/pg_restore).
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

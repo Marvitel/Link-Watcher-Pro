@@ -7,6 +7,7 @@ import { getErpAdapter, configureErpAdapter, clearErpAdapter } from "./erp";
 import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { queryOltAlarm, testOltConnection } from "./olt";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
+import pg from "pg";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -1705,6 +1706,122 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating ERP ticket:", error);
       res.status(500).json({ error: "Falha ao criar chamado no ERP" });
+    }
+  });
+
+  // Database configuration endpoints
+  app.get("/api/database/status", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { pool } = await import("./db");
+      const result = await pool.query("SELECT version(), current_database()");
+      const tableResult = await pool.query(`
+        SELECT count(*) as table_count 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      `);
+      
+      const dbUrl = process.env.DATABASE_URL || "";
+      let host = "localhost";
+      let connectionType = "Local";
+      
+      try {
+        const url = new URL(dbUrl);
+        host = url.hostname;
+        connectionType = host === "localhost" || host === "127.0.0.1" ? "Local" : "Remoto";
+      } catch {}
+      
+      res.json({
+        connected: true,
+        host,
+        database: result.rows[0].current_database,
+        version: result.rows[0].version.split(" ")[1],
+        tableCount: parseInt(tableResult.rows[0].table_count),
+        connectionType,
+      });
+    } catch (error: any) {
+      res.json({
+        connected: false,
+        host: "",
+        database: "",
+        version: "",
+        tableCount: 0,
+        connectionType: "",
+        error: error.message,
+      });
+    }
+  });
+
+  app.post("/api/database/test", requireAuth, requireSuperAdmin, async (req, res) => {
+    const { host, port, database, username, password, ssl } = req.body;
+    
+    if (!host || !database) {
+      return res.status(400).json({ success: false, error: "Host e banco sao obrigatorios" });
+    }
+    
+    const connectionString = `postgresql://${username || "postgres"}:${password || ""}@${host}:${port || 5432}/${database}${ssl ? "?sslmode=require" : ""}`;
+    
+    const testPool = new pg.Pool({ 
+      connectionString,
+      connectionTimeoutMillis: 10000,
+      max: 1,
+    });
+    
+    try {
+      const client = await testPool.connect();
+      const result = await client.query("SELECT version(), current_database()");
+      client.release();
+      await testPool.end();
+      
+      res.json({
+        success: true,
+        version: result.rows[0].version.split(" ")[1],
+        database: result.rows[0].current_database,
+      });
+    } catch (error: any) {
+      await testPool.end().catch(() => {});
+      res.json({
+        success: false,
+        error: error.message || "Falha ao conectar",
+      });
+    }
+  });
+
+  app.post("/api/database/configure", requireAuth, requireSuperAdmin, async (req, res) => {
+    const { host, port, database, username, password, ssl } = req.body;
+    
+    if (!host || !database) {
+      return res.status(400).json({ success: false, error: "Host e banco sao obrigatorios" });
+    }
+    
+    // Build the connection string
+    const connectionString = `postgresql://${username || "postgres"}:${password || ""}@${host}:${port || 5432}/${database}${ssl ? "?sslmode=require" : ""}`;
+    
+    // Test connection first
+    const testPool = new pg.Pool({ 
+      connectionString,
+      connectionTimeoutMillis: 10000,
+      max: 1,
+    });
+    
+    try {
+      const client = await testPool.connect();
+      await client.query("SELECT 1");
+      client.release();
+      await testPool.end();
+      
+      // Note: In production, this would update environment variables and trigger restart
+      // For now, we just return success and advise manual configuration
+      res.json({
+        success: true,
+        message: "Conexao validada. Para aplicar, configure DATABASE_URL nas variaveis de ambiente.",
+        connectionString: connectionString.replace(password || "", "***"),
+      });
+    } catch (error: any) {
+      await testPool.end().catch(() => {});
+      res.json({
+        success: false,
+        error: error.message || "Falha ao conectar",
+      });
     }
   });
 
