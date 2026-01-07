@@ -380,6 +380,70 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return null;
     }
   }
+
+  /**
+   * Busca etiquetas de contrato (conexões) de um cliente por CPF/CNPJ
+   * @param txId - CPF ou CNPJ do cliente (sem formatação)
+   * @param page - Página (default 1)
+   * @param pageSize - Itens por página (default 50)
+   */
+  async getContractTags(txId: string, page: number = 1, pageSize: number = 50): Promise<VoalleContractTag[]> {
+    if (!this.config) {
+      throw new Error("Voalle não configurado");
+    }
+
+    if (!txId) {
+      console.log("[Voalle] getContractTags: txId não fornecido");
+      return [];
+    }
+
+    try {
+      // Endpoint: /contractservicetagspaged?txId={cpf/cnpj}&Page=1&PageSize=50
+      const path = `/contractservicetagspaged?txId=${encodeURIComponent(txId)}&Page=${page}&PageSize=${pageSize}`;
+      
+      console.log(`[Voalle] Buscando etiquetas de contrato: ${path}`);
+      
+      const result = await this.apiRequest<VoalleContractTagApiResponse>(
+        "GET",
+        path
+      );
+      
+      if (!result.success || !result.response?.data) {
+        console.log("[Voalle] Resposta sem dados:", result);
+        return [];
+      }
+
+      // Mapear resposta
+      const tags: VoalleContractTag[] = result.response.data.map((raw) => ({
+        id: raw.id,
+      }));
+
+      console.log(`[Voalle] Encontradas ${tags.length} etiquetas de contrato`);
+      return tags;
+    } catch (error) {
+      console.error("[Voalle] Erro ao buscar etiquetas de contrato:", error);
+      return [];
+    }
+  }
+}
+
+// Resposta da API para etiquetas de contrato
+interface VoalleContractTagApiResponse {
+  success: boolean;
+  messages: string | null;
+  response: {
+    data: { id: number }[];
+    totalRecords: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+  dataResponseType: string;
+  elapsedTime: string | null;
+}
+
+export interface VoalleContractTag {
+  id: number;
 }
 
 export interface VoalleCustomer {

@@ -104,6 +104,8 @@ export const links = pgTable("links", {
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   oltId: integer("olt_id"),
   onuId: varchar("onu_id", { length: 50 }),
+  // Voalle ERP integration - Contract tag ID (etiqueta = conexão no Voalle)
+  voalleContractTagId: integer("voalle_contract_tag_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

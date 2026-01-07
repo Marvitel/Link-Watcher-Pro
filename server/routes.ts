@@ -1011,6 +1011,65 @@ export async function registerRoutes(
     }
   });
 
+  // Buscar etiquetas de contrato (conexões) do Voalle para um cliente
+  app.get("/api/clients/:clientId/voalle/contract-tags", requireAuth, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      
+      // Buscar cliente
+      const client = await storage.getClient(clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      // Verificar se o cliente tem CNPJ
+      if (!client.cnpj) {
+        return res.json({ 
+          tags: [],
+          message: "Cliente não possui CNPJ cadastrado" 
+        });
+      }
+
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ 
+          error: "Integração Voalle não configurada",
+          tags: [] 
+        });
+      }
+
+      // Configurar serviço Voalle
+      const config = voalleIntegration.providerConfig as any;
+      const voalle = new VoalleService();
+      voalle.configure({
+        apiUrl: config.apiUrl || config.baseUrl,
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+        synV1Token: config.synV1Token,
+      });
+
+      // Remover formatação do CNPJ
+      const txId = client.cnpj.replace(/\D/g, '');
+      
+      // Buscar etiquetas de contrato
+      const tags = await voalle.getContractTags(txId);
+
+      res.json({ 
+        tags,
+        clientName: client.name,
+        cnpj: client.cnpj
+      });
+    } catch (error: any) {
+      console.error("[Voalle Contract Tags] Error:", error?.message || error);
+      res.status(500).json({ 
+        error: "Erro ao buscar etiquetas no Voalle",
+        details: error?.message || "Erro desconhecido",
+        tags: [] 
+      });
+    }
+  });
+
   // Voalle Customer Search (for importing clients)
   app.get("/api/voalle/customers/search", requireSuperAdmin, async (req, res) => {
     try {
