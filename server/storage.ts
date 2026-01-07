@@ -403,16 +403,24 @@ export class DatabaseStorage {
       conditions.push(lte(metrics.timestamp, endDate));
     }
     
-    const query = db
+    const rawData = await db
       .select()
       .from(metrics)
       .where(and(...conditions))
       .orderBy(desc(metrics.timestamp));
     
     if (limit) {
-      return await query.limit(limit);
+      return rawData.slice(0, limit);
     }
-    return await query;
+    
+    // Downsample para períodos longos (>7 dias) se houver muitos pontos
+    const maxPoints = hoursSpan > 24 * 7 ? 720 : 2000; // 1 ponto por hora para 30d, mais pontos para 7d
+    if (rawData.length > maxPoints) {
+      const step = Math.ceil(rawData.length / maxPoints);
+      return rawData.filter((_, i) => i % step === 0);
+    }
+    
+    return rawData;
   }
 
   async getLinkEvents(linkId: number): Promise<(Event & { linkName?: string | null })[]> {
