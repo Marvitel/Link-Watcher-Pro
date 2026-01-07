@@ -1954,26 +1954,9 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                               />
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Usuário Portal</Label>
-                              <Input
-                                value={formData.portalUsername}
-                                onChange={(e) => setFormData({ ...formData, portalUsername: e.target.value })}
-                                placeholder="Usuário para autenticação"
-                                data-testid="input-erp-portal-username"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Senha Portal</Label>
-                              <Input
-                                type={showSecrets ? "text" : "password"}
-                                value={formData.portalPassword}
-                                onChange={(e) => setFormData({ ...formData, portalPassword: e.target.value })}
-                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do usuário"}
-                                data-testid="input-erp-portal-password"
-                              />
-                            </div>
+                          <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
+                            <strong>Autenticação:</strong> O usuário e senha da API Portal são o CNPJ/CPF do cliente, 
+                            usado dinamicamente a cada requisição. Não é necessário configurar aqui.
                           </div>
                         </div>
                       </div>

@@ -110,21 +110,23 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Usa**: CNPJ como identificador do cliente
 
 #### API Portal (Etiquetas)
-- **Auth Endpoint**: `https://<portal_url>/api/oauth/token`
+- **Auth Endpoint**: `https://<portal_url>/portal_authentication`
 - **API Endpoint**: `https://<portal_url>/api/contract_service_tags`
-- **Auth**: OAuth2 password grant (client_id/client_secret/username/password) + Verify-Token header
-- **Usa**: voalleCustomerId como identificador do cliente
+- **Auth**: OAuth2 password grant com Verify-Token header
+  - client_id/client_secret: Configurados na integração global
+  - username/password: **CNPJ do cliente** (dinâmico, não configurado globalmente)
+- **Query**: Usa `voalleCustomerId` para buscar etiquetas do cliente
 - **Retorna**: serviceTag, title, description, active
 
 #### Fluxo de Etiquetas
-1. Se Portal API configurada + voalleCustomerId disponível: usar Portal API
+1. Se Portal API configurada + voalleCustomerId + CNPJ disponíveis: usar Portal API
 2. Se Portal API falhar ou não configurada + CNPJ disponível: usar API Para Terceiros
 3. Se nenhum identificador disponível: retorna lista vazia
 
 #### Requisitos para Funcionamento
-- **Portal API**: Cliente deve ter `voalleCustomerId` cadastrado
+- **Portal API**: Cliente deve ter TANTO `voalleCustomerId` (para busca) QUANTO `cnpj` (para autenticação)
 - **API Para Terceiros**: Cliente deve ter `cnpj` cadastrado
-- **Recomendação**: Cadastrar ambos os campos para garantir fallback
+- **Recomendação**: Cadastrar CNPJ e voalleCustomerId em todos os clientes para garantir Portal API funcione
 
 - **Service**: `server/erp/voalle-adapter.ts` - VoalleAdapter class
 - **Configuration**: Integração global em erpIntegrations table com providerConfig contendo credenciais de ambas as APIs
