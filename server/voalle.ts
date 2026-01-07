@@ -289,46 +289,94 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
-  async getOpenSolicitations(customerId?: number, contractId?: number): Promise<VoalleSolicitation[]> {
+  /**
+   * Busca solicitações em aberto de um cliente no Voalle
+   * @param customerId - ID do cliente no Voalle
+   * @param allAssignments - Se true, retorna todas as solicitações (inclusive fechadas)
+   */
+  async getOpenSolicitations(customerId?: number, allAssignments: boolean = false): Promise<VoalleSolicitation[]> {
     if (!this.config) {
       throw new Error("Voalle não configurado");
     }
 
+    if (!customerId) {
+      console.log("[Voalle] getOpenSolicitations: customerId não fornecido");
+      return [];
+    }
+
     try {
-      let path = "/servicedesk/solicitations?status=open";
-      if (customerId) {
-        path += `&personId=${customerId}`;
-      }
-      if (contractId) {
-        path += `&contractId=${contractId}`;
-      }
+      // Endpoint correto: /solicitationlist/{clientId}?allAssignments=True/False
+      const path = `/solicitationlist/${customerId}?allAssignments=${allAssignments ? 'True' : 'False'}`;
       
-      const result = await this.apiRequest<VoalleSolicitationResponse>(
+      console.log(`[Voalle] Buscando solicitações: ${path}`);
+      
+      const result = await this.apiRequest<VoalleSolicitationApiResponse>(
         "GET",
         path
       );
       
-      return result.data || [];
+      if (!result.success || !result.response?.data) {
+        console.log("[Voalle] Resposta sem dados:", result);
+        return [];
+      }
+
+      // Mapear resposta bruta para formato normalizado
+      const solicitations: VoalleSolicitation[] = result.response.data.map((raw) => ({
+        id: raw.assignmentId,
+        protocol: String(raw.protocol),
+        subject: raw.title,
+        description: raw.title,
+        status: raw.status,
+        team: raw.team,
+        sectorArea: raw.sectorArea,
+        createdAt: raw.beginningData,
+        closedAt: raw.finalData,
+      }));
+
+      console.log(`[Voalle] Encontradas ${solicitations.length} solicitações`);
+      return solicitations;
     } catch (error) {
-      console.error("Erro ao buscar solicitações abertas:", error);
+      console.error("[Voalle] Erro ao buscar solicitações abertas:", error);
       return [];
     }
   }
 
-  async getSolicitationsByProtocol(protocol: string): Promise<VoalleSolicitation | null> {
+  /**
+   * Busca uma solicitação específica pelo protocolo
+   * @param protocol - Número do protocolo
+   */
+  async getSolicitationByProtocol(protocol: string): Promise<VoalleSolicitation | null> {
     if (!this.config) {
       throw new Error("Voalle não configurado");
     }
 
     try {
-      const result = await this.apiRequest<VoalleSolicitation>(
+      // Endpoint: /solicitationlist/{protocol}
+      const path = `/solicitationlist/${protocol}`;
+      
+      const result = await this.apiRequest<VoalleSolicitationApiResponse>(
         "GET",
-        `/servicedesk/protocol/${protocol}`
+        path
       );
       
-      return result;
+      if (!result.success || !result.response?.data?.length) {
+        return null;
+      }
+
+      const raw = result.response.data[0];
+      return {
+        id: raw.assignmentId,
+        protocol: String(raw.protocol),
+        subject: raw.title,
+        description: raw.title,
+        status: raw.status,
+        team: raw.team,
+        sectorArea: raw.sectorArea,
+        createdAt: raw.beginningData,
+        closedAt: raw.finalData,
+      };
     } catch (error) {
-      console.error(`Erro ao buscar solicitação ${protocol}:`, error);
+      console.error(`[Voalle] Erro ao buscar solicitação ${protocol}:`, error);
       return null;
     }
   }
@@ -376,6 +424,32 @@ interface VoalleContractResponse {
   total: number;
 }
 
+// Resposta bruta da API do Voalle para solicitações
+interface VoalleSolicitationRaw {
+  assignmentId: number;
+  title: string;
+  protocol: number;
+  status: string;
+  team: string;
+  sectorArea: string;
+  beginningData: string;
+  finalData?: string;
+}
+
+// Resposta da API do Voalle
+interface VoalleSolicitationApiResponse {
+  success: boolean;
+  messages: string | null;
+  response: {
+    status: string;
+    count: number;
+    data: VoalleSolicitationRaw[];
+  };
+  dataResponseType: string;
+  elapsedTime: string | null;
+}
+
+// Interface normalizada para uso interno
 export interface VoalleSolicitation {
   id: number;
   protocol: string;
@@ -393,6 +467,8 @@ export interface VoalleSolicitation {
   closedAt?: string;
   assignedTo?: string;
   assignedToName?: string;
+  team?: string;
+  sectorArea?: string;
 }
 
 interface VoalleSolicitationResponse {

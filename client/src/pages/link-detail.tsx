@@ -22,14 +22,17 @@ import {
   CalendarIcon,
   Clock,
   Cpu,
+  ExternalLink,
   FileWarning,
   Gauge,
   HardDrive,
+  Loader2,
   MapPin,
   Network,
   Percent,
   RefreshCw,
   Server,
+  Ticket,
   Zap,
 } from "lucide-react";
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident } from "@shared/schema";
@@ -37,6 +40,27 @@ import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { formatBandwidth } from "@/lib/export-utils";
+
+// Tipo para solicitações do Voalle
+interface VoalleSolicitation {
+  id: number;
+  protocol: string;
+  subject: string;
+  description?: string;
+  status: string;
+  createdAt: string;
+  closedAt?: string;
+  team?: string;
+  sectorArea?: string;
+}
+
+interface VoalleSolicitationsResponse {
+  solicitations: VoalleSolicitation[];
+  clientName?: string;
+  voalleCustomerId?: number;
+  message?: string;
+  error?: string;
+}
 
 // Opções de período para os gráficos
 const PERIOD_OPTIONS = [
@@ -136,6 +160,14 @@ export default function LinkDetail() {
     queryKey: ["/api/links", linkId, "incidents"],
     enabled: !isNaN(linkId),
     refetchInterval: 10000,
+  });
+
+  // Buscar solicitações em aberto do Voalle
+  const { data: voalleSolicitations, isLoading: voalleLoading, refetch: refetchVoalle } = useQuery<VoalleSolicitationsResponse>({
+    queryKey: ["/api/links", linkId, "voalle", "solicitations"],
+    enabled: !isNaN(linkId),
+    refetchInterval: false, // Não atualizar automaticamente (consulta sob demanda)
+    staleTime: 60000, // Cache por 1 minuto
   });
 
   // Inverter a ordem para timeline da esquerda (mais antigo) para direita (mais recente)
@@ -549,6 +581,101 @@ export default function LinkDetail() {
         </TabsContent>
 
         <TabsContent value="incidents" className="space-y-4">
+          {/* Solicitações em Aberto no Voalle */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Ticket className="w-5 h-5" />
+                Solicitações no ERP
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchVoalle()}
+                  disabled={voalleLoading}
+                  data-testid="button-refresh-voalle"
+                >
+                  {voalleLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span className="ml-1">Atualizar</span>
+                </Button>
+                {voalleSolicitations?.solicitations && (
+                  <Badge variant="outline" data-testid="badge-solicitations-count">
+                    {voalleSolicitations.solicitations.length} solicitações
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {voalleLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Consultando Voalle...</span>
+                </div>
+              ) : voalleSolicitations?.error ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                  <p>{voalleSolicitations.error}</p>
+                </div>
+              ) : voalleSolicitations?.message ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <Ticket className="w-8 h-8 mb-2 opacity-50" />
+                  <p>{voalleSolicitations.message}</p>
+                </div>
+              ) : !voalleSolicitations?.solicitations || voalleSolicitations.solicitations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <Ticket className="w-8 h-8 mb-2 opacity-50" />
+                  <p>Nenhuma solicitação em aberto no ERP.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {voalleSolicitations.solicitations.map((sol) => (
+                    <div 
+                      key={sol.id} 
+                      className="flex items-start gap-3 p-3 rounded-md border bg-card"
+                      data-testid={`solicitation-card-${sol.id}`}
+                    >
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <ExternalLink className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-mono text-sm font-medium">#{sol.protocol}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {sol.status}
+                          </Badge>
+                          {sol.team && (
+                            <Badge variant="outline" className="text-xs">
+                              {sol.team}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {sol.subject || sol.description || "Sem descrição"}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                          <span>
+                            Aberto: {formatDistanceToNow(new Date(sol.createdAt), { addSuffix: true, locale: ptBR })}
+                          </span>
+                          {sol.sectorArea && (
+                            <span className="text-muted-foreground/70">
+                              {sol.sectorArea}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Histórico de Incidentes */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-lg">Histórico de Incidentes</CardTitle>
