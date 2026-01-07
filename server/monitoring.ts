@@ -237,6 +237,42 @@ function createSnmpSession(targetIp: string, profile: SnmpProfile): snmp.Session
   }
 }
 
+// Helper function to check if a varbind contains an error (No Such Instance, No Such Object, etc.)
+function isVarbindError(varbind: any): boolean {
+  if (!varbind) return true;
+  // Use net-snmp's built-in error checker
+  return (snmp as any).isVarbindError(varbind);
+}
+
+// Helper function to parse Buffer of any size to number
+function bufferToNumber(buf: Buffer): number {
+  let result = 0;
+  for (let i = 0; i < buf.length; i++) {
+    result = result * 256 + buf[i];
+  }
+  return result;
+}
+
+// Helper to safely extract octets value from varbind
+function extractOctetsValue(varbind: any): number | null {
+  if (!varbind || isVarbindError(varbind)) {
+    return null;
+  }
+  
+  const val = varbind.value;
+  
+  if (Buffer.isBuffer(val)) {
+    return bufferToNumber(val);
+  } else if (typeof val === 'bigint') {
+    return Number(val);
+  } else if (typeof val === 'number' && isFinite(val)) {
+    return val;
+  }
+  
+  // String or other types may indicate error response
+  return null;
+}
+
 export async function getInterfaceTraffic(
   targetIp: string,
   profile: SnmpProfile,
@@ -246,9 +282,16 @@ export async function getInterfaceTraffic(
     try {
       const session = createSnmpSession(targetIp, profile);
 
-      const oids = [
+      // Try 64-bit HC counters first
+      const hcOids = [
         `${IF_TRAFFIC_OIDS.ifHCInOctets}.${ifIndex}`,
         `${IF_TRAFFIC_OIDS.ifHCOutOctets}.${ifIndex}`,
+      ];
+      
+      // Fallback 32-bit counters
+      const stdOids = [
+        `${IF_TRAFFIC_OIDS.ifInOctets}.${ifIndex}`,
+        `${IF_TRAFFIC_OIDS.ifOutOctets}.${ifIndex}`,
       ];
 
       let sessionClosed = false;
@@ -259,73 +302,90 @@ export async function getInterfaceTraffic(
         }
       };
 
-      (session as unknown as { get: (oids: string[], callback: (error: Error | null, varbinds: Array<{value: unknown}>) => void) => void }).get(oids, (error: Error | null, varbinds: Array<{value: unknown}>) => {
-        closeSession();
+      const snmpSession = session as unknown as { 
+        get: (oids: string[], callback: (error: Error | null, varbinds: any[]) => void) => void 
+      };
 
+      // First try HC counters
+      snmpSession.get(hcOids, (error: Error | null, varbinds: any[]) => {
         if (error) {
-          console.error(`SNMP error for ${targetIp}:`, error.message);
+          console.error(`[SNMP HC Error] ${targetIp}:`, error.message);
+          closeSession();
           resolve(null);
           return;
         }
 
         if (!varbinds || varbinds.length < 2) {
+          closeSession();
           resolve(null);
           return;
         }
 
-        try {
-          // Handle different value types from net-snmp
-          let inOctets = 0;
-          let outOctets = 0;
-          
-          const val0 = varbinds[0].value;
-          const val1 = varbinds[1].value;
-          
-          // Helper function to parse Buffer of any size to number
-          const bufferToNumber = (buf: Buffer): number => {
-            let result = 0;
-            for (let i = 0; i < buf.length; i++) {
-              result = result * 256 + buf[i];
-            }
-            return result;
-          };
-          
-          // net-snmp returns Counter64 as Buffer, need to convert properly
-          if (Buffer.isBuffer(val0)) {
-            inOctets = bufferToNumber(val0);
-          } else if (typeof val0 === 'bigint') {
-            inOctets = Number(val0);
-          } else if (typeof val0 === 'number') {
-            inOctets = val0;
-          } else if (val0 !== null && val0 !== undefined) {
-            inOctets = Number(String(val0));
-          }
-          
-          if (Buffer.isBuffer(val1)) {
-            outOctets = bufferToNumber(val1);
-          } else if (typeof val1 === 'bigint') {
-            outOctets = Number(val1);
-          } else if (typeof val1 === 'number') {
-            outOctets = val1;
-          } else if (val1 !== null && val1 !== undefined) {
-            outOctets = Number(String(val1));
-          }
-
+        const inOctetsHC = extractOctetsValue(varbinds[0]);
+        const outOctetsHC = extractOctetsValue(varbinds[1]);
+        
+        // If both HC counters work, use them
+        if (inOctetsHC !== null && outOctetsHC !== null) {
+          closeSession();
           resolve({
-            inOctets: isFinite(inOctets) ? inOctets : 0,
-            outOctets: isFinite(outOctets) ? outOctets : 0,
+            inOctets: inOctetsHC,
+            outOctets: outOctetsHC,
             timestamp: new Date(),
           });
-        } catch (parseError) {
-          console.error(`[SNMP Parse Error] ${targetIp}:`, parseError);
-          resolve(null);
+          return;
         }
+        
+        // If one or both HC counters failed, try 32-bit fallback
+        console.log(`[SNMP Fallback] ${targetIp}: HC counter error, trying 32-bit counters (inHC=${inOctetsHC !== null}, outHC=${outOctetsHC !== null})`);
+        
+        snmpSession.get(stdOids, (stdError: Error | null, stdVarbinds: any[]) => {
+          closeSession();
+          
+          if (stdError) {
+            console.error(`[SNMP 32-bit Error] ${targetIp}:`, stdError.message);
+            // If we have partial HC data, use what we have with 0 for missing
+            if (inOctetsHC !== null || outOctetsHC !== null) {
+              resolve({
+                inOctets: inOctetsHC ?? 0,
+                outOctets: outOctetsHC ?? 0,
+                timestamp: new Date(),
+              });
+            } else {
+              resolve(null);
+            }
+            return;
+          }
+          
+          if (!stdVarbinds || stdVarbinds.length < 2) {
+            resolve(null);
+            return;
+          }
+          
+          const inOctetsStd = extractOctetsValue(stdVarbinds[0]);
+          const outOctetsStd = extractOctetsValue(stdVarbinds[1]);
+          
+          // Use HC where available, fallback to 32-bit
+          const finalInOctets = inOctetsHC ?? inOctetsStd ?? 0;
+          const finalOutOctets = outOctetsHC ?? outOctetsStd ?? 0;
+          
+          if (finalInOctets === 0 && finalOutOctets === 0 && inOctetsStd === null && outOctetsStd === null) {
+            // Both failed completely
+            resolve(null);
+            return;
+          }
+          
+          resolve({
+            inOctets: finalInOctets,
+            outOctets: finalOutOctets,
+            timestamp: new Date(),
+          });
+        });
       });
 
       setTimeout(() => {
         closeSession();
         resolve(null);
-      }, profile.timeout + 2000);
+      }, profile.timeout + 4000); // Extended timeout for fallback
     } catch (error) {
       console.error(`SNMP session error for ${targetIp}:`, error);
       resolve(null);
