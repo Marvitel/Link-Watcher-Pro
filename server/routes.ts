@@ -1024,15 +1024,7 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Cliente não encontrado", tags: [] });
       }
 
-      console.log(`[Voalle Contract Tags] Cliente: ${client.name}, CNPJ: ${client.cnpj || 'não definido'}`);
-
-      // Verificar se o cliente tem CNPJ
-      if (!client.cnpj) {
-        return res.json({ 
-          tags: [],
-          message: "Cliente não possui CNPJ cadastrado" 
-        });
-      }
+      console.log(`[Voalle Contract Tags] Cliente: ${client.name}, CNPJ: ${client.cnpj || 'não definido'}, VoalleCustomerId: ${client.voalleCustomerId || 'não definido'}`);
 
       // Buscar integração Voalle ativa usando configuração global
       const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
@@ -1048,18 +1040,37 @@ export async function registerRoutes(
       console.log("[Voalle Contract Tags] Usando VoalleAdapter com integração:", voalleIntegration.name);
       const adapter = configureErpAdapter(voalleIntegration) as any;
 
-      // Remover formatação do CNPJ
-      const txId = client.cnpj.replace(/\D/g, '');
-      console.log(`[Voalle Contract Tags] Buscando com txId: ${txId}`);
+      // Determinar qual identificador usar:
+      // - Portal API usa voalleCustomerId (ID do cliente no Voalle)
+      // - API antiga usa CNPJ (txId)
+      let lookupId: string | null = null;
+      
+      // Preferir voalleCustomerId para a Portal API
+      if (client.voalleCustomerId) {
+        lookupId = client.voalleCustomerId.toString();
+        console.log(`[Voalle Contract Tags] Usando voalleCustomerId: ${lookupId}`);
+      } else if (client.cnpj) {
+        // Fallback para CNPJ (API antiga)
+        lookupId = client.cnpj.replace(/\D/g, '');
+        console.log(`[Voalle Contract Tags] Usando CNPJ: ${lookupId}`);
+      }
+      
+      if (!lookupId) {
+        return res.json({ 
+          tags: [],
+          message: "Cliente não possui voalleCustomerId nem CNPJ cadastrado" 
+        });
+      }
       
       // Buscar etiquetas de contrato usando o adapter
-      const tags = await adapter.getContractTags(txId);
+      const tags = await adapter.getContractTags(lookupId);
       console.log(`[Voalle Contract Tags] Encontradas ${tags.length} etiquetas`);
 
       res.json({ 
         tags,
         clientName: client.name,
-        cnpj: client.cnpj
+        cnpj: client.cnpj,
+        voalleCustomerId: client.voalleCustomerId
       });
     } catch (error: any) {
       console.error("[Voalle Contract Tags] Error:", error?.message || error);

@@ -12,6 +12,13 @@ interface VoalleProviderConfig {
   apiUsername?: string;
   apiPassword?: string;
   apiSynData?: string;
+  // Portal API credentials (segunda API do Voalle)
+  portalApiUrl?: string;
+  portalVerifyToken?: string;
+  portalClientId?: string;
+  portalClientSecret?: string;
+  portalUsername?: string;
+  portalPassword?: string;
 }
 
 export class VoalleAdapter implements ErpAdapter {
@@ -20,6 +27,9 @@ export class VoalleAdapter implements ErpAdapter {
   private providerConfig: VoalleProviderConfig | null = null;
   private accessToken: string | null = null;
   private tokenExpiresAt: Date | null = null;
+  // Portal API token (segunda API)
+  private portalAccessToken: string | null = null;
+  private portalTokenExpiresAt: Date | null = null;
 
   configure(config: ErpIntegration): void {
     let apiUrl = (config.apiUrl || "").trim();
@@ -45,6 +55,8 @@ export class VoalleAdapter implements ErpAdapter {
     
     this.accessToken = null;
     this.tokenExpiresAt = null;
+    this.portalAccessToken = null;
+    this.portalTokenExpiresAt = null;
   }
 
   isConfigured(): boolean {
@@ -163,6 +175,104 @@ export class VoalleAdapter implements ErpAdapter {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Voalle API error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  // ========== Portal API (segunda API do Voalle) ==========
+  
+  private isPortalConfigured(): boolean {
+    if (!this.providerConfig) return false;
+    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret, portalUsername, portalPassword } = this.providerConfig;
+    return !!(portalApiUrl && portalVerifyToken && portalClientId && portalClientSecret && portalUsername && portalPassword);
+  }
+
+  private async portalAuthenticate(): Promise<string> {
+    if (!this.providerConfig) {
+      throw new Error("Portal Voalle não configurado");
+    }
+
+    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret, portalUsername, portalPassword } = this.providerConfig;
+    
+    if (!portalApiUrl || !portalVerifyToken || !portalClientId || !portalClientSecret || !portalUsername || !portalPassword) {
+      throw new Error("Credenciais do Portal Voalle incompletas");
+    }
+
+    // Check if token is still valid
+    if (this.portalAccessToken && this.portalTokenExpiresAt && new Date() < this.portalTokenExpiresAt) {
+      return this.portalAccessToken;
+    }
+
+    // Build authentication URL
+    let baseUrl = portalApiUrl.trim();
+    if (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    
+    const authUrl = `${baseUrl}/portal_authentication?verify_token=${encodeURIComponent(portalVerifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}&grant_type=client_credentials&username=${encodeURIComponent(portalUsername)}&password=${encodeURIComponent(portalPassword)}`;
+
+    console.log(`[VoalleAdapter] Portal auth URL: ${baseUrl}/portal_authentication`);
+
+    const response = await fetch(authUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Falha na autenticação Portal Voalle: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json() as {
+      access_token: string;
+      expires_in: number;
+      token_type: string;
+      person?: { id: number; name: string };
+    };
+
+    this.portalAccessToken = data.access_token;
+    this.portalTokenExpiresAt = new Date(Date.now() + (data.expires_in - 60) * 1000);
+
+    console.log(`[VoalleAdapter] Portal autenticado, token expira em ${data.expires_in}s`);
+    return this.portalAccessToken;
+  }
+
+  private async portalApiRequest<T>(
+    method: string,
+    path: string,
+    body?: unknown
+  ): Promise<T> {
+    if (!this.providerConfig?.portalApiUrl) {
+      throw new Error("Portal Voalle não configurado");
+    }
+
+    const token = await this.portalAuthenticate();
+    
+    let baseUrl = this.providerConfig.portalApiUrl.trim();
+    if (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    
+    const url = `${baseUrl}${path}`;
+
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Verify-Token": this.providerConfig.portalVerifyToken || "",
+    };
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Portal Voalle API error: ${response.status} - ${errorText}`);
     }
 
     return response.json() as Promise<T>;
@@ -429,15 +539,62 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
-  async getContractTags(txId: string, page: number = 1, pageSize: number = 50): Promise<Array<{ id: number; description?: string }>> {
-    if (!txId) {
-      console.log("[VoalleAdapter] getContractTags: txId não fornecido");
+  async getContractTags(clientId: string, page: number = 1, pageSize: number = 50): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean }>> {
+    if (!clientId) {
+      console.log("[VoalleAdapter] getContractTags: clientId não fornecido");
       return [];
     }
 
+    // Prefer Portal API if configured (has serviceTag field and active filter)
+    if (this.isPortalConfigured()) {
+      try {
+        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (clientId: ${clientId})`);
+        
+        const result = await this.portalApiRequest<{
+          data: Array<{
+            id: number;
+            serviceTag: string;
+            title: string;
+            description: string;
+            active: boolean;
+            contract?: {
+              id: number;
+              contractNumber: string;
+              description: string;
+            };
+          }>;
+          count: number;
+          filtered: number;
+          total: number;
+        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(clientId)}`);
+
+        if (!result.data) {
+          console.log("[VoalleAdapter] Portal API: resposta sem dados");
+          return [];
+        }
+
+        // Filter only active tags and map to our format
+        const tags = result.data
+          .filter(tag => tag.active === true)
+          .map((raw) => ({
+            id: raw.id,
+            serviceTag: raw.serviceTag,
+            description: raw.description || raw.title,
+            active: raw.active,
+          }));
+
+        console.log(`[VoalleAdapter] Portal API: ${tags.length} etiquetas ativas de ${result.total} total`);
+        return tags;
+      } catch (error) {
+        console.error("[VoalleAdapter] Erro na Portal API, tentando API antiga:", error);
+        // Fall through to legacy API
+      }
+    }
+
+    // Fallback to legacy API (using txId/CNPJ)
     try {
-      const path = `/contractservicetagspaged?txId=${encodeURIComponent(txId)}&Page=${page}&PageSize=${pageSize}`;
-      console.log(`[VoalleAdapter] Buscando etiquetas de contrato: ${path}`);
+      const path = `/contractservicetagspaged?txId=${encodeURIComponent(clientId)}&Page=${page}&PageSize=${pageSize}`;
+      console.log(`[VoalleAdapter] Usando API antiga para etiquetas: ${path}`);
       
       const result = await this.apiRequest<{
         success: boolean;
@@ -449,7 +606,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       }>("GET", path);
 
       if (!result.success || !result.response?.data) {
-        console.log("[VoalleAdapter] Resposta sem dados:", result);
+        console.log("[VoalleAdapter] API antiga: resposta sem dados:", result);
         return [];
       }
 
@@ -458,7 +615,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         description: raw.description,
       }));
 
-      console.log(`[VoalleAdapter] Encontradas ${tags.length} etiquetas de contrato`);
+      console.log(`[VoalleAdapter] API antiga: ${tags.length} etiquetas encontradas`);
       return tags;
     } catch (error) {
       console.error("[VoalleAdapter] Erro ao buscar etiquetas de contrato:", error);

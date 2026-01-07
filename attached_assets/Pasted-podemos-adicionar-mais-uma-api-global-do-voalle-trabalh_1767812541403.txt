@@ -1,0 +1,510 @@
+podemos adicionar mais uma api global do voalle (trabalhar com as duas) que possui outra forma de autenticação e pelo que eu vi pode servir para obter informacoes mais completas sobre as conexoes dos clientes e para abrir solicitações:
+
+AUTENTICAÇÃO
+
+curl --location -g '{{Api_Path}}/portal_authentication?verify_token=TWpNMU&client_id=5_5vshi&client_secret=4h04&grant_type=client_credentials&username=teste&password=123'
+
+{
+  "access_token": "token",
+  "expires_in": 14400,
+  "token_type": "bearer",
+  "scope": null,
+  "person": {
+    "id": 123456,
+    "name": "Cliente teste",
+    "nameList": "Cliente teste"
+  }
+}
+
+DADOS DE AUTENTICAÇÃO
+
+erp voalle path: https://synsuite.marvitel.com.br/
+api path: http://api.marvitel.com.br/
+verify token: TWpNMU9EYzVaakk1T0dSaU1USmxaalprWldFd00ySTFZV1JsTTJRMFptUT06V2tkS2JHSllRWGROUkUxNlRrRTlQUT09OlpUaGtNak0xWWprMFl6bGlORE5tWkRnM01EbGtNalkyWXpBeE1HTTNNR1U9
+
+client id: 9_25i5oho5vo80c4808oo44ksc448o8c0sso08g40g8o8400csss
+
+client secret: 3u3j2i8op4w0kw4g0k8c4o0408cs0g4sw4c8g8s8gg4koo8c0w
+
+Lista Conexões
+
+curl --location 'http://synapi.local/api/people/11/authentications' \
+--header 'Authorization: Bearer ' \
+--header 'Verify-Token: {{token}}'
+
+exemplo de resposta:
+
+
+{
+  "data": [
+    {
+      "id": 123456,
+      "user": "Usuario",
+      "password": "senha",
+      "mac": null,
+      "macPassword": null,
+      "validLanIp": null,
+      "validLanIpClass": null,
+      "authenticationIp": null,
+      "ipType": 2,
+      "ipTypeAsText": "Pelo CE",
+      "equipmentType": 0,
+      "equipmentTypeAsText": "Não Informado",
+      "equipmentUser": "equip",
+      "equipmentPassword": "123456",
+      "equipmentPort": "80",
+      "simultaneConnection": false,
+      "postalCode": "000000-000",
+      "streetNumber": "123",
+      "neighborhood": "Bairro",
+      "street": "Rua",
+      "city": "Cidade",
+      "state": "RS",
+      "lat": null,
+      "lng": null,
+      "serviceTagId": 123456,
+      "connectionType": 1,
+      "complement": null,
+      "active": true,
+      "latLngMocked": false,
+      "latLngAccuracy": 0,
+      "created": "2021-09-10 10:13:22",
+      "modified": "2021-09-10 10:13:22",
+      "createdBy": 1,
+      "modifiedBy": 1,
+      "contract": {
+        "id": 123456,
+        "contract_number": "123456",
+        "description": "Contrato 123456 - Contratos PF - NF Liquidação - SYNTESIS - Suporte Ã  Clientes",
+        "status": 1,
+        "unblockAttemptCount": 0,
+        "remainingUnblockAttempts": 2
+      },
+      "serviceProduct": {
+        "id": 123456,
+        "title": "8 Mbps Radio Empresarial Comp."
+      },
+      "authenticationIp2": null,
+      "authenticationConcentrator": null,
+      "authenticationAddressList": {
+        "id": 1,
+        "title": "Normal"
+      },
+      "authenticationAccessPoint": null,
+      "ipAuthentication": null,
+      "contractItem": {
+        "id": 123456,
+        "description": "8 Mbps Radio Empresarial Comp."
+      },
+      "contractServiceTag": {
+        "id": 123456,
+        "description": "Descrição",
+        "serviceTag": "MTFVGEFE"
+      },
+      "peopleAddress": {
+        "id": 123456,
+        "personId": 11,
+        "type": "1",
+        "streetType": "Alameda",
+        "street": "Rua x",
+        "number": "123",
+        "addressComplement": null,
+        "neighborhood": "Bairro",
+        "city": "Cidade",
+        "codeCityId": "123456",
+        "addressReference": null,
+        "state": "RS",
+        "country": "Brasil",
+        "codeCountry": "1058",
+        "postalCode": "00000-000",
+        "created": "2021-09-10 10:12:14",
+        "modified": "2021-09-10 10:12:14",
+        "createdBy": 1,
+        "modifiedBy": 1,
+        "deleted": false
+      },
+      "provisionStatus": 0,
+      "managementIpId": null,
+      "slotOlt": null,
+      "portOlt": null,
+      "equipmentSerialNumber": null,
+      "wifiName": null,
+      "wifiPassword": null
+    }
+  ],
+  "count": 1,
+  "filtered": 1,
+  "total": 1
+}
+
+
+Lista Etiquetas
+
+
+curl --location 'http://synapi.local/api/contract_service_tags?clientId=123456' \
+--header 'Authorization: Bearer ' \
+--header 'Verify-Token: {{token}}'
+
+
+Example Response
+
+
+{
+  "data": [
+    {
+      "contractItems": [
+        {
+          "id": 123456,
+          "description": "2020 Fibra - 40 Mbps Comp. C.O",
+          "totalAmount": 89.9,
+          "units": 1,
+          "unitAmount": 89.9,
+          "aliquot": 0,
+          "type": 2,
+          "signal": 2,
+          "observation": null,
+          "collection": 2,
+          "invoiced": true,
+          "origin": 1,
+          "useOperation": 1,
+          "communicationType": 1,
+          "demonstration": false,
+          "created": {
+            "lastErrors": {
+              "warning_count": 0,
+              "warnings": [],
+              "error_count": 0,
+              "errors": []
+            },
+            "timezone": {
+              "name": "America/Sao_Paulo",
+              "location": {
+                "country_code": "BR",
+                "latitude": -11,
+                "longitude": -11,
+                "comments": "Brazil (southeast: GO, DF, MG, ES, RJ, SP, PR, SC, RS)"
+              }
+            },
+            "offset": -10800,
+            "timestamp": 1588581899
+          },
+          "modified": {
+            "lastErrors": {
+              "warning_count": 0,
+              "warnings": [],
+              "error_count": 0,
+              "errors": []
+            },
+            "timezone": {
+              "name": "America/Sao_Paulo",
+              "location": {
+                "country_code": "BR",
+                "latitude": -11,
+                "longitude": -11,
+                "comments": "Brazil (southeast: GO, DF, MG, ES, RJ, SP, PR, SC, RS)"
+              }
+            },
+            "offset": -10800,
+            "timestamp": 1602191352
+          }
+        }
+      ],
+      "id": 12345,
+      "serviceTag": "a1b2c3d4",
+      "title": "Etiqueta de atendimento",
+      "description": "Contrato Nº 1234 (L-1875) - Clente",
+      "active": true,
+      "typeOperation": 0,
+      "created": "2020-05-04 05:45:06",
+      "modified": null,
+      "createdBy": 1,
+      "modifiedBy": null,
+      "contract": {
+        "id": 1234,
+        "contractNumber": "0001234",
+        "description": "Contrato Nº 1234 (L-1875) - Cliente"
+      },
+      "client": {
+        "id": 123456,
+        "name": "Nome",
+        "name2": "Nome 2"
+      }
+    }
+  ],
+  "count": 1,
+  "filtered": 1,
+  "total": 1
+}
+
+
+
+Lista Solicitações
+
+
+curl --location 'http://synapi.local/api/portal_solicitations' \
+--header 'Authorization: Bearer ' \
+--header 'Verify-Token: {{token}}'
+
+
+exemplo de resposta:
+
+
+{
+  "data": [
+    {
+      "protocol": 123456,
+      "beginningServiceDate": null,
+      "responsibleFinalDate": "2018-11-06 16:39:21",
+      "beginningChecklist": null,
+      "finalChecklist": null,
+      "finalChecklistComplete": true,
+      "feedbackStatus": 0,
+      "feedbackScore": null,
+      "feedbackDescription": null,
+      "feedbackDate": null,
+      "feedbackLastEmailSent": null,
+      "feedbackNumberEmailsSent": 0,
+      "lastPermanencyCheck": null,
+      "stockPending": false,
+      "assignment": {
+        "id": 19649,
+        "title": "Protocolo 123456 - Atendimento - Administrativo",
+        "description": "Cliente relatou que:\r\n\r\nProblema persiste desde:\r\n\r\n\r\n\r\n",
+        "beginningDate": "2018-11-05 16:39:21",
+        "finalDate": "2018-11-06 16:39:21",
+        "reportClosingDate": null,
+        "conclusionDate": null,
+        "lifetimeSeconds": 0,
+        "lifetimeBusinessSeconds": 0,
+        "secondsPlanned": 0,
+        "childrenSecondsPlanned": 0,
+        "secondsWorked": 0,
+        "childrenSecondsWorked": 0,
+        "reopenedSecondsWorked": 0,
+        "childenReopenedSecondsWorked": 0,
+        "weight": 8,
+        "inExecution": null,
+        "rework": 0,
+        "created": "2018-11-05 16:39:42",
+        "modified": "2018-11-05 16:39:42",
+        "createdBy": 1,
+        "modifiedBy": 1,
+        "erpCode": null,
+        "companyPlace": {
+          "id": 1,
+          "code": "001",
+          "description": "Descrição",
+          "name2": "Internet"
+        },
+        "assignmentVersion": null,
+        "responsible": null,
+        "region": {
+          "id": 2,
+          "title": "Vale"
+        }
+      },
+      "sectorArea": {
+        "id": 1,
+        "title": "Administrativa"
+      },
+      "team": {
+        "managerId": 13,
+        "id": 1,
+        "title": "Administrativo"
+      },
+      "teamManager": {
+        "id": 13,
+        "name": "Nome",
+        "name2": "Nome 2"
+      },
+      "catalogServiceItem": null,
+      "originSectorArea": {
+        "id": 1,
+        "title": "Administrativa"
+      },
+      "originTeam": {
+        "id": 1,
+        "title": "Administrativo"
+      },
+      "originResponsible": null,
+      "serviceLevelAgreementType": {
+        "id": 2,
+        "title": "8x5"
+      },
+      "client": {
+        "id": 1234,
+        "name": "Nome",
+        "name2": "Nome"
+      },
+      "saleRequest": null,
+      "authenticationAccessPoint": null,
+      "authenticationSite": null,
+      "catalogServiceItemClass": null,
+      "person": {
+        "id": 123456,
+        "name": "Nome",
+        "name2": "Nome"
+      },
+      "serviceLevelAgreement": {
+        "id": 11,
+        "description": "Parado"
+      },
+      "contractServiceTag": null,
+      "patrimony": null,
+      "catalogService": null,
+      "incidentStatus": {
+        "id": 1,
+        "title": "Abertura"
+      },
+      "incidentType": {
+        "id": 21,
+        "title": "Atendimento - Administrativo"
+      },
+      "solicitationClassification": null,
+      "solicitationProblem": null
+    }
+  ],
+  "count": 1,
+  "filtered": 1,
+  "total": 1
+}
+
+
+
+POST Nova Solicitação
+
+
+curl --location 'http://synapi.local/api/people/8599/solicitations' \
+--header 'Authorization: Bearer ' \
+--header 'Verify-Token: {{token}}' \
+--form 'companyPlaceId="1"' \
+--form 'incidentStatusId="1"' \
+--form 'personId="1234"' \
+--form 'catalogServiceId="1"' \
+--form 'serviceLevelAgreementId="11"' \
+--form 'incidentTypeId="1011"' \
+--form 'description="Descrição da Solicitação"' \
+--form 'title="solicitação teste"'
+
+
+exemplo de resposta:
+
+{
+  "data": {
+    "protocol": 12345,
+    "beginningServiceDate": null,
+    "responsibleFinalDate": "2018-11-06 18:00:00",
+    "beginningChecklist": null,
+    "finalChecklist": null,
+    "finalChecklistComplete": true,
+    "feedbackStatus": 0,
+    "feedbackScore": null,
+    "feedbackDescription": null,
+    "feedbackDate": null,
+    "feedbackLastEmailSent": null,
+    "feedbackNumberEmailsSent": 0,
+    "lastPermanencyCheck": null,
+    "stockPending": 0,
+    "assignment": {
+      "id": 123456,
+      "title": "Protocolo 12345 - Cliente - Abertura Solicitação / Suporte",
+      "description": "Descrição da Solicitação.",
+      "beginningDate": "2018-11-05 18:22:12",
+      "finalDate": "2018-11-06 18:00:00",
+      "reportClosingDate": null,
+      "conclusionDate": null,
+      "lifetimeSeconds": 0,
+      "lifetimeBusinessSeconds": 0,
+      "secondsPlanned": 0,
+      "childrenSecondsPlanned": 0,
+      "secondsWorked": 0,
+      "childrenSecondsWorked": 0,
+      "reopenedSecondsWorked": 0,
+      "childenReopenedSecondsWorked": 0,
+      "weight": "17",
+      "inExecution": null,
+      "rework": 0,
+      "created": "2018-11-05 18:22:13",
+      "modified": "2018-11-05 18:22:14",
+      "createdBy": null,
+      "modifiedBy": null,
+      "erpCode": null,
+      "companyPlace": {
+        "id": 1,
+        "code": "001",
+        "description": "Descrição",
+        "name2": "Empresa"
+      },
+      "assignmentVersion": null,
+      "responsible": null,
+      "region": {
+        "id": 2,
+        "title": "Titulo"
+      }
+    },
+    "sectorArea": {
+      "id": 2,
+      "title": "Técnica"
+    },
+    "team": {
+      "managerId": 13,
+      "id": 3,
+      "title": "Suporte - Interno"
+    },
+    "teamManager": {
+      "id": 13,
+      "name": "Nome",
+      "name2": "Nome 2"
+    },
+    "catalogServiceItem": null,
+    "originSectorArea": {
+      "id": 2,
+      "title": "Técnica"
+    },
+    "originTeam": {
+      "id": 3,
+      "title": "Suporte - Interno"
+    },
+    "originResponsible": null,
+    "serviceLevelAgreementType": {
+      "id": 2,
+      "title": "8x5"
+    },
+    "client": {
+      "id": 1234,
+      "name": "Nome",
+      "name2": "Nome 2"
+    },
+    "saleRequest": null,
+    "authenticationAccessPoint": null,
+    "authenticationSite": null,
+    "catalogServiceItemClass": null,
+    "person": {
+      "id": 1234,
+      "name": "Nome",
+      "name2": "Nome 2"
+    },
+    "serviceLevelAgreement": {
+      "id": 11,
+      "description": "Parado"
+    },
+    "contractServiceTag": null,
+    "patrimony": null,
+    "catalogService": {
+      "id": 1,
+      "title": "Suporte"
+    },
+    "incidentStatus": {
+      "id": 1,
+      "title": "Abertura"
+    },
+    "incidentType": {
+      "id": 1011,
+      "title": "Cliente - Abertura Solicitação"
+    },
+    "solicitationClassification": null,
+    "solicitationProblem": null
+  }
+}
+
+

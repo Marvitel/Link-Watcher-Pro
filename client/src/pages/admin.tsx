@@ -1409,6 +1409,13 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
     apiUsername: "",
     apiPassword: "",
     apiSynData: "",
+    // API Portal fields
+    portalApiUrl: "",
+    portalVerifyToken: "",
+    portalClientId: "",
+    portalClientSecret: "",
+    portalUsername: "",
+    portalPassword: "",
     dbHost: "",
     dbPort: 3306,
     dbName: "",
@@ -1433,6 +1440,12 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       apiUsername: "",
       apiPassword: "",
       apiSynData: "",
+      portalApiUrl: "",
+      portalVerifyToken: "",
+      portalClientId: "",
+      portalClientSecret: "",
+      portalUsername: "",
+      portalPassword: "",
       dbHost: "",
       dbPort: 3306,
       dbName: "",
@@ -1449,7 +1462,16 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
   const openEditDialog = (integration: ErpIntegration) => {
     setEditingIntegration(integration);
     // Parse providerConfig for Voalle-specific fields
-    let providerConfigData: { apiUsername?: string; apiSynData?: string } = {};
+    let providerConfigData: { 
+      apiUsername?: string; 
+      apiSynData?: string;
+      portalApiUrl?: string;
+      portalVerifyToken?: string;
+      portalClientId?: string;
+      portalClientSecret?: string;
+      portalUsername?: string;
+      portalPassword?: string;
+    } = {};
     if (integration.providerConfig) {
       try {
         providerConfigData = JSON.parse(integration.providerConfig);
@@ -1470,6 +1492,12 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       apiUsername: providerConfigData.apiUsername || "",
       apiPassword: "",
       apiSynData: providerConfigData.apiSynData || "",
+      portalApiUrl: providerConfigData.portalApiUrl || "",
+      portalVerifyToken: providerConfigData.portalVerifyToken || "",
+      portalClientId: providerConfigData.portalClientId || "",
+      portalClientSecret: "",
+      portalUsername: providerConfigData.portalUsername || "",
+      portalPassword: "",
       dbHost: integration.dbHost || "",
       dbPort: integration.dbPort || 3306,
       dbName: integration.dbName || "",
@@ -1547,9 +1575,17 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
     // Build providerConfig JSON for Voalle-specific fields
     const providerConfig: Record<string, string> = {};
     if (formData.provider === "voalle" && formData.connectionType === "api") {
+      // API Para Terceiros
       if (formData.apiUsername) providerConfig.apiUsername = formData.apiUsername;
       if (formData.apiPassword) providerConfig.apiPassword = formData.apiPassword;
       if (formData.apiSynData) providerConfig.apiSynData = formData.apiSynData;
+      // API Portal
+      if (formData.portalApiUrl) providerConfig.portalApiUrl = formData.portalApiUrl;
+      if (formData.portalVerifyToken) providerConfig.portalVerifyToken = formData.portalVerifyToken;
+      if (formData.portalClientId) providerConfig.portalClientId = formData.portalClientId;
+      if (formData.portalClientSecret) providerConfig.portalClientSecret = formData.portalClientSecret;
+      if (formData.portalUsername) providerConfig.portalUsername = formData.portalUsername;
+      if (formData.portalPassword) providerConfig.portalPassword = formData.portalPassword;
     }
     
     // Build save data with providerConfig
@@ -1570,11 +1606,25 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
           try { existingConfig = JSON.parse(editingIntegration.providerConfig); } catch {}
         }
         const mergedConfig: Record<string, string> = { ...existingConfig };
+        // API Para Terceiros
         if (formData.apiUsername) mergedConfig.apiUsername = formData.apiUsername;
         if (formData.apiPassword) mergedConfig.apiPassword = formData.apiPassword;
         else if (existingConfig.apiPassword) mergedConfig.apiPassword = existingConfig.apiPassword;
         if (formData.apiSynData) mergedConfig.apiSynData = formData.apiSynData;
         else if (existingConfig.apiSynData) mergedConfig.apiSynData = existingConfig.apiSynData;
+        // API Portal
+        if (formData.portalApiUrl) mergedConfig.portalApiUrl = formData.portalApiUrl;
+        else if (existingConfig.portalApiUrl) mergedConfig.portalApiUrl = existingConfig.portalApiUrl;
+        if (formData.portalVerifyToken) mergedConfig.portalVerifyToken = formData.portalVerifyToken;
+        else if (existingConfig.portalVerifyToken) mergedConfig.portalVerifyToken = existingConfig.portalVerifyToken;
+        if (formData.portalClientId) mergedConfig.portalClientId = formData.portalClientId;
+        else if (existingConfig.portalClientId) mergedConfig.portalClientId = existingConfig.portalClientId;
+        if (formData.portalClientSecret) mergedConfig.portalClientSecret = formData.portalClientSecret;
+        else if (existingConfig.portalClientSecret) mergedConfig.portalClientSecret = existingConfig.portalClientSecret;
+        if (formData.portalUsername) mergedConfig.portalUsername = formData.portalUsername;
+        else if (existingConfig.portalUsername) mergedConfig.portalUsername = existingConfig.portalUsername;
+        if (formData.portalPassword) mergedConfig.portalPassword = formData.portalPassword;
+        else if (existingConfig.portalPassword) mergedConfig.portalPassword = existingConfig.portalPassword;
         saveData.providerConfig = Object.keys(mergedConfig).length > 0 ? JSON.stringify(mergedConfig) : null;
       }
       updateMutation.mutate({ id: editingIntegration.id, data: saveData as typeof formData });
@@ -1812,46 +1862,120 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                   </div>
                   {formData.provider === "voalle" && (
                     <>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Usuário</Label>
-                          <Input
-                            value={formData.apiUsername}
-                            onChange={(e) => setFormData({ ...formData, apiUsername: e.target.value })}
-                            placeholder="CNPJ ou usuário integrador"
-                            data-testid="input-erp-username"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Senha</Label>
-                          <Input
-                            type={showSecrets ? "text" : "password"}
-                            value={formData.apiPassword}
-                            onChange={(e) => setFormData({ ...formData, apiPassword: e.target.value })}
-                            placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do usuário"}
-                            data-testid="input-erp-password"
-                          />
+                      <div className="border-t pt-4 mt-2">
+                        <h4 className="font-medium mb-3 text-sm text-muted-foreground">API Para Terceiros (autenticação principal)</h4>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Usuário</Label>
+                              <Input
+                                value={formData.apiUsername}
+                                onChange={(e) => setFormData({ ...formData, apiUsername: e.target.value })}
+                                placeholder="CNPJ ou usuário integrador"
+                                data-testid="input-erp-username"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Senha</Label>
+                              <Input
+                                type={showSecrets ? "text" : "password"}
+                                value={formData.apiPassword}
+                                onChange={(e) => setFormData({ ...formData, apiPassword: e.target.value })}
+                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do usuário"}
+                                data-testid="input-erp-password"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>SynData</Label>
+                            <Input
+                              type={showSecrets ? "text" : "password"}
+                              value={formData.apiSynData}
+                              onChange={(e) => setFormData({ ...formData, apiSynData: e.target.value })}
+                              placeholder={editingIntegration ? "Deixe vazio para manter" : "Token SynData para autenticação"}
+                              data-testid="input-erp-syndata"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Token SynV1 (opcional)</Label>
+                            <Input
+                              type={showSecrets ? "text" : "password"}
+                              value={formData.apiSynV1Token}
+                              onChange={(e) => setFormData({ ...formData, apiSynV1Token: e.target.value })}
+                              placeholder="Token syn-v1 se necessário"
+                              data-testid="input-erp-syn-token"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>SynData</Label>
-                        <Input
-                          type={showSecrets ? "text" : "password"}
-                          value={formData.apiSynData}
-                          onChange={(e) => setFormData({ ...formData, apiSynData: e.target.value })}
-                          placeholder={editingIntegration ? "Deixe vazio para manter" : "Token SynData para autenticação"}
-                          data-testid="input-erp-syndata"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Token SynV1 (opcional)</Label>
-                        <Input
-                          type={showSecrets ? "text" : "password"}
-                          value={formData.apiSynV1Token}
-                          onChange={(e) => setFormData({ ...formData, apiSynV1Token: e.target.value })}
-                          placeholder="Token syn-v1 se necessário"
-                          data-testid="input-erp-syn-token"
-                        />
+
+                      <div className="border-t pt-4 mt-4">
+                        <h4 className="font-medium mb-3 text-sm text-muted-foreground">API Portal (opcional - para etiquetas de contrato)</h4>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>URL da API Portal</Label>
+                              <Input
+                                value={formData.portalApiUrl}
+                                onChange={(e) => setFormData({ ...formData, portalApiUrl: e.target.value })}
+                                placeholder="http://api.marvitel.com.br/"
+                                data-testid="input-erp-portal-url"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Verify Token</Label>
+                              <Input
+                                type={showSecrets ? "text" : "password"}
+                                value={formData.portalVerifyToken}
+                                onChange={(e) => setFormData({ ...formData, portalVerifyToken: e.target.value })}
+                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Token de verificação"}
+                                data-testid="input-erp-portal-verify-token"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Client ID</Label>
+                              <Input
+                                value={formData.portalClientId}
+                                onChange={(e) => setFormData({ ...formData, portalClientId: e.target.value })}
+                                placeholder="Client ID da API Portal"
+                                data-testid="input-erp-portal-client-id"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Client Secret</Label>
+                              <Input
+                                type={showSecrets ? "text" : "password"}
+                                value={formData.portalClientSecret}
+                                onChange={(e) => setFormData({ ...formData, portalClientSecret: e.target.value })}
+                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Client Secret"}
+                                data-testid="input-erp-portal-client-secret"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Usuário Portal</Label>
+                              <Input
+                                value={formData.portalUsername}
+                                onChange={(e) => setFormData({ ...formData, portalUsername: e.target.value })}
+                                placeholder="Usuário para autenticação"
+                                data-testid="input-erp-portal-username"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Senha Portal</Label>
+                              <Input
+                                type={showSecrets ? "text" : "password"}
+                                value={formData.portalPassword}
+                                onChange={(e) => setFormData({ ...formData, portalPassword: e.target.value })}
+                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do usuário"}
+                                data-testid="input-erp-portal-password"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </>
                   )}
