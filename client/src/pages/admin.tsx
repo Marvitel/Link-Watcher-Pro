@@ -132,7 +132,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const filteredOlts = olts?.filter(olt => olt.isActive);
 
   // Buscar etiquetas de contrato do Voalle para o cliente selecionado
-  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string }>; cnpj?: string; error?: string }>({
+  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string; contractNumber?: string }>; cnpj?: string; error?: string }>({
     queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
     enabled: !!formData.clientId,
     staleTime: 0,
@@ -665,7 +665,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 <SelectItem value="none">Nenhuma (buscar todas solicitações)</SelectItem>
                 {voalleContractTags.tags.map((tag) => (
                   <SelectItem key={tag.id} value={tag.id.toString()}>
-                    {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}
+                    {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}{tag.contractNumber ? ` (Contrato ${tag.contractNumber})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -559,49 +559,65 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }, 
     page: number = 1, 
     pageSize: number = 50
-  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean }>> {
+  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean; contractNumber?: string }>> {
     const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
     // Prefer Portal API if configured AND client has portal credentials
+    // Use /api/people/{personId}/authentications endpoint which returns only active connections
     if (this.isPortalConfigured() && voalleCustomerId && portalUsername && portalPassword) {
       try {
-        console.log(`[VoalleAdapter] Usando Portal API para etiquetas (voalleCustomerId: ${voalleCustomerId}, user: ${portalUsername})`);
+        console.log(`[VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: ${voalleCustomerId}, user: ${portalUsername})`);
         
+        // Use people/authentications endpoint which returns active connections with contract info
         const result = await this.portalApiRequest<{
           data: Array<{
             id: number;
-            serviceTag: string;
-            title: string;
-            description: string;
             active: boolean;
+            serviceTagId: number;
             contract?: {
               id: number;
-              contractNumber: string;
+              contract_number: string;
               description: string;
+              status: number;
+            };
+            contractServiceTag?: {
+              id: number;
+              description: string;
+              serviceTag: string;
+            };
+            serviceProduct?: {
+              id: number;
+              title: string;
             };
           }>;
           count: number;
           filtered: number;
           total: number;
-        }>("GET", `/api/contract_service_tags?clientId=${encodeURIComponent(voalleCustomerId)}`, portalUsername, portalPassword);
+        }>("GET", `/api/people/${encodeURIComponent(voalleCustomerId)}/authentications`, portalUsername, portalPassword);
 
         if (!result.data) {
           console.log("[VoalleAdapter] Portal API: resposta sem dados");
           return [];
         }
 
-        // Filter only active tags and map to our format
+        // Map connections to tags format, filtering only active ones with contractServiceTag
         const tags = result.data
-          .filter(tag => tag.active === true)
-          .map((raw) => ({
-            id: raw.id,
-            serviceTag: raw.serviceTag,
-            description: raw.description || raw.title,
-            active: raw.active,
+          .filter(conn => conn.active === true && conn.contractServiceTag)
+          .map((conn) => ({
+            id: conn.contractServiceTag!.id,
+            serviceTag: conn.contractServiceTag!.serviceTag,
+            description: conn.contractServiceTag!.description || conn.serviceProduct?.title,
+            active: conn.active,
+            contractNumber: conn.contract?.contract_number,
           }));
 
-        console.log(`[VoalleAdapter] Portal API: ${tags.length} etiquetas ativas de ${result.total} total`);
-        return tags;
+        // Remove duplicates (same serviceTag can appear in multiple connections)
+        const uniqueTags = tags.filter((tag, index, self) => 
+          index === self.findIndex(t => t.id === tag.id)
+        );
+
+        console.log(`[VoalleAdapter] Portal API: ${uniqueTags.length} etiquetas ativas de ${result.data.length} conexões`);
+        return uniqueTags;
       } catch (error) {
         console.error("[VoalleAdapter] Erro na Portal API, tentando API antiga:", error);
         // Fall through to legacy API

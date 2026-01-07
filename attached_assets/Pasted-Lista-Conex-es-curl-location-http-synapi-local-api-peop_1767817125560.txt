@@ -1,0 +1,111 @@
+Lista Conexões
+
+curl --location 'http://synapi.local/api/people/11/authentications' \
+--header 'Authorization: Bearer ' \
+--header 'Verify-Token: {{token}}'
+
+exemplo de resposta:
+
+
+{
+  "data": [
+    {
+      "id": 123456,
+      "user": "Usuario",
+      "password": "senha",
+      "mac": null,
+      "macPassword": null,
+      "validLanIp": null,
+      "validLanIpClass": null,
+      "authenticationIp": null,
+      "ipType": 2,
+      "ipTypeAsText": "Pelo CE",
+      "equipmentType": 0,
+      "equipmentTypeAsText": "Não Informado",
+      "equipmentUser": "equip",
+      "equipmentPassword": "123456",
+      "equipmentPort": "80",
+      "simultaneConnection": false,
+      "postalCode": "000000-000",
+      "streetNumber": "123",
+      "neighborhood": "Bairro",
+      "street": "Rua",
+      "city": "Cidade",
+      "state": "RS",
+      "lat": null,
+      "lng": null,
+      "serviceTagId": 123456,
+      "connectionType": 1,
+      "complement": null,
+      "active": true,
+      "latLngMocked": false,
+      "latLngAccuracy": 0,
+      "created": "2021-09-10 10:13:22",
+      "modified": "2021-09-10 10:13:22",
+      "createdBy": 1,
+      "modifiedBy": 1,
+      "contract": {
+        "id": 123456,
+        "contract_number": "123456",
+        "description": "Contrato 123456 - Contratos PF - NF Liquidação - SYNTESIS - Suporte Ã  Clientes",
+        "status": 1,
+        "unblockAttemptCount": 0,
+        "remainingUnblockAttempts": 2
+      },
+      "serviceProduct": {
+        "id": 123456,
+        "title": "8 Mbps Radio Empresarial Comp."
+      },
+      "authenticationIp2": null,
+      "authenticationConcentrator": null,
+      "authenticationAddressList": {
+        "id": 1,
+        "title": "Normal"
+      },
+      "authenticationAccessPoint": null,
+      "ipAuthentication": null,
+      "contractItem": {
+        "id": 123456,
+        "description": "8 Mbps Radio Empresarial Comp."
+      },
+      "contractServiceTag": {
+        "id": 123456,
+        "description": "Descrição",
+        "serviceTag": "MTFVGEFE"
+      },
+      "peopleAddress": {
+        "id": 123456,
+        "personId": 11,
+        "type": "1",
+        "streetType": "Alameda",
+        "street": "Rua x",
+        "number": "123",
+        "addressComplement": null,
+        "neighborhood": "Bairro",
+        "city": "Cidade",
+        "codeCityId": "123456",
+        "addressReference": null,
+        "state": "RS",
+        "country": "Brasil",
+        "codeCountry": "1058",
+        "postalCode": "00000-000",
+        "created": "2021-09-10 10:12:14",
+        "modified": "2021-09-10 10:12:14",
+        "createdBy": 1,
+        "modifiedBy": 1,
+        "deleted": false
+      },
+      "provisionStatus": 0,
+      "managementIpId": null,
+      "slotOlt": null,
+      "portOlt": null,
+      "equipmentSerialNumber": null,
+      "wifiName": null,
+      "wifiPassword": null
+    }
+  ],
+  "count": 1,
+  "filtered": 1,
+  "total": 1
+}
+
