@@ -550,6 +550,72 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+  async getOpenSolicitations(customerId?: number, allAssignments: boolean = false): Promise<Array<{
+    id: number;
+    protocol: string;
+    subject: string;
+    description: string;
+    status: string;
+    team?: string;
+    sectorArea?: string;
+    createdAt?: string;
+    closedAt?: string;
+  }>> {
+    if (!customerId) {
+      console.log("[VoalleAdapter] getOpenSolicitations: customerId não fornecido");
+      return [];
+    }
+
+    try {
+      // Endpoint: /solicitationlist/{clientId}?allAssignments=True/False
+      const path = `/solicitationlist/${customerId}?allAssignments=${allAssignments ? 'True' : 'False'}`;
+      
+      console.log(`[VoalleAdapter] Buscando solicitações: ${path}`);
+      
+      const result = await this.apiRequest<{
+        success: boolean;
+        messages: string | null;
+        response: {
+          data: Array<{
+            assignmentId: number;
+            protocol: number;
+            title: string;
+            status: string;
+            team?: string;
+            sectorArea?: string;
+            beginningData?: string;
+            finalData?: string;
+          }>;
+          totalRecords?: number;
+        };
+      }>("GET", path);
+      
+      if (!result.success || !result.response?.data) {
+        console.log("[VoalleAdapter] Resposta sem dados:", result);
+        return [];
+      }
+
+      // Mapear resposta bruta para formato normalizado
+      const solicitations = result.response.data.map((raw) => ({
+        id: raw.assignmentId,
+        protocol: String(raw.protocol),
+        subject: raw.title,
+        description: raw.title,
+        status: raw.status,
+        team: raw.team,
+        sectorArea: raw.sectorArea,
+        createdAt: raw.beginningData,
+        closedAt: raw.finalData,
+      }));
+
+      console.log(`[VoalleAdapter] Encontradas ${solicitations.length} solicitações`);
+      return solicitations;
+    } catch (error) {
+      console.error("[VoalleAdapter] Erro ao buscar solicitações abertas:", error);
+      return [];
+    }
+  }
+
   async getContractTags(
     params: { 
       voalleCustomerId?: string | null; 

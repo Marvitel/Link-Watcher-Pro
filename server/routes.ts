@@ -983,18 +983,18 @@ export async function registerRoutes(
         voalleCustomerId = parseInt(voalleMapping.erpCustomerId, 10) || null;
       }
 
-      // Configurar serviço Voalle
-      const config = voalleIntegration.providerConfig as any;
-      const voalle = new VoalleService();
-      voalle.configure({
-        apiUrl: config.apiUrl || config.baseUrl,
-        clientId: config.clientId,
-        clientSecret: config.clientSecret,
-        synV1Token: config.synV1Token,
-      });
+      // Usar VoalleAdapter com configuração global (igual à rota de contract-tags)
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      
+      if (!adapter || typeof adapter.getOpenSolicitations !== 'function') {
+        return res.status(500).json({ 
+          error: "Adapter Voalle não suporta busca de solicitações",
+          solicitations: [] 
+        });
+      }
 
-      // Buscar solicitações em aberto
-      const solicitations = await voalle.getOpenSolicitations(voalleCustomerId ?? undefined);
+      // Buscar solicitações em aberto usando o adapter
+      const solicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined);
 
       res.json({ 
         solicitations,
