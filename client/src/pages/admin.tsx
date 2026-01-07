@@ -767,6 +767,7 @@ interface ClientSettings {
   wanguardApiPassword?: string | null;
   wanguardEnabled?: boolean;
   wanguardSyncInterval?: number;
+  ddosMitigationCapacity?: number;
 }
 
 function WanguardIntegration({ clients }: { clients: Client[] }) {
@@ -789,6 +790,7 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
     wanguardApiPassword: "",
     wanguardEnabled: false,
     wanguardSyncInterval: 60,
+    ddosMitigationCapacity: 2,
   });
 
   useEffect(() => {
@@ -799,6 +801,7 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
         wanguardApiPassword: settings.wanguardApiPassword || "",
         wanguardEnabled: settings.wanguardEnabled || false,
         wanguardSyncInterval: settings.wanguardSyncInterval || 60,
+        ddosMitigationCapacity: settings.ddosMitigationCapacity ?? 2,
       });
     }
   }, [settings]);
@@ -970,15 +973,28 @@ function WanguardIntegration({ clients }: { clients: Client[] }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="syncInterval">Intervalo de Sincronização (segundos)</Label>
-                <Input
-                  id="syncInterval"
-                  type="number"
-                  value={formData.wanguardSyncInterval || 60}
-                  onChange={(e) => setFormData({ ...formData, wanguardSyncInterval: parseInt(e.target.value, 10) || 60 })}
-                  data-testid="input-wanguard-interval"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="syncInterval">Intervalo de Sincronização (segundos)</Label>
+                  <Input
+                    id="syncInterval"
+                    type="number"
+                    value={formData.wanguardSyncInterval || 60}
+                    onChange={(e) => setFormData({ ...formData, wanguardSyncInterval: parseInt(e.target.value, 10) || 60 })}
+                    data-testid="input-wanguard-interval"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mitigationCapacity">Capacidade de Mitigação (Gbps)</Label>
+                  <Input
+                    id="mitigationCapacity"
+                    type="number"
+                    step="0.1"
+                    value={formData.ddosMitigationCapacity ?? 2}
+                    onChange={(e) => setFormData({ ...formData, ddosMitigationCapacity: parseFloat(e.target.value) || 2 })}
+                    data-testid="input-mitigation-capacity"
+                  />
+                </div>
               </div>
             </div>
 

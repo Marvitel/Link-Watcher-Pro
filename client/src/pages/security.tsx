@@ -14,16 +14,22 @@ import {
   Server,
   RefreshCw,
 } from "lucide-react";
-import type { DDoSEvent } from "@shared/schema";
+import type { DDoSEvent, ClientSettings } from "@shared/schema";
 
 export default function Security() {
   const { selectedClientId } = useClientContext();
   
   const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
+  const settingsUrl = selectedClientId ? `/api/clients/${selectedClientId}/settings` : null;
   
   const { data: ddosEvents, isLoading } = useQuery<DDoSEvent[]>({
     queryKey: [ddosUrl],
     refetchInterval: 10000,
+  });
+  
+  const { data: clientSettings } = useQuery<ClientSettings>({
+    queryKey: ["/api/clients", selectedClientId, "settings"],
+    enabled: !!selectedClientId,
   });
 
   const activeAttacks = ddosEvents?.filter((e) => e.mitigationStatus !== "resolved").length || 0;
@@ -127,7 +133,7 @@ export default function Security() {
             </div>
             <div className="p-4 rounded-md bg-muted/50">
               <p className="text-sm text-muted-foreground">Capacidade de Mitigação</p>
-              <p className="font-semibold font-mono">2 Gbps</p>
+              <p className="font-semibold font-mono">{clientSettings?.ddosMitigationCapacity ?? 2} Gbps</p>
               <p className="text-xs text-muted-foreground">10x a banda contratada</p>
             </div>
           </div>

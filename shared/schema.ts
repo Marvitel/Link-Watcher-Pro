@@ -285,6 +285,7 @@ export const clientSettings = pgTable("client_settings", {
   wanguardApiPassword: text("wanguard_api_password"),
   wanguardEnabled: boolean("wanguard_enabled").notNull().default(false),
   wanguardSyncInterval: integer("wanguard_sync_interval").notNull().default(60),
+  ddosMitigationCapacity: real("ddos_mitigation_capacity").notNull().default(2),
   notificationEmail: varchar("notification_email", { length: 255 }),
   notificationSms: varchar("notification_sms", { length: 50 }),
   notifyEmailEnabled: boolean("notify_email_enabled").notNull().default(true),
