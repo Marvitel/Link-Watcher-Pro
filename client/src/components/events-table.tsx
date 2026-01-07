@@ -87,7 +87,7 @@ export function EventsTable({ events, compact = false }: EventsTableProps) {
                 </TableCell>
                 {!compact && (
                   <TableCell className="text-sm text-muted-foreground">
-                    {event.linkId === "sede" ? "Sede Administrativa" : "Central de Atendimento"}
+                    {(event as any).linkName || `Link #${event.linkId}`}
                   </TableCell>
                 )}
                 <TableCell className="text-sm text-muted-foreground font-mono">

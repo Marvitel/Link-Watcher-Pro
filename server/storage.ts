@@ -359,11 +359,28 @@ export class DatabaseStorage {
     return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);
   }
 
-  async getEvents(clientId?: number): Promise<Event[]> {
+  async getEvents(clientId?: number): Promise<(Event & { linkName?: string | null })[]> {
+    const baseQuery = db
+      .select({
+        id: events.id,
+        linkId: events.linkId,
+        clientId: events.clientId,
+        type: events.type,
+        title: events.title,
+        description: events.description,
+        timestamp: events.timestamp,
+        resolved: events.resolved,
+        resolvedAt: events.resolvedAt,
+        linkName: links.name,
+      })
+      .from(events)
+      .leftJoin(links, eq(events.linkId, links.id))
+      .orderBy(desc(events.timestamp));
+    
     if (clientId) {
-      return await db.select().from(events).where(eq(events.clientId, clientId)).orderBy(desc(events.timestamp));
+      return await baseQuery.where(eq(events.clientId, clientId));
     }
-    return await db.select().from(events).orderBy(desc(events.timestamp));
+    return await baseQuery;
   }
 
   async deleteAllEvents(clientId: number): Promise<number> {
