@@ -8,6 +8,42 @@ import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDi
 
 const execAsync = promisify(exec);
 
+const PARALLEL_WORKERS = 10;
+const COLLECTION_TIMEOUT_MS = 30000;
+
+async function runWithConcurrencyLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<(R | null)[]> {
+  const results: (R | null)[] = new Array(items.length).fill(null);
+  let index = 0;
+  
+  async function worker(): Promise<void> {
+    while (index < items.length) {
+      const currentIndex = index++;
+      const item = items[currentIndex];
+      try {
+        results[currentIndex] = await Promise.race([
+          fn(item),
+          new Promise<R>((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout")), COLLECTION_TIMEOUT_MS)
+          )
+        ]);
+      } catch (error) {
+        results[currentIndex] = null;
+      }
+    }
+  }
+  
+  const workers = Array(Math.min(limit, items.length))
+    .fill(null)
+    .map(() => worker());
+  
+  await Promise.all(workers);
+  return results;
+}
+
 interface StatusChangeEvent {
   type: "error" | "warning" | "info" | "critical";
   title: string;
@@ -703,181 +739,169 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   };
 }
 
-export async function collectAllLinksMetrics(): Promise<void> {
+async function processLinkMetrics(link: typeof links.$inferSelect): Promise<boolean> {
+  if (!link.monitoringEnabled) return true;
+
   try {
-    const allLinks = await db.select().from(links);
+    const collectedMetrics = await collectLinkMetrics(link);
 
-    for (const link of allLinks) {
-      if (!link.monitoringEnabled) continue;
+    const currentUptime = link.uptime || 99;
+    let newUptime = currentUptime;
 
-      try {
-        const collectedMetrics = await collectLinkMetrics(link);
+    if (collectedMetrics.status === "offline") {
+      newUptime = Math.max(0, currentUptime - 0.01);
+    } else if (collectedMetrics.status === "operational") {
+      newUptime = Math.min(100, currentUptime + 0.001);
+    }
 
-        const currentUptime = link.uptime || 99;
-        let newUptime = currentUptime;
+    const safeDownload = isFinite(collectedMetrics.downloadMbps) ? collectedMetrics.downloadMbps : 0;
+    const safeUpload = isFinite(collectedMetrics.uploadMbps) ? collectedMetrics.uploadMbps : 0;
+    const safeLatency = isFinite(collectedMetrics.latency) ? collectedMetrics.latency : 0;
+    const safePacketLoss = isFinite(collectedMetrics.packetLoss) ? collectedMetrics.packetLoss : 0;
+    const safeCpuUsage = isFinite(collectedMetrics.cpuUsage) ? collectedMetrics.cpuUsage : 0;
+    const safeMemoryUsage = isFinite(collectedMetrics.memoryUsage) ? collectedMetrics.memoryUsage : 0;
 
-        if (collectedMetrics.status === "offline") {
-          newUptime = Math.max(0, currentUptime - 0.01);
-        } else if (collectedMetrics.status === "operational") {
-          newUptime = Math.min(100, currentUptime + 0.001);
-        }
-
-        const safeDownload = isFinite(collectedMetrics.downloadMbps) ? collectedMetrics.downloadMbps : 0;
-        const safeUpload = isFinite(collectedMetrics.uploadMbps) ? collectedMetrics.uploadMbps : 0;
-        const safeLatency = isFinite(collectedMetrics.latency) ? collectedMetrics.latency : 0;
-        const safePacketLoss = isFinite(collectedMetrics.packetLoss) ? collectedMetrics.packetLoss : 0;
-        const safeCpuUsage = isFinite(collectedMetrics.cpuUsage) ? collectedMetrics.cpuUsage : 0;
-        const safeMemoryUsage = isFinite(collectedMetrics.memoryUsage) ? collectedMetrics.memoryUsage : 0;
-
-        // Detectar mudança de status para gerar eventos
-        const previousStatus = link.status;
-        const newStatus = collectedMetrics.status;
+    const previousStatus = link.status;
+    const newStatus = collectedMetrics.status;
+    
+    if (previousStatus !== newStatus) {
+      const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
+      if (eventConfig) {
+        let eventDescription = eventConfig.description;
         
-        // Criar evento se o status mudou
-        if (previousStatus !== newStatus) {
-          const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
-          if (eventConfig) {
-            let eventDescription = eventConfig.description;
-            
-            // Limpar cache de diagnóstico quando link se recupera
-            if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
-              oltDiagnosisCache.delete(link.id);
-              console.log(`[Monitor] Cache de diagnóstico OLT limpo para ${link.name}`);
-            }
-            
-            // Se link ficou offline e tem OLT/ONU configurados, consultar diagnóstico
-            console.log(`[Monitor] Link ${link.name} - oltId: ${link.oltId}, onuId: ${link.onuId}`);
-            if (newStatus === "offline" && link.oltId && link.onuId) {
-              // Verificar cache de diagnóstico do link para evitar múltiplas consultas
-              const cached = oltDiagnosisCache.get(link.id);
-              const now = Date.now();
+        if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
+          oltDiagnosisCache.delete(link.id);
+        }
+        
+        if (newStatus === "offline" && link.oltId && link.onuId) {
+          const cached = oltDiagnosisCache.get(link.id);
+          const now = Date.now();
+          
+          if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
+            eventDescription += cached.diagnosis;
+          } else {
+            try {
+              const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
               
-              if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
-                // Usar diagnóstico em cache
-                eventDescription += cached.diagnosis;
-                console.log(`[Monitor] Usando diagnóstico OLT em cache para ${link.name}`);
-              } else {
-                try {
-                  const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
-                  
-                  if (olt && olt.isActive) {
-                    console.log(`[Monitor] Buscando diagnóstico para ${link.name} (ONU: ${link.onuId})...`);
-                    
-                    let diagnosisSuffix = "";
-                    
-                    // Para MySQL/Zabbix ou vendors com diagnóstico específico, usar queryOltAlarm
-                    if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
-                      console.log(`[Monitor] Usando diagnóstico específico para ${olt.connectionType === "mysql" ? "MySQL/Zabbix" : olt.vendor}`);
-                      const diagnosis = await queryOltAlarm(olt, link.onuId);
-                      
-                      if (diagnosis.alarmType) {
-                        diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
-                        console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
-                      } else {
-                        diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
-                      }
-                    } else {
-                      // Usa queryAllOltAlarms que tem cache de 1 minuto por OLT
-                      // Se múltiplos links da mesma OLT caírem, apenas UMA consulta é feita
-                      const allAlarms = await queryAllOltAlarms(olt);
-                      const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
-                      
-                      if (diagnosis.alarmType) {
-                        diagnosisSuffix = ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`;
-                        console.log(`[Monitor] Diagnóstico OLT: ${diagnosis.diagnosis} - ${diagnosis.alarmType}`);
-                      } else {
-                        diagnosisSuffix = ` | OLT: ${diagnosis.description}`;
-                      }
-                    }
-                    
-                    eventDescription += diagnosisSuffix;
-                    // Armazenar em cache por link
-                    oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
-                  }
-                } catch (oltError) {
-                  console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
+              if (olt && olt.isActive) {
+                let diagnosisSuffix = "";
+                
+                if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
+                  const diagnosis = await queryOltAlarm(olt, link.onuId);
+                  diagnosisSuffix = diagnosis.alarmType 
+                    ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
+                    : ` | OLT: ${diagnosis.description}`;
+                } else {
+                  const allAlarms = await queryAllOltAlarms(olt);
+                  const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
+                  diagnosisSuffix = diagnosis.alarmType 
+                    ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
+                    : ` | OLT: ${diagnosis.description}`;
                 }
+                
+                eventDescription += diagnosisSuffix;
+                oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
               }
+            } catch (oltError) {
+              console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
             }
-            
-            await db.insert(events).values({
-              linkId: link.id,
-              clientId: link.clientId,
-              type: eventConfig.type,
-              title: eventConfig.title,
-              description: eventDescription,
-              timestamp: new Date(),
-              resolved: eventConfig.resolved,
-            });
-            console.log(`[Monitor] Evento criado: ${eventConfig.title}`);
           }
         }
         
-        // Criar alertas para latência/perda de pacotes alta (mesmo sem mudança de status)
-        const latencyThreshold = link.latencyThreshold || 80;
-        const packetLossThreshold = link.packetLossThreshold || 2;
-        
-        if (safeLatency > latencyThreshold && link.latency <= latencyThreshold) {
-          await db.insert(events).values({
-            linkId: link.id,
-            clientId: link.clientId,
-            type: "warning",
-            title: `Latência elevada em ${link.name}`,
-            description: `Latência atual: ${safeLatency.toFixed(1)}ms (limite: ${latencyThreshold}ms)`,
-            timestamp: new Date(),
-            resolved: false,
-          });
-        }
-        
-        if (safePacketLoss > packetLossThreshold && link.packetLoss <= packetLossThreshold) {
-          await db.insert(events).values({
-            linkId: link.id,
-            clientId: link.clientId,
-            type: "warning",
-            title: `Perda de pacotes elevada em ${link.name}`,
-            description: `Perda atual: ${safePacketLoss.toFixed(1)}% (limite: ${packetLossThreshold}%)`,
-            timestamp: new Date(),
-            resolved: false,
-          });
-        }
-
-        await db.update(links).set({
-          currentDownload: safeDownload,
-          currentUpload: safeUpload,
-          latency: safeLatency,
-          packetLoss: safePacketLoss,
-          cpuUsage: safeCpuUsage,
-          memoryUsage: safeMemoryUsage,
-          status: collectedMetrics.status,
-          uptime: newUptime,
-          lastUpdated: new Date(),
-        }).where(eq(links.id, link.id));
-
-        await db.insert(metrics).values({
+        await db.insert(events).values({
           linkId: link.id,
           clientId: link.clientId,
+          type: eventConfig.type,
+          title: eventConfig.title,
+          description: eventDescription,
           timestamp: new Date(),
-          download: safeDownload,
-          upload: safeUpload,
-          latency: safeLatency,
-          packetLoss: safePacketLoss,
-          cpuUsage: safeCpuUsage,
-          memoryUsage: safeMemoryUsage,
-          errorRate: 0,
-          status: collectedMetrics.status,
+          resolved: eventConfig.resolved,
         });
-
-        console.log(
-          `[Monitor] ${link.name}: latency=${safeLatency.toFixed(1)}ms, ` +
-          `loss=${safePacketLoss.toFixed(1)}%, down=${safeDownload.toFixed(2)}Mbps, ` +
-          `up=${safeUpload.toFixed(2)}Mbps, cpu=${safeCpuUsage.toFixed(1)}%, mem=${safeMemoryUsage.toFixed(1)}%, status=${collectedMetrics.status}`
-        );
-      } catch (error) {
-        console.error(`Error collecting metrics for link ${link.name}:`, error);
       }
     }
+    
+    const latencyThreshold = link.latencyThreshold || 80;
+    const packetLossThreshold = link.packetLossThreshold || 2;
+    
+    if (safeLatency > latencyThreshold && link.latency <= latencyThreshold) {
+      await db.insert(events).values({
+        linkId: link.id,
+        clientId: link.clientId,
+        type: "warning",
+        title: `Latência elevada em ${link.name}`,
+        description: `Latência atual: ${safeLatency.toFixed(1)}ms (limite: ${latencyThreshold}ms)`,
+        timestamp: new Date(),
+        resolved: false,
+      });
+    }
+    
+    if (safePacketLoss > packetLossThreshold && link.packetLoss <= packetLossThreshold) {
+      await db.insert(events).values({
+        linkId: link.id,
+        clientId: link.clientId,
+        type: "warning",
+        title: `Perda de pacotes elevada em ${link.name}`,
+        description: `Perda atual: ${safePacketLoss.toFixed(1)}% (limite: ${packetLossThreshold}%)`,
+        timestamp: new Date(),
+        resolved: false,
+      });
+    }
+
+    await db.update(links).set({
+      currentDownload: safeDownload,
+      currentUpload: safeUpload,
+      latency: safeLatency,
+      packetLoss: safePacketLoss,
+      cpuUsage: safeCpuUsage,
+      memoryUsage: safeMemoryUsage,
+      status: collectedMetrics.status,
+      uptime: newUptime,
+      lastUpdated: new Date(),
+    }).where(eq(links.id, link.id));
+
+    await db.insert(metrics).values({
+      linkId: link.id,
+      clientId: link.clientId,
+      timestamp: new Date(),
+      download: safeDownload,
+      upload: safeUpload,
+      latency: safeLatency,
+      packetLoss: safePacketLoss,
+      cpuUsage: safeCpuUsage,
+      memoryUsage: safeMemoryUsage,
+      errorRate: 0,
+      status: collectedMetrics.status,
+    });
+
+    console.log(
+      `[Monitor] ${link.name}: lat=${safeLatency.toFixed(1)}ms, loss=${safePacketLoss.toFixed(1)}%, status=${collectedMetrics.status}`
+    );
+    return true;
   } catch (error) {
-    console.error("Error in collectAllLinksMetrics:", error);
+    console.error(`[Monitor] Error collecting ${link.name}:`, error);
+    return false;
+  }
+}
+
+export async function collectAllLinksMetrics(): Promise<void> {
+  try {
+    const allLinks = await db.select().from(links);
+    const enabledLinks = allLinks.filter(l => l.monitoringEnabled);
+    
+    if (enabledLinks.length === 0) return;
+    
+    const startTime = Date.now();
+    console.log(`[Monitor] Starting parallel collection for ${enabledLinks.length} links (${PARALLEL_WORKERS} workers)`);
+    
+    const results = await runWithConcurrencyLimit(enabledLinks, PARALLEL_WORKERS, processLinkMetrics);
+    
+    const successful = results.filter(r => r === true).length;
+    const failed = results.filter(r => r === false || r === null).length;
+    const elapsed = Date.now() - startTime;
+    
+    console.log(`[Monitor] Collection complete: ${successful} ok, ${failed} failed, ${elapsed}ms elapsed`);
+  } catch (error) {
+    console.error("[Monitor] Error in collectAllLinksMetrics:", error);
   }
 }
 

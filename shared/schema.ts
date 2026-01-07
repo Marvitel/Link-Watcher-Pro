@@ -203,6 +203,55 @@ export const metrics = pgTable("metrics", {
   status: varchar("status", { length: 20 }).notNull().default("operational"),
 });
 
+export const metricsHourly = pgTable("metrics_hourly", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  clientId: integer("client_id").notNull(),
+  bucketStart: timestamp("bucket_start").notNull(),
+  downloadAvg: real("download_avg").notNull(),
+  downloadMax: real("download_max").notNull(),
+  downloadMin: real("download_min").notNull(),
+  uploadAvg: real("upload_avg").notNull(),
+  uploadMax: real("upload_max").notNull(),
+  uploadMin: real("upload_min").notNull(),
+  latencyAvg: real("latency_avg").notNull(),
+  latencyMax: real("latency_max").notNull(),
+  latencyMin: real("latency_min").notNull(),
+  packetLossAvg: real("packet_loss_avg").notNull(),
+  packetLossMax: real("packet_loss_max").notNull(),
+  cpuUsageAvg: real("cpu_usage_avg").notNull(),
+  memoryUsageAvg: real("memory_usage_avg").notNull(),
+  sampleCount: integer("sample_count").notNull().default(0),
+  operationalCount: integer("operational_count").notNull().default(0),
+  degradedCount: integer("degraded_count").notNull().default(0),
+  offlineCount: integer("offline_count").notNull().default(0),
+});
+
+export const metricsDaily = pgTable("metrics_daily", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  clientId: integer("client_id").notNull(),
+  bucketStart: timestamp("bucket_start").notNull(),
+  downloadAvg: real("download_avg").notNull(),
+  downloadMax: real("download_max").notNull(),
+  downloadMin: real("download_min").notNull(),
+  uploadAvg: real("upload_avg").notNull(),
+  uploadMax: real("upload_max").notNull(),
+  uploadMin: real("upload_min").notNull(),
+  latencyAvg: real("latency_avg").notNull(),
+  latencyMax: real("latency_max").notNull(),
+  latencyMin: real("latency_min").notNull(),
+  packetLossAvg: real("packet_loss_avg").notNull(),
+  packetLossMax: real("packet_loss_max").notNull(),
+  cpuUsageAvg: real("cpu_usage_avg").notNull(),
+  memoryUsageAvg: real("memory_usage_avg").notNull(),
+  sampleCount: integer("sample_count").notNull().default(0),
+  operationalCount: integer("operational_count").notNull().default(0),
+  degradedCount: integer("degraded_count").notNull().default(0),
+  offlineCount: integer("offline_count").notNull().default(0),
+  uptimePercentage: real("uptime_percentage").notNull().default(100),
+});
+
 export const events = pgTable("events", {
   id: serial("id").primaryKey(),
   linkId: integer("link_id").notNull(),
@@ -365,6 +414,8 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertLink = z.infer<typeof insertLinkSchema>;
 export type InsertHost = z.infer<typeof insertHostSchema>;
 export type InsertMetric = z.infer<typeof insertMetricSchema>;
+export type InsertMetricHourly = Omit<typeof metricsHourly.$inferSelect, 'id'>;
+export type InsertMetricDaily = Omit<typeof metricsDaily.$inferSelect, 'id'>;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type InsertDDoSEvent = z.infer<typeof insertDDoSEventSchema>;
 export type InsertIncident = z.infer<typeof insertIncidentSchema>;
@@ -386,6 +437,8 @@ export type User = typeof users.$inferSelect;
 export type Link = typeof links.$inferSelect;
 export type Host = typeof hosts.$inferSelect;
 export type Metric = typeof metrics.$inferSelect;
+export type MetricHourly = typeof metricsHourly.$inferSelect;
+export type MetricDaily = typeof metricsDaily.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type DDoSEvent = typeof ddosEvents.$inferSelect;
 export type Incident = typeof incidents.$inferSelect;

@@ -66,6 +66,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
+import { startAggregationJobs } from "./aggregation";
 import { eq, desc, gte, lte, and, lt, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -939,14 +940,7 @@ export class DatabaseStorage {
 
   startMetricCollection(): void {
     startRealTimeMonitoring(30);
-
-    setInterval(async () => {
-      try {
-        await this.cleanupOldData();
-      } catch (error) {
-        console.error("Error cleaning up old data:", error);
-      }
-    }, 24 * 60 * 60 * 1000);
+    startAggregationJobs();
   }
 
   async cleanupOldData(): Promise<void> {
