@@ -28,11 +28,14 @@ function formatNumberPtBR(value: number | null | undefined, decimals: number = 2
 }
 
 export function formatBandwidth(mbps: number | null | undefined): string {
-  if (!mbps || isNaN(mbps)) return "0 Mbps";
+  if (mbps === null || mbps === undefined || isNaN(mbps) || mbps === 0) return "0 Mbps";
   if (mbps >= 1000) {
     return `${formatNumberPtBR(mbps / 1000, 1)} Gbps`;
   }
-  return `${mbps} Mbps`;
+  if (mbps < 1) {
+    return `${formatNumberPtBR(mbps * 1000, 1)} Kbps`;
+  }
+  return `${formatNumberPtBR(mbps, 1)} Mbps`;
 }
 
 function formatDate(date: Date): string {
