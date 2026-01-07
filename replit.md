@@ -17,6 +17,8 @@ A aplicação é uma solução full-stack TypeScript com frontend React e backen
 
 Preferred communication style: Simple, everyday language (Portuguese).
 
+**IMPORTANTE: Sistema em PRODUÇÃO** - Todas as alterações devem ser feitas com cuidado e testadas antes de aplicar.
+
 ## System Architecture
 
 ### Multi-Tenant Architecture
