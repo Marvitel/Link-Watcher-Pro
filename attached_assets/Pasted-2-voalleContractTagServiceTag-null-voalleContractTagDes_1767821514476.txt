@@ -1,0 +1,28 @@
+2,"voalleContractTagServiceTag":null,"voalleContractTagDescription":null,"createdAt":"2026-01-07T17:32:32.446Z"}]
+jan 07 18:31:35 link-monitor npm[40453]: [Monitor] Starting parallel collection for 5 links (10 workers)
+jan 07 18:31:39 link-monitor npm[40453]: [POST /api/clients] Validation error: error: duplicate key value violates unique constraint "clients_slug_unique"
+jan 07 18:31:39 link-monitor npm[40453]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 07 18:31:39 link-monitor npm[40453]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 07 18:31:39 link-monitor npm[40453]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 07 18:31:39 link-monitor npm[40453]:     at async Py.createClient (/opt/link-monitor/dist/index.cjs:257:2747)
+jan 07 18:31:39 link-monitor npm[40453]:     at async /opt/link-monitor/dist/index.cjs:283:10586 {
+jan 07 18:31:39 link-monitor npm[40453]:   length: 231,
+jan 07 18:31:39 link-monitor npm[40453]:   severity: 'ERROR',
+jan 07 18:31:39 link-monitor npm[40453]:   code: '23505',
+jan 07 18:31:39 link-monitor npm[40453]:   detail: 'Key (slug)=(rede-de-postos-presidente-ltda) already exists.',
+jan 07 18:31:39 link-monitor npm[40453]:   hint: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   position: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   internalPosition: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   internalQuery: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   where: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   schema: 'public',
+jan 07 18:31:39 link-monitor npm[40453]:   table: 'clients',
+jan 07 18:31:39 link-monitor npm[40453]:   column: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   dataType: undefined,
+jan 07 18:31:39 link-monitor npm[40453]:   constraint: 'clients_slug_unique',
+jan 07 18:31:39 link-monitor npm[40453]:   file: 'nbtinsert.c',
+jan 07 18:31:39 link-monitor npm[40453]:   line: '664',
+jan 07 18:31:39 link-monitor npm[40453]:   routine: '_bt_check_unique'
+jan 07 18:31:39 link-monitor npm[40453]: }
+jan 07 18:31:39 link-monitor npm[40453]: 6:31:39 PM [express] POST /api/clients 400 in 22ms :: {"error":"Invalid client data","details":"duplicate key value violates unique constraint \"clients_slug_unique\""}
+jan 07 18:31:39 link-monitor npm[40453]: [Monitor] Sede Adminis

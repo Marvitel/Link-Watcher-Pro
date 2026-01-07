@@ -123,6 +123,21 @@ export async function registerRoutes(
   app.post("/api/clients", async (req, res) => {
     try {
       const validatedData = insertClientSchema.parse(req.body);
+      
+      // Check if there's an inactive client with the same slug (soft-deleted)
+      const existingClient = await storage.getClientBySlug(validatedData.slug);
+      if (existingClient) {
+        // Reactivate the existing client with updated data
+        await storage.updateClient(existingClient.id, {
+          ...validatedData,
+          isActive: true,
+          updatedAt: new Date(),
+        });
+        const reactivatedClient = await storage.getClient(existingClient.id);
+        console.log(`[POST /api/clients] Reactivated existing client: ${existingClient.slug}`);
+        return res.status(200).json(reactivatedClient);
+      }
+      
       const client = await storage.createClient(validatedData);
       res.status(201).json(client);
     } catch (error) {
