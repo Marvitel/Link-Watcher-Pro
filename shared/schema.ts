@@ -13,6 +13,8 @@ export const clients = pgTable("clients", {
   logoUrl: text("logo_url"),
   isActive: boolean("is_active").notNull().default(true),
   voalleCustomerId: integer("voalle_customer_id"),
+  voallePortalUsername: varchar("voalle_portal_username", { length: 50 }),
+  voallePortalPassword: varchar("voalle_portal_password", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
