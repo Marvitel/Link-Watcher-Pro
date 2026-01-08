@@ -129,42 +129,44 @@ export async function registerRoutes(
       }
       
       if (!client) {
-        // Cliente não existe no sistema - tentar criar automaticamente via API Voalle
-        console.log(`[Auth Voalle] Cliente não encontrado localmente. Tentando buscar no Voalle: ${normalizedUsername}`);
+        // Cliente não existe no sistema - usar dados retornados pela autenticação do Portal
+        console.log(`[Auth Voalle] Cliente não encontrado localmente. Usando dados da autenticação do Portal.`);
         
         try {
-          // Buscar dados do cliente no Voalle usando o CNPJ/CPF
-          const personDetails = await adapter.getPersonDetails(normalizedUsername);
+          // Usar os dados retornados pela autenticação do Portal (validation.person)
+          // Se a autenticação foi bem-sucedida, validation.person deveria conter os dados da pessoa
+          const personData = validation.person;
           
-          if (!personDetails.success || !personDetails.person) {
-            console.log(`[Auth Voalle] Cliente não encontrado no Voalle: ${normalizedUsername}`);
+          if (!personData || !personData.name) {
+            console.log(`[Auth Voalle] Dados da pessoa não retornados pela autenticação do Portal.`);
+            console.log(`[Auth Voalle] validation.person: ${JSON.stringify(personData)}`);
             return res.status(404).json({ 
-              error: "Cliente não encontrado. Entre em contato com a Marvitel.",
+              error: "Não foi possível obter seus dados. Entre em contato com a Marvitel.",
               canRecover: false
             });
           }
           
-          // Criar cliente automaticamente
-          const personData = personDetails.person;
-          const slug = personData.name.toLowerCase()
+          // Criar cliente automaticamente com os dados do Portal
+          const clientName = personData.name;
+          const slug = clientName.toLowerCase()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/^-|-$/g, "");
           
-          console.log(`[Auth Voalle] Criando cliente automaticamente: ${personData.name} (${personData.txId})`);
+          console.log(`[Auth Voalle] Criando cliente automaticamente: ${clientName} (CPF/CNPJ: ${normalizedUsername}, Portal ID: ${personData.id})`);
           
           client = await storage.createClient({
-            name: personData.name,
+            name: clientName,
             slug: slug + "-" + Date.now().toString(36), // Adiciona timestamp para garantir unicidade
-            email: personData.email || null,
-            phone: personData.phone || null,
-            cnpj: personData.txId,
-            voalleCustomerId: personData.id.toString(),
+            email: null, // Portal API pode não retornar email na autenticação
+            phone: null,
+            cnpj: normalizedUsername, // CPF/CNPJ usado no login
+            voalleCustomerId: personData.id?.toString() || null,
             voallePortalUsername: username,
             voallePortalPassword: encrypt(password),
             portalCredentialsStatus: "valid",
             portalCredentialsLastCheck: new Date(),
-            isActive: true, // Garantir que cliente esteja ativo
+            isActive: true,
           });
           
           console.log(`[Auth Voalle] Cliente criado com sucesso: ID ${client.id}`);
