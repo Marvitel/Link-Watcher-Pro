@@ -882,6 +882,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     message?: string;
   }> {
     try {
+      console.log(`[VoalleAdapter] Buscando detalhes do cliente pelo txId: ${txId}`);
+      
       // Usar API Para Terceiros para buscar dados do cliente pelo CNPJ/CPF
       const result = await this.apiRequest<{
         success: boolean;
@@ -901,13 +903,28 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         };
       }>("GET", `/getclient?txId=${encodeURIComponent(txId)}&page=1&pageSize=10`);
 
+      console.log(`[VoalleAdapter] Resposta /getclient: totalRecords=${result.response?.totalRecords}, dataLength=${result.response?.data?.length}`);
+      
+      // Log detalhado de todos os resultados retornados
+      if (result.response?.data) {
+        result.response.data.forEach((item, idx) => {
+          console.log(`[VoalleAdapter] Resultado ${idx}: id=${item.id}, name="${item.name}", tx_id="${item.tx_id}"`);
+        });
+      }
+
       if (!result.success || !result.response?.data?.length) {
         console.log(`[VoalleAdapter] Pessoa não encontrada: ${txId}`);
         return { success: false, message: "Cliente não encontrado no Voalle" };
       }
 
-      const personData = result.response.data[0];
-      console.log(`[VoalleAdapter] Dados do cliente encontrados: ${personData.name}`);
+      // IMPORTANTE: Filtrar para encontrar exatamente o registro com o txId solicitado
+      // A API pode retornar múltiplos resultados, precisamos do registro correto
+      const normalizedTxId = txId.replace(/\D/g, '');
+      const personData = result.response.data.find(item => 
+        item.tx_id.replace(/\D/g, '') === normalizedTxId
+      ) || result.response.data[0];
+      
+      console.log(`[VoalleAdapter] Cliente selecionado: id=${personData.id}, name="${personData.name}", tx_id="${personData.tx_id}"`);
 
       return {
         success: true,
