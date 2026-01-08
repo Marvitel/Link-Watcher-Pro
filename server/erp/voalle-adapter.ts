@@ -730,6 +730,55 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+  /**
+   * Obtém um token de aplicação (client_credentials) para o Portal Voalle
+   * Este token permite chamar endpoints administrativos sem credenciais de usuário
+   */
+  private async getPortalAppToken(): Promise<string | null> {
+    if (!this.providerConfig) return null;
+    
+    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret } = this.providerConfig;
+    
+    if (!portalApiUrl || !portalClientId || !portalClientSecret) {
+      return null;
+    }
+
+    let baseUrl = portalApiUrl.trim();
+    if (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+
+    // Tentar obter token via client_credentials grant
+    const tokenUrl = `${baseUrl}/portal_authentication`;
+    const params = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: portalClientId,
+      client_secret: portalClientSecret,
+    });
+    
+    if (portalVerifyToken) {
+      params.append("verify_token", portalVerifyToken);
+    }
+
+    console.log(`[VoalleAdapter] Obtendo token de aplicação para Portal...`);
+    
+    const response = await fetch(`${tokenUrl}?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.log(`[VoalleAdapter] Token de aplicação falhou: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json() as { access_token?: string };
+    console.log(`[VoalleAdapter] Token de aplicação obtido com sucesso`);
+    return data.access_token || null;
+  }
+
   async requestPortalPasswordRecovery(username: string): Promise<{ success: boolean; message: string }> {
     console.log(`[VoalleAdapter] Iniciando recuperação de senha para: ${username}`);
     
@@ -744,37 +793,29 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const portalClientId = this.providerConfig?.portalClientId || "";
       const portalClientSecret = this.providerConfig?.portalClientSecret || "";
 
-      console.log(`[VoalleAdapter] Portal URL: ${portalUrl}`);
-      console.log(`[VoalleAdapter] Verify token presente: ${!!verifyToken}`);
-      console.log(`[VoalleAdapter] Client ID presente: ${!!portalClientId}`);
-      console.log(`[VoalleAdapter] Client Secret presente: ${!!portalClientSecret}`);
-
-      // Recuperação de senha é um endpoint público que não requer autenticação do usuário
-      // Usamos apenas client_id e client_secret para identificar a aplicação
-      const formData = new FormData();
-      formData.append("username", username);
-
-      // Tentar primeiro sem autenticação (alguns endpoints de recovery são públicos)
+      // Primeiro, obter token de aplicação via client_credentials
+      const appToken = await this.getPortalAppToken();
+      
       const recoveryEndpoint = `${portalUrl}/api/person_users/recovery`;
       console.log(`[VoalleAdapter] Tentando endpoint: ${recoveryEndpoint}`);
       
-      let response = await fetch(recoveryEndpoint, {
-        method: "POST",
-        headers: {
-          "Verify-Token": verifyToken,
-          "X-Client-Id": portalClientId,
-        },
-        body: formData,
-      });
-
-      console.log(`[VoalleAdapter] Resposta inicial: ${response.status}`);
-
-      // Se falhar com 401, tentar com autenticação usando as próprias credenciais do usuário
-      // que está solicitando recuperação (apenas para validar que existe)
-      if (response.status === 401 || response.status === 403) {
-        console.log(`[VoalleAdapter] Endpoint de recovery requer autenticação, tentando via query params...`);
-        
-        // Tentar endpoint alternativo com query params
+      let response: Response;
+      
+      if (appToken) {
+        // Com token de aplicação, chamar endpoint com Bearer token
+        console.log(`[VoalleAdapter] Usando token de aplicação para recovery...`);
+        response = await fetch(recoveryEndpoint, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${appToken}`,
+            "Verify-Token": verifyToken,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: `username=${encodeURIComponent(username)}`,
+        });
+      } else {
+        // Sem token, tentar com credenciais via query params
+        console.log(`[VoalleAdapter] Sem token de aplicação, tentando via query params...`);
         const recoveryUrl = `${portalUrl}/api/person_users/recovery?verify_token=${encodeURIComponent(verifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}`;
         
         response = await fetch(recoveryUrl, {
@@ -784,9 +825,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           },
           body: `username=${encodeURIComponent(username)}`,
         });
-        
-        console.log(`[VoalleAdapter] Resposta com query params: ${response.status}`);
       }
+
+      console.log(`[VoalleAdapter] Resposta recovery: ${response.status}`);
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
@@ -799,6 +840,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           return { 
             success: false, 
             message: "Usuário não encontrado no Portal Voalle" 
+          };
+        }
+        if (response.status === 422) {
+          return { 
+            success: false, 
+            message: "CPF/CNPJ inválido ou não cadastrado no Portal Voalle" 
           };
         }
         return { 
