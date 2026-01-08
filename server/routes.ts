@@ -22,7 +22,8 @@ import {
   insertOltSchema,
   insertErpIntegrationSchema,
   insertClientErpMappingSchema,
-  type AuthUser 
+  type AuthUser,
+  type UserRole,
 } from "@shared/schema";
 
 declare global {
@@ -128,10 +129,52 @@ export async function registerRoutes(
       }
       
       if (!client) {
-        return res.status(404).json({ 
-          error: "Cliente não encontrado. Entre em contato com a Marvitel.",
-          canRecover: false
-        });
+        // Cliente não existe no sistema - tentar criar automaticamente via API Voalle
+        console.log(`[Auth Voalle] Cliente não encontrado localmente. Tentando buscar no Voalle: ${normalizedUsername}`);
+        
+        try {
+          // Buscar dados do cliente no Voalle usando o CNPJ/CPF
+          const personDetails = await adapter.getPersonDetails(normalizedUsername);
+          
+          if (!personDetails.success || !personDetails.person) {
+            console.log(`[Auth Voalle] Cliente não encontrado no Voalle: ${normalizedUsername}`);
+            return res.status(404).json({ 
+              error: "Cliente não encontrado. Entre em contato com a Marvitel.",
+              canRecover: false
+            });
+          }
+          
+          // Criar cliente automaticamente
+          const personData = personDetails.person;
+          const slug = personData.name.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+          
+          console.log(`[Auth Voalle] Criando cliente automaticamente: ${personData.name} (${personData.txId})`);
+          
+          client = await storage.createClient({
+            name: personData.name,
+            slug: slug + "-" + Date.now().toString(36), // Adiciona timestamp para garantir unicidade
+            email: personData.email || null,
+            phone: personData.phone || null,
+            cnpj: personData.txId,
+            voalleCustomerId: personData.id.toString(),
+            voallePortalUsername: username,
+            voallePortalPassword: encrypt(password),
+            portalCredentialsStatus: "valid",
+            portalCredentialsLastCheck: new Date(),
+            isActive: true, // Garantir que cliente esteja ativo
+          });
+          
+          console.log(`[Auth Voalle] Cliente criado com sucesso: ID ${client.id}`);
+        } catch (createError) {
+          console.error("[Auth Voalle] Erro ao criar cliente automaticamente:", createError);
+          return res.status(404).json({ 
+            error: "Cliente não encontrado. Entre em contato com a Marvitel.",
+            canRecover: false
+          });
+        }
       }
       
       // Atualizar credenciais do portal no cliente (armazenar criptografado)
@@ -151,7 +194,7 @@ export async function registerRoutes(
         // Criar usuário para o cliente
         const newUser = await storage.createUser({
           email: userEmail,
-          password: password, // Será hashado pelo storage
+          passwordHash: password, // Será hashado pelo storage
           name: validation.person?.name || client.name,
           role: "user",
           clientId: client.id,
@@ -160,18 +203,19 @@ export async function registerRoutes(
         user = newUser;
       }
       
-      // Gerar token e retornar
-      const token = signToken(user);
-      
-      const authUser = {
+      // Construir objeto AuthUser tipado
+      const authUser: AuthUser = {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role as UserRole,
         clientId: user.clientId,
         isSuperAdmin: user.isSuperAdmin || false,
         clientName: client.name,
       };
+      
+      // Gerar token
+      const token = signToken(authUser);
       
       (req.session as any).user = authUser;
       req.session.save((err) => {

@@ -808,6 +808,71 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   /**
+   * Busca detalhes de uma pessoa (cliente) no Voalle via API Para Terceiros
+   * Usado para obter dados completos do cliente para auto-cadastro
+   */
+  async getPersonDetails(txId: string): Promise<{
+    success: boolean;
+    person?: {
+      id: number;
+      name: string;
+      txId: string;
+      email?: string;
+      phone?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+    };
+    message?: string;
+  }> {
+    try {
+      // Usar API Para Terceiros para buscar dados do cliente pelo CNPJ/CPF
+      const result = await this.apiRequest<{
+        success: boolean;
+        messages: string | null;
+        response: {
+          data: Array<{
+            id: number;
+            name: string;
+            tx_id: string;
+            email?: string;
+            cell_phone_1?: string;
+            address?: string;
+            city?: string;
+            state?: string;
+          }>;
+          totalRecords: number;
+        };
+      }>("GET", `/getclient?txId=${encodeURIComponent(txId)}&page=1&pageSize=10`);
+
+      if (!result.success || !result.response?.data?.length) {
+        console.log(`[VoalleAdapter] Pessoa não encontrada: ${txId}`);
+        return { success: false, message: "Cliente não encontrado no Voalle" };
+      }
+
+      const personData = result.response.data[0];
+      console.log(`[VoalleAdapter] Dados do cliente encontrados: ${personData.name}`);
+
+      return {
+        success: true,
+        person: {
+          id: personData.id,
+          name: personData.name,
+          txId: personData.tx_id,
+          email: personData.email,
+          phone: personData.cell_phone_1,
+          address: personData.address,
+          city: personData.city,
+          state: personData.state,
+        },
+      };
+    } catch (error) {
+      console.error("[VoalleAdapter] Erro ao buscar dados do cliente:", error);
+      return { success: false, message: "Erro ao buscar dados do cliente no Voalle" };
+    }
+  }
+
+  /**
    * Valida credenciais do portal Voalle de um cliente
    * Retorna informações do usuário se as credenciais forem válidas
    */
