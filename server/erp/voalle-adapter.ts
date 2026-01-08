@@ -731,15 +731,17 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   /**
-   * Obtém um token de aplicação (client_credentials) para o Portal Voalle
-   * Este token permite chamar endpoints administrativos sem credenciais de usuário
+   * Obtém um token de serviço para o Portal Voalle usando credenciais administrativas
+   * Este token permite chamar endpoints administrativos como recuperação de senha
    */
-  private async getPortalAppToken(): Promise<string | null> {
+  private async getPortalServiceToken(): Promise<string | null> {
     if (!this.providerConfig) return null;
     
-    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret } = this.providerConfig;
+    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret, portalUsername, portalPassword } = this.providerConfig;
     
-    if (!portalApiUrl || !portalClientId || !portalClientSecret) {
+    // Precisa de todas as credenciais incluindo usuário/senha admin
+    if (!portalApiUrl || !portalClientId || !portalClientSecret || !portalUsername || !portalPassword) {
+      console.log(`[VoalleAdapter] Credenciais de serviço do Portal incompletas para obter token`);
       return null;
     }
 
@@ -748,21 +750,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       baseUrl = baseUrl.slice(0, -1);
     }
 
-    // Tentar obter token via client_credentials grant
-    const tokenUrl = `${baseUrl}/portal_authentication`;
-    const params = new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: portalClientId,
-      client_secret: portalClientSecret,
-    });
-    
-    if (portalVerifyToken) {
-      params.append("verify_token", portalVerifyToken);
-    }
+    // Autenticar com credenciais administrativas da Marvitel
+    const authUrl = `${baseUrl}/portal_authentication?verify_token=${encodeURIComponent(portalVerifyToken || "")}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}&grant_type=client_credentials&username=${encodeURIComponent(portalUsername)}&password=${encodeURIComponent(portalPassword)}`;
 
-    console.log(`[VoalleAdapter] Obtendo token de aplicação para Portal...`);
+    console.log(`[VoalleAdapter] Obtendo token de serviço do Portal com credenciais admin...`);
     
-    const response = await fetch(`${tokenUrl}?${params.toString()}`, {
+    const response = await fetch(authUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -770,12 +763,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     });
 
     if (!response.ok) {
-      console.log(`[VoalleAdapter] Token de aplicação falhou: ${response.status}`);
+      console.log(`[VoalleAdapter] Token de serviço falhou: ${response.status}`);
       return null;
     }
 
     const data = await response.json() as { access_token?: string };
-    console.log(`[VoalleAdapter] Token de aplicação obtido com sucesso`);
+    console.log(`[VoalleAdapter] Token de serviço obtido com sucesso`);
     return data.access_token || null;
   }
 
@@ -787,45 +780,45 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return { success: false, message: "Portal API não configurada" };
     }
 
+    // Verificar se temos credenciais administrativas configuradas
+    if (!this.providerConfig?.portalUsername || !this.providerConfig?.portalPassword) {
+      console.log(`[VoalleAdapter] Credenciais administrativas do Portal não configuradas`);
+      return { 
+        success: false, 
+        message: "Recuperação de senha não disponível. Credenciais administrativas não configuradas." 
+      };
+    }
+
     try {
       const portalUrl = this.providerConfig?.portalApiUrl?.replace(/\/$/, "") || "";
       const verifyToken = this.providerConfig?.portalVerifyToken || "";
-      const portalClientId = this.providerConfig?.portalClientId || "";
-      const portalClientSecret = this.providerConfig?.portalClientSecret || "";
 
-      // Primeiro, obter token de aplicação via client_credentials
-      const appToken = await this.getPortalAppToken();
+      // Obter token de serviço usando credenciais administrativas da Marvitel
+      const serviceToken = await this.getPortalServiceToken();
+      
+      if (!serviceToken) {
+        console.error(`[VoalleAdapter] Não foi possível obter token de serviço para recovery`);
+        return { 
+          success: false, 
+          message: "Erro de autenticação com o Portal Voalle. Contate o suporte." 
+        };
+      }
       
       const recoveryEndpoint = `${portalUrl}/api/person_users/recovery`;
-      console.log(`[VoalleAdapter] Tentando endpoint: ${recoveryEndpoint}`);
+      console.log(`[VoalleAdapter] Chamando endpoint de recovery: ${recoveryEndpoint}`);
       
-      let response: Response;
+      // Chamar endpoint de recovery com Bearer token e FormData
+      const formData = new FormData();
+      formData.append("username", username);
       
-      if (appToken) {
-        // Com token de aplicação, chamar endpoint com Bearer token
-        console.log(`[VoalleAdapter] Usando token de aplicação para recovery...`);
-        response = await fetch(recoveryEndpoint, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${appToken}`,
-            "Verify-Token": verifyToken,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: `username=${encodeURIComponent(username)}`,
-        });
-      } else {
-        // Sem token, tentar com credenciais via query params
-        console.log(`[VoalleAdapter] Sem token de aplicação, tentando via query params...`);
-        const recoveryUrl = `${portalUrl}/api/person_users/recovery?verify_token=${encodeURIComponent(verifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}`;
-        
-        response = await fetch(recoveryUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: `username=${encodeURIComponent(username)}`,
-        });
-      }
+      const response = await fetch(recoveryEndpoint, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${serviceToken}`,
+          "Verify-Token": verifyToken,
+        },
+        body: formData,
+      });
 
       console.log(`[VoalleAdapter] Resposta recovery: ${response.status}`);
 
