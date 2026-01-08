@@ -1,0 +1,75 @@
+jan 08 19:26:51 link-monitor npm[99448]: [Monitor] Paty - IP Dedicado 50M - Resultado CPU/Mem: cpu=16, mem=14.027786254882812
+jan 08 19:26:51 link-monitor npm[99448]: [Monitor] Paty - IP Dedicado 50M: lat=0.0ms, loss=100.0%, status=offline
+jan 08 19:26:51 link-monitor npm[99448]: [Monitor] Collection complete: 6 ok, 0 failed, 6164ms elapsed
+jan 08 19:27:12 link-monitor npm[99448]: [Auth Voalle] Error: error: the database system is in recovery mode
+jan 08 19:27:12 link-monitor npm[99448]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 08 19:27:12 link-monitor npm[99448]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 08 19:27:12 link-monitor npm[99448]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 08 19:27:12 link-monitor npm[99448]:     at async Oy.getErpIntegrationByProvider (/opt/link-monitor/dist/index.cjs:257:26927)
+jan 08 19:27:12 link-monitor npm[99448]:     at async /opt/link-monitor/dist/index.cjs:283:16978 {
+jan 08 19:27:12 link-monitor npm[99448]:   length: 109,
+jan 08 19:27:12 link-monitor npm[99448]:   severity: 'FATAL',
+jan 08 19:27:12 link-monitor npm[99448]:   code: '57P03',
+jan 08 19:27:12 link-monitor npm[99448]:   detail: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   hint: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   position: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   internalPosition: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   internalQuery: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   where: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   schema: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   table: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   column: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   dataType: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   constraint: undefined,
+jan 08 19:27:12 link-monitor npm[99448]:   file: 'postmaster.c',
+jan 08 19:27:12 link-monitor npm[99448]:   line: '2415',
+jan 08 19:27:12 link-monitor npm[99448]:   routine: 'ProcessStartupPacket'
+jan 08 19:27:12 link-monitor npm[99448]: }
+jan 08 19:27:12 link-monitor npm[99448]: 7:27:12 PM [express] POST /api/auth/voalle 500 in 38ms :: {"error":"Erro ao fazer login via Portal Voalle"}
+jan 08 19:27:15 link-monitor npm[99448]: [Monitor] Error in collectAllLinksMetrics: error: the database system is in recovery mode
+jan 08 19:27:15 link-monitor npm[99448]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 08 19:27:15 link-monitor npm[99448]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 08 19:27:15 link-monitor npm[99448]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 08 19:27:15 link-monitor npm[99448]:     at async uP (/opt/link-monitor/dist/index.cjs:198:13515) {
+jan 08 19:27:15 link-monitor npm[99448]:   length: 109,
+jan 08 19:27:15 link-monitor npm[99448]:   severity: 'FATAL',
+jan 08 19:27:15 link-monitor npm[99448]:   code: '57P03',
+jan 08 19:27:15 link-monitor npm[99448]:   detail: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   hint: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   position: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   internalPosition: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   internalQuery: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   where: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   schema: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   table: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   column: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   dataType: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   constraint: undefined,
+jan 08 19:27:15 link-monitor npm[99448]:   file: 'postmaster.c',
+jan 08 19:27:15 link-monitor npm[99448]:   line: '2415',
+jan 08 19:27:15 link-monitor npm[99448]:   routine: 'ProcessStartupPacket'
+jan 08 19:27:15 link-monitor npm[99448]: }
+jan 08 19:27:45 link-monitor npm[99448]: [Monitor] Error in collectAllLinksMetrics: error: the database system is in recovery mode
+jan 08 19:27:45 link-monitor npm[99448]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 08 19:27:45 link-monitor npm[99448]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 08 19:27:45 link-monitor npm[99448]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 08 19:27:45 link-monitor npm[99448]:     at async uP (/opt/link-monitor/dist/index.cjs:198:13515) {
+jan 08 19:27:45 link-monitor npm[99448]:   length: 109,
+jan 08 19:27:45 link-monitor npm[99448]:   severity: 'FATAL',
+jan 08 19:27:45 link-monitor npm[99448]:   code: '57P03',
+jan 08 19:27:45 link-monitor npm[99448]:   detail: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   hint: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   position: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   internalPosition: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   internalQuery: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   where: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   schema: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   table: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   column: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   dataType: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   constraint: undefined,
+jan 08 19:27:45 link-monitor npm[99448]:   file: 'postmaster.c',
+jan 08 19:27:45 link-monitor npm[99448]:   line: '2415',
+jan 08 19:27:45 link-monitor npm[99448]:   routine: 'ProcessStartupPacket'
+jan 08 19:27:45 link-monitor npm[99448]: }
+jan 08 19:27:58 link-monitor npm[99448]:
