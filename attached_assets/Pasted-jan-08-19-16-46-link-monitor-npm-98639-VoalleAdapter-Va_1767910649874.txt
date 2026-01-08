@@ -1,0 +1,24 @@
+jan 08 19:16:46 link-monitor npm[98639]: [VoalleAdapter] Validando credenciais do portal para: 00597570515
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Credenciais válidas para 00597570515
+jan 08 19:16:47 link-monitor npm[98639]: [Auth Voalle] Cliente não encontrado localmente. Tentando buscar no Voalle: 00597570515
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Buscando detalhes do cliente pelo txId: 00597570515
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resposta /getclient: totalRecords=2056, dataLength=10
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 0: id=3919, name="ATACADAO TABAJARA LTDA", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 1: id=1537, name="MARIO MACHADO NETO", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 2: id=5034, name="GERALDO LISBOA DIAS", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 3: id=1633, name="ANTONIO LUIZ ROCHA DACORSO", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 4: id=2901, name="BRADESCO CONSORCIO", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 5: id=148, name="MARIA CELI TEIXEIRA BARRETO EIRELI", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 6: id=5664, name="MOISES SANTANA GOMES", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 7: id=6273, name="Teste", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 8: id=5200, name="NEW TAKE TRANSPORTES E SERVIÇOS LTDA - ME", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Resultado 9: id=6047, name="JP ENGENHARIA LTDA", tx_id="undefined"
+jan 08 19:16:47 link-monitor npm[98639]: [VoalleAdapter] Erro ao buscar dados do cliente: TypeError: Cannot read properties of undefined (reading 'replace')
+jan 08 19:16:47 link-monitor npm[98639]:     at /opt/link-monitor/dist/index.cjs:283:7686
+jan 08 19:16:47 link-monitor npm[98639]:     at Array.find (<anonymous>)
+jan 08 19:16:47 link-monitor npm[98639]:     at ep.getPersonDetails (/opt/link-monitor/dist/index.cjs:283:7670)
+jan 08 19:16:47 link-monitor npm[98639]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 08 19:16:47 link-monitor npm[98639]:     at async /opt/link-monitor/dist/index.cjs:283:17166
+jan 08 19:16:47 link-monitor npm[98639]: [Auth Voalle] Cliente não encontrado no Voalle: 00597570515
+jan 08 19:16:47 link-monitor npm[98639]: 7:16:47 PM [express] POST /api/auth/voalle 404 in 734ms :: {"error":"Cliente não encontrado. Entre em contato com a Marvitel.","canRecover":false}
+jan 08 19:17:02 link-monitor npm[98639]: [Monitor] Starting parallel collection for 6 links (10 workers)

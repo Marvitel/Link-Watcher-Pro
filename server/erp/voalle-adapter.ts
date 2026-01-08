@@ -905,11 +905,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
 
       console.log(`[VoalleAdapter] Resposta /getclient: totalRecords=${result.response?.totalRecords}, dataLength=${result.response?.data?.length}`);
       
-      // Log detalhado de todos os resultados retornados
-      if (result.response?.data) {
-        result.response.data.forEach((item, idx) => {
-          console.log(`[VoalleAdapter] Resultado ${idx}: id=${item.id}, name="${item.name}", tx_id="${item.tx_id}"`);
-        });
+      // Log detalhado do primeiro resultado para ver todos os campos disponíveis
+      if (result.response?.data?.length > 0) {
+        const firstItem = result.response.data[0];
+        console.log(`[VoalleAdapter] Campos disponíveis no primeiro resultado: ${JSON.stringify(Object.keys(firstItem))}`);
+        console.log(`[VoalleAdapter] Primeiro resultado completo: ${JSON.stringify(firstItem)}`);
       }
 
       if (!result.success || !result.response?.data?.length) {
@@ -919,10 +919,18 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
 
       // IMPORTANTE: Filtrar para encontrar exatamente o registro com o txId solicitado
       // A API pode retornar múltiplos resultados, precisamos do registro correto
+      // O campo pode ser tx_id, cpf_cnpj, document, etc - precisamos verificar
       const normalizedTxId = txId.replace(/\D/g, '');
-      const personData = result.response.data.find(item => 
-        item.tx_id.replace(/\D/g, '') === normalizedTxId
-      ) || result.response.data[0];
+      const personData = result.response.data.find(item => {
+        // Tentar diferentes nomes de campo que podem conter o CPF/CNPJ
+        const itemTxId = (item as any).tx_id || (item as any).cpf_cnpj || (item as any).document || (item as any).cpf || (item as any).cnpj || '';
+        return itemTxId.toString().replace(/\D/g, '') === normalizedTxId;
+      });
+      
+      if (!personData) {
+        console.log(`[VoalleAdapter] Nenhum registro encontrado com txId exato: ${txId}. API retornou ${result.response.data.length} registros não relacionados.`);
+        return { success: false, message: "Cliente não encontrado no Voalle" };
+      }
       
       console.log(`[VoalleAdapter] Cliente selecionado: id=${personData.id}, name="${personData.name}", tx_id="${personData.tx_id}"`);
 
