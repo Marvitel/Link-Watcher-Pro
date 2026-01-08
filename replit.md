@@ -150,11 +150,13 @@ Preferred communication style: Simple, everyday language (Portuguese).
 ### Login via Portal Voalle (Clientes)
 - **Endpoint**: `POST /api/auth/voalle` - Autenticação de clientes via Portal Voalle
 - **Credenciais padrão**: CPF/CNPJ para usuário e senha (criado automaticamente pelo Voalle)
+- **Auto-cadastro**: Se cliente não existe no Link Monitor, é criado automaticamente via API do Voalle
 - **Fluxo**:
   1. Cliente informa CPF/CNPJ e senha na aba "Cliente" da tela de login
   2. Sistema valida credenciais via API do Portal Voalle
-  3. Se válido: cria/atualiza usuário local e armazena senha criptografada
-  4. Se inválido: oferece opção de recuperação de senha
+  3. Se cliente não existe: busca dados via API Para Terceiros e cria automaticamente
+  4. Cria/atualiza usuário local e armazena senha criptografada
+  5. Se credenciais inválidas: oferece opção de recuperação de senha
 - **Recuperação**: `POST /api/auth/voalle/recover` - Solicita email de recuperação via Voalle
 - **Frontend**: Tela de login com abas "Cliente" e "Administrador", botão "Esqueci minha senha"
 - **Configurações**: Botão de recuperação de senha na página de Configurações do cliente
