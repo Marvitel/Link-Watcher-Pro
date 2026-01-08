@@ -16,6 +16,7 @@ import {
   FileText,
   Save,
   Loader2,
+  KeyRound,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { useClientContext } from "@/lib/client-context";
@@ -24,11 +25,14 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { ClientSettings, Client } from "@shared/schema";
+import { useAuth } from "@/lib/auth";
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
   const { selectedClientId, selectedClientName } = useClientContext();
   const { toast } = useToast();
+  const { recoverPasswordVoalle } = useAuth();
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     contractDuration: 12,
@@ -423,6 +427,57 @@ export default function Settings() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <KeyRound className="w-5 h-5" />
+            Credenciais do Portal
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Caso tenha esquecido sua senha do portal, você pode solicitar uma nova senha por email.
+          </p>
+          <Button
+            variant="outline"
+            disabled={isRecoveringPassword || !client?.cnpj}
+            onClick={async () => {
+              if (!client?.cnpj) {
+                toast({
+                  title: "CNPJ não cadastrado",
+                  description: "Entre em contato com a Marvitel para atualizar seu cadastro.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              setIsRecoveringPassword(true);
+              const result = await recoverPasswordVoalle(client.cnpj);
+              setIsRecoveringPassword(false);
+              if (result.success) {
+                toast({
+                  title: "Email enviado",
+                  description: result.message || "Verifique sua caixa de entrada.",
+                });
+              } else {
+                toast({
+                  title: "Erro ao recuperar senha",
+                  description: result.error,
+                  variant: "destructive",
+                });
+              }
+            }}
+            data-testid="button-recover-portal-password"
+          >
+            {isRecoveringPassword ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <KeyRound className="w-4 h-4 mr-2" />
+            )}
+            Recuperar Senha do Portal
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -17,6 +17,8 @@ interface AuthContextType {
   isClientAdmin: boolean;
   clientId: number | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginVoalle: (username: string, password: string, clientId?: number) => Promise<{ success: boolean; error?: string; canRecover?: boolean }>;
+  recoverPasswordVoalle: (username: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -27,6 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   isClientAdmin: false,
   clientId: null,
   login: async () => ({ success: false }),
+  loginVoalle: async () => ({ success: false }),
+  recoverPasswordVoalle: async () => ({ success: false }),
   logout: async () => {},
 });
 
@@ -82,6 +86,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginVoalle = useCallback(async (username: string, password: string, clientId?: number) => {
+    try {
+      const res = await fetch("/api/auth/voalle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, clientId }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        return { 
+          success: false, 
+          error: data.error || "Erro ao fazer login", 
+          canRecover: data.canRecover 
+        };
+      }
+      
+      const loggedUser = data.user as AuthUser;
+      const token = data.token as string;
+      
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(loggedUser));
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      setUser(loggedUser);
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: "Erro de conexão" };
+    }
+  }, []);
+
+  const recoverPasswordVoalle = useCallback(async (username: string) => {
+    try {
+      const res = await fetch("/api/auth/voalle/recover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        return { success: false, error: data.error || "Erro ao recuperar senha" };
+      }
+      
+      return { success: true, message: data.message };
+    } catch (error) {
+      return { success: false, error: "Erro de conexão" };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -100,6 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isClientAdmin: user?.role === "admin" && !user?.isSuperAdmin,
     clientId: user?.clientId || null,
     login,
+    loginVoalle,
+    recoverPasswordVoalle,
     logout,
   };
 

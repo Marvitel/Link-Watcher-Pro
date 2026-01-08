@@ -729,4 +729,129 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return [];
     }
   }
+
+  async requestPortalPasswordRecovery(username: string): Promise<{ success: boolean; message: string }> {
+    if (!this.isPortalConfigured()) {
+      return { success: false, message: "Portal API não configurada" };
+    }
+
+    try {
+      const portalUrl = this.providerConfig?.portalApiUrl?.replace(/\/$/, "") || "";
+      const verifyToken = this.providerConfig?.portalVerifyToken || "";
+
+      // Para recuperação de senha, precisamos de um token de serviço
+      // Autenticar usando credenciais de serviço globais (não do cliente)
+      const token = await this.portalAuthenticate(
+        this.providerConfig?.portalUsername || "",
+        this.providerConfig?.portalPassword || ""
+      );
+
+      const formData = new FormData();
+      formData.append("username", username);
+
+      const response = await fetch(`${portalUrl}/api/person_users/recovery`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Verify-Token": verifyToken,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(`[VoalleAdapter] Recuperação de senha falhou: ${response.status} - ${errorText}`);
+        return { 
+          success: false, 
+          message: `Erro ao solicitar recuperação: ${response.status}` 
+        };
+      }
+
+      const result = await response.json().catch(() => ({}));
+      console.log(`[VoalleAdapter] Recuperação de senha solicitada para: ${username}`);
+      
+      return { 
+        success: true, 
+        message: "Email de recuperação enviado com sucesso" 
+      };
+    } catch (error) {
+      console.error("[VoalleAdapter] Erro ao solicitar recuperação de senha:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Erro desconhecido" 
+      };
+    }
+  }
+
+  /**
+   * Valida credenciais do portal Voalle de um cliente
+   * Retorna informações do usuário se as credenciais forem válidas
+   */
+  async validatePortalCredentials(portalUsername: string, portalPassword: string): Promise<{
+    success: boolean;
+    message: string;
+    person?: { id: number; name: string };
+  }> {
+    if (!this.providerConfig) {
+      return { success: false, message: "Portal Voalle não configurado" };
+    }
+
+    const { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret } = this.providerConfig;
+    
+    if (!portalApiUrl || !portalVerifyToken || !portalClientId || !portalClientSecret) {
+      return { success: false, message: "Credenciais do Portal Voalle incompletas" };
+    }
+    
+    if (!portalUsername || !portalPassword) {
+      return { success: false, message: "Usuário e senha são obrigatórios" };
+    }
+
+    try {
+      let baseUrl = portalApiUrl.trim();
+      if (baseUrl.endsWith("/")) {
+        baseUrl = baseUrl.slice(0, -1);
+      }
+      
+      const authUrl = `${baseUrl}/portal_authentication?verify_token=${encodeURIComponent(portalVerifyToken)}&client_id=${encodeURIComponent(portalClientId)}&client_secret=${encodeURIComponent(portalClientSecret)}&grant_type=client_credentials&username=${encodeURIComponent(portalUsername)}&password=${encodeURIComponent(portalPassword)}`;
+
+      console.log(`[VoalleAdapter] Validando credenciais do portal para: ${portalUsername}`);
+
+      const response = await fetch(authUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`[VoalleAdapter] Credenciais inválidas: ${response.status} - ${errorText}`);
+        return { 
+          success: false, 
+          message: "Usuário ou senha inválidos" 
+        };
+      }
+
+      const data = await response.json() as {
+        access_token: string;
+        expires_in: number;
+        token_type: string;
+        person?: { id: number; name: string };
+      };
+
+      console.log(`[VoalleAdapter] Credenciais válidas para ${portalUsername}`);
+      
+      return { 
+        success: true, 
+        message: "Credenciais válidas",
+        person: data.person
+      };
+    } catch (error) {
+      console.error("[VoalleAdapter] Erro ao validar credenciais:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Erro ao validar credenciais" 
+      };
+    }
+  }
 }

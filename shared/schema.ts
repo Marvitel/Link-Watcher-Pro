@@ -14,7 +14,10 @@ export const clients = pgTable("clients", {
   isActive: boolean("is_active").notNull().default(true),
   voalleCustomerId: integer("voalle_customer_id"),
   voallePortalUsername: varchar("voalle_portal_username", { length: 50 }),
-  voallePortalPassword: varchar("voalle_portal_password", { length: 100 }),
+  voallePortalPassword: text("voalle_portal_password"),
+  portalCredentialsStatus: varchar("portal_credentials_status", { length: 20 }).default("unchecked"),
+  portalCredentialsLastCheck: timestamp("portal_credentials_last_check"),
+  portalCredentialsError: text("portal_credentials_error"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

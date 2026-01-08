@@ -46,6 +46,8 @@ import {
   EyeOff,
   Download,
   Cpu,
+  AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
@@ -2721,6 +2723,38 @@ export default function Admin() {
                       placeholder={editingClient ? "Deixe vazio para manter a senha atual" : "Senha do portal"}
                       data-testid="input-client-voalle-portal-password"
                     />
+                    {editingClient && editingClient.portalCredentialsStatus && (
+                      <div className={`text-xs p-2 rounded-md mt-2 ${
+                        editingClient.portalCredentialsStatus === 'valid' 
+                          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                          : editingClient.portalCredentialsStatus === 'invalid'
+                          ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                          : editingClient.portalCredentialsStatus === 'unconfigured'
+                          ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {editingClient.portalCredentialsStatus === 'valid' && <CheckCircle className="w-3 h-3" />}
+                          {editingClient.portalCredentialsStatus === 'invalid' && <AlertTriangle className="w-3 h-3" />}
+                          {editingClient.portalCredentialsStatus === 'unconfigured' && <AlertCircle className="w-3 h-3" />}
+                          <span>
+                            {editingClient.portalCredentialsStatus === 'valid' && 'Credenciais válidas'}
+                            {editingClient.portalCredentialsStatus === 'invalid' && 'Credenciais inválidas - atualize a senha'}
+                            {editingClient.portalCredentialsStatus === 'unconfigured' && 'Credenciais não configuradas'}
+                            {editingClient.portalCredentialsStatus === 'unchecked' && 'Não verificado'}
+                            {editingClient.portalCredentialsStatus === 'error' && 'Erro na verificação'}
+                          </span>
+                        </div>
+                        {editingClient.portalCredentialsLastCheck && (
+                          <p className="text-[10px] mt-1 opacity-70">
+                            Última verificação: {new Date(editingClient.portalCredentialsLastCheck).toLocaleString('pt-BR')}
+                          </p>
+                        )}
+                        {editingClient.portalCredentialsError && editingClient.portalCredentialsStatus !== 'valid' && (
+                          <p className="text-[10px] mt-1 opacity-70">{editingClient.portalCredentialsError}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch

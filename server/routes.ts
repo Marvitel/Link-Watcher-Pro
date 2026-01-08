@@ -7,6 +7,7 @@ import { getErpAdapter, configureErpAdapter, clearErpAdapter } from "./erp";
 import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { queryOltAlarm, testOltConnection } from "./olt";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
+import { encrypt, decrypt, isEncrypted } from "./crypto";
 import pg from "pg";
 import { 
   insertIncidentSchema, 
@@ -82,6 +83,147 @@ export async function registerRoutes(
     }
   });
 
+  // Login via Portal Voalle (para clientes)
+  app.post("/api/auth/voalle", async (req, res) => {
+    try {
+      const { username, password, clientId } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+      }
+      
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ error: "Login via Portal Voalle não disponível" });
+      }
+      
+      // Configurar adapter
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      
+      // Validar credenciais no Portal Voalle
+      const validation = await adapter.validatePortalCredentials(username, password);
+      
+      if (!validation.success) {
+        return res.status(401).json({ 
+          error: validation.message,
+          canRecover: true
+        });
+      }
+      
+      // Credenciais válidas - buscar ou criar usuário no sistema
+      // Primeiro, tentar encontrar cliente pelo CNPJ (username pode ser o CNPJ)
+      const normalizedUsername = username.replace(/\D/g, ''); // Remove caracteres não-numéricos
+      
+      let client = null;
+      let user = null;
+      
+      // Se clientId foi fornecido, buscar o cliente específico
+      if (clientId) {
+        client = await storage.getClient(parseInt(clientId, 10));
+      } else {
+        // Buscar cliente pelo CNPJ
+        const allClients = await storage.getClients();
+        client = allClients.find(c => c.cnpj && c.cnpj.replace(/\D/g, '') === normalizedUsername);
+      }
+      
+      if (!client) {
+        return res.status(404).json({ 
+          error: "Cliente não encontrado. Entre em contato com a Marvitel.",
+          canRecover: false
+        });
+      }
+      
+      // Atualizar credenciais do portal no cliente (armazenar criptografado)
+      await storage.updateClient(client.id, {
+        voallePortalUsername: username,
+        voallePortalPassword: encrypt(password),
+        portalCredentialsStatus: "valid",
+        portalCredentialsLastCheck: new Date(),
+        portalCredentialsError: null,
+      });
+      
+      // Buscar ou criar usuário associado ao cliente
+      const userEmail = `portal_${normalizedUsername}@voalle.local`;
+      user = await storage.getUserByEmail(userEmail);
+      
+      if (!user) {
+        // Criar usuário para o cliente
+        const newUser = await storage.createUser({
+          email: userEmail,
+          password: password, // Será hashado pelo storage
+          name: validation.person?.name || client.name,
+          role: "user",
+          clientId: client.id,
+          isSuperAdmin: false,
+        });
+        user = newUser;
+      }
+      
+      // Gerar token e retornar
+      const token = signToken(user);
+      
+      const authUser = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        clientId: user.clientId,
+        isSuperAdmin: user.isSuperAdmin || false,
+        clientName: client.name,
+      };
+      
+      (req.session as any).user = authUser;
+      req.session.save((err) => {
+        if (err) {
+          console.error("Session save error:", err);
+        }
+        res.json({ user: authUser, token });
+      });
+      
+    } catch (error) {
+      console.error("[Auth Voalle] Error:", error);
+      res.status(500).json({ error: "Erro ao fazer login via Portal Voalle" });
+    }
+  });
+
+  // Recuperação de senha do Portal Voalle
+  app.post("/api/auth/voalle/recover", async (req, res) => {
+    try {
+      const { username } = req.body;
+      
+      if (!username) {
+        return res.status(400).json({ error: "CPF/CNPJ é obrigatório" });
+      }
+      
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ error: "Recuperação via Portal Voalle não disponível" });
+      }
+      
+      // Configurar adapter e solicitar recuperação
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      const result = await adapter.requestPortalPasswordRecovery(username);
+      
+      if (result.success) {
+        res.json({ 
+          success: true, 
+          message: "Um email com instruções de recuperação foi enviado para você." 
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          error: result.message || "Erro ao solicitar recuperação de senha" 
+        });
+      }
+      
+    } catch (error) {
+      console.error("[Auth Voalle Recovery] Error:", error);
+      res.status(500).json({ error: "Erro ao solicitar recuperação de senha" });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -102,7 +244,9 @@ export async function registerRoutes(
   app.get("/api/clients", async (req, res) => {
     try {
       const allClients = await storage.getClients();
-      res.json(allClients);
+      // Nunca retornar senha do portal
+      const safeClients = allClients.map(c => ({ ...c, voallePortalPassword: c.voallePortalPassword ? "[ENCRYPTED]" : null }));
+      res.json(safeClients);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch clients" });
     }
@@ -114,7 +258,8 @@ export async function registerRoutes(
       if (!client) {
         return res.status(404).json({ error: "Client not found" });
       }
-      res.json(client);
+      // Nunca retornar senha do portal
+      res.json({ ...client, voallePortalPassword: client.voallePortalPassword ? "[ENCRYPTED]" : null });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch client" });
     }
@@ -124,6 +269,11 @@ export async function registerRoutes(
     try {
       const validatedData = insertClientSchema.parse(req.body);
       
+      // Criptografar senha do portal se fornecida
+      if (validatedData.voallePortalPassword) {
+        validatedData.voallePortalPassword = encrypt(validatedData.voallePortalPassword);
+      }
+      
       // Check if there's an inactive client with the same slug (soft-deleted)
       const existingClient = await storage.getClientBySlug(validatedData.slug);
       if (existingClient) {
@@ -132,6 +282,7 @@ export async function registerRoutes(
           ...validatedData,
           isActive: true,
           updatedAt: new Date(),
+          portalCredentialsStatus: "unchecked",
         });
         const reactivatedClient = await storage.getClient(existingClient.id);
         console.log(`[POST /api/clients] Reactivated existing client: ${existingClient.slug}`);
@@ -152,7 +303,15 @@ export async function registerRoutes(
 
   app.patch("/api/clients/:id", async (req, res) => {
     try {
-      await storage.updateClient(parseInt(req.params.id, 10), req.body);
+      const updateData = { ...req.body };
+      
+      // Criptografar senha do portal se está sendo atualizada
+      if (updateData.voallePortalPassword && !isEncrypted(updateData.voallePortalPassword)) {
+        updateData.voallePortalPassword = encrypt(updateData.voallePortalPassword);
+        updateData.portalCredentialsStatus = "unchecked";
+      }
+      
+      await storage.updateClient(parseInt(req.params.id, 10), updateData);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update client" });
@@ -1066,9 +1225,18 @@ export async function registerRoutes(
       const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
       const cnpj = client.cnpj ? client.cnpj.replace(/\D/g, '') : null;
       const portalUsername = client.voallePortalUsername || null;
-      const portalPassword = client.voallePortalPassword || null;
       
-      console.log(`[Voalle Contract Tags] voalleCustomerId: ${voalleCustomerId || 'não definido'}, CNPJ: ${cnpj || 'não definido'}, portalUser: ${portalUsername ? 'definido' : 'não definido'}`);
+      // Descriptografar senha apenas para uso interno - NUNCA logar ou retornar
+      let portalPassword: string | null = null;
+      try {
+        portalPassword = client.voallePortalPassword ? decrypt(client.voallePortalPassword) : null;
+      } catch (decryptError) {
+        console.log("[Voalle Contract Tags] Erro ao descriptografar senha do portal (ignorando)");
+        portalPassword = null;
+      }
+      
+      // Log seguro - NUNCA logar senha
+      console.log(`[Voalle Contract Tags] voalleCustomerId: ${voalleCustomerId || 'não definido'}, CNPJ: ${cnpj || 'não definido'}, portalUser: ${portalUsername ? 'definido' : 'não definido'}, portalPass: ${portalPassword ? '[presente]' : 'não definido'}`);
       
       if (!voalleCustomerId && !cnpj) {
         return res.json({ 
@@ -1088,11 +1256,162 @@ export async function registerRoutes(
         voalleCustomerId: client.voalleCustomerId
       });
     } catch (error: any) {
-      console.error("[Voalle Contract Tags] Error:", error?.message || error);
+      // Sanitizar mensagem de erro - NUNCA expor credenciais
+      // Cobre múltiplos padrões: password=, senha=, secret=, token=, credenciais em JSON
+      const sanitizedMessage = (error?.message || "Erro desconhecido")
+        .replace(/password[=:]["']?[^\s&"']+["']?/gi, "password=[REDACTED]")
+        .replace(/username[=:]["']?[^\s&"']+["']?/gi, "username=[REDACTED]")
+        .replace(/senha[=:]["']?[^\s&"']+["']?/gi, "senha=[REDACTED]")
+        .replace(/secret[=:]["']?[^\s&"']+["']?/gi, "secret=[REDACTED]")
+        .replace(/token[=:]["']?[^\s&"']+["']?/gi, "token=[REDACTED]")
+        .replace(/"password"\s*:\s*"[^"]+"/gi, '"password":"[REDACTED]"')
+        .replace(/"senha"\s*:\s*"[^"]+"/gi, '"senha":"[REDACTED]"')
+        .replace(/"secret"\s*:\s*"[^"]+"/gi, '"secret":"[REDACTED]"');
+      console.error("[Voalle Contract Tags] Error:", sanitizedMessage);
+      // Retornar erro genérico sem detalhes técnicos
       res.status(500).json({ 
         error: "Erro ao buscar etiquetas no Voalle",
-        details: error?.message || "Erro desconhecido",
         tags: [] 
+      });
+    }
+  });
+
+  // Health check de credenciais do portal Voalle (apenas super admin)
+  app.post("/api/clients/:clientId/voalle/portal-health-check", requireSuperAdmin, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const client = await storage.getClient(clientId);
+      
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      // Verificar se tem credenciais do portal configuradas
+      if (!client.voallePortalUsername || !client.voallePortalPassword) {
+        await storage.updateClient(clientId, {
+          portalCredentialsStatus: "unconfigured",
+          portalCredentialsLastCheck: new Date(),
+          portalCredentialsError: "Credenciais do portal não configuradas",
+        });
+        return res.json({
+          status: "unconfigured",
+          message: "Credenciais do portal não configuradas",
+          lastCheck: new Date(),
+        });
+      }
+
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({
+          status: "error",
+          message: "Integração Voalle não configurada",
+        });
+      }
+
+      // Tentar autenticar com as credenciais do portal
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      const voalleCustomerId = client.voalleCustomerId?.toString() || null;
+      const portalPassword = decrypt(client.voallePortalPassword);
+
+      try {
+        // Tentar buscar etiquetas - se funcionar, credenciais estão OK
+        const tags = await adapter.getContractTags({
+          voalleCustomerId,
+          cnpj: client.cnpj?.replace(/\D/g, '') || null,
+          portalUsername: client.voallePortalUsername,
+          portalPassword,
+        });
+
+        await storage.updateClient(clientId, {
+          portalCredentialsStatus: "valid",
+          portalCredentialsLastCheck: new Date(),
+          portalCredentialsError: null,
+        });
+
+        res.json({
+          status: "valid",
+          message: `Credenciais válidas. ${tags.length} etiquetas encontradas.`,
+          lastCheck: new Date(),
+          tagsCount: tags.length,
+        });
+      } catch (authError: any) {
+        const errorMessage = authError?.message || "Falha na autenticação";
+        const isAuthError = errorMessage.includes("401") || 
+                           errorMessage.includes("403") || 
+                           errorMessage.includes("Unauthorized") ||
+                           errorMessage.includes("Invalid credentials");
+
+        await storage.updateClient(clientId, {
+          portalCredentialsStatus: isAuthError ? "invalid" : "error",
+          portalCredentialsLastCheck: new Date(),
+          portalCredentialsError: errorMessage,
+        });
+
+        res.json({
+          status: isAuthError ? "invalid" : "error",
+          message: isAuthError ? "Credenciais inválidas ou expiradas" : errorMessage,
+          lastCheck: new Date(),
+        });
+      }
+    } catch (error: any) {
+      console.error("[Portal Health Check] Error:", error?.message || error);
+      res.status(500).json({
+        status: "error",
+        message: "Erro ao verificar credenciais",
+        details: error?.message,
+      });
+    }
+  });
+
+  // Solicitar recuperação de senha do portal Voalle
+  app.post("/api/clients/:clientId/voalle/portal-recovery", requireSuperAdmin, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const client = await storage.getClient(clientId);
+      
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      if (!client.voallePortalUsername) {
+        return res.status(400).json({
+          success: false,
+          message: "Cliente não possui usuário do portal configurado",
+        });
+      }
+
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: "Integração Voalle não configurada",
+        });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      
+      if (typeof adapter.requestPortalPasswordRecovery !== 'function') {
+        return res.status(400).json({
+          success: false,
+          message: "Adapter não suporta recuperação de senha do portal",
+        });
+      }
+
+      const result = await adapter.requestPortalPasswordRecovery(client.voallePortalUsername);
+      
+      if (result.success) {
+        console.log(`[Portal Recovery] Recuperação solicitada para cliente ${clientId}: ${client.voallePortalUsername}`);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Portal Recovery] Error:", error?.message || error);
+      res.status(500).json({
+        success: false,
+        message: "Erro ao solicitar recuperação de senha",
+        details: error?.message,
       });
     }
   });

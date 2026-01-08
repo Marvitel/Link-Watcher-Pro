@@ -135,6 +135,29 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - `POST /api/clients/:clientId/voalle/test` - Test Voalle connection
 - `POST /api/clients/:clientId/voalle/create-ticket` - Create ticket for an incident
 - `GET /api/clients/:clientId/voalle/contract-tags` - Get contract tags (etiquetas de contrato)
+- `POST /api/clients/:clientId/voalle/portal-health-check` - Verificar credenciais do portal (super admin)
+- `POST /api/clients/:clientId/voalle/portal-recovery` - Solicitar recuperação de senha do portal (super admin)
+
+### Segurança de Credenciais do Portal
+- **Criptografia**: Senhas do portal armazenadas com AES-256-GCM (server/crypto.ts)
+- **Chave de criptografia**: Derivada de SESSION_SECRET via SHA-256
+- **Campos de status**: portalCredentialsStatus (valid/invalid/unchecked/error/unconfigured), portalCredentialsLastCheck, portalCredentialsError
+- **Proteção de API**: Senhas nunca retornadas em texto - API retorna "[ENCRYPTED]" no lugar
+- **Sanitização de Logs**: Senhas nunca aparecem em logs ou mensagens de erro
+- **Health Check**: Endpoint verifica se credenciais funcionam tentando autenticar na Portal API
+- **Recuperação**: Endpoint solicita reset de senha via API do Portal (envia email ao cliente)
+
+### Login via Portal Voalle (Clientes)
+- **Endpoint**: `POST /api/auth/voalle` - Autenticação de clientes via Portal Voalle
+- **Credenciais padrão**: CPF/CNPJ para usuário e senha (criado automaticamente pelo Voalle)
+- **Fluxo**:
+  1. Cliente informa CPF/CNPJ e senha na aba "Cliente" da tela de login
+  2. Sistema valida credenciais via API do Portal Voalle
+  3. Se válido: cria/atualiza usuário local e armazena senha criptografada
+  4. Se inválido: oferece opção de recuperação de senha
+- **Recuperação**: `POST /api/auth/voalle/recover` - Solicita email de recuperação via Voalle
+- **Frontend**: Tela de login com abas "Cliente" e "Administrador", botão "Esqueci minha senha"
+- **Configurações**: Botão de recuperação de senha na página de Configurações do cliente
 
 ## External Dependencies
 
