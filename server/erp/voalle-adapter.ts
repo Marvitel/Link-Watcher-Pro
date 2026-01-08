@@ -731,7 +731,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   async requestPortalPasswordRecovery(username: string): Promise<{ success: boolean; message: string }> {
+    console.log(`[VoalleAdapter] Iniciando recuperação de senha para: ${username}`);
+    
     if (!this.isPortalConfigured()) {
+      console.log(`[VoalleAdapter] Portal não configurado`);
       return { success: false, message: "Portal API não configurada" };
     }
 
@@ -741,13 +744,21 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const portalClientId = this.providerConfig?.portalClientId || "";
       const portalClientSecret = this.providerConfig?.portalClientSecret || "";
 
+      console.log(`[VoalleAdapter] Portal URL: ${portalUrl}`);
+      console.log(`[VoalleAdapter] Verify token presente: ${!!verifyToken}`);
+      console.log(`[VoalleAdapter] Client ID presente: ${!!portalClientId}`);
+      console.log(`[VoalleAdapter] Client Secret presente: ${!!portalClientSecret}`);
+
       // Recuperação de senha é um endpoint público que não requer autenticação do usuário
       // Usamos apenas client_id e client_secret para identificar a aplicação
       const formData = new FormData();
       formData.append("username", username);
 
       // Tentar primeiro sem autenticação (alguns endpoints de recovery são públicos)
-      let response = await fetch(`${portalUrl}/api/person_users/recovery`, {
+      const recoveryEndpoint = `${portalUrl}/api/person_users/recovery`;
+      console.log(`[VoalleAdapter] Tentando endpoint: ${recoveryEndpoint}`);
+      
+      let response = await fetch(recoveryEndpoint, {
         method: "POST",
         headers: {
           "Verify-Token": verifyToken,
@@ -755,6 +766,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         },
         body: formData,
       });
+
+      console.log(`[VoalleAdapter] Resposta inicial: ${response.status}`);
 
       // Se falhar com 401, tentar com autenticação usando as próprias credenciais do usuário
       // que está solicitando recuperação (apenas para validar que existe)
@@ -771,12 +784,15 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           },
           body: `username=${encodeURIComponent(username)}`,
         });
+        
+        console.log(`[VoalleAdapter] Resposta com query params: ${response.status}`);
       }
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        // Sanitizar log para não expor credenciais
-        console.error(`[VoalleAdapter] Recuperação de senha falhou: ${response.status}`);
+        // Sanitizar log para não expor credenciais (remover qualquer valor após = ou :)
+        const sanitizedError = errorText.replace(/(password|senha|secret|token|key|credential)[=:][^\s&"',}]*/gi, '$1=[REDACTED]');
+        console.error(`[VoalleAdapter] Recuperação de senha falhou: ${response.status} - ${sanitizedError.substring(0, 200)}`);
         
         // Mensagem amigável para o usuário
         if (response.status === 404) {
@@ -792,7 +808,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       }
 
       const result = await response.json().catch(() => ({}));
-      console.log(`[VoalleAdapter] Recuperação de senha solicitada para: ${username}`);
+      console.log(`[VoalleAdapter] Recuperação de senha solicitada com sucesso para: ${username}`);
       
       return { 
         success: true, 
