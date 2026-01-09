@@ -50,6 +50,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
 import { Database, Globe, Plug } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
@@ -1411,11 +1412,14 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
     apiUsername: "",
     apiPassword: "",
     apiSynData: "",
-    // API Portal fields (credenciais por cliente, não globais)
+    // API Portal fields
     portalApiUrl: "",
     portalVerifyToken: "",
     portalClientId: "",
     portalClientSecret: "",
+    // Credenciais administrativas do Portal (para recuperação de senha, etc)
+    portalUsername: "",
+    portalPassword: "",
     dbHost: "",
     dbPort: 3306,
     dbName: "",
@@ -1444,6 +1448,8 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken: "",
       portalClientId: "",
       portalClientSecret: "",
+      portalUsername: "",
+      portalPassword: "",
       dbHost: "",
       dbPort: 3306,
       dbName: "",
@@ -1467,6 +1473,8 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken?: string;
       portalClientId?: string;
       portalClientSecret?: string;
+      portalUsername?: string;
+      portalPassword?: string;
     } = {};
     if (integration.providerConfig) {
       try {
@@ -1492,6 +1500,8 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       portalVerifyToken: providerConfigData.portalVerifyToken || "",
       portalClientId: providerConfigData.portalClientId || "",
       portalClientSecret: "",
+      portalUsername: providerConfigData.portalUsername || "",
+      portalPassword: "",
       dbHost: integration.dbHost || "",
       dbPort: integration.dbPort || 3306,
       dbName: integration.dbName || "",
@@ -1573,11 +1583,14 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
       if (formData.apiUsername) providerConfig.apiUsername = formData.apiUsername;
       if (formData.apiPassword) providerConfig.apiPassword = formData.apiPassword;
       if (formData.apiSynData) providerConfig.apiSynData = formData.apiSynData;
-      // API Portal (credenciais do portal são por cliente, não globais)
+      // API Portal
       if (formData.portalApiUrl) providerConfig.portalApiUrl = formData.portalApiUrl;
       if (formData.portalVerifyToken) providerConfig.portalVerifyToken = formData.portalVerifyToken;
       if (formData.portalClientId) providerConfig.portalClientId = formData.portalClientId;
       if (formData.portalClientSecret) providerConfig.portalClientSecret = formData.portalClientSecret;
+      // Credenciais administrativas do Portal (para recuperação de senha, etc)
+      if (formData.portalUsername) providerConfig.portalUsername = formData.portalUsername;
+      if (formData.portalPassword) providerConfig.portalPassword = formData.portalPassword;
     }
     
     // Build save data with providerConfig
@@ -1613,6 +1626,11 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
         else if (existingConfig.portalClientId) mergedConfig.portalClientId = existingConfig.portalClientId;
         if (formData.portalClientSecret) mergedConfig.portalClientSecret = formData.portalClientSecret;
         else if (existingConfig.portalClientSecret) mergedConfig.portalClientSecret = existingConfig.portalClientSecret;
+        // Credenciais administrativas do Portal
+        if (formData.portalUsername) mergedConfig.portalUsername = formData.portalUsername;
+        else if (existingConfig.portalUsername) mergedConfig.portalUsername = existingConfig.portalUsername;
+        if (formData.portalPassword) mergedConfig.portalPassword = formData.portalPassword;
+        else if (existingConfig.portalPassword) mergedConfig.portalPassword = existingConfig.portalPassword;
         saveData.providerConfig = Object.keys(mergedConfig).length > 0 ? JSON.stringify(mergedConfig) : null;
       }
       updateMutation.mutate({ id: editingIntegration.id, data: saveData as typeof formData });
@@ -1942,9 +1960,32 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                               />
                             </div>
                           </div>
-                          <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
-                            <strong>Autenticação:</strong> As credenciais do Portal (usuário e senha) são configuradas 
-                            individualmente no cadastro de cada cliente, nos campos "Usuário Portal Voalle" e "Senha Portal Voalle".
+                          <Separator className="my-4" />
+                          <h5 className="text-sm font-medium text-muted-foreground mb-3">Credenciais Administrativas (para recuperação de senha)</h5>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Usuário Admin Portal</Label>
+                              <Input
+                                value={formData.portalUsername}
+                                onChange={(e) => setFormData({ ...formData, portalUsername: e.target.value })}
+                                placeholder="CPF/CNPJ do admin"
+                                data-testid="input-erp-portal-username"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Senha Admin Portal</Label>
+                              <Input
+                                type={showSecrets ? "text" : "password"}
+                                value={formData.portalPassword}
+                                onChange={(e) => setFormData({ ...formData, portalPassword: e.target.value })}
+                                placeholder={editingIntegration ? "Deixe vazio para manter" : "Senha do admin"}
+                                data-testid="input-erp-portal-password"
+                              />
+                            </div>
+                          </div>
+                          <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground mt-3">
+                            <strong>Importante:</strong> Estas credenciais administrativas são usadas para funcionalidades como 
+                            recuperação de senha dos clientes. Devem ser de um usuário admin da Marvitel no Portal.
                           </div>
                         </div>
                       </div>
