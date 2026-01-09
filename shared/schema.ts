@@ -113,6 +113,15 @@ export const links = pgTable("links", {
   voalleContractTagId: integer("voalle_contract_tag_id"),
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
   voalleContractTagDescription: text("voalle_contract_tag_description"),
+  // Voalle integration - Connection data from API Portal
+  voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle
+  voalleContractNumber: varchar("voalle_contract_number", { length: 50 }), // Número do contrato
+  concentratorId: integer("concentrator_id"), // Concentrador SNMP para coleta de tráfego
+  slotOlt: integer("slot_olt"), // Slot na OLT
+  portOlt: integer("port_olt"), // Porta na OLT  
+  equipmentSerialNumber: varchar("equipment_serial_number", { length: 100 }), // Serial da ONU/ONT
+  latitude: varchar("latitude", { length: 30 }), // Coordenada latitude
+  longitude: varchar("longitude", { length: 30 }), // Coordenada longitude
   // Interface auto-discovery fields for dynamic ifIndex handling
   lastIfIndexValidation: timestamp("last_if_index_validation"),
   ifIndexMismatchCount: integer("if_index_mismatch_count").notNull().default(0),
@@ -382,11 +391,28 @@ export const clientEventSettings = pgTable("client_event_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Concentradores SNMP (BNG/BRAS) - recursos globais para coleta de tráfego
+// Cadastro global com fabricante e configuração SNMP
+export const snmpConcentrators = pgTable("snmp_concentrators", {
+  id: serial("id").primaryKey(),
+  voalleId: integer("voalle_id"), // ID do concentrador no Voalle (authenticationConcentrator.id)
+  name: text("name").notNull(), // Ex: "CE: AJU-MVT-BORDA-HSP"
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(),
+  snmpProfileId: integer("snmp_profile_id"), // Perfil SNMP para coleta de tráfego
+  equipmentVendorId: integer("equipment_vendor_id"), // Fabricante (Huawei, Cisco, etc)
+  model: varchar("model", { length: 100 }),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // OLTs são recursos globais - não vinculadas a um cliente específico
 // A relação cliente-OLT é feita através dos links (link.oltId + link.clientId)
 // connectionType pode ser: telnet, ssh, mysql (para consultas ao banco Zabbix)
 export const olts = pgTable("olts", {
   id: serial("id").primaryKey(),
+  voalleId: integer("voalle_id"), // ID da OLT/Access Point no Voalle (authenticationAccessPoint.id)
   name: text("name").notNull(),
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
   port: integer("port").notNull().default(23),
@@ -421,6 +447,7 @@ export const insertHostMibConfigSchema = createInsertSchema(hostMibConfigs).omit
 export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: true, createdAt: true });
 export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOltSchema = createInsertSchema(olts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSnmpConcentratorSchema = createInsertSchema(snmpConcentrators).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -444,6 +471,7 @@ export type InsertHostMibConfig = z.infer<typeof insertHostMibConfigSchema>;
 export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
 export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
 export type InsertOlt = z.infer<typeof insertOltSchema>;
+export type InsertSnmpConcentrator = z.infer<typeof insertSnmpConcentratorSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -467,6 +495,7 @@ export type HostMibConfig = typeof hostMibConfigs.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 export type Olt = typeof olts.$inferSelect;
+export type SnmpConcentrator = typeof snmpConcentrators.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {
