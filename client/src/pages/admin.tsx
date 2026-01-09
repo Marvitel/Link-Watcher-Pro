@@ -4354,6 +4354,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
     model: "",
     database: "",
     isActive: true,
+    voalleId: null as number | null,
   });
 
   const resetForm = () => {
@@ -4368,6 +4369,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       model: "",
       database: "",
       isActive: true,
+      voalleId: null,
     });
     setEditingOlt(undefined);
   };
@@ -4385,6 +4387,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       model: olt.model || "",
       database: olt.database || "",
       isActive: olt.isActive,
+      voalleId: (olt as any).voalleId || null,
     });
     setDialogOpen(true);
   };
@@ -4578,6 +4581,20 @@ function OltsTab({ clients }: { clients: Client[] }) {
                     data-testid="input-olt-model"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="olt-voalle-id">ID Voalle (Access Point)</Label>
+                <Input
+                  id="olt-voalle-id"
+                  type="number"
+                  value={formData.voalleId ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
+                  placeholder="Ex: 123"
+                  data-testid="input-olt-voalle-id"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID do authenticationAccessPoint no Voalle para associacao automatica com etiquetas de contrato
+                </p>
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="olt-active">Ativo</Label>
