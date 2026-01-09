@@ -5,11 +5,16 @@ import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, type OltAlarm } from "./olt";
+import { findInterfaceByName, type SnmpProfile as SnmpProfileType } from "./snmp";
 
 const execAsync = promisify(exec);
 
 const PARALLEL_WORKERS = 10;
 const COLLECTION_TIMEOUT_MS = 30000;
+
+// Interface auto-discovery constants
+const IFINDEX_MISMATCH_THRESHOLD = 3; // Number of consecutive failures before auto-discovery
+const IFINDEX_VALIDATION_INTERVAL_MS = 300000; // 5 minutes between validations
 
 async function runWithConcurrencyLimit<T, R>(
   items: T[],
@@ -632,6 +637,145 @@ async function getEquipmentVendor(vendorId: number): Promise<typeof equipmentVen
   return vendor || null;
 }
 
+// Auto-discovery: Check and fix ifIndex when SNMP collection fails
+async function handleIfIndexAutoDiscovery(
+  link: typeof links.$inferSelect,
+  profile: SnmpProfile,
+  trafficDataSuccess: boolean
+): Promise<{ updated: boolean; newIfIndex?: number }> {
+  const now = new Date();
+  
+  // Fetch fresh link data from DB to get current mismatch counter
+  const [freshLink] = await db.select().from(links).where(eq(links.id, link.id));
+  if (!freshLink) return { updated: false };
+  
+  const lastValidation = freshLink.lastIfIndexValidation;
+  const mismatchCount = freshLink.ifIndexMismatchCount || 0;
+  
+  // If traffic collection was successful, reset mismatch counter
+  if (trafficDataSuccess) {
+    if (mismatchCount > 0) {
+      await db.update(links).set({
+        ifIndexMismatchCount: 0,
+        lastIfIndexValidation: now,
+      }).where(eq(links.id, link.id));
+    }
+    return { updated: false };
+  }
+  
+  // Traffic collection failed - increment mismatch counter
+  const newMismatchCount = mismatchCount + 1;
+  
+  // Only attempt auto-discovery after threshold is reached
+  if (newMismatchCount < IFINDEX_MISMATCH_THRESHOLD) {
+    await db.update(links).set({
+      ifIndexMismatchCount: newMismatchCount,
+    }).where(eq(links.id, link.id));
+    return { updated: false };
+  }
+  
+  // Check if we should skip auto-discovery (cooldown)
+  if (lastValidation && (now.getTime() - lastValidation.getTime()) < IFINDEX_VALIDATION_INTERVAL_MS) {
+    // Still update the mismatch counter to track failures
+    await db.update(links).set({
+      ifIndexMismatchCount: newMismatchCount,
+    }).where(eq(links.id, link.id));
+    return { updated: false };
+  }
+  
+  // Attempt auto-discovery using interface name
+  const searchName = link.originalIfName || link.snmpInterfaceName;
+  if (!searchName || !link.snmpRouterIp) {
+    return { updated: false };
+  }
+  
+  console.log(`[Monitor] ${link.name}: Auto-discovery triggered after ${newMismatchCount} failures. Searching for interface "${searchName}"`);
+  
+  const snmpProfileForSearch: SnmpProfileType = {
+    id: profile.id,
+    version: profile.version,
+    port: profile.port,
+    community: profile.community,
+    securityLevel: profile.securityLevel,
+    authProtocol: profile.authProtocol,
+    authPassword: profile.authPassword,
+    privProtocol: profile.privProtocol,
+    privPassword: profile.privPassword,
+    username: profile.username,
+    timeout: profile.timeout,
+    retries: profile.retries,
+  };
+  
+  const searchResult = await findInterfaceByName(
+    link.snmpRouterIp,
+    snmpProfileForSearch,
+    searchName,
+    link.snmpInterfaceDescr
+  );
+  
+  if (searchResult.found && searchResult.ifIndex !== null) {
+    const oldIfIndex = link.snmpInterfaceIndex;
+    const newIfIndex = searchResult.ifIndex;
+    
+    if (oldIfIndex !== newIfIndex) {
+      console.log(`[Monitor] ${link.name}: ifIndex changed from ${oldIfIndex} to ${newIfIndex} (auto-discovered)`);
+      
+      // Update link with new ifIndex
+      await db.update(links).set({
+        snmpInterfaceIndex: newIfIndex,
+        snmpInterfaceName: searchResult.ifName || link.snmpInterfaceName,
+        snmpInterfaceDescr: searchResult.ifDescr || link.snmpInterfaceDescr,
+        originalIfName: link.originalIfName || link.snmpInterfaceName,
+        ifIndexMismatchCount: 0,
+        lastIfIndexValidation: now,
+      }).where(eq(links.id, link.id));
+      
+      // Create event for the ifIndex change
+      await db.insert(events).values({
+        linkId: link.id,
+        clientId: link.clientId,
+        type: "info",
+        title: `Interface atualizada em ${link.name}`,
+        description: `O índice da interface SNMP foi atualizado automaticamente de ${oldIfIndex} para ${newIfIndex} (${searchResult.matchType}). Interface: ${searchResult.ifName || searchName}`,
+        timestamp: now,
+        resolved: true,
+      });
+      
+      return { updated: true, newIfIndex };
+    } else {
+      // Interface found with same ifIndex - reset counter but don't create event
+      // This means the SNMP collection failed for another reason (device unreachable, etc)
+      console.log(`[Monitor] ${link.name}: Interface found with same ifIndex ${oldIfIndex}. Resetting mismatch counter.`);
+      await db.update(links).set({
+        ifIndexMismatchCount: 0,
+        lastIfIndexValidation: now,
+      }).where(eq(links.id, link.id));
+      return { updated: false };
+    }
+  } else {
+    // Interface not found - create warning event
+    console.log(`[Monitor] ${link.name}: Could not auto-discover interface "${searchName}"`);
+    
+    await db.update(links).set({
+      ifIndexMismatchCount: newMismatchCount,
+      lastIfIndexValidation: now,
+    }).where(eq(links.id, link.id));
+    
+    // Only create event once per validation interval
+    await db.insert(events).values({
+      linkId: link.id,
+      clientId: link.clientId,
+      type: "warning",
+      title: `Interface não encontrada em ${link.name}`,
+      description: `A interface SNMP "${searchName}" (ifIndex: ${link.snmpInterfaceIndex}) não foi encontrada no equipamento. Verifique a configuração do link.`,
+      timestamp: now,
+      resolved: false,
+    });
+  }
+  
+  return { updated: false };
+}
+
 export async function collectLinkMetrics(link: typeof links.$inferSelect): Promise<{
   latency: number;
   packetLoss: number;
@@ -662,6 +806,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           link.snmpInterfaceIndex
         );
 
+        const trafficDataSuccess = trafficData !== null;
+        
         if (trafficData) {
           const previousData = previousTrafficData.get(link.id);
 
@@ -672,6 +818,30 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           }
 
           previousTrafficData.set(link.id, trafficData);
+        }
+        
+        // Handle auto-discovery of ifIndex when collection fails
+        if (link.snmpInterfaceName) {
+          const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
+          
+          // If ifIndex was updated, retry collection with new index
+          if (discoveryResult.updated && discoveryResult.newIfIndex) {
+            const retryTrafficData = await getInterfaceTraffic(
+              link.snmpRouterIp,
+              profile,
+              discoveryResult.newIfIndex
+            );
+            
+            if (retryTrafficData) {
+              const previousData = previousTrafficData.get(link.id);
+              if (previousData) {
+                const bandwidth = calculateBandwidth(retryTrafficData, previousData);
+                downloadMbps = bandwidth.downloadMbps;
+                uploadMbps = bandwidth.uploadMbps;
+              }
+              previousTrafficData.set(link.id, retryTrafficData);
+            }
+          }
         }
       }
 

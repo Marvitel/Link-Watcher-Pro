@@ -113,6 +113,10 @@ export const links = pgTable("links", {
   voalleContractTagId: integer("voalle_contract_tag_id"),
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
   voalleContractTagDescription: text("voalle_contract_tag_description"),
+  // Interface auto-discovery fields for dynamic ifIndex handling
+  lastIfIndexValidation: timestamp("last_if_index_validation"),
+  ifIndexMismatchCount: integer("if_index_mismatch_count").notNull().default(0),
+  originalIfName: varchar("original_if_name", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

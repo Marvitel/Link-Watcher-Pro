@@ -393,3 +393,184 @@ export function formatSpeed(speedBps: number): string {
   }
   return `${speedBps} bps`;
 }
+
+export interface InterfaceSearchResult {
+  found: boolean;
+  ifIndex: number | null;
+  ifName: string | null;
+  ifDescr: string | null;
+  matchType: "exact_name" | "exact_descr" | "partial_name" | "partial_descr" | "not_found";
+  candidates?: SnmpInterface[];
+}
+
+export async function findInterfaceByName(
+  targetIp: string,
+  profile: SnmpProfile,
+  searchName: string,
+  searchDescr?: string | null
+): Promise<InterfaceSearchResult> {
+  console.log(`[SNMP Interface Search] Searching for interface "${searchName}" on ${targetIp}`);
+  
+  try {
+    const interfaces = await discoverInterfaces(targetIp, profile);
+    
+    if (interfaces.length === 0) {
+      console.log(`[SNMP Interface Search] No interfaces discovered on ${targetIp}`);
+      return { found: false, ifIndex: null, ifName: null, ifDescr: null, matchType: "not_found" };
+    }
+    
+    // 1. Try exact match on ifName
+    const exactNameMatch = interfaces.find(
+      (iface) => iface.ifName.toLowerCase() === searchName.toLowerCase()
+    );
+    if (exactNameMatch) {
+      console.log(`[SNMP Interface Search] Exact ifName match found: ifIndex ${exactNameMatch.ifIndex}`);
+      return {
+        found: true,
+        ifIndex: exactNameMatch.ifIndex,
+        ifName: exactNameMatch.ifName,
+        ifDescr: exactNameMatch.ifDescr,
+        matchType: "exact_name",
+      };
+    }
+    
+    // 2. Try exact match on ifDescr
+    if (searchDescr) {
+      const exactDescrMatch = interfaces.find(
+        (iface) => iface.ifDescr.toLowerCase() === searchDescr.toLowerCase()
+      );
+      if (exactDescrMatch) {
+        console.log(`[SNMP Interface Search] Exact ifDescr match found: ifIndex ${exactDescrMatch.ifIndex}`);
+        return {
+          found: true,
+          ifIndex: exactDescrMatch.ifIndex,
+          ifName: exactDescrMatch.ifName,
+          ifDescr: exactDescrMatch.ifDescr,
+          matchType: "exact_descr",
+        };
+      }
+    }
+    
+    // 3. Try partial match on ifName (contains search string)
+    const partialNameMatches = interfaces.filter(
+      (iface) => iface.ifName.toLowerCase().includes(searchName.toLowerCase()) ||
+                 searchName.toLowerCase().includes(iface.ifName.toLowerCase())
+    );
+    if (partialNameMatches.length === 1) {
+      console.log(`[SNMP Interface Search] Partial ifName match found: ifIndex ${partialNameMatches[0].ifIndex}`);
+      return {
+        found: true,
+        ifIndex: partialNameMatches[0].ifIndex,
+        ifName: partialNameMatches[0].ifName,
+        ifDescr: partialNameMatches[0].ifDescr,
+        matchType: "partial_name",
+      };
+    }
+    
+    // 4. Try partial match on ifDescr
+    if (searchDescr) {
+      const partialDescrMatches = interfaces.filter(
+        (iface) => iface.ifDescr.toLowerCase().includes(searchDescr.toLowerCase()) ||
+                   searchDescr.toLowerCase().includes(iface.ifDescr.toLowerCase())
+      );
+      if (partialDescrMatches.length === 1) {
+        console.log(`[SNMP Interface Search] Partial ifDescr match found: ifIndex ${partialDescrMatches[0].ifIndex}`);
+        return {
+          found: true,
+          ifIndex: partialDescrMatches[0].ifIndex,
+          ifName: partialDescrMatches[0].ifName,
+          ifDescr: partialDescrMatches[0].ifDescr,
+          matchType: "partial_descr",
+        };
+      }
+    }
+    
+    // 5. No unique match found - return candidates for manual selection
+    const candidates = partialNameMatches.length > 0 ? partialNameMatches : interfaces.slice(0, 10);
+    console.log(`[SNMP Interface Search] No unique match found, returning ${candidates.length} candidates`);
+    
+    return {
+      found: false,
+      ifIndex: null,
+      ifName: null,
+      ifDescr: null,
+      matchType: "not_found",
+      candidates,
+    };
+  } catch (error) {
+    console.error(`[SNMP Interface Search] Error searching for interface on ${targetIp}:`, error);
+    return { found: false, ifIndex: null, ifName: null, ifDescr: null, matchType: "not_found" };
+  }
+}
+
+export async function validateIfIndex(
+  targetIp: string,
+  profile: SnmpProfile,
+  ifIndex: number,
+  expectedIfName: string | null,
+  expectedIfDescr: string | null
+): Promise<{ valid: boolean; currentIfName: string | null; currentIfDescr: string | null }> {
+  try {
+    const session = createSession(targetIp, profile);
+    
+    const ifNameOid = `${IF_X_TABLE_OIDS.ifName}.${ifIndex}`;
+    const ifDescrOid = `${IF_TABLE_OIDS.ifDescr}.${ifIndex}`;
+    
+    return new Promise((resolve) => {
+      let completed = false;
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          try { session.close(); } catch {}
+          resolve({ valid: false, currentIfName: null, currentIfDescr: null });
+        }
+      }, profile.timeout + 2000);
+      
+      (session as any).get([ifNameOid, ifDescrOid], (error: any, varbinds: any[]) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timeoutId);
+          try { session.close(); } catch {}
+          
+          if (error || !varbinds || varbinds.length < 2) {
+            resolve({ valid: false, currentIfName: null, currentIfDescr: null });
+            return;
+          }
+          
+          let currentIfName: string | null = null;
+          let currentIfDescr: string | null = null;
+          
+          if (varbinds[0] && !isVarbindError(varbinds[0])) {
+            currentIfName = Buffer.isBuffer(varbinds[0].value) 
+              ? varbinds[0].value.toString("utf8") 
+              : String(varbinds[0].value);
+          }
+          
+          if (varbinds[1] && !isVarbindError(varbinds[1])) {
+            currentIfDescr = Buffer.isBuffer(varbinds[1].value) 
+              ? varbinds[1].value.toString("utf8") 
+              : String(varbinds[1].value);
+          }
+          
+          // Check if ifName or ifDescr matches expected values
+          const nameMatches = expectedIfName && currentIfName && 
+            currentIfName.toLowerCase() === expectedIfName.toLowerCase();
+          const descrMatches = expectedIfDescr && currentIfDescr && 
+            currentIfDescr.toLowerCase() === expectedIfDescr.toLowerCase();
+          
+          const valid = !!(nameMatches || descrMatches);
+          
+          resolve({ valid, currentIfName, currentIfDescr });
+        }
+      });
+    });
+  } catch (error) {
+    console.error(`[SNMP Validate] Error validating ifIndex ${ifIndex} on ${targetIp}:`, error);
+    return { valid: false, currentIfName: null, currentIfDescr: null };
+  }
+}
+
+function isVarbindError(varbind: any): boolean {
+  if (!varbind) return true;
+  return (snmp as any).isVarbindError(varbind);
+}
