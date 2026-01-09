@@ -751,6 +751,40 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             <p className="text-xs text-muted-foreground">Formato: gpon-olt_slot/port/pon:onu</p>
           </div>
         </div>
+        <div className="grid grid-cols-3 gap-4 mt-4">
+          <div className="space-y-2">
+            <Label htmlFor="slotOlt">Slot OLT</Label>
+            <Input
+              id="slotOlt"
+              type="number"
+              value={formData.slotOlt ?? ""}
+              onChange={(e) => setFormData({ ...formData, slotOlt: e.target.value ? parseInt(e.target.value, 10) : null })}
+              placeholder="Ex: 1"
+              data-testid="input-slot-olt"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="portOlt">Porta OLT</Label>
+            <Input
+              id="portOlt"
+              type="number"
+              value={formData.portOlt ?? ""}
+              onChange={(e) => setFormData({ ...formData, portOlt: e.target.value ? parseInt(e.target.value, 10) : null })}
+              placeholder="Ex: 3"
+              data-testid="input-port-olt"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="equipmentSerialNumber">Serial da ONU</Label>
+            <Input
+              id="equipmentSerialNumber"
+              value={formData.equipmentSerialNumber}
+              onChange={(e) => setFormData({ ...formData, equipmentSerialNumber: e.target.value })}
+              placeholder="Ex: ZTEG12345678"
+              data-testid="input-equipment-serial"
+            />
+          </div>
+        </div>
         {!filteredOlts?.length && formData.oltId === null && (
           <p className="text-sm text-muted-foreground mt-2">
             Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
