@@ -1,0 +1,102 @@
+2026-01-08 19:27:08.3sudo tail -50 /var/log/postgresql/postgresql-15-main.logroot@link-monitor:~# sudo tail -50 /var/log/postgresql/postgresql-15-main.log
+2026-01-08 18:02:13.161 -03 [583] LOG:  checkpoint complete: wrote 52 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.148 s, sync=0.038 s, total=5.327 s; sync files=6, longest=0.012 s, average=0.007 s; distance=255 kB, estimate=255 kB
+2026-01-08 18:07:07.162 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:07:26.114 -03 [583] LOG:  checkpoint complete: wrote 186 buffers (1.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=18.620 s, sync=0.058 s, total=18.953 s; sync files=9, longest=0.027 s, average=0.007 s; distance=326 kB, estimate=326 kB
+2026-01-08 18:12:07.126 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:12:12.225 -03 [583] LOG:  checkpoint complete: wrote 50 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.939 s, sync=0.042 s, total=5.100 s; sync files=6, longest=0.033 s, average=0.007 s; distance=203 kB, estimate=314 kB
+2026-01-08 18:17:07.326 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:17:13.110 -03 [583] LOG:  checkpoint complete: wrote 56 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.571 s, sync=0.048 s, total=5.785 s; sync files=6, longest=0.030 s, average=0.008 s; distance=220 kB, estimate=305 kB
+2026-01-08 18:22:07.194 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:22:13.214 -03 [583] LOG:  checkpoint complete: wrote 56 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.546 s, sync=0.119 s, total=6.021 s; sync files=6, longest=0.118 s, average=0.020 s; distance=220 kB, estimate=296 kB
+2026-01-08 18:27:07.315 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:27:50.416 -03 [583] LOG:  checkpoint complete: wrote 428 buffers (2.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=42.918 s, sync=0.049 s, total=43.101 s; sync files=10, longest=0.031 s, average=0.005 s; distance=244 kB, estimate=291 kB
+2026-01-08 18:32:07.516 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:32:13.357 -03 [583] LOG:  checkpoint complete: wrote 57 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.658 s, sync=0.042 s, total=5.841 s; sync files=8, longest=0.040 s, average=0.006 s; distance=224 kB, estimate=284 kB
+2026-01-08 18:37:07.410 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:37:12.641 -03 [583] LOG:  checkpoint complete: wrote 51 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.046 s, sync=0.043 s, total=5.232 s; sync files=7, longest=0.042 s, average=0.007 s; distance=208 kB, estimate=277 kB
+2026-01-08 18:42:07.742 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:42:13.270 -03 [583] LOG:  checkpoint complete: wrote 54 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.364 s, sync=0.042 s, total=5.529 s; sync files=7, longest=0.033 s, average=0.006 s; distance=215 kB, estimate=270 kB
+2026-01-08 18:47:07.370 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:47:13.172 -03 [583] LOG:  checkpoint complete: wrote 57 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.639 s, sync=0.040 s, total=5.803 s; sync files=7, longest=0.031 s, average=0.006 s; distance=223 kB, estimate=266 kB
+2026-01-08 18:52:07.258 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:52:31.758 -03 [583] LOG:  checkpoint complete: wrote 243 buffers (1.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=24.347 s, sync=0.043 s, total=24.500 s; sync files=15, longest=0.023 s, average=0.003 s; distance=232 kB, estimate=262 kB
+2026-01-08 18:57:07.802 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 18:57:13.741 -03 [583] LOG:  checkpoint complete: wrote 54 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.399 s, sync=0.092 s, total=5.939 s; sync files=7, longest=0.090 s, average=0.013 s; distance=217 kB, estimate=258 kB
+2026-01-08 19:02:07.834 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:02:14.436 -03 [583] LOG:  checkpoint complete: wrote 61 buffers (0.4%); 0 WAL file(s) added, 0 removed, 0 recycled; write=6.137 s, sync=0.050 s, total=6.602 s; sync files=16, longest=0.026 s, average=0.004 s; distance=225 kB, estimate=254 kB
+2026-01-08 19:07:07.536 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:07:22.011 -03 [583] LOG:  checkpoint complete: wrote 143 buffers (0.9%); 0 WAL file(s) added, 0 removed, 0 recycled; write=14.267 s, sync=0.058 s, total=14.476 s; sync files=10, longest=0.035 s, average=0.006 s; distance=219 kB, estimate=251 kB
+2026-01-08 19:12:07.112 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:12:12.503 -03 [583] LOG:  checkpoint complete: wrote 53 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=5.239 s, sync=0.050 s, total=5.392 s; sync files=7, longest=0.030 s, average=0.008 s; distance=209 kB, estimate=247 kB
+2026-01-08 19:17:07.604 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:17:19.269 -03 [583] LOG:  checkpoint complete: wrote 115 buffers (0.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=11.486 s, sync=0.047 s, total=11.666 s; sync files=14, longest=0.038 s, average=0.004 s; distance=396 kB, estimate=396 kB
+2026-01-08 19:22:07.370 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:22:15.450 -03 [583] LOG:  checkpoint complete: wrote 80 buffers (0.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=7.897 s, sync=0.035 s, total=8.081 s; sync files=11, longest=0.026 s, average=0.004 s; distance=271 kB, estimate=383 kB
+2026-01-08 19:27:07.482 -03 [583] LOG:  checkpoint starting: time
+2026-01-08 19:27:07.511 -03 [583] PANIC:  could not write to file "pg_logical/replorigin_checkpoint.tmp": Não há espaço disponível no dispositivo
+2026-01-08 19:27:07.514 -03 [557] LOG:  checkpointer process (PID 583) was terminated by signal 6: Abortado
+2026-01-08 19:27:07.514 -03 [557] LOG:  terminating any other active server processes
+2026-01-08 19:27:07.516 -03 [557] LOG:  all server processes terminated; reinitializing
+2026-01-08 19:27:07.608 -03 [99482] LOG:  database system was interrupted; last known up at 2026-01-08 19:22:15 -03
+2026-01-08 19:27:07.866 -03 [99482] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-01-08 19:27:07.891 -03 [99482] LOG:  redo starts at 0/F7AF4C8
+2026-01-08 19:27:07.907 -03 [99482] LOG:  invalid record length at 0/F7E7E98: wanted 24, got 0
+2026-01-08 19:27:07.907 -03 [99482] LOG:  redo done at 0/F7E7E60 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s
+2026-01-08 19:27:07.945 -03 [99483] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-01-08 19:27:07.970 -03 [99483] PANIC:  could not write to file "pg_logical/replorigin_checkpoint.tmp": Não há espaço disponível no dispositivo
+2026-01-08 19:27:07.971 -03 [557] LOG:  checkpointer process (PID 99483) was terminated by signal 6: Abortado
+2026-01-08 19:27:07.971 -03 [557] LOG:  terminating any other active server processes
+2026-01-08 19:27:07.973 -03 [557] LOG:  all server processes terminated; reinitializing
+2026-01-08 19:27:08.040 -03 [99485] LOG:  database system shutdown was interrupted; last known up at 2026-01-08 19:27:07 -03
+2026-01-08 19:27:08.3sudo journalctl -xeu postgresql@15-main.service --no-pager | tail -50itor:~# sudo journalctl -xeu postgresql@15-main.service --no-pager | tail -50
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ A unidade postgresql@15-main.service falhou.
+░░ 
+░░ O resultado é failed.
+jan 08 21:08:02 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+░░ Subject: Unidade postgresql@15-main.service sendo iniciado
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ A unidade postgresql@15-main.service está sendo iniciada.
+jan 08 21:08:02 link-monitor postgresql@15-main[872]: Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1:
+jan 08 21:08:02 link-monitor systemd[1]: postgresql@15-main.service: Can't open PID file /run/postgresql/15-main.pid (yet?) after start: No such file or directory
+jan 08 21:08:02 link-monitor systemd[1]: postgresql@15-main.service: Failed with result 'protocol'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ The unit postgresql@15-main.service has entered the 'failed' state with result 'protocol'.
+jan 08 21:08:02 link-monitor systemd[1]: Failed to start postgresql@15-main.service - PostgreSQL Cluster 15-main.
+░░ Subject: A unidade postgresql@15-main.service falhou
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ A unidade postgresql@15-main.service falhou.
+░░ 
+░░ O resultado é failed.
+jan 08 21:10:36 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+░░ Subject: Unidade postgresql@15-main.service sendo iniciado
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ A unidade postgresql@15-main.service está sendo iniciada.
+jan 08 21:10:36 link-monitor postgresql@15-main[1251]: Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1:
+jan 08 21:10:36 link-monitor systemd[1]: postgresql@15-main.service: Can't open PID file /run/postgresql/15-main.pid (yet?) after start: No such file or directory
+jan 08 21:10:36 link-monitor systemd[1]: postgresql@15-main.service: Failed with result 'protocol'.
+░░ Subject: Unit failed
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ The unit postgresql@15-main.service has entered the 'failed' state with result 'protocol'.
+jan 08 21:10:36 link-monitor systemd[1]: Failed to start postgresql@15-main.service - PostgreSQL Cluster 15-main.
+░░ Subject: A unidade postgresql@15-main.service falhou
+░░ Defined-By: systemd
+░░ Support: https://www.debian.org/support
+░░ 
+░░ A unidade postgresql@15-main.service falhou.
+░░ 
+░░ O resultado é failed.
+root@link-monitor:~# 
