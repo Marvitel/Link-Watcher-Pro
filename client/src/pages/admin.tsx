@@ -142,7 +142,25 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const filteredOlts = olts?.filter(olt => olt.isActive);
 
   // Buscar etiquetas de contrato do Voalle para o cliente selecionado
-  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string; contractNumber?: string; ip?: string; bandwidth?: number; address?: string; location?: string }>; cnpj?: string; error?: string }>({
+  interface VoalleTag {
+    id: number;
+    serviceTag?: string;
+    description?: string;
+    contractNumber?: string;
+    ip?: string;
+    bandwidth?: number;
+    address?: string;
+    location?: string;
+    concentratorId?: number;
+    concentratorTitle?: string;
+    oltId?: number;
+    oltTitle?: string;
+    slotOlt?: number;
+    portOlt?: number;
+    equipmentSerialNumber?: string;
+  }
+  
+  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: VoalleTag[]; cnpj?: string; error?: string }>({
     queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
     enabled: !!formData.clientId,
     staleTime: 0,
@@ -162,6 +180,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       return;
     }
 
+    // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
+    let matchedOltId: number | null = null;
+    if (tag.oltId && olts) {
+      const matchedOlt = olts.find(olt => olt.voalleId === tag.oltId);
+      if (matchedOlt) {
+        matchedOltId = matchedOlt.id;
+      }
+    }
+
     // Preencher automaticamente os campos disponíveis
     setFormData(prev => ({
       ...prev,
@@ -172,14 +199,23 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       bandwidth: tag.bandwidth || prev.bandwidth,
       address: prev.address || tag.address || "",
       location: prev.location || tag.location || "",
+      oltId: matchedOltId || prev.oltId,
+      slotOlt: tag.slotOlt ?? prev.slotOlt,
+      portOlt: tag.portOlt ?? prev.portOlt,
+      equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
     }));
 
-    if (tag.serviceTag || tag.description) {
-      toast({
-        title: "Dados preenchidos",
-        description: `Dados da etiqueta "${tag.serviceTag || tag.description}" aplicados`,
-      });
-    }
+    // Mensagem de feedback
+    const messages: string[] = [];
+    if (tag.serviceTag || tag.description) messages.push(`Etiqueta: ${tag.serviceTag || tag.description}`);
+    if (matchedOltId) messages.push(`OLT encontrada automaticamente`);
+    if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
+    if (tag.equipmentSerialNumber) messages.push(`Serial ONU: ${tag.equipmentSerialNumber}`);
+    
+    toast({
+      title: "Dados preenchidos",
+      description: messages.join(" | ") || "Dados da etiqueta aplicados",
+    });
   };
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({

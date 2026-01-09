@@ -625,7 +625,24 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }, 
     page: number = 1, 
     pageSize: number = 50
-  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean; contractNumber?: string; ip?: string; bandwidth?: number; address?: string; location?: string }>> {
+  ): Promise<Array<{ 
+    id: number; 
+    serviceTag?: string; 
+    description?: string; 
+    active?: boolean; 
+    contractNumber?: string; 
+    ip?: string; 
+    bandwidth?: number; 
+    address?: string; 
+    location?: string;
+    concentratorId?: number;
+    concentratorTitle?: string;
+    oltId?: number;
+    oltTitle?: string;
+    slotOlt?: number;
+    portOlt?: number;
+    equipmentSerialNumber?: string;
+  }>> {
     const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
     // Prefer Portal API if configured AND client has portal credentials
@@ -640,7 +657,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             id: number;
             active: boolean;
             serviceTagId: number;
+            slotOlt: number | null;
+            portOlt: number | null;
+            equipmentSerialNumber: string | null;
             ipAuthentication?: { id: number; ip: string } | null;
+            authenticationConcentrator?: { id: number; title: string } | null;
+            authenticationAccessPoint?: { id: number; title: string } | null;
             peopleAddress?: {
               streetType: string;
               street: string;
@@ -707,6 +729,13 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
               bandwidth: conn.serviceProduct?.title ? extractBandwidth(conn.serviceProduct.title) : undefined,
               address: fullAddress,
               location: location,
+              concentratorId: conn.authenticationConcentrator?.id,
+              concentratorTitle: conn.authenticationConcentrator?.title,
+              oltId: conn.authenticationAccessPoint?.id,
+              oltTitle: conn.authenticationAccessPoint?.title,
+              slotOlt: conn.slotOlt ?? undefined,
+              portOlt: conn.portOlt ?? undefined,
+              equipmentSerialNumber: conn.equipmentSerialNumber ?? undefined,
             };
           });
 
