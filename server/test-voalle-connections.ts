@@ -34,36 +34,11 @@ async function testVoalleConnections() {
     process.exit(1);
   }
   
-  let providerConfig: VoalleProviderConfig = {};
-  if (integration.providerConfig) {
-    try {
-      providerConfig = JSON.parse(integration.providerConfig);
-    } catch {
-      console.error("Erro ao parsear providerConfig");
-      process.exit(1);
-    }
-  }
-  
-  // Usar configuração do banco ou fallback para valores de teste
-  // O usuário mencionou synapi.local - precisamos da URL e tokens corretos
-  let { portalApiUrl, portalVerifyToken, portalClientId, portalClientSecret } = providerConfig;
-  
-  // Se Portal não configurado, mostrar instruções
-  if (!portalApiUrl || !portalVerifyToken || !portalClientId || !portalClientSecret) {
-    console.log("Portal API não configurada no banco de dados.");
-    console.log("Para testar, configure as seguintes variáveis no providerConfig:");
-    console.log("- portalApiUrl: URL base do Portal (ex: http://synapi.local ou https://portal.voalle.com.br)");
-    console.log("- portalVerifyToken: Token de verificação (Suíte > Configurações > Parâmetros > App Cliente)");
-    console.log("- portalClientId: Client ID do Portal");
-    console.log("- portalClientSecret: Client Secret do Portal");
-    console.log("\nConfig atual:", JSON.stringify(providerConfig, null, 2));
-    
-    // Tentar com URL synapi.local mencionada pelo usuário
-    console.log("\n=== Tentando teste direto com synapi.local ===");
-    console.log("NOTA: Este teste requer que synapi.local seja acessível da rede.");
-    console.log("Para configurar o Portal API, atualize a integração ERP no admin.\n");
-    process.exit(1);
-  }
+  // Credenciais do Portal API fornecidas pelo usuário
+  const portalApiUrl = "http://api.marvitel.com.br";
+  const portalVerifyToken = "TWpNMU9EYzVaakk1T0dSaU1USmxaalprWldFd00ySTFZV1JsTTJRMFptUT06V2tkS2JHSllRWGROUkUxNlRrRTlQUT09OlpUaGtNak0xWWprMFl6bGlORE5tWkRnM01EbGtNalkyWXpBeE1HTTNNR1U9";
+  const portalClientId = "9_25i5oho5vo80c4808oo44ksc448o8c0sso08g40g8o8400csss";
+  const portalClientSecret = "3u3j2i8op4w0kw4g0k8c4o0408cs0g4sw4c8g8s8gg4koo8c0w";
   
   console.log(`Portal URL: ${portalApiUrl}`);
   console.log(`Usuário de teste: ${testUser}\n`);
