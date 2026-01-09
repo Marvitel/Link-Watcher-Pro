@@ -52,7 +52,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
-import { Database, Globe, Plug } from "lucide-react";
+import { Database, Globe, Plug, Server } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 
 interface SnmpInterface {
@@ -100,6 +100,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const { data: olts } = useQuery<Olt[]>({
     queryKey: ["/api/olts"],
   });
+
+  const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleId: number | null; isActive: boolean }>>({
+    queryKey: ["/api/concentrators"],
+  });
+
+  // Concentradores ativos
+  const activeConcentrators = concentrators?.filter(c => c.isActive);
   
   const [formData, setFormData] = useState({
     clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
@@ -115,6 +122,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     icmpInterval: link?.icmpInterval || 30,
     snmpProfileId: link?.snmpProfileId || null,
     snmpRouterIp: link?.snmpRouterIp || "",
+    concentratorId: (link as any)?.concentratorId || null,
     snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
     snmpInterfaceName: link?.snmpInterfaceName || "",
     snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
@@ -137,6 +145,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
   });
+
+  // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador
+  const [snmpCollectionMode, setSnmpCollectionMode] = useState<'ip' | 'concentrator'>(
+    (link as any)?.concentratorId ? 'concentrator' : 'ip'
+  );
 
   // OLTs são globais, filtrar apenas por isActive
   const filteredOlts = olts?.filter(olt => olt.isActive);
@@ -183,9 +196,18 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
     let matchedOltId: number | null = null;
     if (tag.oltId && olts) {
-      const matchedOlt = olts.find(olt => olt.voalleId === tag.oltId);
+      const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
       if (matchedOlt) {
         matchedOltId = matchedOlt.id;
+      }
+    }
+
+    // Tentar match automático de Concentrador pelo voalleId (authenticationConcentrator)
+    let matchedConcentratorId: number | null = null;
+    if (tag.concentratorId && concentrators) {
+      const matchedConc = concentrators.find(c => c.voalleId === tag.concentratorId);
+      if (matchedConc) {
+        matchedConcentratorId = matchedConc.id;
       }
     }
 
@@ -200,15 +222,22 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       address: prev.address || tag.address || "",
       location: prev.location || tag.location || "",
       oltId: matchedOltId || prev.oltId,
+      concentratorId: matchedConcentratorId || prev.concentratorId,
       slotOlt: tag.slotOlt ?? prev.slotOlt,
       portOlt: tag.portOlt ?? prev.portOlt,
       equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
     }));
 
+    // Se encontrou concentrador, mudar modo para concentrador
+    if (matchedConcentratorId) {
+      setSnmpCollectionMode('concentrator');
+    }
+
     // Mensagem de feedback
     const messages: string[] = [];
     if (tag.serviceTag || tag.description) messages.push(`Etiqueta: ${tag.serviceTag || tag.description}`);
-    if (matchedOltId) messages.push(`OLT encontrada automaticamente`);
+    if (matchedOltId) messages.push(`OLT encontrada`);
+    if (matchedConcentratorId) messages.push(`Concentrador encontrado`);
     if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
     if (tag.equipmentSerialNumber) messages.push(`Serial ONU: ${tag.equipmentSerialNumber}`);
     
@@ -509,7 +538,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       
       <div className="border-t pt-4 mt-4">
         <h4 className="font-medium mb-3">Configuração SNMP para Tráfego</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="snmpProfileId">Perfil SNMP</Label>
             {filteredSnmpProfiles && filteredSnmpProfiles.length > 0 ? (
@@ -544,31 +573,97 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
-            <div className="flex gap-2">
-              <Input
-                id="snmpRouterIp"
-                value={formData.snmpRouterIp}
-                onChange={(e) => setFormData({ ...formData, snmpRouterIp: e.target.value })}
-                placeholder="192.168.1.1"
-                data-testid="input-snmp-router-ip"
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDiscoverInterfaces}
-                disabled={isDiscovering || !formData.snmpProfileId || !formData.snmpRouterIp}
-                data-testid="button-discover-interfaces"
-              >
-                {isDiscovering ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4" />
-                )}
-                <span className="ml-1">Descobrir</span>
-              </Button>
-            </div>
+            <Label>Origem dos Dados</Label>
+            <Select
+              value={snmpCollectionMode}
+              onValueChange={(v) => {
+                setSnmpCollectionMode(v as 'ip' | 'concentrator');
+                if (v === 'ip') {
+                  setFormData({ ...formData, concentratorId: null });
+                } else {
+                  setFormData({ ...formData, snmpRouterIp: "" });
+                }
+              }}
+            >
+              <SelectTrigger data-testid="select-snmp-collection-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ip">IP Manual</SelectItem>
+                <SelectItem value="concentrator">Concentrador</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            {snmpCollectionMode === 'ip' ? (
+              <>
+                <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="snmpRouterIp"
+                    value={formData.snmpRouterIp}
+                    onChange={(e) => setFormData({ ...formData, snmpRouterIp: e.target.value })}
+                    placeholder="192.168.1.1"
+                    data-testid="input-snmp-router-ip"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDiscoverInterfaces}
+                    disabled={isDiscovering || !formData.snmpProfileId || !formData.snmpRouterIp}
+                    data-testid="button-discover-interfaces"
+                  >
+                    {isDiscovering ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Label htmlFor="concentratorId">Concentrador</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.concentratorId?.toString() || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, concentratorId: v === "none" ? null : parseInt(v, 10) })}
+                  >
+                    <SelectTrigger data-testid="select-snmp-concentrator" className="flex-1">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {activeConcentrators?.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.name} ({c.ipAddress})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const selectedConc = activeConcentrators?.find(c => c.id === formData.concentratorId);
+                      if (selectedConc) {
+                        setFormData({ ...formData, snmpRouterIp: selectedConc.ipAddress });
+                        handleDiscoverInterfaces();
+                      }
+                    }}
+                    disabled={isDiscovering || !formData.snmpProfileId || !formData.concentratorId}
+                    data-testid="button-discover-interfaces-concentrator"
+                  >
+                    {isDiscovering ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
         
@@ -2538,6 +2633,10 @@ export default function Admin() {
             <Radio className="w-4 h-4" />
             OLTs
           </TabsTrigger>
+          <TabsTrigger value="concentrators" className="gap-2">
+            <Server className="w-4 h-4" />
+            Concentradores
+          </TabsTrigger>
           <TabsTrigger value="vendors" className="gap-2">
             <Cpu className="w-4 h-4" />
             Fabricantes
@@ -3005,6 +3104,10 @@ export default function Admin() {
 
         <TabsContent value="olts" className="space-y-4">
           <OltsTab clients={clients || []} />
+        </TabsContent>
+
+        <TabsContent value="concentrators" className="space-y-4">
+          <ConcentratorsTab />
         </TabsContent>
 
         <TabsContent value="vendors" className="space-y-4">
@@ -4701,6 +4804,316 @@ function OltsTab({ clients }: { clients: Client[] }) {
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 Nenhuma OLT cadastrada. Clique em "Adicionar OLT" para comecar.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SnmpConcentrator {
+  id: number;
+  voalleId: number | null;
+  name: string;
+  ipAddress: string;
+  snmpProfileId: number | null;
+  equipmentVendorId: number | null;
+  model: string | null;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function ConcentratorsTab() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingConcentrator, setEditingConcentrator] = useState<SnmpConcentrator | undefined>(undefined);
+
+  const { data: concentratorsList, isLoading } = useQuery<SnmpConcentrator[]>({
+    queryKey: ["/api/concentrators"],
+  });
+
+  const { data: snmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number | null }>>({
+    queryKey: ["/api/snmp-profiles"],
+  });
+
+  const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/equipment-vendors"],
+  });
+
+  const [formData, setFormData] = useState({
+    name: "",
+    ipAddress: "",
+    snmpProfileId: null as number | null,
+    equipmentVendorId: null as number | null,
+    model: "",
+    description: "",
+    isActive: true,
+    voalleId: null as number | null,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      ipAddress: "",
+      snmpProfileId: null,
+      equipmentVendorId: null,
+      model: "",
+      description: "",
+      isActive: true,
+      voalleId: null,
+    });
+    setEditingConcentrator(undefined);
+  };
+
+  const handleEdit = (concentrator: SnmpConcentrator) => {
+    setEditingConcentrator(concentrator);
+    setFormData({
+      name: concentrator.name,
+      ipAddress: concentrator.ipAddress,
+      snmpProfileId: concentrator.snmpProfileId,
+      equipmentVendorId: concentrator.equipmentVendorId,
+      model: concentrator.model || "",
+      description: concentrator.description || "",
+      isActive: concentrator.isActive,
+      voalleId: concentrator.voalleId,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingConcentrator) {
+        await apiRequest("PATCH", `/api/concentrators/${editingConcentrator.id}`, formData);
+        toast({ title: "Concentrador atualizado com sucesso" });
+      } else {
+        await apiRequest("POST", "/api/concentrators", formData);
+        toast({ title: "Concentrador criado com sucesso" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast({ title: "Erro ao salvar concentrador", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza que deseja excluir este concentrador?")) return;
+    try {
+      await apiRequest("DELETE", `/api/concentrators/${id}`);
+      toast({ title: "Concentrador excluido com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
+    } catch (error) {
+      toast({ title: "Erro ao excluir concentrador", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-medium">Concentradores Cadastrados</h2>
+          <p className="text-sm text-muted-foreground">
+            Gerencie os concentradores/roteadores para coleta SNMP de trafego
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-concentrator">
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Concentrador
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingConcentrator ? "Editar Concentrador" : "Novo Concentrador"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="concentrator-name">Nome</Label>
+                <Input
+                  id="concentrator-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: CE: AJU-MVT-BORDA-HSP"
+                  data-testid="input-concentrator-name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-ip">Endereco IP</Label>
+                  <Input
+                    id="concentrator-ip"
+                    value={formData.ipAddress}
+                    onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                    placeholder="192.168.1.1"
+                    data-testid="input-concentrator-ip"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-model">Modelo</Label>
+                  <Input
+                    id="concentrator-model"
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    placeholder="Ex: NE40E, ASR1002"
+                    data-testid="input-concentrator-model"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-snmp-profile">Perfil SNMP</Label>
+                  <Select
+                    value={formData.snmpProfileId?.toString() || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v === "none" ? null : parseInt(v, 10) })}
+                  >
+                    <SelectTrigger data-testid="select-concentrator-snmp-profile">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {snmpProfiles?.filter(p => !p.clientId).map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id.toString()}>
+                          {profile.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-vendor">Fabricante</Label>
+                  <Select
+                    value={formData.equipmentVendorId?.toString() || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, equipmentVendorId: v === "none" ? null : parseInt(v, 10) })}
+                  >
+                    <SelectTrigger data-testid="select-concentrator-vendor">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {equipmentVendors?.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="concentrator-description">Descricao</Label>
+                <Input
+                  id="concentrator-description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descricao opcional"
+                  data-testid="input-concentrator-description"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="concentrator-voalle-id">ID Voalle (Concentrator)</Label>
+                <Input
+                  id="concentrator-voalle-id"
+                  type="number"
+                  value={formData.voalleId ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
+                  placeholder="Ex: 456"
+                  data-testid="input-concentrator-voalle-id"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID do authenticationConcentrator no Voalle para associacao automatica
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="concentrator-active">Ativo</Label>
+                <Switch
+                  id="concentrator-active"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                  data-testid="switch-concentrator-active"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} data-testid="button-save-concentrator">
+                {editingConcentrator ? "Salvar" : "Criar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {concentratorsList?.map((concentrator) => (
+            <Card key={concentrator.id}>
+              <CardContent className="pt-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <div className="font-medium flex items-center gap-2">
+                      <Server className="w-4 h-4" />
+                      {concentrator.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      IP: {concentrator.ipAddress}
+                    </div>
+                    {concentrator.model && (
+                      <div className="text-sm text-muted-foreground">
+                        Modelo: {concentrator.model}
+                      </div>
+                    )}
+                    {concentrator.voalleId && (
+                      <Badge variant="outline" className="text-xs">
+                        Voalle ID: {concentrator.voalleId}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={concentrator.isActive ? "default" : "secondary"}>
+                      {concentrator.isActive ? "Ativo" : "Inativo"}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(concentrator)}
+                      data-testid={`button-edit-concentrator-${concentrator.id}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(concentrator.id)}
+                      data-testid={`button-delete-concentrator-${concentrator.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {(!concentratorsList || concentratorsList.length === 0) && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Nenhum concentrador cadastrado. Clique em "Adicionar Concentrador" para comecar.
               </CardContent>
             </Card>
           )}

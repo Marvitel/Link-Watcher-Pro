@@ -21,6 +21,7 @@ import {
   clientEventSettings,
   equipmentVendors,
   olts,
+  snmpConcentrators,
   erpIntegrations,
   clientErpMappings,
   type Client,
@@ -43,6 +44,7 @@ import {
   type ClientEventSetting,
   type EquipmentVendor,
   type Olt,
+  type SnmpConcentrator,
   type ErpIntegration,
   type ClientErpMapping,
   type InsertClient,
@@ -58,6 +60,7 @@ import {
   type InsertEventType,
   type InsertClientEventSetting,
   type InsertOlt,
+  type InsertSnmpConcentrator,
   type InsertErpIntegration,
   type InsertClientErpMapping,
   type InsertEquipmentVendor,
@@ -1478,6 +1481,31 @@ export class DatabaseStorage {
 
   async deleteOlt(id: number): Promise<void> {
     await db.delete(olts).where(eq(olts.id, id));
+  }
+
+  // ============ SNMP Concentrators ============
+  
+  async getConcentrators(): Promise<SnmpConcentrator[]> {
+    return db.select().from(snmpConcentrators).orderBy(snmpConcentrators.name);
+  }
+
+  async getConcentrator(id: number): Promise<SnmpConcentrator | undefined> {
+    const result = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, id));
+    return result[0];
+  }
+
+  async createConcentrator(data: InsertSnmpConcentrator): Promise<SnmpConcentrator> {
+    const result = await db.insert(snmpConcentrators).values(data).returning();
+    return result[0];
+  }
+
+  async updateConcentrator(id: number, data: Partial<InsertSnmpConcentrator>): Promise<SnmpConcentrator | undefined> {
+    const result = await db.update(snmpConcentrators).set({ ...data, updatedAt: new Date() }).where(eq(snmpConcentrators.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteConcentrator(id: number): Promise<void> {
+    await db.delete(snmpConcentrators).where(eq(snmpConcentrators.id, id));
   }
 
   // ============ ERP Integrations ============

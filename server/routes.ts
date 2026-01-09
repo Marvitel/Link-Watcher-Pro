@@ -20,6 +20,7 @@ import {
   insertMibConfigSchema,
   insertClientEventSettingSchema,
   insertOltSchema,
+  insertSnmpConcentratorSchema,
   insertErpIntegrationSchema,
   insertClientErpMappingSchema,
   type AuthUser,
@@ -2058,6 +2059,63 @@ export async function registerRoutes(
       res.json(diagnosis);
     } catch (error) {
       res.status(500).json({ error: "Falha ao consultar alarme" });
+    }
+  });
+
+  // ============ SNMP Concentrators Routes ============
+
+  app.get("/api/concentrators", requireAuth, async (req, res) => {
+    try {
+      const concentrators = await storage.getConcentrators();
+      res.json(concentrators);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar concentradores" });
+    }
+  });
+
+  app.get("/api/concentrators/:id", requireAuth, async (req, res) => {
+    try {
+      const concentrator = await storage.getConcentrator(parseInt(req.params.id, 10));
+      if (!concentrator) {
+        return res.status(404).json({ error: "Concentrador não encontrado" });
+      }
+      res.json(concentrator);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar concentrador" });
+    }
+  });
+
+  app.post("/api/concentrators", requireSuperAdmin, async (req, res) => {
+    try {
+      const data = insertSnmpConcentratorSchema.parse(req.body);
+      const concentrator = await storage.createConcentrator(data);
+      res.status(201).json(concentrator);
+    } catch (error) {
+      console.error("Error creating concentrator:", error);
+      res.status(400).json({ error: "Dados de concentrador inválidos" });
+    }
+  });
+
+  app.patch("/api/concentrators/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const concentrator = await storage.updateConcentrator(id, req.body);
+      if (!concentrator) {
+        return res.status(404).json({ error: "Concentrador não encontrado" });
+      }
+      res.json(concentrator);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar concentrador" });
+    }
+  });
+
+  app.delete("/api/concentrators/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteConcentrator(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir concentrador" });
     }
   });
 
