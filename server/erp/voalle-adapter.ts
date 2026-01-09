@@ -625,7 +625,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }, 
     page: number = 1, 
     pageSize: number = 50
-  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean; contractNumber?: string }>> {
+  ): Promise<Array<{ id: number; serviceTag?: string; description?: string; active?: boolean; contractNumber?: string; ip?: string; bandwidth?: number; address?: string; location?: string }>> {
     const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
     // Prefer Portal API if configured AND client has portal credentials
@@ -640,6 +640,15 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             id: number;
             active: boolean;
             serviceTagId: number;
+            ipAuthentication?: { id: number; ip: string } | null;
+            peopleAddress?: {
+              streetType: string;
+              street: string;
+              number: string;
+              neighborhood: string;
+              city: string;
+              state: string;
+            } | null;
             contract?: {
               id: number;
               contract_number: string;
@@ -666,16 +675,40 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           return [];
         }
 
+        // Função para extrair velocidade do título do produto (ex: "300 MEGA" -> 300)
+        const extractBandwidth = (title: string): number | undefined => {
+          const match = title.match(/(\d+)\s*(MEGA|MB|MBPS|GB|GBPS)/i);
+          if (match) {
+            const value = parseInt(match[1], 10);
+            const unit = match[2].toUpperCase();
+            if (unit.includes('GB')) return value * 1000;
+            return value;
+          }
+          return undefined;
+        };
+
         // Map connections to tags format, filtering only active ones with contractServiceTag
         const tags = result.data
           .filter(conn => conn.active === true && conn.contractServiceTag)
-          .map((conn) => ({
-            id: conn.contractServiceTag!.id,
-            serviceTag: conn.contractServiceTag!.serviceTag,
-            description: conn.contractServiceTag!.description || conn.serviceProduct?.title,
-            active: conn.active,
-            contractNumber: conn.contract?.contract_number,
-          }));
+          .map((conn) => {
+            const addr = conn.peopleAddress;
+            const fullAddress = addr 
+              ? `${addr.streetType} ${addr.street}, ${addr.number} - ${addr.neighborhood}, ${addr.city}/${addr.state}`
+              : undefined;
+            const location = addr ? `${addr.city}/${addr.state}` : undefined;
+            
+            return {
+              id: conn.contractServiceTag!.id,
+              serviceTag: conn.contractServiceTag!.serviceTag,
+              description: conn.contractServiceTag!.description || conn.serviceProduct?.title,
+              active: conn.active,
+              contractNumber: conn.contract?.contract_number,
+              ip: conn.ipAuthentication?.ip,
+              bandwidth: conn.serviceProduct?.title ? extractBandwidth(conn.serviceProduct.title) : undefined,
+              address: fullAddress,
+              location: location,
+            };
+          });
 
         // Remove duplicates (same serviceTag can appear in multiple connections)
         const uniqueTags = tags.filter((tag, index, self) => 

@@ -142,12 +142,45 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const filteredOlts = olts?.filter(olt => olt.isActive);
 
   // Buscar etiquetas de contrato do Voalle para o cliente selecionado
-  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string; contractNumber?: string }>; cnpj?: string; error?: string }>({
+  const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: Array<{ id: number; serviceTag?: string; description?: string; contractNumber?: string; ip?: string; bandwidth?: number; address?: string; location?: string }>; cnpj?: string; error?: string }>({
     queryKey: ["/api/clients", formData.clientId, "voalle", "contract-tags"],
     enabled: !!formData.clientId,
     staleTime: 0,
     retry: false,
   });
+
+  // Função para preencher dados quando uma etiqueta for selecionada
+  const handleSelectContractTag = (tagId: string) => {
+    if (tagId === "none") {
+      setFormData(prev => ({ ...prev, voalleContractTagId: null }));
+      return;
+    }
+    
+    const tag = voalleContractTags?.tags?.find(t => t.id.toString() === tagId);
+    if (!tag) {
+      setFormData(prev => ({ ...prev, voalleContractTagId: parseInt(tagId, 10) }));
+      return;
+    }
+
+    // Preencher automaticamente os campos disponíveis
+    setFormData(prev => ({
+      ...prev,
+      voalleContractTagId: tag.id,
+      name: prev.name || tag.serviceTag || tag.description || "",
+      identifier: prev.identifier || tag.serviceTag || "",
+      monitoredIp: prev.monitoredIp || tag.ip || "",
+      bandwidth: tag.bandwidth || prev.bandwidth,
+      address: prev.address || tag.address || "",
+      location: prev.location || tag.location || "",
+    }));
+
+    if (tag.serviceTag || tag.description) {
+      toast({
+        title: "Dados preenchidos",
+        description: `Dados da etiqueta "${tag.serviceTag || tag.description}" aplicados`,
+      });
+    }
+  };
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
@@ -320,7 +353,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
           <Select
             value={formData.voalleContractTagId?.toString() || "none"}
-            onValueChange={(value) => setFormData({ ...formData, voalleContractTagId: value === "none" ? null : parseInt(value, 10) })}
+            onValueChange={handleSelectContractTag}
           >
             <SelectTrigger data-testid="select-voalle-contract-tag-top">
               <SelectValue placeholder="Selecione uma etiqueta (opcional)" />
