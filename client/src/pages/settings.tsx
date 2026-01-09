@@ -432,50 +432,102 @@ export default function Settings() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <KeyRound className="w-5 h-5" />
-            Credenciais do Portal
+            Credenciais do Portal Voalle
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Caso tenha esquecido sua senha do portal, você pode solicitar uma nova senha por email.
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Suas credenciais do Portal API para acesso a etiquetas de contrato e outros serviços.
           </p>
-          <Button
-            variant="outline"
-            disabled={isRecoveringPassword || !client?.cnpj}
-            onClick={async () => {
-              if (!client?.cnpj) {
-                toast({
-                  title: "CNPJ não cadastrado",
-                  description: "Entre em contato com a Marvitel para atualizar seu cadastro.",
-                  variant: "destructive",
-                });
-                return;
-              }
-              setIsRecoveringPassword(true);
-              const result = await recoverPasswordVoalle(client.cnpj);
-              setIsRecoveringPassword(false);
-              if (result.success) {
-                toast({
-                  title: "Email enviado",
-                  description: result.message || "Verifique sua caixa de entrada.",
-                });
-              } else {
-                toast({
-                  title: "Erro ao recuperar senha",
-                  description: result.error,
-                  variant: "destructive",
-                });
-              }
-            }}
-            data-testid="button-recover-portal-password"
-          >
-            {isRecoveringPassword ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <KeyRound className="w-4 h-4 mr-2" />
-            )}
-            Recuperar Senha do Portal
-          </Button>
+          
+          <div className="space-y-2">
+            <Label>Usuário Portal Voalle</Label>
+            <Input
+              value={client?.voallePortalUsername || client?.cnpj || ""}
+              disabled
+              className="bg-muted"
+              data-testid="input-portal-username"
+            />
+            <p className="text-xs text-muted-foreground">
+              CPF/CNPJ usado para autenticação no Portal
+            </p>
+          </div>
+
+          {client?.portalCredentialsStatus && client.portalCredentialsStatus !== "unconfigured" && (
+            <div className="space-y-1">
+              {client.portalCredentialsStatus === "valid" ? (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                  <Shield className="w-4 h-4" />
+                  <span>Credenciais válidas</span>
+                </div>
+              ) : client.portalCredentialsStatus === "invalid" ? (
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                  <Shield className="w-4 h-4" />
+                  <span>Credenciais inválidas</span>
+                </div>
+              ) : client.portalCredentialsStatus === "error" ? (
+                <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                  <Shield className="w-4 h-4" />
+                  <span>Erro na verificação</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Shield className="w-4 h-4" />
+                  <span>Não verificado</span>
+                </div>
+              )}
+              {client.portalCredentialsLastCheck && (
+                <p className="text-xs text-muted-foreground">
+                  Última verificação: {new Date(client.portalCredentialsLastCheck).toLocaleString("pt-BR")}
+                </p>
+              )}
+            </div>
+          )}
+
+          <Separator />
+          
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Caso tenha esquecido sua senha do portal, você pode solicitar uma nova senha por email.
+            </p>
+            <Button
+              variant="outline"
+              disabled={isRecoveringPassword || !client?.cnpj}
+              onClick={async () => {
+                if (!client?.cnpj) {
+                  toast({
+                    title: "CNPJ não cadastrado",
+                    description: "Entre em contato com a Marvitel para atualizar seu cadastro.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setIsRecoveringPassword(true);
+                const result = await recoverPasswordVoalle(client.cnpj);
+                setIsRecoveringPassword(false);
+                if (result.success) {
+                  toast({
+                    title: "Email enviado",
+                    description: result.message || "Verifique sua caixa de entrada.",
+                  });
+                } else {
+                  toast({
+                    title: "Erro ao recuperar senha",
+                    description: result.error,
+                    variant: "destructive",
+                  });
+                }
+              }}
+              data-testid="button-recover-portal-password"
+            >
+              {isRecoveringPassword ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <KeyRound className="w-4 h-4 mr-2" />
+              )}
+              Recuperar Senha do Portal
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
