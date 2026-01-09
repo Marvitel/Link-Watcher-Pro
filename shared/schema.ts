@@ -152,7 +152,7 @@ export const hosts = pgTable("hosts", {
 
 export const snmpProfiles = pgTable("snmp_profiles", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").notNull(),
+  clientId: integer("client_id"), // Nullable para perfis globais (concentradores)
   name: text("name").notNull(),
   version: varchar("version", { length: 10 }).notNull().default("v2c"),
   port: integer("port").notNull().default(161),

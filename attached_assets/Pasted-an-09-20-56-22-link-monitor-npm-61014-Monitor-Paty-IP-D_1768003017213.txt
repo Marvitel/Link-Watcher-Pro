@@ -1,0 +1,88 @@
+an 09 20:56:22 link-monitor npm[61014]: [Monitor] Paty - IP Dedicado 50M - Resultado CPU/Mem: cpu=16, mem=14.17236328125
+jan 09 20:56:22 link-monitor npm[61014]: [Monitor] Paty - IP Dedicado 50M: lat=0.0ms, loss=100.0%, status=offline
+jan 09 20:56:22 link-monitor npm[61014]: [Monitor] Collection complete: 7 ok, 0 failed, 6167ms elapsed
+jan 09 20:56:24 link-monitor npm[61014]: Error creating global SNMP profile: t [ZodError]: [
+jan 09 20:56:24 link-monitor npm[61014]:   {
+jan 09 20:56:24 link-monitor npm[61014]:     "code": "invalid_type",
+jan 09 20:56:24 link-monitor npm[61014]:     "expected": "number",
+jan 09 20:56:24 link-monitor npm[61014]:     "received": "null",
+jan 09 20:56:24 link-monitor npm[61014]:     "path": [
+jan 09 20:56:24 link-monitor npm[61014]:       "clientId"
+jan 09 20:56:24 link-monitor npm[61014]:     ],
+jan 09 20:56:24 link-monitor npm[61014]:     "message": "Expected number, received null"
+jan 09 20:56:24 link-monitor npm[61014]:   }
+jan 09 20:56:24 link-monitor npm[61014]: ]
+jan 09 20:56:24 link-monitor npm[61014]:     at get error [as error] (/opt/link-monitor/dist/index.cjs:91:49461)
+jan 09 20:56:24 link-monitor npm[61014]:     at t.parse (/opt/link-monitor/dist/index.cjs:91:50174)
+jan 09 20:56:24 link-monitor npm[61014]:     at /opt/link-monitor/dist/index.cjs:283:46429
+jan 09 20:56:24 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+jan 09 20:56:24 link-monitor npm[61014]:     at l (/opt/link-monitor/dist/index.cjs:38:5250)
+jan 09 20:56:24 link-monitor npm[61014]:     at Ce (/opt/link-monitor/dist/index.cjs:283:13254)
+jan 09 20:56:24 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+jan 09 20:56:24 link-monitor npm[61014]:     at l (/opt/link-monitor/dist/index.cjs:38:5250)
+jan 09 20:56:24 link-monitor npm[61014]:     at ga.dispatch (/opt/link-monitor/dist/index.cjs:38:5049)
+jan 09 20:56:24 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170) {
+jan 09 20:56:24 link-monitor npm[61014]:   issues: [
+jan 09 20:56:24 link-monitor npm[61014]:     {
+jan 09 20:56:24 link-monitor npm[61014]:       code: 'invalid_type',
+jan 09 20:56:24 link-monitor npm[61014]:       expected: 'number',
+jan 09 20:56:24 link-monitor npm[61014]:       received: 'null',
+jan 09 20:56:24 link-monitor npm[61014]:       path: [Array],
+jan 09 20:56:24 link-monitor npm[61014]:       message: 'Expected number, received null'
+jan 09 20:56:24 link-monitor npm[61014]:     }
+jan 09 20:56:24 link-monitor npm[61014]:   ],
+jan 09 20:56:24 link-monitor npm[61014]:   addIssue: [Function (anonymous)],
+jan 09 20:56:24 link-monitor npm[61014]:   addIssues: [Function (anonymous)],
+jan 09 20:56:24 link-monitor npm[61014]:   errors: [
+jan 09 20:56:24 link-monitor npm[61014]:     {
+jan 09 20:56:24 link-monitor npm[61014]:       code: 'invalid_type',
+jan 09 20:56:24 link-monitor npm[61014]:       expected: 'number',
+jan 09 20:56:24 link-monitor npm[61014]:       received: 'null',
+jan 09 20:56:24 link-monitor npm[61014]:       path: [Array],
+jan 09 20:56:24 link-monitor npm[61014]:       message: 'Expected number, received null'
+jan 09 20:56:24 link-monitor npm[61014]:     }
+jan 09 20:56:24 link-monitor npm[61014]:   ]
+jan 09 20:56:24 link-monitor npm[61014]: }
+jan 09 20:56:24 link-monitor npm[61014]: 8:56:24 PM [express] POST /api/snmp-profiles 400 in 5ms :: {"error":"Invalid SNMP profile data"}
+jan 09 20:56:29 link-monitor npm[61014]: Error creating global SNMP profile: t [ZodError]: [
+jan 09 20:56:29 link-monitor npm[61014]:   {
+jan 09 20:56:29 link-monitor npm[61014]:     "code": "invalid_type",
+jan 09 20:56:29 link-monitor npm[61014]:     "expected": "number",
+jan 09 20:56:29 link-monitor npm[61014]:     "received": "null",
+jan 09 20:56:29 link-monitor npm[61014]:     "path": [
+jan 09 20:56:29 link-monitor npm[61014]:       "clientId"
+jan 09 20:56:29 link-monitor npm[61014]:     ],
+jan 09 20:56:29 link-monitor npm[61014]:     "message": "Expected number, received null"
+jan 09 20:56:29 link-monitor npm[61014]:   }
+jan 09 20:56:29 link-monitor npm[61014]: ]
+jan 09 20:56:29 link-monitor npm[61014]:     at get error [as error] (/opt/link-monitor/dist/index.cjs:91:49461)
+jan 09 20:56:29 link-monitor npm[61014]:     at t.parse (/opt/link-monitor/dist/index.cjs:91:50174)
+jan 09 20:56:29 link-monitor npm[61014]:     at /opt/link-monitor/dist/index.cjs:283:46429
+jan 09 20:56:29 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+jan 09 20:56:29 link-monitor npm[61014]:     at l (/opt/link-monitor/dist/index.cjs:38:5250)
+jan 09 20:56:29 link-monitor npm[61014]:     at Ce (/opt/link-monitor/dist/index.cjs:283:13254)
+jan 09 20:56:29 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170)
+jan 09 20:56:29 link-monitor npm[61014]:     at l (/opt/link-monitor/dist/index.cjs:38:5250)
+jan 09 20:56:29 link-monitor npm[61014]:     at ga.dispatch (/opt/link-monitor/dist/index.cjs:38:5049)
+jan 09 20:56:29 link-monitor npm[61014]:     at ha.handle_request (/opt/link-monitor/dist/index.cjs:38:3170) {
+jan 09 20:56:29 link-monitor npm[61014]:   issues: [
+jan 09 20:56:29 link-monitor npm[61014]:     {
+jan 09 20:56:29 link-monitor npm[61014]:       code: 'invalid_type',
+jan 09 20:56:29 link-monitor npm[61014]:       expected: 'number',
+jan 09 20:56:29 link-monitor npm[61014]:       received: 'null',
+jan 09 20:56:29 link-monitor npm[61014]:       path: [Array],
+jan 09 20:56:29 link-monitor npm[61014]:       message: 'Expected number, received null'
+jan 09 20:56:29 link-monitor npm[61014]:     }
+jan 09 20:56:29 link-monitor npm[61014]:   ],
+jan 09 20:56:29 link-monitor npm[61014]:   addIssue: [Function (anonymous)],
+jan 09 20:56:29 link-monitor npm[61014]:   addIssues: [Function (anonymous)],
+jan 09 20:56:29 link-monitor npm[61014]:   errors: [
+jan 09 20:56:29 link-monitor npm[61014]:     {
+jan 09 20:56:29 link-monitor npm[61014]:       code: 'invalid_type',
+jan 09 20:56:29 link-monitor npm[61014]:       expected: 'number',
+jan 09 20:56:29 link-monitor npm[61014]:       received: 'null',
+jan 09 20:56:29 link-monitor npm[61014]:       path: [Array],
+jan 09 20:56:29 link-monitor npm[61014]:       message: 'Expected number, received null'
+jan 09 20:56:29 link-monitor npm[61014]:     }
+jan 09 20:56:29 link-monitor npm[61014]:   ]
+jan 09 20:56:29 link-monitor npm[61014]: }
