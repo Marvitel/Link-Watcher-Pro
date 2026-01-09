@@ -149,101 +149,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     retry: false,
   });
 
-  // Buscar conexões do Voalle para preenchimento automático
-  interface VoalleConnection {
-    id: number;
-    active: boolean;
-    ipType: number;
-    ipTypeAsText: string;
-    ipAuthentication: { id: number; ip: string } | null;
-    lat: string | null;
-    lng: string | null;
-    slotOlt: number | null;
-    portOlt: number | null;
-    equipmentSerialNumber: string | null;
-    contract: { id: number; contract_number: string; description: string; status: number } | null;
-    serviceProduct: { id: number; title: string } | null;
-    contractServiceTag: { id: number; description: string; serviceTag: string } | null;
-    authenticationConcentrator: { id: number; title: string } | null;
-    authenticationAccessPoint: { id: number; title: string } | null;
-    peopleAddress: {
-      streetType: string;
-      street: string;
-      number: string;
-      neighborhood: string;
-      city: string;
-      state: string;
-      postalCode: string;
-    } | null;
-  }
-
-  const { data: voalleConnections, isLoading: isLoadingConnections, refetch: refetchConnections } = useQuery<{ connections: VoalleConnection[]; message?: string }>({
-    queryKey: ["/api/clients", formData.clientId, "voalle", "connections"],
-    enabled: !!formData.clientId && !link, // Só buscar em modo de criação
-    staleTime: 0,
-    retry: false,
-  });
-
-  // Função para extrair velocidade do título do produto (ex: "300 MEGA" -> 300)
-  const extractBandwidth = (title: string): number => {
-    const match = title.match(/(\d+)\s*(MEGA|MB|MBPS|GB|GBPS)/i);
-    if (match) {
-      const value = parseInt(match[1], 10);
-      const unit = match[2].toUpperCase();
-      if (unit.includes('GB')) return value * 1000;
-      return value;
-    }
-    return 200; // Default
-  };
-
-  // Função para preencher dados de uma conexão do Voalle
-  const handleSelectVoalleConnection = (connectionId: string) => {
-    if (connectionId === "manual") {
-      return; // Modo manual selecionado
-    }
-    
-    const connection = voalleConnections?.connections?.find(c => c.id.toString() === connectionId);
-    if (!connection) return;
-
-    // Montar endereço completo
-    let fullAddress = "";
-    if (connection.peopleAddress) {
-      const addr = connection.peopleAddress;
-      fullAddress = `${addr.streetType} ${addr.street}, ${addr.number} - ${addr.neighborhood}, ${addr.city}/${addr.state}`;
-    }
-
-    // Extrair velocidade do produto
-    const bandwidth = connection.serviceProduct ? extractBandwidth(connection.serviceProduct.title) : 200;
-
-    // Nome do link: usar etiqueta ou descrição do produto
-    const linkName = connection.contractServiceTag?.serviceTag || 
-                     connection.serviceProduct?.title || 
-                     `Conexão ${connection.id}`;
-
-    setFormData(prev => ({
-      ...prev,
-      name: linkName,
-      identifier: connection.contractServiceTag?.serviceTag || `conn-${connection.id}`,
-      location: connection.peopleAddress ? `${connection.peopleAddress.city}/${connection.peopleAddress.state}` : "",
-      address: fullAddress,
-      bandwidth: bandwidth,
-      monitoredIp: connection.ipAuthentication?.ip || "",
-      voalleConnectionId: connection.id,
-      voalleContractNumber: connection.contract?.contract_number || "",
-      voalleContractTagId: connection.contractServiceTag?.id || null,
-      slotOlt: connection.slotOlt,
-      portOlt: connection.portOlt,
-      equipmentSerialNumber: connection.equipmentSerialNumber || "",
-      latitude: connection.lat || "",
-      longitude: connection.lng || "",
-    }));
-
-    toast({
-      title: "Dados importados",
-      description: `Dados da conexão "${linkName}" preenchidos automaticamente`,
-    });
-  };
-
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
   });
@@ -383,56 +288,65 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         </div>
       )}
 
-      {!link && (
-        <div className="space-y-2 p-3 rounded-md border bg-muted/30">
-          <div className="flex items-center justify-between gap-2">
-            <Label>Importar do Voalle (opcional)</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => refetchConnections()}
-              disabled={isLoadingConnections}
-              data-testid="button-refresh-connections"
-            >
-              {isLoadingConnections ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            Selecione uma conexão do Voalle para preencher automaticamente os dados, ou preencha manualmente
-          </p>
-          {isLoadingConnections ? (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Buscando conexões...</span>
-            </div>
-          ) : voalleConnections?.connections && voalleConnections.connections.length > 0 ? (
-            <Select onValueChange={handleSelectVoalleConnection} defaultValue="manual">
-              <SelectTrigger data-testid="select-voalle-connection">
-                <SelectValue placeholder="Selecione uma conexão" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">Cadastro manual</SelectItem>
-                {voalleConnections.connections.map((conn) => (
-                  <SelectItem key={conn.id} value={conn.id.toString()}>
-                    {conn.contractServiceTag?.serviceTag || conn.serviceProduct?.title || `Conexão ${conn.id}`}
-                    {conn.contract?.contract_number && ` (${conn.contract.contract_number})`}
-                    {conn.ipAuthentication?.ip && ` - ${conn.ipAuthentication.ip}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : voalleConnections?.message ? (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-              <span className="text-sm text-muted-foreground">{voalleConnections.message}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-              <span className="text-sm text-muted-foreground">Cadastro manual selecionado</span>
-            </div>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="voalleContractTagId">Etiqueta de Contrato (Voalle)</Label>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => refetchTags()}
+            disabled={isLoadingTags}
+            data-testid="button-refresh-tags-top"
+          >
+            {isLoadingTags ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+          </Button>
         </div>
-      )}
+        {tagsError ? (
+          <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
+            <span className="text-sm text-destructive">
+              Erro ao buscar etiquetas: {(tagsError as any)?.message || "Erro desconhecido"}
+            </span>
+          </div>
+        ) : isLoadingTags ? (
+          <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm text-muted-foreground">Carregando etiquetas...</span>
+          </div>
+        ) : voalleContractTags?.error ? (
+          <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
+            <span className="text-sm text-destructive">{voalleContractTags.error}</span>
+          </div>
+        ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
+          <Select
+            value={formData.voalleContractTagId?.toString() || "none"}
+            onValueChange={(value) => setFormData({ ...formData, voalleContractTagId: value === "none" ? null : parseInt(value, 10) })}
+          >
+            <SelectTrigger data-testid="select-voalle-contract-tag-top">
+              <SelectValue placeholder="Selecione uma etiqueta (opcional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhuma etiqueta</SelectItem>
+              {voalleContractTags.tags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id.toString()}>
+                  {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}{tag.contractNumber ? ` (Contrato ${tag.contractNumber})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
+            <span className="text-sm text-muted-foreground">
+              {voalleContractTags?.cnpj 
+                ? "Nenhuma etiqueta encontrada no Voalle" 
+                : "Configure o CNPJ do cliente para buscar etiquetas"}
+            </span>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Vincule este link a uma etiqueta para filtrar solicitações do Voalle
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="identifier">Identificador</Label>
@@ -775,72 +689,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         )}
       </div>
 
-      <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Integração ERP (Voalle)</h4>
-        <p className="text-sm text-muted-foreground mb-3">
-          Associe este link a uma etiqueta de contrato no Voalle para filtrar solicitações
-        </p>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="voalleContractTagId">Etiqueta de Contrato</Label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => refetchTags()}
-              disabled={isLoadingTags}
-              data-testid="button-refresh-tags"
-            >
-              {isLoadingTags ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-            </Button>
-          </div>
-          {tagsError ? (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
-              <span className="text-sm text-destructive">
-                Erro ao buscar etiquetas: {(tagsError as any)?.message || "Erro desconhecido"}
-              </span>
-            </div>
-          ) : isLoadingTags ? (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Carregando etiquetas...</span>
-            </div>
-          ) : voalleContractTags?.error ? (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-destructive bg-destructive/10">
-              <span className="text-sm text-destructive">{voalleContractTags.error}</span>
-            </div>
-          ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
-            <Select
-              value={formData.voalleContractTagId?.toString() || "none"}
-              onValueChange={(value) => setFormData({ ...formData, voalleContractTagId: value === "none" ? null : parseInt(value, 10) })}
-            >
-              <SelectTrigger data-testid="select-voalle-contract-tag">
-                <SelectValue placeholder="Selecione uma etiqueta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhuma (buscar todas solicitações)</SelectItem>
-                {voalleContractTags.tags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id.toString()}>
-                    {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}{tag.contractNumber ? ` (Contrato ${tag.contractNumber})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
-              <span className="text-sm text-muted-foreground">
-                {voalleContractTags?.cnpj 
-                  ? "Nenhuma etiqueta encontrada no Voalle" 
-                  : "Configure o CNPJ do cliente para buscar etiquetas"}
-              </span>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Etiquetas de contrato permitem filtrar solicitações específicas deste link
-          </p>
-        </div>
-      </div>
-      
       <div className="border-t pt-4 mt-4">
         <h4 className="font-medium mb-3">Monitoramento de Conectividade</h4>
         <div className="grid grid-cols-3 gap-4">
