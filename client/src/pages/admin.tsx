@@ -1560,7 +1560,7 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
   const handleTestConnection = async (id: number) => {
     setTestingId(id);
     try {
-      const response = await fetch(`/api/erp-integrations/${id}/test`, { method: "POST" });
+      const response = await apiRequest("POST", `/api/erp-integrations/${id}/test`);
       const result = await response.json();
       if (result.success) {
         toast({ title: "Conexão bem-sucedida", description: result.message });
