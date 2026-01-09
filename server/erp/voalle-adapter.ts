@@ -730,6 +730,124 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+  /**
+   * Busca conexões/autenticações completas de um cliente via Portal API
+   * Retorna dados detalhados de cada conexão para preenchimento automático de links
+   */
+  async getConnections(
+    params: { 
+      voalleCustomerId: string;
+      portalUsername: string;
+      portalPassword: string;
+    }
+  ): Promise<{ 
+    success: boolean; 
+    connections: Array<{
+      id: number;
+      active: boolean;
+      ipType: number;
+      ipTypeAsText: string;
+      ipAuthentication: { id: number; ip: string } | null;
+      lat: string | null;
+      lng: string | null;
+      slotOlt: number | null;
+      portOlt: number | null;
+      equipmentSerialNumber: string | null;
+      contract: { id: number; contract_number: string; description: string; status: number } | null;
+      serviceProduct: { id: number; title: string } | null;
+      contractServiceTag: { id: number; description: string; serviceTag: string } | null;
+      authenticationConcentrator: { id: number; title: string } | null;
+      authenticationAccessPoint: { id: number; title: string } | null;
+      peopleAddress: {
+        streetType: string;
+        street: string;
+        number: string;
+        neighborhood: string;
+        city: string;
+        state: string;
+        postalCode: string;
+      } | null;
+    }>; 
+    message?: string 
+  }> {
+    const { voalleCustomerId, portalUsername, portalPassword } = params;
+    
+    if (!this.isPortalConfigured()) {
+      return { success: false, connections: [], message: "Portal API não configurada" };
+    }
+
+    if (!voalleCustomerId || !portalUsername || !portalPassword) {
+      return { success: false, connections: [], message: "Parâmetros incompletos" };
+    }
+
+    try {
+      console.log(`[VoalleAdapter] Buscando conexões (voalleCustomerId: ${voalleCustomerId})`);
+      
+      const result = await this.portalApiRequest<{
+        data: Array<{
+          id: number;
+          active: boolean;
+          ipType: number;
+          ipTypeAsText: string;
+          lat: string | null;
+          lng: string | null;
+          slotOlt: number | null;
+          portOlt: number | null;
+          equipmentSerialNumber: string | null;
+          ipAuthentication: { id: number; ip: string } | null;
+          contract: { id: number; contract_number: string; description: string; status: number } | null;
+          serviceProduct: { id: number; title: string } | null;
+          contractServiceTag: { id: number; description: string; serviceTag: string } | null;
+          authenticationConcentrator: { id: number; title: string } | null;
+          authenticationAccessPoint: { id: number; title: string } | null;
+          peopleAddress: {
+            streetType: string;
+            street: string;
+            number: string;
+            neighborhood: string;
+            city: string;
+            state: string;
+            postalCode: string;
+          } | null;
+        }>;
+        count: number;
+        total: number;
+      }>("GET", `/api/people/${encodeURIComponent(voalleCustomerId)}/authentications`, portalUsername, portalPassword);
+
+      if (!result.data) {
+        return { success: true, connections: [], message: "Nenhuma conexão encontrada" };
+      }
+
+      // Filter only active connections
+      const activeConnections = result.data
+        .filter(conn => conn.active === true)
+        .map(conn => ({
+          id: conn.id,
+          active: conn.active,
+          ipType: conn.ipType,
+          ipTypeAsText: conn.ipTypeAsText,
+          ipAuthentication: conn.ipAuthentication,
+          lat: conn.lat,
+          lng: conn.lng,
+          slotOlt: conn.slotOlt,
+          portOlt: conn.portOlt,
+          equipmentSerialNumber: conn.equipmentSerialNumber,
+          contract: conn.contract,
+          serviceProduct: conn.serviceProduct,
+          contractServiceTag: conn.contractServiceTag,
+          authenticationConcentrator: conn.authenticationConcentrator,
+          authenticationAccessPoint: conn.authenticationAccessPoint,
+          peopleAddress: conn.peopleAddress,
+        }));
+      
+      console.log(`[VoalleAdapter] ${activeConnections.length} conexões ativas de ${result.data.length} total`);
+      return { success: true, connections: activeConnections };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[VoalleAdapter] Erro ao buscar conexões:", errorMessage);
+      return { success: false, connections: [], message: `Erro: ${errorMessage}` };
+    }
+  }
 
   /**
    * Obtém um token de serviço para o Portal Voalle usando credenciais administrativas

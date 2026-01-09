@@ -1322,6 +1322,76 @@ export async function registerRoutes(
     }
   });
 
+  // Buscar conexões do Voalle para preenchimento automático de links
+  app.get("/api/clients/:clientId/voalle/connections", requireAuth, async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const client = await storage.getClient(clientId);
+      
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      // Buscar integração Voalle ativa
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.json({ 
+          connections: [],
+          message: "Integração Voalle não configurada" 
+        });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      
+      // Verificar se cliente tem credenciais do portal
+      const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
+      const portalUsername = client.voallePortalUsername || null;
+      
+      let portalPassword: string | null = null;
+      try {
+        portalPassword = client.voallePortalPassword ? decrypt(client.voallePortalPassword) : null;
+      } catch {
+        portalPassword = null;
+      }
+      
+      if (!voalleCustomerId || !portalUsername || !portalPassword) {
+        return res.json({ 
+          connections: [],
+          message: "Cliente não possui credenciais do portal configuradas" 
+        });
+      }
+      
+      // Buscar conexões via API Portal
+      const result = await adapter.getConnections({ 
+        voalleCustomerId, 
+        portalUsername, 
+        portalPassword 
+      });
+      
+      if (!result.success) {
+        return res.json({ 
+          connections: [],
+          message: result.message || "Erro ao buscar conexões" 
+        });
+      }
+
+      res.json({ 
+        connections: result.connections,
+        clientName: client.name,
+        voalleCustomerId: client.voalleCustomerId
+      });
+    } catch (error: any) {
+      const sanitizedMessage = (error?.message || "Erro desconhecido")
+        .replace(/password[=:]["']?[^\s&"']+["']?/gi, "password=[REDACTED]")
+        .replace(/username[=:]["']?[^\s&"']+["']?/gi, "username=[REDACTED]");
+      console.error("[Voalle Connections] Error:", sanitizedMessage);
+      res.status(500).json({ 
+        error: "Erro ao buscar conexões no Voalle",
+        connections: [] 
+      });
+    }
+  });
+
   // Health check de credenciais do portal Voalle (apenas super admin)
   app.post("/api/clients/:clientId/voalle/portal-health-check", requireSuperAdmin, async (req, res) => {
     try {
