@@ -730,6 +730,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+
   /**
    * Obtém um token de serviço para o Portal Voalle usando credenciais administrativas
    * Este token permite chamar endpoints administrativos como recuperação de senha
