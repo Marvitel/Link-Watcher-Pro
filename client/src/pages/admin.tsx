@@ -4831,12 +4831,21 @@ function ConcentratorsTab() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingConcentrator, setEditingConcentrator] = useState<SnmpConcentrator | undefined>(undefined);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [newProfileData, setNewProfileData] = useState({
+    name: "",
+    version: "2c" as "1" | "2c" | "3",
+    community: "public",
+    port: 161,
+    timeout: 5000,
+    retries: 3,
+  });
 
   const { data: concentratorsList, isLoading } = useQuery<SnmpConcentrator[]>({
     queryKey: ["/api/concentrators"],
   });
 
-  const { data: snmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number | null }>>({
+  const { data: snmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number | null; version: string; community: string; port: number; timeout: number; retries: number }>>({
     queryKey: ["/api/snmp-profiles"],
   });
 
@@ -4867,6 +4876,36 @@ function ConcentratorsTab() {
       voalleId: null,
     });
     setEditingConcentrator(undefined);
+    setIsCreatingProfile(false);
+    resetProfileForm();
+  };
+
+  const resetProfileForm = () => {
+    setNewProfileData({
+      name: "",
+      version: "2c",
+      community: "public",
+      port: 161,
+      timeout: 5000,
+      retries: 3,
+    });
+  };
+
+  const handleSaveNewProfile = async () => {
+    try {
+      const response = await apiRequest("POST", "/api/snmp-profiles", {
+        ...newProfileData,
+        clientId: null,
+      });
+      const created = await response.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/snmp-profiles"] });
+      setFormData({ ...formData, snmpProfileId: created.id });
+      setIsCreatingProfile(false);
+      resetProfileForm();
+      toast({ title: "Perfil SNMP criado com sucesso" });
+    } catch (error) {
+      toast({ title: "Erro ao criar perfil SNMP", variant: "destructive" });
+    }
   };
 
   const handleEdit = (concentrator: SnmpConcentrator) => {
@@ -4946,48 +4985,124 @@ function ConcentratorsTab() {
                   data-testid="input-concentrator-name"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="concentrator-ip">Endereco IP</Label>
-                  <Input
-                    id="concentrator-ip"
-                    value={formData.ipAddress}
-                    onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
-                    placeholder="192.168.1.1"
-                    data-testid="input-concentrator-ip"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="concentrator-model">Modelo</Label>
-                  <Input
-                    id="concentrator-model"
-                    value={formData.model}
-                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                    placeholder="Ex: NE40E, ASR1002"
-                    data-testid="input-concentrator-model"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="concentrator-ip">Endereco IP</Label>
+                <Input
+                  id="concentrator-ip"
+                  value={formData.ipAddress}
+                  onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                  placeholder="192.168.1.1"
+                  data-testid="input-concentrator-ip"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Perfil SNMP</Label>
+                {isCreatingProfile ? (
+                  <Card className="p-4 space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-profile-name">Nome do Perfil</Label>
+                      <Input
+                        id="new-profile-name"
+                        value={newProfileData.name}
+                        onChange={(e) => setNewProfileData({ ...newProfileData, name: e.target.value })}
+                        placeholder="Ex: SNMP Concentrador"
+                        data-testid="input-new-profile-name"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="new-profile-version">Versao</Label>
+                        <Select
+                          value={newProfileData.version}
+                          onValueChange={(v) => setNewProfileData({ ...newProfileData, version: v as "1" | "2c" | "3" })}
+                        >
+                          <SelectTrigger data-testid="select-new-profile-version">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">v1</SelectItem>
+                            <SelectItem value="2c">v2c</SelectItem>
+                            <SelectItem value="3">v3</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-profile-community">Community</Label>
+                        <Input
+                          id="new-profile-community"
+                          value={newProfileData.community}
+                          onChange={(e) => setNewProfileData({ ...newProfileData, community: e.target.value })}
+                          placeholder="public"
+                          data-testid="input-new-profile-community"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="new-profile-port">Porta</Label>
+                        <Input
+                          id="new-profile-port"
+                          type="number"
+                          value={newProfileData.port}
+                          onChange={(e) => setNewProfileData({ ...newProfileData, port: parseInt(e.target.value, 10) || 161 })}
+                          data-testid="input-new-profile-port"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-profile-timeout">Timeout (ms)</Label>
+                        <Input
+                          id="new-profile-timeout"
+                          type="number"
+                          value={newProfileData.timeout}
+                          onChange={(e) => setNewProfileData({ ...newProfileData, timeout: parseInt(e.target.value, 10) || 5000 })}
+                          data-testid="input-new-profile-timeout"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-profile-retries">Tentativas</Label>
+                        <Input
+                          id="new-profile-retries"
+                          type="number"
+                          value={newProfileData.retries}
+                          onChange={(e) => setNewProfileData({ ...newProfileData, retries: parseInt(e.target.value, 10) || 3 })}
+                          data-testid="input-new-profile-retries"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => { setIsCreatingProfile(false); resetProfileForm(); }}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={handleSaveNewProfile} data-testid="button-save-new-profile">
+                        Salvar Perfil
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.snmpProfileId?.toString() || "none"}
+                      onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v === "none" ? null : parseInt(v, 10) })}
+                    >
+                      <SelectTrigger className="flex-1" data-testid="select-concentrator-snmp-profile">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {snmpProfiles?.filter(p => !p.clientId).map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id.toString()}>
+                            {profile.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" onClick={() => setIsCreatingProfile(true)} data-testid="button-create-snmp-profile">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="concentrator-snmp-profile">Perfil SNMP</Label>
-                  <Select
-                    value={formData.snmpProfileId?.toString() || "none"}
-                    onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v === "none" ? null : parseInt(v, 10) })}
-                  >
-                    <SelectTrigger data-testid="select-concentrator-snmp-profile">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {snmpProfiles?.filter(p => !p.clientId).map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id.toString()}>
-                          {profile.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="concentrator-vendor">Fabricante</Label>
                   <Select
@@ -5006,6 +5121,16 @@ function ConcentratorsTab() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-model">Modelo</Label>
+                  <Input
+                    id="concentrator-model"
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    placeholder="Ex: NE40E, ASR1002"
+                    data-testid="input-concentrator-model"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
