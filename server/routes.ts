@@ -1682,6 +1682,10 @@ export async function registerRoutes(
     try {
       const clientList = await storage.getClients();
       const allProfiles: any[] = [];
+      // Perfis globais (clientId = null)
+      const globalProfiles = await storage.getGlobalSnmpProfiles();
+      allProfiles.push(...globalProfiles);
+      // Perfis por cliente
       for (const client of clientList) {
         const profiles = await storage.getSnmpProfiles(client.id);
         allProfiles.push(...profiles);
@@ -1689,6 +1693,18 @@ export async function registerRoutes(
       res.json(allProfiles);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch SNMP profiles" });
+    }
+  });
+
+  // Criar perfil SNMP global (para concentradores)
+  app.post("/api/snmp-profiles", requireSuperAdmin, async (req, res) => {
+    try {
+      const data = insertSnmpProfileSchema.parse({ ...req.body, clientId: null });
+      const profile = await storage.createSnmpProfile(data);
+      res.status(201).json(profile);
+    } catch (error) {
+      console.error("Error creating global SNMP profile:", error);
+      res.status(400).json({ error: "Invalid SNMP profile data" });
     }
   });
 

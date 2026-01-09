@@ -1274,6 +1274,10 @@ export class DatabaseStorage {
     return await db.select().from(snmpProfiles).where(eq(snmpProfiles.clientId, clientId));
   }
 
+  async getGlobalSnmpProfiles(): Promise<SnmpProfile[]> {
+    return await db.select().from(snmpProfiles).where(isNull(snmpProfiles.clientId));
+  }
+
   async getSnmpProfile(id: number): Promise<SnmpProfile | undefined> {
     const [profile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, id));
     return profile || undefined;
