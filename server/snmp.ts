@@ -57,7 +57,7 @@ const ADMIN_STATUS_MAP: Record<number, string> = {
 };
 
 // Maximum interfaces to discover (safety limit)
-const MAX_INTERFACES = 256;
+const MAX_INTERFACES = 1000;
 
 function createSession(
   targetIp: string,
