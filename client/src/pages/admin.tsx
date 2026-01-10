@@ -251,10 +251,14 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/equipment-vendors"],
   });
 
-  const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId);
+  // Incluir perfis do cliente E perfis globais (concentradores)
+  const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId || p.clientId === null);
 
-  const handleDiscoverInterfaces = async () => {
-    if (!formData.snmpRouterIp || !formData.snmpProfileId) {
+  const handleDiscoverInterfaces = async (overrideIp?: string, overrideProfileId?: number) => {
+    const targetIp = overrideIp || formData.snmpRouterIp;
+    const profileId = overrideProfileId || formData.snmpProfileId;
+    
+    if (!targetIp || !profileId) {
       toast({
         title: "Campos obrigatórios",
         description: "Selecione um perfil SNMP e informe o IP do roteador",
@@ -268,8 +272,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     
     try {
       const response = await apiRequest("POST", "/api/snmp/discover-interfaces", {
-        targetIp: formData.snmpRouterIp,
-        snmpProfileId: formData.snmpProfileId,
+        targetIp: targetIp,
+        snmpProfileId: profileId,
       });
       
       const interfaces: SnmpInterface[] = await response.json();
@@ -610,7 +614,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleDiscoverInterfaces}
+                    onClick={() => handleDiscoverInterfaces()}
                     disabled={isDiscovering || !formData.snmpProfileId || !formData.snmpRouterIp}
                     data-testid="button-discover-interfaces"
                   >
@@ -664,7 +668,14 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                             snmpRouterIp: selectedConc.ipAddress,
                             snmpProfileId: profileId 
                           });
-                          handleDiscoverInterfaces();
+                          // Passa parâmetros diretamente para evitar problemas de estado assíncrono
+                          handleDiscoverInterfaces(selectedConc.ipAddress, profileId);
+                        } else {
+                          toast({
+                            title: "Perfil SNMP não configurado",
+                            description: "Configure um perfil SNMP para o concentrador",
+                            variant: "destructive",
+                          });
                         }
                       }
                     }}
