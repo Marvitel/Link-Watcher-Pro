@@ -79,12 +79,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   link?: Link; 
   onSave: (data: Partial<Link>) => void;
   onClose: () => void;
-  snmpProfiles?: Array<{ id: number; name: string; clientId: number }>;
+  snmpProfiles?: Array<{ id: number; name: string; clientId: number | null }>;
   clients?: Client[];
   onProfileCreated?: () => void;
 }) {
   const { toast } = useToast();
   const [discoveredInterfaces, setDiscoveredInterfaces] = useState<SnmpInterface[]>([]);
+  const [interfaceSearchTerm, setInterfaceSearchTerm] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [showNewProfileForm, setShowNewProfileForm] = useState(false);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
@@ -696,7 +697,26 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         
         {discoveredInterfaces.length > 0 && (
           <div className="space-y-2 mt-3">
-            <Label>Selecionar Interface Descoberta</Label>
+            <Label>Selecionar Interface Descoberta ({discoveredInterfaces.length} encontradas)</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Buscar por nome, índice ou descrição..."
+                value={interfaceSearchTerm}
+                onChange={(e) => setInterfaceSearchTerm(e.target.value)}
+                className="flex-1"
+                data-testid="input-interface-search"
+              />
+              {interfaceSearchTerm && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setInterfaceSearchTerm("")}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
             <Select
               value={formData.snmpInterfaceIndex?.toString() || ""}
               onValueChange={handleSelectInterface}
@@ -704,8 +724,18 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               <SelectTrigger data-testid="select-discovered-interface">
                 <SelectValue placeholder="Escolha uma interface..." />
               </SelectTrigger>
-              <SelectContent>
-                {discoveredInterfaces.map((iface) => (
+              <SelectContent className="max-h-[300px]">
+                {discoveredInterfaces
+                  .filter((iface) => {
+                    if (!interfaceSearchTerm) return true;
+                    const search = interfaceSearchTerm.toLowerCase();
+                    return (
+                      iface.ifIndex.toString().includes(search) ||
+                      (iface.ifName || "").toLowerCase().includes(search) ||
+                      (iface.ifDescr || "").toLowerCase().includes(search)
+                    );
+                  })
+                  .map((iface) => (
                   <SelectItem key={iface.ifIndex} value={iface.ifIndex.toString()}>
                     <div className="flex items-center gap-2">
                       <Badge 
