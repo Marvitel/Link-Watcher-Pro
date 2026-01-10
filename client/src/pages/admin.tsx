@@ -101,7 +101,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/olts"],
   });
 
-  const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleId: number | null; isActive: boolean }>>({
+  const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleId: number | null; snmpProfileId: number | null; isActive: boolean }>>({
     queryKey: ["/api/concentrators"],
   });
 
@@ -628,7 +628,16 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 <div className="flex gap-2">
                   <Select
                     value={formData.concentratorId?.toString() || "none"}
-                    onValueChange={(v) => setFormData({ ...formData, concentratorId: v === "none" ? null : parseInt(v, 10) })}
+                    onValueChange={(v) => {
+                      const concId = v === "none" ? null : parseInt(v, 10);
+                      const selectedConc = concId ? activeConcentrators?.find(c => c.id === concId) : null;
+                      setFormData({ 
+                        ...formData, 
+                        concentratorId: concId,
+                        snmpProfileId: selectedConc?.snmpProfileId || formData.snmpProfileId,
+                        snmpRouterIp: selectedConc?.ipAddress || formData.snmpRouterIp
+                      });
+                    }}
                   >
                     <SelectTrigger data-testid="select-snmp-concentrator" className="flex-1">
                       <SelectValue placeholder="Selecione..." />
@@ -648,11 +657,18 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     onClick={() => {
                       const selectedConc = activeConcentrators?.find(c => c.id === formData.concentratorId);
                       if (selectedConc) {
-                        setFormData({ ...formData, snmpRouterIp: selectedConc.ipAddress });
-                        handleDiscoverInterfaces();
+                        const profileId = selectedConc.snmpProfileId || formData.snmpProfileId;
+                        if (profileId) {
+                          setFormData({ 
+                            ...formData, 
+                            snmpRouterIp: selectedConc.ipAddress,
+                            snmpProfileId: profileId 
+                          });
+                          handleDiscoverInterfaces();
+                        }
                       }
                     }}
-                    disabled={isDiscovering || !formData.snmpProfileId || !formData.concentratorId}
+                    disabled={isDiscovering || !formData.concentratorId || (!formData.snmpProfileId && !activeConcentrators?.find(c => c.id === formData.concentratorId)?.snmpProfileId)}
                     data-testid="button-discover-interfaces-concentrator"
                   >
                     {isDiscovering ? (
