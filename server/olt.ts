@@ -641,7 +641,13 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
 
         stream.on("close", () => {
           conn.end();
-          resolve(output);
+          if (commandSent) {
+            resolve(output);
+          } else {
+            // Se o stream fechou antes do comando ser enviado, é um erro
+            console.log(`[OLT SSH] Stream fechou antes do comando ser enviado em ${olt.ipAddress}`);
+            reject(new Error("Conexão SSH fechou antes do comando ser executado"));
+          }
         });
       });
     });
