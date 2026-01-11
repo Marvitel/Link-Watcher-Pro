@@ -1286,7 +1286,10 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
     }
     
     // Comando padrão (para Datacom e outros): filtrar alarmes pelo ONU ID
-    const command = `sh alarm | include ${normalizedId}`;
+    // Se o normalizedId já contém um comando (ex: "show alarm | include"), usar diretamente
+    // Isso acontece quando o diagnosisKeyTemplate inclui o comando completo
+    const isFullCommand = normalizedId.toLowerCase().includes("show ") || normalizedId.toLowerCase().includes("sh ");
+    const command = isFullCommand ? normalizedId : `show alarm | include ${normalizedId}`;
     
     if (olt.connectionType === "ssh") {
       rawOutput = await connectSSH(olt, command);
