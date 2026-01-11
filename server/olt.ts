@@ -1353,9 +1353,13 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
     console.log(`[OLT Search] Buscando ONU por serial "${searchString}" em ${olt.name} (${vendor})`);
     console.log(`[OLT Search] Comando: ${command}`);
     
+    // Usar as mesmas opções do diagnóstico (requiresEnable para Furukawa)
+    const vendorConfig = getVendorConfig(vendor);
+    const sshOptions: SSHOptions = { requiresEnable: vendorConfig.requiresEnable };
+    
     let rawOutput: string;
     if (olt.connectionType === "ssh") {
-      rawOutput = await connectSSH(olt, command);
+      rawOutput = await connectSSH(olt, command, sshOptions);
     } else {
       rawOutput = await connectTelnet(olt, command);
     }
@@ -1388,8 +1392,11 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
         }
       }
     } else if (vendor.includes("furukawa") || vendor.includes("fk")) {
-      // Furukawa: procura linha "onu index" ou similar
-      // Formato esperado: "onu-index: 1/1/2/5" ou "ONU Index       : gpon-olt_1/1/3:116"
+      // Furukawa: usar o mesmo parser do diagnóstico de alarmes
+      // Extrai ONU index, status e motivo da última desconexão
+      const cleanOutput = stripAnsiCodes(rawOutput);
+      
+      // Procurar ONU index - formato: "onu-index: 1/1/2/5" ou similar
       for (const line of lines) {
         const lowerLine = line.toLowerCase();
         if (lowerLine.includes("onu") && (lowerLine.includes("index") || lowerLine.includes("id"))) {
@@ -1400,7 +1407,8 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
           }
         }
       }
-      // Alternativa: primeira linha com formato de ONU
+      
+      // Alternativa: buscar formato numérico de ONU
       if (!onuId) {
         for (const line of lines) {
           const match = line.match(/(\d+\/\d+\/\d+[\/:]?\d*)/);
@@ -1409,6 +1417,48 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
             break;
           }
         }
+      }
+      
+      // Extrair status da ONU
+      let status = "";
+      for (const line of lines) {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine.includes("state") || lowerLine.includes("status")) {
+          const stateMatch = line.match(/:\s*(.+?)(?:\s|$)/);
+          if (stateMatch) {
+            status = stateMatch[1].trim();
+          }
+        }
+      }
+      
+      // Extrair motivo da última desconexão (deactivate-reason)
+      let deactivateReason = "";
+      const deactivateMatch = cleanOutput.match(/deactivate[- ]?reason[^:]*:\s*([^\r\n]+)/i);
+      if (deactivateMatch) {
+        deactivateReason = deactivateMatch[1].trim();
+      }
+      
+      // Se encontrou informações adicionais, incluir na mensagem
+      if (onuId) {
+        let extraInfo = "";
+        const isOnline = status.toLowerCase().includes("active") || 
+                         status.toLowerCase().includes("online") || 
+                         status.toLowerCase().includes("up");
+        
+        if (status) extraInfo += `Status: ${status}`;
+        // Só mostra motivo da desconexão se NÃO estiver online
+        if (deactivateReason && !isOnline) {
+          extraInfo += (extraInfo ? " | " : "") + `Último motivo: ${deactivateReason}`;
+        }
+        
+        console.log(`[OLT Search] Furukawa ONU encontrada: ${onuId}${extraInfo ? ` (${extraInfo})` : ""}`);
+        
+        return {
+          success: true,
+          onuId,
+          rawOutput,
+          message: extraInfo ? `ONU encontrada: ${onuId} (${extraInfo})` : `ONU encontrada: ${onuId}`
+        };
       }
     } else if (vendor.includes("huawei")) {
       // Huawei: procura "ONT ID" ou similar
