@@ -527,12 +527,11 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
           }
         };
         
-        // Para OLTs com enable, enviar Enter inicial para obter o prompt
+        // Para OLTs com enable, enviar Enter inicial IMEDIATAMENTE para obter o prompt
+        // Furukawa fecha o canal rapidamente se não receber atividade
         if (options.requiresEnable) {
-          setTimeout(() => {
-            console.log(`[OLT SSH] Enviando Enter inicial para obter prompt de ${olt.ipAddress}`);
-            stream.write("\r\n");
-          }, 500);
+          console.log(`[OLT SSH] Enviando Enter inicial para obter prompt de ${olt.ipAddress}`);
+          stream.write("\r\n");
         }
         
         const finishCommand = () => {

@@ -1,0 +1,25 @@
+jan 11 16:36:28 link-monitor npm[211699]: [OLT Search] Buscando ONU por serial "4441434DED020021" em OLT-FKW-ESTANCIA (furukawa)
+jan 11 16:36:28 link-monitor npm[211699]: [OLT Search] Comando: show onu serial 4441434DED020021
+jan 11 16:36:28 link-monitor npm[211699]: [OLT SSH] Conectando a 100.64.1.222:22...
+jan 11 16:36:29 link-monitor npm[211699]: [OLT SSH] Handshake OK com 100.64.1.222: kex=ecdh-sha2-nistp256, cipher=aes128-ctr
+jan 11 16:36:29 link-monitor npm[211699]: [OLT SSH] Ready - conexão estabelecida com 100.64.1.222
+jan 11 16:36:29 link-monitor npm[211699]: [OLT SSH] Data de 100.64.1.222: Last login: Sun Jan 11 19:29:39 2026 from 100.66.128.84
+jan 11 16:36:29 link-monitor npm[211699]: [OLT SSH] Stream fechou antes do comando ser enviado em 100.64.1.222
+jan 11 16:36:29 link-monitor npm[211699]: [OLT Search] Erro: Error: Conexão SSH fechou antes do comando ser executado
+jan 11 16:36:29 link-monitor npm[211699]:     at Channel.<anonymous> (/opt/link-monitor/dist/index.cjs:190:1072)
+jan 11 16:36:29 link-monitor npm[211699]:     at Channel.emit (node:events:536:35)
+jan 11 16:36:29 link-monitor npm[211699]:     at doClose (/opt/link-monitor/node_modules/ssh2/lib/utils.js:101:21)
+jan 11 16:36:29 link-monitor npm[211699]:     at onCHANNEL_CLOSE (/opt/link-monitor/node_modules/ssh2/lib/utils.js:108:7)
+jan 11 16:36:29 link-monitor npm[211699]:     at CHANNEL_CLOSE (/opt/link-monitor/node_modules/ssh2/lib/client.js:703:11)
+jan 11 16:36:29 link-monitor npm[211699]:     at 97 (/opt/link-monitor/node_modules/ssh2/lib/protocol/handlers.misc.js:999:16)
+jan 11 16:36:29 link-monitor npm[211699]:     at Protocol.onPayload (/opt/link-monitor/node_modules/ssh2/lib/protocol/Protocol.js:2059:10)
+jan 11 16:36:29 link-monitor npm[211699]:     at GenericDecipherBinding.decrypt (/opt/link-monitor/node_modules/ssh2/lib/protocol/crypto.js:1418:26)
+jan 11 16:36:29 link-monitor npm[211699]:     at Protocol.parsePacket [as _parse] (/opt/link-monitor/node_modules/ssh2/lib/protocol/Protocol.js:2028:25)
+jan 11 16:36:29 link-monitor npm[211699]:     at Protocol.parse (/opt/link-monitor/node_modules/ssh2/lib/protocol/Protocol.js:313:16)
+jan 11 16:36:29 link-monitor npm[211699]: 4:36:29 PM [express] POST /api/olts/5/search-onu 200 in 1173ms :: {"success":false,"onuId":null,"rawOutput":"","message":"Conexão SSH fechou antes do comando ser executado"}
+jan 11 16:36:29 link-monitor npm[211699]: [OLT SSH] Enviando Enter inicial para obter prompt de 100.64.1.222
+jan 11 16:36:32 link-monitor npm[211699]: [OLT SSH] Fallback: prompt não detectado em 3s, enviando 'enable'
+jan 11 16:36:32 link-monitor npm[211699]: [OLT SSH] Enviando 'enable' para 100.64.1.222
+jan 11 16:36:32 link-monitor npm[211699]: [Monitor] Starting parallel collection for 10 links (10 workers)
+jan 11 16:36:34 link-monitor npm[211699]: [OLT SSH] Fallback: enviando comando após enable
+jan 11 16:36:34 link-monitor npm[211699]: [OLT SSH] Enviando comando para 100.64.1.222: show onu serial 4441434DED020021
