@@ -185,6 +185,21 @@ export class DatabaseStorage {
   }
 
   async deleteClient(id: number): Promise<void> {
+    // Delete associated events, metrics, ddos events, and incidents
+    await db.delete(events).where(eq(events.clientId, id));
+    await db.delete(ddosEvents).where(eq(ddosEvents.clientId, id));
+    await db.delete(incidents).where(eq(incidents.clientId, id));
+    // Delete metrics for all links of this client
+    const clientLinks = await db.select({ id: links.id }).from(links).where(eq(links.clientId, id));
+    for (const link of clientLinks) {
+      await db.delete(metrics).where(eq(metrics.linkId, link.id));
+      await db.delete(metricsHourly).where(eq(metricsHourly.linkId, link.id));
+      await db.delete(metricsDaily).where(eq(metricsDaily.linkId, link.id));
+    }
+    // Delete hosts and links
+    await db.delete(hosts).where(eq(hosts.clientId, id));
+    await db.delete(links).where(eq(links.clientId, id));
+    // Soft delete the client
     await db.update(clients).set({ isActive: false, updatedAt: new Date() }).where(eq(clients.id, id));
   }
 
@@ -286,6 +301,12 @@ export class DatabaseStorage {
   }
 
   async deleteLink(id: number): Promise<void> {
+    // Delete associated events, metrics, and hosts
+    await db.delete(events).where(eq(events.linkId, id));
+    await db.delete(metrics).where(eq(metrics.linkId, id));
+    await db.delete(metricsHourly).where(eq(metricsHourly.linkId, id));
+    await db.delete(metricsDaily).where(eq(metricsDaily.linkId, id));
+    await db.delete(hosts).where(eq(hosts.linkId, id));
     await db.delete(links).where(eq(links.id, id));
   }
 
