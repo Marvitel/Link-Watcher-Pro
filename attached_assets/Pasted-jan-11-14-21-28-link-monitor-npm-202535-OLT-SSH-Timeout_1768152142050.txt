@@ -1,0 +1,29 @@
+jan 11 14:21:28 link-monitor npm[202535]: [OLT SSH] Timeout de inatividade em 100.64.1.162, finalizando...
+jan 11 14:21:28 link-monitor npm[202535]: [OLT SSH] Comando completo em 100.64.1.162, saindo...
+jan 11 14:21:32 link-monitor npm[202535]: [Monitor] Starting parallel collection for 10 links (10 workers)
+jan 11 14:21:32 link-monitor npm[202535]: [OLT SSH] Conectando a 100.64.1.162:22...
+jan 11 14:21:32 link-monitor npm[202535]: [OLT SSH] Handshake OK com 100.64.1.162: kex=curve25519-sha256, cipher=chacha20-poly1305@openssh.com
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Ready - conexão estabelecida com 100.64.1.162
+jan 11 14:21:33 link-monitor npm[202535]: [156B blob data]
+jan 11 14:21:33 link-monitor npm[202535]: [70B blob data]
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Enviando comando para 100.64.1.162: show alarm | include 1/1/1/2
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Data de 100.64.1.162: show alarm | include 1/1/1/2
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Data de 100.64.1.162: 2026-01-08 03:07:41 UTC+0 CRITICAL gpon-1/1/1/2 Active GPON_LOSi ONU Loss of signal OLT-DM4611-POP-CMP#
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Prompt count: 1 em 100.64.1.162
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Prompt count: 2 em 100.64.1.162
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Comando completo em 100.64.1.162, saindo...
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Data de 100.64.1.162: OLT-DM4611-POP-CMP#
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Prompt count: 3 em 100.64.1.162
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Comando completo em 100.64.1.162, saindo...
+jan 11 14:21:33 link-monitor npm[202535]: [OLT SSH] Data de 100.64.1.162: exit
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Buscando alarmes para ONU: show alarm | include 1/1/1/2 (normalizado: show alarm | include 1/1/1/2)
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Output bruto (7 linhas):
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Linha 0: Welcome to the DmOS CLI
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Linha 1: mvtel@marvitel connected from 100.66.128.84 using ssh on OLT-DM4611-POP-CMP
+jan 11 14:21:33 link-monitor npm[202535]: [75B blob data]
+jan 11 14:21:33 link-monitor npm[202535]: [151B blob data]
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Linha 4: OLT-DM4611-POP-CMP#
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Linha 5: OLT-DM4611-POP-CMP# exit
+jan 11 14:21:33 link-monitor npm[202535]: [OLT Parser] Total de alarmes encontrados: 0
+jan 11 14:21:33 link-monitor npm[202535]: 2:21:33 PM [express] POST /api/olts/7/test-diagnosis 200 in 1039ms :: {"alarmType":null,"alarmCode":null,"description":"Nenhum alarme encontrado para esta ONU","diagnosis":"Sem alarmes ativos","rawOutput":"Welcome to the DmOS CLI\r\nmvtel@marvitel connected from 100.66.128.84 using ssh on OLT-DM4611-POP-CMP\r\n\u001b[?7hOLT-DM4611-POP-CMP# show alarm | include 1/1/1/2\r\n\r2026-01-08 03:07:41 UTC+0    CRITICAL gpon-1/1/1/2                    Active   GPON_LOSi                      ONU Loss of signal                       \r\nOLT-DM4611-POP-CMP# \r\nOLT-DM4611-POP-CMP# exit\r\n"}
+jan 11 14:21:36 link-monitor np

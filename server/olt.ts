@@ -1291,13 +1291,22 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
     const isFullCommand = normalizedId.toLowerCase().includes("show ") || normalizedId.toLowerCase().includes("sh ");
     const command = isFullCommand ? normalizedId : `show alarm | include ${normalizedId}`;
     
+    // Extrai a chave de busca real para o parser (ex: "1/1/1/2" de "show alarm | include 1/1/1/2")
+    let parseKey = normalizedId;
+    if (isFullCommand) {
+      const includeMatch = normalizedId.match(/include\s+(.+)$/i);
+      if (includeMatch) {
+        parseKey = includeMatch[1].trim();
+      }
+    }
+    
     if (olt.connectionType === "ssh") {
       rawOutput = await connectSSH(olt, command);
     } else {
       rawOutput = await connectTelnet(olt, command);
     }
     
-    const alarms = parseAlarmOutput(rawOutput, onuId);
+    const alarms = parseAlarmOutput(rawOutput, parseKey);
     
     if (alarms.length === 0) {
       return {
