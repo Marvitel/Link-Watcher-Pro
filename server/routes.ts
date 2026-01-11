@@ -730,9 +730,10 @@ export async function registerRoutes(
   app.get("/api/events", requireAuth, async (req, res) => {
     try {
       const clientId = getEffectiveClientId(req);
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 500;
-      const eventsList = await storage.getEvents(clientId, Math.min(limit, 1000));
-      res.json(eventsList);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const pageSize = req.query.pageSize ? Math.min(parseInt(req.query.pageSize as string, 10), 200) : 50;
+      const result = await storage.getEventsPaginated(clientId, page, pageSize);
+      res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch events" });
     }

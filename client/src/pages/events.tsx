@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,23 +13,51 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { EventsTable } from "@/components/events-table";
 import { useClientContext } from "@/lib/client-context";
-import { Activity, Search, Filter, RefreshCw } from "lucide-react";
+import { Activity, Search, Filter, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Event } from "@shared/schema";
+
+interface EventsResponse {
+  events: (Event & { linkName?: string | null })[];
+  total: number;
+  counts: {
+    total: number;
+    active: number;
+    critical: number;
+    warning: number;
+  };
+}
 
 export default function Events() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const { selectedClientId } = useClientContext();
 
-  const eventsUrl = selectedClientId ? `/api/events?clientId=${selectedClientId}` : "/api/events";
+  useEffect(() => {
+    setPage(1);
+  }, [selectedClientId, typeFilter, statusFilter]);
+
+  const eventsUrl = selectedClientId 
+    ? `/api/events?clientId=${selectedClientId}&page=${page}&pageSize=${pageSize}` 
+    : `/api/events?page=${page}&pageSize=${pageSize}`;
   
-  const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: [eventsUrl],
-    refetchInterval: 10000,
+  const { data, isLoading, refetch } = useQuery<EventsResponse>({
+    queryKey: ["/api/events", selectedClientId, page, pageSize],
+    queryFn: async () => {
+      const res = await fetch(eventsUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch events");
+      return res.json();
+    },
+    refetchInterval: 30000,
   });
 
-  const filteredEvents = events?.filter((event) => {
+  const events = data?.events || [];
+  const total = data?.total || 0;
+  const counts = data?.counts || { total: 0, active: 0, critical: 0, warning: 0 };
+
+  const filteredEvents = events.filter((event) => {
     const title = event.title || "";
     const description = event.description || "";
     const matchesSearch =
@@ -43,11 +71,13 @@ export default function Events() {
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const eventCounts = {
-    total: events?.length || 0,
-    active: events?.filter((e) => !e.resolved).length || 0,
-    critical: events?.filter((e) => e.type === "critical").length || 0,
-    warning: events?.filter((e) => e.type === "warning").length || 0,
+  const totalPages = Math.ceil(total / pageSize);
+  const startItem = (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
+
+  const handlePageSizeChange = (newSize: string) => {
+    setPageSize(parseInt(newSize, 10));
+    setPage(1);
   };
 
   return (
@@ -59,7 +89,12 @@ export default function Events() {
             Histórico de eventos e alertas do sistema
           </p>
         </div>
-        <Button variant="outline" size="sm" data-testid="button-refresh">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          data-testid="button-refresh"
+          onClick={() => refetch()}
+        >
           <RefreshCw className="w-4 h-4 mr-2" />
           Atualizar
         </Button>
@@ -74,7 +109,7 @@ export default function Events() {
               </div>
               <div>
                 <p className="text-2xl font-semibold font-mono" data-testid="text-total-events">
-                  {eventCounts.total}
+                  {counts.total.toLocaleString("pt-BR")}
                 </p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
@@ -89,7 +124,7 @@ export default function Events() {
               </div>
               <div>
                 <p className="text-2xl font-semibold font-mono" data-testid="text-active-events">
-                  {eventCounts.active}
+                  {counts.active.toLocaleString("pt-BR")}
                 </p>
                 <p className="text-xs text-muted-foreground">Ativos</p>
               </div>
@@ -104,7 +139,7 @@ export default function Events() {
               </div>
               <div>
                 <p className="text-2xl font-semibold font-mono" data-testid="text-critical-events">
-                  {eventCounts.critical}
+                  {counts.critical.toLocaleString("pt-BR")}
                 </p>
                 <p className="text-xs text-muted-foreground">Críticos</p>
               </div>
@@ -119,7 +154,7 @@ export default function Events() {
               </div>
               <div>
                 <p className="text-2xl font-semibold font-mono" data-testid="text-warning-events">
-                  {eventCounts.warning}
+                  {counts.warning.toLocaleString("pt-BR")}
                 </p>
                 <p className="text-xs text-muted-foreground">Avisos</p>
               </div>
@@ -131,11 +166,13 @@ export default function Events() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
           <CardTitle className="text-lg">Lista de Eventos</CardTitle>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
-              {filteredEvents?.length || 0} eventos
-            </span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground" data-testid="text-pagination-info">
+                {total > 0 ? `${startItem.toLocaleString("pt-BR")}-${endItem.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")}` : "0 eventos"}
+              </span>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -183,6 +220,46 @@ export default function Events() {
           ) : (
             <EventsTable events={filteredEvents || []} />
           )}
+
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Itens por página:</span>
+              <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                <SelectTrigger className="w-20" data-testid="select-page-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground" data-testid="text-page-info">
+                Página {page} de {totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                data-testid="button-prev-page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                data-testid="button-next-page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

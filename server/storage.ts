@@ -484,16 +484,57 @@ export class DatabaseStorage {
     return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);
   }
 
-  async getEvents(clientId?: number, limit: number = 500): Promise<(Event & { linkName?: string | null })[]> {
+  async getEventsPaginated(clientId?: number, page: number = 1, pageSize: number = 50): Promise<{
+    events: (Event & { linkName?: string | null })[];
+    total: number;
+    counts: { total: number; active: number; critical: number; warning: number };
+  }> {
     // Get active client IDs to filter events
     const activeClients = await db.select({ id: clients.id }).from(clients).where(eq(clients.isActive, true));
     const activeClientIds = activeClients.map(c => c.id);
     
     if (activeClientIds.length === 0) {
-      return [];
+      return { events: [], total: 0, counts: { total: 0, active: 0, critical: 0, warning: 0 } };
     }
     
-    const baseQuery = db
+    // Build the active clients filter condition
+    const activeClientsFilter = sql`${events.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`;
+    const clientFilter = clientId ? eq(events.clientId, clientId) : activeClientsFilter;
+    
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(events)
+      .where(clientFilter);
+    const total = countResult?.count || 0;
+    
+    // Get counts by type/status
+    const countsResult = await db
+      .select({
+        type: events.type,
+        resolved: events.resolved,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(events)
+      .where(clientFilter)
+      .groupBy(events.type, events.resolved);
+    
+    const counts = {
+      total,
+      active: 0,
+      critical: 0,
+      warning: 0,
+    };
+    
+    for (const row of countsResult) {
+      if (!row.resolved) counts.active += row.count;
+      if (row.type === 'critical') counts.critical += row.count;
+      if (row.type === 'warning') counts.warning += row.count;
+    }
+    
+    // Get paginated events
+    const offset = (page - 1) * pageSize;
+    const eventsList = await db
       .select({
         id: events.id,
         linkId: events.linkId,
@@ -508,14 +549,12 @@ export class DatabaseStorage {
       })
       .from(events)
       .leftJoin(links, eq(events.linkId, links.id))
+      .where(clientFilter)
       .orderBy(desc(events.timestamp))
-      .limit(limit);
+      .limit(pageSize)
+      .offset(offset);
     
-    if (clientId) {
-      return await baseQuery.where(eq(events.clientId, clientId));
-    }
-    // Filter to only show events from active clients
-    return await baseQuery.where(sql`${events.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`);
+    return { events: eventsList, total, counts };
   }
 
   async deleteAllEvents(clientId: number): Promise<number> {
