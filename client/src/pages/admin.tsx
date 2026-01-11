@@ -4560,6 +4560,8 @@ function OltsTab({ clients }: { clients: Client[] }) {
     vendor: "datacom",
     model: "",
     database: "",
+    searchOnuCommand: "",
+    diagnosisKeyTemplate: "",
     isActive: true,
     voalleId: null as number | null,
   });
@@ -4575,6 +4577,8 @@ function OltsTab({ clients }: { clients: Client[] }) {
       vendor: "datacom",
       model: "",
       database: "",
+      searchOnuCommand: "",
+      diagnosisKeyTemplate: "",
       isActive: true,
       voalleId: null,
     });
@@ -4593,6 +4597,8 @@ function OltsTab({ clients }: { clients: Client[] }) {
       vendor: olt.vendor || "datacom",
       model: olt.model || "",
       database: olt.database || "",
+      searchOnuCommand: (olt as any).searchOnuCommand || "",
+      diagnosisKeyTemplate: (olt as any).diagnosisKeyTemplate || "",
       isActive: olt.isActive,
       voalleId: (olt as any).voalleId || null,
     });
@@ -4803,6 +4809,42 @@ function OltsTab({ clients }: { clients: Client[] }) {
                   ID do authenticationAccessPoint no Voalle para associacao automatica com etiquetas de contrato
                 </p>
               </div>
+              
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-2">Templates de Busca e Diagnostico</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Variaveis disponiveis: <code className="bg-muted px-1 rounded">{"{serial}"}</code> <code className="bg-muted px-1 rounded">{"{slot}"}</code> <code className="bg-muted px-1 rounded">{"{port}"}</code> <code className="bg-muted px-1 rounded">{"{onuId}"}</code>
+                </p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="olt-search-command">Comando de Busca de ID da ONU</Label>
+                    <Input
+                      id="olt-search-command"
+                      value={formData.searchOnuCommand}
+                      onChange={(e) => setFormData({ ...formData, searchOnuCommand: e.target.value })}
+                      placeholder="Ex: sh onu serial {serial}"
+                      data-testid="input-olt-search-command"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Comando SSH/Telnet para buscar o ID da ONU pelo serial
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="olt-diagnosis-template">Template de Chave de Diagnostico</Label>
+                    <Input
+                      id="olt-diagnosis-template"
+                      value={formData.diagnosisKeyTemplate}
+                      onChange={(e) => setFormData({ ...formData, diagnosisKeyTemplate: e.target.value })}
+                      placeholder="Ex: 1/{slot}/{port}/{onuId} ou {serial}"
+                      data-testid="input-olt-diagnosis-template"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formato da chave usada para diagnostico de alarmes
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between">
                 <Label htmlFor="olt-active">Ativo</Label>
                 <Switch
