@@ -1200,6 +1200,148 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
   }
 }
 
+// Busca o ID da ONU via SSH usando o serial/string de busca
+// Datacom: show interface gpon onu | include "Serial" → segundo campo é o ID
+// Furukawa: sh onu serial "Serial" → campo onu index
+export async function searchOnuBySerial(olt: Olt, searchString: string): Promise<{ success: boolean; onuId: string | null; rawOutput: string; message: string }> {
+  try {
+    const vendor = (olt.vendor || "").toLowerCase();
+    let command: string;
+    
+    // Determina o comando baseado no vendor
+    if (vendor.includes("datacom")) {
+      command = `show interface gpon onu | include "${searchString}"`;
+    } else if (vendor.includes("furukawa") || vendor.includes("fk")) {
+      command = `sh onu serial ${searchString}`;
+    } else if (vendor.includes("huawei")) {
+      command = `display ont info by-sn ${searchString}`;
+    } else if (vendor.includes("zte")) {
+      command = `show gpon onu by sn ${searchString}`;
+    } else if (vendor.includes("nokia")) {
+      command = `show equipment ont interface | match ${searchString}`;
+    } else {
+      return {
+        success: false,
+        onuId: null,
+        rawOutput: "",
+        message: `Fabricante "${olt.vendor}" não suportado para busca de ONU`
+      };
+    }
+    
+    console.log(`[OLT Search] Buscando ONU por serial "${searchString}" em ${olt.name} (${vendor})`);
+    console.log(`[OLT Search] Comando: ${command}`);
+    
+    let rawOutput: string;
+    if (olt.connectionType === "ssh") {
+      rawOutput = await connectSSH(olt, command);
+    } else {
+      rawOutput = await connectTelnet(olt, command);
+    }
+    
+    console.log(`[OLT Search] Output recebido (${rawOutput.length} chars)`);
+    
+    // Parse do output baseado no vendor
+    let onuId: string | null = null;
+    const lines = rawOutput.split("\n").filter(l => l.trim());
+    
+    if (vendor.includes("datacom")) {
+      // Datacom: procura linha com o serial e pega o segundo campo (ID da ONU)
+      // Formato esperado: "gpon-olt_1/1/3:116  TPLGCE70A998  online  ..."
+      for (const line of lines) {
+        if (line.toLowerCase().includes(searchString.toLowerCase())) {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length >= 2 && parts[0].includes("gpon")) {
+            onuId = parts[0]; // ID da ONU é o primeiro campo
+            break;
+          }
+        }
+      }
+    } else if (vendor.includes("furukawa") || vendor.includes("fk")) {
+      // Furukawa: procura linha "onu index" ou similar
+      // Formato esperado: "onu-index: 1/1/2/5" ou "ONU Index       : gpon-olt_1/1/3:116"
+      for (const line of lines) {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine.includes("onu") && (lowerLine.includes("index") || lowerLine.includes("id"))) {
+          const match = line.match(/:\s*(.+?)(?:\s|$)/);
+          if (match) {
+            onuId = match[1].trim();
+            break;
+          }
+        }
+      }
+      // Alternativa: primeira linha com formato de ONU
+      if (!onuId) {
+        for (const line of lines) {
+          const match = line.match(/(\d+\/\d+\/\d+[\/:]?\d*)/);
+          if (match) {
+            onuId = match[1];
+            break;
+          }
+        }
+      }
+    } else if (vendor.includes("huawei")) {
+      // Huawei: procura "ONT ID" ou similar
+      for (const line of lines) {
+        if (line.toLowerCase().includes("ont id") || line.toLowerCase().includes("onu id")) {
+          const match = line.match(/:\s*(\d+)/);
+          if (match) {
+            // Huawei geralmente retorna só o número, precisa combinar com PON
+            const ponMatch = rawOutput.match(/(\d+\/\d+\/\d+)/);
+            onuId = ponMatch ? `${ponMatch[1]}:${match[1]}` : match[1];
+            break;
+          }
+        }
+      }
+    } else if (vendor.includes("zte")) {
+      // ZTE: formato similar ao Datacom
+      for (const line of lines) {
+        if (line.toLowerCase().includes(searchString.toLowerCase())) {
+          const match = line.match(/(gpon-onu_?\d+\/\d+\/\d+:\d+)/i);
+          if (match) {
+            onuId = match[1];
+            break;
+          }
+        }
+      }
+    } else if (vendor.includes("nokia")) {
+      // Nokia: formato PON/ONU
+      for (const line of lines) {
+        const match = line.match(/(\d+\/\d+\/\d+\/\d+)/);
+        if (match) {
+          onuId = match[1];
+          break;
+        }
+      }
+    }
+    
+    if (onuId) {
+      console.log(`[OLT Search] ONU encontrada: ${onuId}`);
+      return {
+        success: true,
+        onuId,
+        rawOutput,
+        message: `ONU encontrada: ${onuId}`
+      };
+    } else {
+      console.log(`[OLT Search] ONU não encontrada no output`);
+      return {
+        success: false,
+        onuId: null,
+        rawOutput,
+        message: "ONU não encontrada. Verifique o serial informado."
+      };
+    }
+  } catch (error) {
+    console.error(`[OLT Search] Erro:`, error);
+    return {
+      success: false,
+      onuId: null,
+      rawOutput: "",
+      message: error instanceof Error ? error.message : "Erro ao buscar ONU"
+    };
+  }
+}
+
 export async function testOltConnection(olt: Olt): Promise<{ success: boolean; message: string }> {
   try {
     if (olt.connectionType === "mysql") {

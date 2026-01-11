@@ -2080,6 +2080,26 @@ export async function registerRoutes(
     }
   });
 
+  // Endpoint para buscar ID da ONU pelo serial na OLT
+  app.post("/api/olts/:id/search-onu", requireAuth, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      const { searchString } = req.body;
+      if (!searchString) {
+        return res.status(400).json({ error: "String de busca é obrigatória" });
+      }
+      const { searchOnuBySerial } = await import("./olt");
+      const result = await searchOnuBySerial(olt, searchString);
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao buscar ONU:", error);
+      res.status(500).json({ error: "Falha ao buscar ONU" });
+    }
+  });
+
   // ============ SNMP Concentrators Routes ============
 
   app.get("/api/concentrators", requireAuth, async (req, res) => {
