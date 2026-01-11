@@ -4,7 +4,7 @@ import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, type OltAlarm } from "./olt";
+import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, type OltAlarm } from "./olt";
 import { findInterfaceByName, type SnmpProfile as SnmpProfileType } from "./snmp";
 
 const execAsync = promisify(exec);
@@ -958,14 +958,25 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
               if (olt && olt.isActive) {
                 let diagnosisSuffix = "";
                 
-                if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
-                  const diagnosis = await queryOltAlarm(olt, link.onuId);
+                // Monta a chave de diagnóstico baseada no vendor da OLT
+                // Datacom usa formato "1/slot/port/id-onu", outros usam serial
+                const diagnosisKey = buildOnuDiagnosisKey(olt.vendor, {
+                  onuSearchString: link.onuSearchString,
+                  onuId: link.onuId,
+                  slotOlt: link.slotOlt,
+                  portOlt: link.portOlt,
+                });
+                
+                if (!diagnosisKey) {
+                  diagnosisSuffix = " | OLT: Dados de ONU incompletos para diagnóstico";
+                } else if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
+                  const diagnosis = await queryOltAlarm(olt, diagnosisKey);
                   diagnosisSuffix = diagnosis.alarmType 
                     ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
                     : ` | OLT: ${diagnosis.description}`;
                 } else {
                   const allAlarms = await queryAllOltAlarms(olt);
-                  const diagnosis = getDiagnosisFromAlarms(allAlarms, link.onuId);
+                  const diagnosis = getDiagnosisFromAlarms(allAlarms, diagnosisKey);
                   diagnosisSuffix = diagnosis.alarmType 
                     ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
                     : ` | OLT: ${diagnosis.description}`;

@@ -42,6 +42,56 @@ export interface OltDiagnosis {
   rawOutput: string;
 }
 
+// Interface para dados do link usados no diagnóstico
+export interface LinkDiagnosisData {
+  onuSearchString: string | null;
+  onuId: string | null;
+  slotOlt: number | null;
+  portOlt: number | null;
+}
+
+// Monta a string correta para diagnóstico de ONU baseada no vendor da OLT
+// Datacom: usa formato "1/slot/port/id-onu" extraído do onuId
+// Outros vendors: usam o serial (onuSearchString)
+export function buildOnuDiagnosisKey(vendor: string | null, link: LinkDiagnosisData): string | null {
+  const normalizedVendor = (vendor || "").toLowerCase();
+  
+  // Datacom: formato "1/slot/port/id-onu"
+  if (normalizedVendor === "datacom") {
+    // Se tem onuId no formato "gpon-olt_1/1/3:116", extrair a parte numérica
+    if (link.onuId) {
+      // Formato: gpon-olt_1/1/3:116 → extrai 1/1/3:116
+      const match = link.onuId.match(/(\d+\/\d+\/\d+:\d+)/);
+      if (match) {
+        // Converte 1/1/3:116 para 1/1/3/116
+        return match[1].replace(":", "/");
+      }
+      // Se já está no formato 1/slot/port/id, retorna direto
+      if (/^\d+\/\d+\/\d+\/\d+$/.test(link.onuId)) {
+        return link.onuId;
+      }
+    }
+    // Fallback: monta a partir de slot/port se disponível
+    if (link.slotOlt != null && link.portOlt != null && link.onuId) {
+      // Tenta extrair apenas o ID numérico da ONU do onuId
+      const idMatch = link.onuId.match(/:(\d+)$/);
+      if (idMatch) {
+        return `1/${link.slotOlt}/${link.portOlt}/${idMatch[1]}`;
+      }
+    }
+    console.log(`[OLT Diagnosis] Datacom: não foi possível montar chave de diagnóstico. onuId=${link.onuId}`);
+    return null;
+  }
+  
+  // Outros vendors (Furukawa, Huawei, ZTE, Nokia, etc): usam o serial
+  if (link.onuSearchString) {
+    return link.onuSearchString;
+  }
+  
+  // Fallback para onuId se não tiver onuSearchString
+  return link.onuId;
+}
+
 const ALARM_MAPPINGS: Record<string, { diagnosis: string; description: string }> = {
   "GPON_LOSi": { 
     diagnosis: "Rompimento de Fibra", 
