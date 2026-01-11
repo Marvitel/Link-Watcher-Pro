@@ -1367,7 +1367,7 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
       // parts[0] = slot/port/pon (ex: 1/1/1)
       // parts[1] = ID numérico da ONU (ex: 2)
       // parts[2] = serial (ex: TPLG150853A0)
-      // Resultado: gpon-olt_1/1/1:2
+      // Resultado: apenas o ID numérico (ex: 2)
       for (const line of lines) {
         if (line.toLowerCase().includes(searchString.toLowerCase())) {
           const parts = line.trim().split(/\s+/);
@@ -1377,7 +1377,7 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
             const onuNumber = parts[1]; // 2
             // Verifica se ponPath tem formato X/X/X e onuNumber é numérico
             if (/^\d+\/\d+\/\d+$/.test(ponPath) && /^\d+$/.test(onuNumber)) {
-              onuId = `gpon-olt_${ponPath}:${onuNumber}`;
+              onuId = onuNumber; // Apenas o ID numérico
               break;
             }
           }
