@@ -1363,14 +1363,23 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
     const lines = rawOutput.split("\n").filter(l => l.trim());
     
     if (vendor.includes("datacom")) {
-      // Datacom: procura linha com o serial e pega o segundo campo (ID da ONU)
-      // Formato esperado: "gpon-olt_1/1/3:116  TPLGCE70A998  online  ..."
+      // Datacom: formato "1/1/1 2 TPLG150853A0 Down None ..."
+      // parts[0] = slot/port/pon (ex: 1/1/1)
+      // parts[1] = ID numérico da ONU (ex: 2)
+      // parts[2] = serial (ex: TPLG150853A0)
+      // Resultado: gpon-olt_1/1/1:2
       for (const line of lines) {
         if (line.toLowerCase().includes(searchString.toLowerCase())) {
           const parts = line.trim().split(/\s+/);
-          if (parts.length >= 2 && parts[0].includes("gpon")) {
-            onuId = parts[0]; // ID da ONU é o primeiro campo
-            break;
+          // Verifica se tem formato esperado: slot/port/pon + ID + serial
+          if (parts.length >= 3) {
+            const ponPath = parts[0]; // 1/1/1
+            const onuNumber = parts[1]; // 2
+            // Verifica se ponPath tem formato X/X/X e onuNumber é numérico
+            if (/^\d+\/\d+\/\d+$/.test(ponPath) && /^\d+$/.test(onuNumber)) {
+              onuId = `gpon-olt_${ponPath}:${onuNumber}`;
+              break;
+            }
           }
         }
       }
