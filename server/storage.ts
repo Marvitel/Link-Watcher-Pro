@@ -276,7 +276,13 @@ export class DatabaseStorage {
     if (clientId) {
       return await db.select().from(links).where(eq(links.clientId, clientId));
     }
-    return await db.select().from(links);
+    // Filter to only show links from active clients
+    const activeClients = await db.select({ id: clients.id }).from(clients).where(eq(clients.isActive, true));
+    const activeClientIds = activeClients.map(c => c.id);
+    if (activeClientIds.length === 0) {
+      return [];
+    }
+    return await db.select().from(links).where(sql`${links.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`);
   }
 
   async getLink(id: number): Promise<Link | undefined> {
