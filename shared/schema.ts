@@ -108,7 +108,8 @@ export const links = pgTable("links", {
   latencyThreshold: real("latency_threshold").notNull().default(80),
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   oltId: integer("olt_id"),
-  onuId: varchar("onu_id", { length: 50 }),
+  onuSearchString: varchar("onu_search_string", { length: 100 }), // String de busca (serial da ONU)
+  onuId: varchar("onu_id", { length: 50 }), // ID da ONU descoberto via busca na OLT
   // Voalle ERP integration - Contract tag (etiqueta = conexão no Voalle)
   voalleContractTagId: integer("voalle_contract_tag_id"),
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
