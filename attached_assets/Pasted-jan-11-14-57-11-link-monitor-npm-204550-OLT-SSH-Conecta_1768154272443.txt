@@ -1,0 +1,25 @@
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Conectando a 100.64.1.162:22...
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Handshake OK com 100.64.1.162: kex=curve25519-sha256, cipher=chacha20-poly1305@openssh.com
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Ready - conexão estabelecida com 100.64.1.162
+jan 11 14:57:11 link-monitor npm[204550]: [156B blob data]
+jan 11 14:57:11 link-monitor npm[204550]: [70B blob data]
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Enviando comando para 100.64.1.162: show alarm | include 1/1/1/2
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Data de 100.64.1.162: show alarm | include 1/1/1/2
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Data de 100.64.1.162: 2026-01-08 03:07:41 UTC+0 CRITICAL gpon-1/1/1/2 Active GPON_LOSi ONU Loss of signal OLT-DM4611-POP-CMP#
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Prompt count: 1 em 100.64.1.162
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Prompt count: 2 em 100.64.1.162
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Comando completo em 100.64.1.162, saindo...
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Data de 100.64.1.162: OLT-DM4611-POP-CMP#
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Prompt count: 3 em 100.64.1.162
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Comando completo em 100.64.1.162, saindo...
+jan 11 14:57:11 link-monitor npm[204550]: [OLT SSH] Data de 100.64.1.162: exit
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Buscando alarmes para ONU: 1/1/1/2 (normalizado: 1/1/1/2)
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Output bruto (7 linhas):
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Linha 0: Welcome to the DmOS CLI
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Linha 1: mvtel@marvitel connected from 100.66.128.84 using ssh on OLT-DM4611-POP-CMP
+jan 11 14:57:11 link-monitor npm[204550]: [75B blob data]
+jan 11 14:57:11 link-monitor npm[204550]: [151B blob data]
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Linha 4: OLT-DM4611-POP-CMP#
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Linha 5: OLT-DM4611-POP-CMP# exit
+jan 11 14:57:11 link-monitor npm[204550]: [OLT Parser] Total de alarmes encontrados: 0
+jan 11 14:57:12 link-monitor npm[204550]: 2:57:12 PM [express] PO

@@ -728,8 +728,11 @@ function normalizeOnuId(onuId: string): string {
 
 function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
   const alarms: OltAlarm[] = [];
-  const lines = output.split("\n");
   const normalizedOnuId = normalizeOnuId(onuId);
+  
+  // Limpa caracteres ANSI e de controle antes de processar
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
   
   console.log(`[OLT Parser] Buscando alarmes para ONU: ${onuId} (normalizado: ${normalizedOnuId})`);
   console.log(`[OLT Parser] Output bruto (${lines.length} linhas):`);
