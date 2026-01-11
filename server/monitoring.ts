@@ -821,7 +821,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         }
         
         // Handle auto-discovery of ifIndex when collection fails
-        if (link.snmpInterfaceName) {
+        // Skip auto-discovery if link is offline (ping failed) - device is unreachable
+        const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
+        if (link.snmpInterfaceName && !isLinkOffline) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
           // If ifIndex was updated, retry collection with new index
