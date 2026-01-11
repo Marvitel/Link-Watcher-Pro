@@ -2100,6 +2100,44 @@ export async function registerRoutes(
     }
   });
 
+  // Testar diagnóstico de ONU na OLT
+  app.post("/api/olts/:id/test-diagnosis", requireAuth, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      const { onuId, slotOlt, portOlt, equipmentSerialNumber } = req.body;
+      if (!onuId) {
+        return res.status(400).json({ error: "ID da ONU é obrigatório" });
+      }
+      
+      const { buildOnuDiagnosisKey } = await import("./olt");
+      
+      // Monta a chave de diagnóstico usando os dados fornecidos
+      const diagnosisKey = buildOnuDiagnosisKey(olt, {
+        onuId,
+        slotOlt,
+        portOlt,
+        onuSearchString: equipmentSerialNumber,
+      });
+      
+      if (!diagnosisKey) {
+        return res.json({
+          alarmType: null,
+          diagnosis: "Dados insuficientes para diagnóstico",
+          description: "Verifique se os campos ONU ID, Slot e Porta estão preenchidos corretamente",
+        });
+      }
+      
+      const result = await queryOltAlarm(olt, diagnosisKey);
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao testar diagnóstico:", error);
+      res.status(500).json({ error: "Falha ao testar diagnóstico" });
+    }
+  });
+
   // ============ SNMP Concentrators Routes ============
 
   app.get("/api/concentrators", requireAuth, async (req, res) => {

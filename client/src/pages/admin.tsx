@@ -48,6 +48,7 @@ import {
   Cpu,
   AlertTriangle,
   AlertCircle,
+  Activity,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -99,6 +100,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   });
   
   const [isSearchingOnu, setIsSearchingOnu] = useState(false);
+  const [isTestingDiagnosis, setIsTestingDiagnosis] = useState(false);
+  const [diagnosisResult, setDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
 
   const { data: olts } = useQuery<Olt[]>({
     queryKey: ["/api/olts"],
@@ -978,6 +981,56 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           <p className="text-sm text-muted-foreground mt-2">
             Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
           </p>
+        )}
+        
+        {formData.oltId && formData.onuId && (
+          <div className="mt-4 p-3 bg-muted/50 rounded-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Testar Diagnóstico</p>
+                <p className="text-xs text-muted-foreground">Consulta a OLT para verificar o status da ONU</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isTestingDiagnosis}
+                onClick={async () => {
+                  setIsTestingDiagnosis(true);
+                  setDiagnosisResult(null);
+                  try {
+                    const response = await apiRequest("POST", `/api/olts/${formData.oltId}/test-diagnosis`, {
+                      onuId: formData.onuId,
+                      slotOlt: formData.slotOlt,
+                      portOlt: formData.portOlt,
+                      equipmentSerialNumber: formData.equipmentSerialNumber,
+                    });
+                    const result = await response.json();
+                    setDiagnosisResult(result);
+                    if (result.alarmType) {
+                      toast({ title: "Alarme Detectado", description: `${result.diagnosis}: ${result.description}`, variant: "destructive" });
+                    } else {
+                      toast({ title: "Diagnóstico OK", description: result.diagnosis || "Sem alarmes ativos" });
+                    }
+                  } catch (error) {
+                    toast({ title: "Erro", description: "Falha ao testar diagnóstico na OLT", variant: "destructive" });
+                  } finally {
+                    setIsTestingDiagnosis(false);
+                  }
+                }}
+                data-testid="button-test-diagnosis"
+              >
+                {isTestingDiagnosis ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Activity className="h-4 w-4 mr-2" />}
+                Testar
+              </Button>
+            </div>
+            {diagnosisResult && (
+              <div className={`mt-3 p-2 rounded text-sm ${diagnosisResult.alarmType ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-700 dark:text-green-400'}`}>
+                <p className="font-medium">{diagnosisResult.diagnosis}</p>
+                {diagnosisResult.description && <p className="text-xs mt-1">{diagnosisResult.description}</p>}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
