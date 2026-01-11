@@ -484,7 +484,15 @@ export class DatabaseStorage {
     return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);
   }
 
-  async getEvents(clientId?: number): Promise<(Event & { linkName?: string | null })[]> {
+  async getEvents(clientId?: number, limit: number = 500): Promise<(Event & { linkName?: string | null })[]> {
+    // Get active client IDs to filter events
+    const activeClients = await db.select({ id: clients.id }).from(clients).where(eq(clients.isActive, true));
+    const activeClientIds = activeClients.map(c => c.id);
+    
+    if (activeClientIds.length === 0) {
+      return [];
+    }
+    
     const baseQuery = db
       .select({
         id: events.id,
@@ -500,12 +508,14 @@ export class DatabaseStorage {
       })
       .from(events)
       .leftJoin(links, eq(events.linkId, links.id))
-      .orderBy(desc(events.timestamp));
+      .orderBy(desc(events.timestamp))
+      .limit(limit);
     
     if (clientId) {
       return await baseQuery.where(eq(events.clientId, clientId));
     }
-    return await baseQuery;
+    // Filter to only show events from active clients
+    return await baseQuery.where(sql`${events.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`);
   }
 
   async deleteAllEvents(clientId: number): Promise<number> {
