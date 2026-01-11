@@ -977,6 +977,37 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             />
           </div>
         </div>
+        
+        {formData.voalleContractTagId && (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isLoadingTags}
+              onClick={async () => {
+                await refetchTags();
+                const tag = voalleContractTags?.tags?.find(t => t.id === formData.voalleContractTagId);
+                if (tag) {
+                  setFormData(prev => ({
+                    ...prev,
+                    slotOlt: tag.slotOlt ?? prev.slotOlt,
+                    portOlt: tag.portOlt ?? prev.portOlt,
+                    equipmentSerialNumber: tag.equipmentSerialNumber ?? prev.equipmentSerialNumber,
+                  }));
+                  toast({ title: "Voalle Sincronizado", description: "Dados de Slot, Porta e Serial atualizados" });
+                } else {
+                  toast({ title: "Etiqueta não encontrada", description: "Selecione uma etiqueta válida", variant: "destructive" });
+                }
+              }}
+              data-testid="button-sync-voalle"
+            >
+              {isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sincronizar do Voalle
+            </Button>
+            <p className="text-xs text-muted-foreground mt-1">Atualiza Slot, Porta e Serial da etiqueta selecionada</p>
+          </div>
+        )}
         {!filteredOlts?.length && formData.oltId === null && (
           <p className="text-sm text-muted-foreground mt-2">
             Nenhuma OLT cadastrada para este cliente. Acesse a aba OLTs para cadastrar.
