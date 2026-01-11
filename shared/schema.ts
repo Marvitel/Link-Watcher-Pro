@@ -423,6 +423,9 @@ export const olts = pgTable("olts", {
   vendor: varchar("vendor", { length: 50 }),
   model: varchar("model", { length: 100 }),
   database: varchar("database", { length: 100 }), // Para conexões MySQL (ex: Zabbix)
+  // Templates para busca e diagnóstico de ONU - variáveis: {serial}, {slot}, {port}, {onuId}
+  searchOnuCommand: text("search_onu_command"), // Ex: "sh onu serial {serial}" ou "show interface gpon onu | include {serial}"
+  diagnosisKeyTemplate: text("diagnosis_key_template"), // Ex: "1/{slot}/{port}/{onuId}" ou "{serial}"
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
