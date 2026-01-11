@@ -97,6 +97,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     timeout: 5000,
     retries: 3,
   });
+  
+  const [isSearchingOnu, setIsSearchingOnu] = useState(false);
 
   const { data: olts } = useQuery<Olt[]>({
     queryKey: ["/api/olts"],
@@ -136,6 +138,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     customMemoryOid: (link as any)?.customMemoryOid || "",
     snmpCommunity: "",
     oltId: link?.oltId || null,
+    onuSearchString: (link as any)?.onuSearchString || "",
     onuId: link?.onuId || "",
     voalleContractTagId: link?.voalleContractTagId || null,
     voalleConnectionId: (link as any)?.voalleConnectionId || null,
@@ -891,6 +894,50 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="onuSearchString">String de Busca</Label>
+            <div className="flex gap-2">
+              <Input
+                id="onuSearchString"
+                value={formData.onuSearchString}
+                onChange={(e) => setFormData({ ...formData, onuSearchString: e.target.value })}
+                placeholder="Ex: TPLGCE70A998"
+                data-testid="input-onu-search-string"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!formData.oltId || !formData.onuSearchString || isSearchingOnu}
+                onClick={async () => {
+                  if (!formData.oltId || !formData.onuSearchString) return;
+                  setIsSearchingOnu(true);
+                  try {
+                    const response = await apiRequest("POST", `/api/olts/${formData.oltId}/search-onu`, {
+                      searchString: formData.onuSearchString
+                    });
+                    const result = await response.json();
+                    if (result.success && result.onuId) {
+                      setFormData({ ...formData, onuId: result.onuId });
+                      toast({ title: "ONU encontrada", description: `ID: ${result.onuId}` });
+                    } else {
+                      toast({ title: "ONU não encontrada", description: result.message, variant: "destructive" });
+                    }
+                  } catch (error) {
+                    toast({ title: "Erro", description: "Falha ao buscar ONU na OLT", variant: "destructive" });
+                  } finally {
+                    setIsSearchingOnu(false);
+                  }
+                }}
+                data-testid="button-search-onu"
+              >
+                {isSearchingOnu ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Serial da ONU para buscar o ID automaticamente</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="onuId">ID da ONU</Label>
             <Input
