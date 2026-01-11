@@ -50,11 +50,43 @@ export interface LinkDiagnosisData {
   portOlt: number | null;
 }
 
-// Monta a string correta para diagnóstico de ONU baseada no vendor da OLT
-// Datacom: usa formato "1/slot/port/id-onu" extraído do onuId
-// Outros vendors: usam o serial (onuSearchString)
-export function buildOnuDiagnosisKey(vendor: string | null, link: LinkDiagnosisData): string | null {
-  const normalizedVendor = (vendor || "").toLowerCase();
+// Substitui variáveis no template: {serial}, {slot}, {port}, {onuId}
+function replaceTemplateVariables(template: string, link: LinkDiagnosisData): string {
+  let result = template;
+  
+  // Extrai apenas o ID numérico da ONU (ex: "116" de "gpon-olt_1/1/3:116")
+  let numericOnuId = "";
+  if (link.onuId) {
+    const match = link.onuId.match(/:(\d+)$/);
+    if (match) {
+      numericOnuId = match[1];
+    } else if (/^\d+$/.test(link.onuId)) {
+      numericOnuId = link.onuId;
+    }
+  }
+  
+  result = result.replace(/\{serial\}/g, link.onuSearchString || "");
+  result = result.replace(/\{slot\}/g, link.slotOlt?.toString() || "");
+  result = result.replace(/\{port\}/g, link.portOlt?.toString() || "");
+  result = result.replace(/\{onuId\}/g, numericOnuId);
+  
+  return result;
+}
+
+// Monta a string correta para diagnóstico de ONU baseada no template da OLT
+// Se template configurado: usa o template com substituição de variáveis
+// Se não: fallback para lógica por vendor
+export function buildOnuDiagnosisKey(olt: Olt, link: LinkDiagnosisData): string | null {
+  // Se a OLT tem template de diagnóstico configurado, usa ele
+  if ((olt as any).diagnosisKeyTemplate) {
+    const key = replaceTemplateVariables((olt as any).diagnosisKeyTemplate, link);
+    if (key && key.trim()) {
+      return key;
+    }
+  }
+  
+  // Fallback: lógica por vendor
+  const normalizedVendor = (olt.vendor || "").toLowerCase();
   
   // Datacom: formato "1/slot/port/id-onu"
   if (normalizedVendor === "datacom") {
@@ -90,6 +122,52 @@ export function buildOnuDiagnosisKey(vendor: string | null, link: LinkDiagnosisD
   
   // Fallback para onuId se não tiver onuSearchString
   return link.onuId;
+}
+
+// Monta o comando de busca de ONU usando template da OLT ou fallback por vendor
+// searchString é tipicamente o serial da ONU
+export function buildOnuSearchCommand(olt: Olt, searchString: string, link?: LinkDiagnosisData): string | null {
+  // Se a OLT tem comando de busca configurado, usa ele
+  if ((olt as any).searchOnuCommand) {
+    let command = (olt as any).searchOnuCommand as string;
+    // Substitui todas as variáveis disponíveis
+    command = command.replace(/\{serial\}/g, searchString);
+    if (link) {
+      // Extrai ID numérico da ONU se disponível
+      let numericOnuId = "";
+      if (link.onuId) {
+        const match = link.onuId.match(/:(\d+)$/);
+        if (match) {
+          numericOnuId = match[1];
+        } else if (/^\d+$/.test(link.onuId)) {
+          numericOnuId = link.onuId;
+        }
+      }
+      command = command.replace(/\{slot\}/g, link.slotOlt?.toString() || "");
+      command = command.replace(/\{port\}/g, link.portOlt?.toString() || "");
+      command = command.replace(/\{onuId\}/g, numericOnuId);
+    }
+    return command;
+  }
+  
+  // Fallback: comandos por vendor
+  const vendor = (olt.vendor || "").toLowerCase();
+  
+  switch (vendor) {
+    case "datacom":
+      return `show interface gpon onu | include "${searchString}"`;
+    case "furukawa":
+      return `sh onu serial ${searchString}`;
+    case "huawei":
+      return `display ont info by-sn ${searchString}`;
+    case "zte":
+      return `show gpon onu by sn ${searchString}`;
+    case "nokia":
+      return `show equipment ont interface | match ${searchString}`;
+    default:
+      console.log(`[OLT Search] Vendor ${vendor} não tem comando de busca configurado`);
+      return null;
+  }
 }
 
 const ALARM_MAPPINGS: Record<string, { diagnosis: string; description: string }> = {
@@ -1251,30 +1329,20 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
 }
 
 // Busca o ID da ONU via SSH usando o serial/string de busca
-// Datacom: show interface gpon onu | include "Serial" → segundo campo é o ID
-// Furukawa: sh onu serial "Serial" → campo onu index
+// Usa o comando configurado na OLT ou fallback por vendor
 export async function searchOnuBySerial(olt: Olt, searchString: string): Promise<{ success: boolean; onuId: string | null; rawOutput: string; message: string }> {
   try {
     const vendor = (olt.vendor || "").toLowerCase();
-    let command: string;
     
-    // Determina o comando baseado no vendor
-    if (vendor.includes("datacom")) {
-      command = `show interface gpon onu | include "${searchString}"`;
-    } else if (vendor.includes("furukawa") || vendor.includes("fk")) {
-      command = `sh onu serial ${searchString}`;
-    } else if (vendor.includes("huawei")) {
-      command = `display ont info by-sn ${searchString}`;
-    } else if (vendor.includes("zte")) {
-      command = `show gpon onu by sn ${searchString}`;
-    } else if (vendor.includes("nokia")) {
-      command = `show equipment ont interface | match ${searchString}`;
-    } else {
+    // Usa o comando configurado na OLT ou fallback por vendor
+    const command = buildOnuSearchCommand(olt, searchString);
+    
+    if (!command) {
       return {
         success: false,
         onuId: null,
         rawOutput: "",
-        message: `Fabricante "${olt.vendor}" não suportado para busca de ONU`
+        message: `Fabricante "${olt.vendor}" não suportado para busca de ONU. Configure o comando de busca na OLT.`
       };
     }
     

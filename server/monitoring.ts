@@ -958,9 +958,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
               if (olt && olt.isActive) {
                 let diagnosisSuffix = "";
                 
-                // Monta a chave de diagnóstico baseada no vendor da OLT
-                // Datacom usa formato "1/slot/port/id-onu", outros usam serial
-                const diagnosisKey = buildOnuDiagnosisKey(olt.vendor, {
+                // Monta a chave de diagnóstico baseada no template da OLT ou fallback por vendor
+                const diagnosisKey = buildOnuDiagnosisKey(olt, {
                   onuSearchString: link.onuSearchString,
                   onuId: link.onuId,
                   slotOlt: link.slotOlt,
