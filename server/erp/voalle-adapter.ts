@@ -663,6 +663,14 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             ipAuthentication?: { id: number; ip: string } | null;
             authenticationConcentrator?: { id: number; title: string } | null;
             authenticationAccessPoint?: { id: number; title: string } | null;
+            // Connection address fields (directly on authentication object)
+            postalCode?: string | null;
+            street?: string | null;
+            streetNumber?: string | null;
+            neighborhood?: string | null;
+            city?: string | null;
+            state?: string | null;
+            // Legacy peopleAddress (billing address - not used for connection address)
             peopleAddress?: {
               streetType: string;
               street: string;
@@ -713,11 +721,13 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         const tags = result.data
           .filter(conn => conn.active === true && conn.contractServiceTag)
           .map((conn) => {
-            const addr = conn.peopleAddress;
-            const fullAddress = addr 
-              ? `${addr.streetType} ${addr.street}, ${addr.number} - ${addr.neighborhood}, ${addr.city}/${addr.state}`
+            // Use connection address fields (directly on authentication object)
+            // These are the installation/connection address, not the billing address (peopleAddress)
+            const hasConnectionAddress = conn.street || conn.neighborhood || conn.city;
+            const fullAddress = hasConnectionAddress
+              ? `${conn.street || ''}, ${conn.streetNumber || 'S/N'} - ${conn.neighborhood || ''}, ${conn.city || ''}/${conn.state || ''}`
               : undefined;
-            const location = addr ? `${addr.city}/${addr.state}` : undefined;
+            const location = (conn.city || conn.state) ? `${conn.city || ''}/${conn.state || ''}` : undefined;
             
             return {
               id: conn.contractServiceTag!.id,
