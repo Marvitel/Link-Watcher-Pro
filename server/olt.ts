@@ -727,44 +727,27 @@ function normalizeOnuId(onuId: string): string {
 }
 
 function parseAlarmOutput(output: string, onuId: string): OltAlarm[] {
-  const alarms: OltAlarm[] = [];
   const normalizedOnuId = normalizeOnuId(onuId);
   
-  // Limpa caracteres ANSI e de controle antes de processar
-  const cleanOutput = stripAnsiCodes(output);
-  const lines = cleanOutput.split("\n");
-  
   console.log(`[OLT Parser] Buscando alarmes para ONU: ${onuId} (normalizado: ${normalizedOnuId})`);
-  console.log(`[OLT Parser] Output bruto (${lines.length} linhas):`);
-  lines.forEach((line, i) => {
-    if (line.trim()) console.log(`[OLT Parser] Linha ${i}: ${line}`);
+  
+  // Usa o mesmo parser validado em produção para eventos de desconexão
+  const allAlarms = parseDatacomAlarms(output);
+  
+  console.log(`[OLT Parser] Total de alarmes parseados: ${allAlarms.length}`);
+  
+  // Filtra apenas alarmes da ONU especificada
+  const filteredAlarms = allAlarms.filter(alarm => {
+    const normalizedSource = normalizeOnuId(alarm.source);
+    const matches = normalizedSource === normalizedOnuId;
+    if (matches) {
+      console.log(`[OLT Parser] Alarme encontrado: ${alarm.name} em ${alarm.source}`);
+    }
+    return matches;
   });
   
-  for (const line of lines) {
-    // Regex para capturar linhas de alarme no formato Datacom/Nokia
-    // Formato: "2025-12-15 05:43:59 UTC-3    CRITICAL gpon-1/1/1/14                   Active   GPON_LOSi ..."
-    const match = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[^\s]*)\s+(\w+)\s+([\w\-\/]+)\s+(\w+)\s+(\w+)\s+(.*)/);
-    if (match) {
-      const source = match[3].trim();
-      const normalizedSource = normalizeOnuId(source);
-      
-      // Verifica se a ONU normalizada corresponde
-      if (normalizedSource === normalizedOnuId) {
-        console.log(`[OLT Parser] Alarme encontrado: ${match[5]} em ${source}`);
-        alarms.push({
-          timestamp: match[1].trim(),
-          severity: match[2].trim(),
-          source: source,
-          status: match[4].trim(),
-          name: match[5].trim(),
-          description: match[6].trim(),
-        });
-      }
-    }
-  }
-  
-  console.log(`[OLT Parser] Total de alarmes encontrados: ${alarms.length}`);
-  return alarms;
+  console.log(`[OLT Parser] Alarmes filtrados para ONU ${onuId}: ${filteredAlarms.length}`);
+  return filteredAlarms;
 }
 
 // Cache de alarmes por OLT para evitar múltiplas consultas no mesmo ciclo
