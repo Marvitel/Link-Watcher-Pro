@@ -138,7 +138,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     customMemoryOid: (link as any)?.customMemoryOid || "",
     snmpCommunity: "",
     oltId: link?.oltId || null,
-    onuSearchString: (link as any)?.onuSearchString || "",
     onuId: link?.onuId || "",
     voalleContractTagId: link?.voalleContractTagId || null,
     voalleConnectionId: (link as any)?.voalleConnectionId || null,
@@ -895,26 +894,29 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="onuSearchString">String de Busca</Label>
+            <Label htmlFor="onuId">ID da ONU</Label>
             <div className="flex gap-2">
               <Input
-                id="onuSearchString"
-                value={formData.onuSearchString}
-                onChange={(e) => setFormData({ ...formData, onuSearchString: e.target.value })}
-                placeholder="Ex: TPLGCE70A998"
-                data-testid="input-onu-search-string"
+                id="onuId"
+                value={formData.onuId}
+                onChange={(e) => setFormData({ ...formData, onuId: e.target.value })}
+                placeholder="Ex: gpon-olt_1/1/3:116"
+                data-testid="input-onu-id"
               />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                disabled={!formData.oltId || !formData.onuSearchString || isSearchingOnu}
+                disabled={!formData.oltId || !formData.equipmentSerialNumber || isSearchingOnu}
                 onClick={async () => {
-                  if (!formData.oltId || !formData.onuSearchString) return;
+                  if (!formData.oltId || !formData.equipmentSerialNumber) {
+                    toast({ title: "Atenção", description: "Informe a OLT e o Serial da ONU para buscar o ID", variant: "destructive" });
+                    return;
+                  }
                   setIsSearchingOnu(true);
                   try {
                     const response = await apiRequest("POST", `/api/olts/${formData.oltId}/search-onu`, {
-                      searchString: formData.onuSearchString
+                      searchString: formData.equipmentSerialNumber
                     });
                     const result = await response.json();
                     if (result.success && result.onuId) {
@@ -929,25 +931,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     setIsSearchingOnu(false);
                   }
                 }}
+                title="Buscar ID da ONU usando o Serial"
                 data-testid="button-search-onu"
               >
                 {isSearchingOnu ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Serial da ONU para buscar o ID automaticamente</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="onuId">ID da ONU</Label>
-            <Input
-              id="onuId"
-              value={formData.onuId}
-              onChange={(e) => setFormData({ ...formData, onuId: e.target.value })}
-              placeholder="Ex: gpon-olt_1/1/3:116"
-              data-testid="input-onu-id"
-            />
-            <p className="text-xs text-muted-foreground">Formato: gpon-olt_slot/port/pon:onu</p>
+            <p className="text-xs text-muted-foreground">Clique na lupa para buscar o ID usando o Serial da ONU</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4 mt-4">
