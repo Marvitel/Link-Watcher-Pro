@@ -170,6 +170,11 @@ function markAlertSent(linkId: number): void {
   }
 }
 
+function resetLinkState(linkId: number): void {
+  // Clear the link state when link goes down to avoid false alerts when it comes back
+  linkAlertStateCache.delete(linkId);
+}
+
 // Interface auto-discovery constants
 const IFINDEX_MISMATCH_THRESHOLD = 3; // Number of consecutive failures before auto-discovery
 const IFINDEX_VALIDATION_INTERVAL_MS = 300000; // 5 minutes between validations
@@ -1176,22 +1181,30 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     }
     
     // Use moving average and persistence rule for packet loss alerts
-    const globalSettings = await loadMonitoringSettings();
-    const lossState = await updatePacketLossState(link.id, safePacketLoss, globalSettings);
+    // Skip packet loss alerts if link is offline (status = 'offline' or 'down')
+    const isLinkDown = collectedMetrics.status === 'offline' || collectedMetrics.status === 'down';
     
-    // Only alert if persistence rule is met (X consecutive cycles above threshold)
-    if (lossState.shouldAlert) {
-      await db.insert(events).values({
-        linkId: link.id,
-        clientId: link.clientId,
-        type: "warning",
-        title: `Perda de pacotes elevada em ${link.name}`,
-        description: `Média móvel: ${lossState.avgLoss.toFixed(1)}% (limite: ${packetLossThreshold}%) - ${lossState.consecutiveBreaches} ciclos consecutivos`,
-        timestamp: new Date(),
-        resolved: false,
-      });
-      // Mark alert sent to reset consecutive counter and avoid repeated alerts
-      markAlertSent(link.id);
+    if (!isLinkDown) {
+      const globalSettings = await loadMonitoringSettings();
+      const lossState = await updatePacketLossState(link.id, safePacketLoss, globalSettings);
+      
+      // Only alert if persistence rule is met (X consecutive cycles above threshold)
+      if (lossState.shouldAlert) {
+        await db.insert(events).values({
+          linkId: link.id,
+          clientId: link.clientId,
+          type: "warning",
+          title: `Perda de pacotes elevada em ${link.name}`,
+          description: `Média móvel: ${lossState.avgLoss.toFixed(1)}% (limite: ${packetLossThreshold}%) - ${lossState.consecutiveBreaches} ciclos consecutivos`,
+          timestamp: new Date(),
+          resolved: false,
+        });
+        // Mark alert sent to reset consecutive counter and avoid repeated alerts
+        markAlertSent(link.id);
+      }
+    } else {
+      // Reset packet loss state when link is down to avoid false alerts when it comes back
+      resetLinkState(link.id);
     }
 
     await db.update(links).set({
