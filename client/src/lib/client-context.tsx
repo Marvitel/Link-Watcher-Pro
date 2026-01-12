@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import { useAuth } from "./auth";
+
+const STORAGE_KEY = "link_monitor_selected_client";
 
 interface ClientContextType {
   selectedClientId: number | null;
@@ -19,19 +21,56 @@ const ClientContext = createContext<ClientContextType>({
   isEditable: false,
 });
 
+function getStoredClient(): { id: number | null; name: string | null } {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { id: parsed.id || null, name: parsed.name || null };
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  return { id: null, name: null };
+}
+
+function storeClient(id: number | null, name: string | null) {
+  try {
+    if (id !== null) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, name }));
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
 export function ClientProvider({ children }: { children: ReactNode }) {
   const { user, isSuperAdmin } = useAuth();
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-  const [selectedClientName, setSelectedClientName] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      return getStoredClient().id;
+    }
+    return null;
+  });
+  const [selectedClientName, setSelectedClientName] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return getStoredClient().name;
+    }
+    return null;
+  });
 
   const setSelectedClient = useCallback((id: number | null, name: string | null) => {
     setSelectedClientId(id);
     setSelectedClientName(name);
+    storeClient(id, name);
   }, []);
 
   const clearSelectedClient = useCallback(() => {
     setSelectedClientId(null);
     setSelectedClientName(null);
+    storeClient(null, null);
   }, []);
 
   const effectiveClientId = isSuperAdmin ? selectedClientId : user?.clientId || null;

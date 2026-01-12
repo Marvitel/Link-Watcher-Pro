@@ -123,10 +123,6 @@ export default function Dashboard() {
   const latency = getSLAIndicator("sla-lat"); // Latência
   const packetLoss = getSLAIndicator("sla-dp"); // Descarte de Pacotes
 
-  // Debug: log state when viewing as client
-  console.log("[Dashboard] isSuperAdmin:", isSuperAdmin, "isViewingAsClient:", isViewingAsClient, "selectedClientId:", selectedClientId);
-  console.log("[Dashboard] statsLoading:", statsLoading, "linksLoading:", linksLoading, "stats:", stats, "links:", links);
-
   if (isSuperAdmin && !isViewingAsClient) {
     return (
       <div className="space-y-6">
