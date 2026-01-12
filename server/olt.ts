@@ -110,8 +110,12 @@ export function buildOnuDiagnosisKey(olt: Olt, link: LinkDiagnosisData): string 
       if (idMatch) {
         return `1/${link.slotOlt}/${link.portOlt}/${idMatch[1]}`;
       }
+      // Se onuId é apenas um número, usa diretamente
+      if (/^\d+$/.test(link.onuId)) {
+        return `1/${link.slotOlt}/${link.portOlt}/${link.onuId}`;
+      }
     }
-    console.log(`[OLT Diagnosis] Datacom: não foi possível montar chave de diagnóstico. onuId=${link.onuId}`);
+    console.log(`[OLT Diagnosis] Datacom: não foi possível montar chave de diagnóstico. onuId=${link.onuId}, slot=${link.slotOlt}, port=${link.portOlt}`);
     return null;
   }
   
