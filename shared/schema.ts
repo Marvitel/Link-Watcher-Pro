@@ -631,6 +631,12 @@ export interface LinkStatusDetail {
     source: string | null;
     lastFailureAt: Date | null;
   };
+  lastFailureInfo: {
+    reason: string | null;
+    reasonLabel: string;
+    source: string | null;
+    lastFailureAt: Date | null;
+  } | null;
   activeIncident: Incident | null;
 }
 

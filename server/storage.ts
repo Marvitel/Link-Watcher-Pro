@@ -1153,6 +1153,14 @@ export class DatabaseStorage {
       .orderBy(desc(incidents.openedAt))
       .limit(1);
 
+    // Build lastFailureInfo from history fields if available
+    const lastFailureInfo = link.lastFailureReason ? {
+      reason: link.lastFailureReason,
+      reasonLabel: failureReasonLabels[link.lastFailureReason] || link.lastFailureReason,
+      source: link.lastFailureSource,
+      lastFailureAt: link.lastFailureAt,
+    } : null;
+
     return {
       link,
       failureInfo: {
@@ -1161,6 +1169,7 @@ export class DatabaseStorage {
         source: link.failureSource,
         lastFailureAt: link.lastFailureAt,
       },
+      lastFailureInfo,
       activeIncident: activeIncident || null,
     };
   }

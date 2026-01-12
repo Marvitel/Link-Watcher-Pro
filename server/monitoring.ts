@@ -1227,8 +1227,13 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       return "";
     }
     
-    // Clear cache and failureReason when link comes back online
+    // Save failure history and clear cache/failureReason when link comes back online
+    let shouldSaveFailureHistory = false;
     if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
+      // Save the failure reason to history before clearing
+      if (link.failureReason) {
+        shouldSaveFailureHistory = true;
+      }
       oltDiagnosisCache.delete(link.id);
       collectedMetrics.failureReason = null;
     }
@@ -1332,7 +1337,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     }
     // For operational status, both remain null (no failure)
     
-    await db.update(links).set({
+    // Build update object
+    const updateData: Record<string, any> = {
       currentDownload: safeDownload,
       currentUpload: safeUpload,
       latency: safeLatency,
@@ -1345,7 +1351,15 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       lastFailureAt: collectedMetrics.status === 'offline' ? new Date() : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
-    }).where(eq(links.id, link.id));
+    };
+    
+    // Save failure history when link recovers
+    if (shouldSaveFailureHistory) {
+      updateData.lastFailureReason = link.failureReason;
+      updateData.lastFailureSource = link.failureSource;
+    }
+    
+    await db.update(links).set(updateData).where(eq(links.id, link.id));
 
     await db.insert(metrics).values({
       linkId: link.id,

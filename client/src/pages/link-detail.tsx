@@ -251,9 +251,11 @@ export default function LinkDetail() {
   const safeBandwidth = link.bandwidth ?? 1;
 
   const failureInfo = statusDetail?.failureInfo || null;
+  const lastFailureInfo = statusDetail?.lastFailureInfo || null;
   const activeIncident = statusDetail?.activeIncident || null;
   const hasFailure = failureInfo?.reason && failureInfo.reason !== null;
   const FailureIcon = hasFailure ? getFailureIcon(failureInfo.reason) : null;
+  const hasLastFailure = !hasFailure && lastFailureInfo?.reason;
 
   return (
     <div className="space-y-6">
@@ -325,6 +327,27 @@ export default function LinkDetail() {
                   )}
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {hasLastFailure && lastFailureInfo && (
+        <Card className="border-muted">
+          <CardContent className="flex items-center gap-4 py-3">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+              <Clock className="w-5 h-5 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-muted-foreground">Última falha registrada</p>
+              <p className="text-sm" data-testid="text-last-failure-reason">
+                {lastFailureInfo.reasonLabel}
+                {lastFailureInfo.lastFailureAt && (
+                  <span className="text-muted-foreground">
+                    {" "}({formatDistanceToNow(new Date(lastFailureInfo.lastFailureAt), { addSuffix: true, locale: ptBR })})
+                  </span>
+                )}
+              </p>
             </div>
           </CardContent>
         </Card>
