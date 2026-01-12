@@ -568,6 +568,45 @@ export class DatabaseStorage {
     return result.length;
   }
 
+  async getLatestUnresolvedLinkEvent(linkId: number, eventType?: string): Promise<Event | null> {
+    const conditions = [
+      eq(events.linkId, linkId),
+      eq(events.resolved, false),
+    ];
+    if (eventType) {
+      conditions.push(eq(events.type, eventType));
+    }
+    const [event] = await db
+      .select()
+      .from(events)
+      .where(and(...conditions))
+      .orderBy(desc(events.timestamp))
+      .limit(1);
+    return event || null;
+  }
+
+  async updateEventDescription(eventId: number, newDescription: string): Promise<Event | null> {
+    const [updated] = await db
+      .update(events)
+      .set({ description: newDescription })
+      .where(eq(events.id, eventId))
+      .returning();
+    return updated || null;
+  }
+
+  async createOltDiagnosisEvent(linkId: number, clientId: number, diagnosis: string, alarmType: string | null): Promise<Event> {
+    const [event] = await db.insert(events).values({
+      linkId,
+      clientId,
+      type: "info",
+      title: "Diagnóstico OLT realizado",
+      description: `Resultado: ${diagnosis}${alarmType ? ` (Alarme: ${alarmType})` : ""}`,
+      timestamp: new Date(),
+      resolved: true,
+    }).returning();
+    return event;
+  }
+
   async getDDoSEvents(clientId?: number): Promise<DDoSEvent[]> {
     if (clientId) {
       return await db.select().from(ddosEvents).where(eq(ddosEvents.clientId, clientId)).orderBy(desc(ddosEvents.startTime));

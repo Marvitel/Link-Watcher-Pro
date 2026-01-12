@@ -709,18 +709,49 @@ export async function registerRoutes(
       const result = await queryOltAlarm(olt, diagnosisKey);
       
       // Update link's failureReason based on OLT diagnosis
+      const failureReasonMap: Record<string, string> = {
+        "GPON_LOSi": "rompimento_fibra",
+        "GPON_LOFi": "rompimento_fibra",
+        "GPON_DGi": "queda_energia",
+        "GPON_SFi": "sinal_degradado",
+        "GPON_SDi": "sinal_degradado",
+        "GPON_DOWi": "onu_inativa",
+      };
+      
+      const failureReasonLabels: Record<string, string> = {
+        "rompimento_fibra": "Rompimento de Fibra",
+        "queda_energia": "Queda de Energia",
+        "sinal_degradado": "Sinal Degradado",
+        "onu_inativa": "ONU Inativa",
+        "olt_alarm": "Alarme OLT",
+      };
+      
       if (result.alarmType) {
-        const failureReasonMap: Record<string, string> = {
-          "GPON_LOSi": "rompimento_fibra",
-          "GPON_LOFi": "rompimento_fibra",
-          "GPON_DGi": "queda_energia",
-          "GPON_SFi": "sinal_degradado",
-          "GPON_SDi": "sinal_degradado",
-          "GPON_DOWi": "onu_inativa",
-        };
         const failureReason = failureReasonMap[result.alarmType] || "olt_alarm";
         await storage.updateLinkFailureState(linkId, failureReason, "olt");
+        
+        // Update existing offline event with OLT diagnosis
+        const latestEvent = await storage.getLatestUnresolvedLinkEvent(linkId, "critical");
+        if (latestEvent && latestEvent.title.includes("offline")) {
+          const diagnosisLabel = failureReasonLabels[failureReason] || failureReason;
+          const updatedDescription = latestEvent.description.replace(
+            /\| OLT:.*$/,
+            `| OLT: ${diagnosisLabel}`
+          );
+          const finalDescription = updatedDescription.includes("| OLT:") 
+            ? updatedDescription 
+            : `${latestEvent.description} | OLT: ${diagnosisLabel}`;
+          await storage.updateEventDescription(latestEvent.id, finalDescription);
+        }
       }
+      
+      // Create OLT diagnosis event for audit trail
+      await storage.createOltDiagnosisEvent(
+        linkId,
+        link.clientId,
+        result.diagnosis,
+        result.alarmType
+      );
       
       return res.json(result);
     } catch (error) {
