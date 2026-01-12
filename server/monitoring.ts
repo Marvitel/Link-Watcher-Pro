@@ -1200,16 +1200,12 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           
           if (!diagnosisKey) {
             diagnosisSuffix = " | OLT: Dados de ONU incompletos para diagnóstico";
-          } else if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
+          } else {
+            // Use queryOltAlarm for all OLT types (same as manual diagnosis endpoint)
+            console.log(`[Monitor] ${link.name}: Querying OLT with key: ${diagnosisKey}`);
             const diagnosis = await queryOltAlarm(olt, diagnosisKey);
             oltAlarmType = diagnosis.alarmType;
-            diagnosisSuffix = diagnosis.alarmType 
-              ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
-              : ` | OLT: ${diagnosis.description}`;
-          } else {
-            const allAlarms = await queryAllOltAlarms(olt);
-            const diagnosis = getDiagnosisFromAlarms(allAlarms, diagnosisKey);
-            oltAlarmType = diagnosis.alarmType;
+            console.log(`[Monitor] ${link.name}: OLT returned alarmType=${oltAlarmType}, diagnosis=${diagnosis.diagnosis}`);
             diagnosisSuffix = diagnosis.alarmType 
               ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
               : ` | OLT: ${diagnosis.description}`;
