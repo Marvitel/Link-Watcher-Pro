@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/metric-card";
 import { LinkCard } from "@/components/link-card";
+import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode, useState, useMemo } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -19,6 +20,8 @@ import {
   ArrowRight,
   RefreshCw,
   Building2,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator } from "@shared/schema";
 
@@ -109,9 +112,21 @@ function ClientsOverview({ clients, setSelectedClient }: {
   );
 }
 
+type ViewMode = "cards" | "table";
+
 function DashboardContent() {
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
+  
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = sessionStorage.getItem("link_monitor_view_mode");
+    return (saved === "table" || saved === "cards") ? saved : "cards";
+  });
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    sessionStorage.setItem("link_monitor_view_mode", mode);
+  };
 
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -139,6 +154,9 @@ function DashboardContent() {
     queryKey: [linksUrl],
     refetchInterval: 5000,
   });
+  
+  const linksArray = useMemo(() => Array.isArray(links) ? links : [], [links]);
+  const linkCount = linksArray.length;
 
   const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
     queryKey: [eventsUrl],
@@ -318,38 +336,78 @@ function DashboardContent() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {linksLoading ? (
-          <>
-            {[1, 2].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-48" />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Skeleton className="h-24 w-full" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </>
-        ) : links && links.length > 0 ? (
-          <>
-            {links.map((link) => (
-              <LinkCardWithMetrics key={link.id} link={link} />
-            ))}
-          </>
-        ) : (
-          <Card className="lg:col-span-2">
-            <CardContent className="py-8 text-center text-muted-foreground">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
+          <div>
+            <CardTitle className="text-lg">Links Monitorados</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {linkCount} {linkCount === 1 ? "link" : "links"} cadastrado{linkCount === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center border rounded-md">
+              <Button
+                variant={viewMode === "cards" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-r-none"
+                onClick={() => handleViewModeChange("cards")}
+                data-testid="button-view-cards"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+                onClick={() => handleViewModeChange("table")}
+                data-testid="button-view-table"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
+            <Link href="/links">
+              <Button variant="ghost" size="sm" data-testid="button-view-all-links">
+                Ver todos
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {linksLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[1, 2].map((i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-48" />
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Skeleton className="h-24 w-full" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : linksArray.length > 0 ? (
+            viewMode === "table" ? (
+              <LinksTable links={linksArray} pageSize={10} />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {linksArray.map((link) => (
+                  <LinkCardWithMetrics key={link.id} link={link} />
+                ))}
+              </div>
+            )
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">
               Nenhum link cadastrado. Acesse a administração para adicionar links.
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
