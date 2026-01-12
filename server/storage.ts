@@ -1125,10 +1125,25 @@ export class DatabaseStorage {
     if (!link) return undefined;
 
     const failureReasonLabels: Record<string, string> = {
-      "falha_eletrica": "Falha Elétrica",
+      // OLT diagnosis reasons
       "rompimento_fibra": "Rompimento de Fibra",
+      "queda_energia": "Queda de Energia",
+      "sinal_degradado": "Sinal Degradado",
+      "onu_inativa": "ONU Inativa",
+      "olt_alarm": "Alarme OLT",
+      // Legacy/manual reasons
+      "falha_eletrica": "Falha Elétrica",
       "falha_equipamento": "Falha de Equipamento",
       "indefinido": "Causa Indefinida",
+      // Network/ping reasons
+      "timeout": "Timeout",
+      "host_unreachable": "Host Inacessível",
+      "network_unreachable": "Rede Inacessível",
+      "connection_refused": "Conexão Recusada",
+      "packet_loss": "Perda de Pacotes",
+      "no_response": "Sem Resposta",
+      "dns_failure": "Falha DNS",
+      "unknown": "Desconhecido",
     };
 
     const [activeIncident] = await db
