@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface StatusBadgeProps {
   status: string;
+  reason?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -36,13 +37,29 @@ const defaultConfig = {
   className: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20",
 };
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+const reasonLabels: Record<string, string> = {
+  timeout: "Timeout",
+  host_unreachable: "Host inacessível",
+  network_unreachable: "Rede inacessível",
+  connection_refused: "Conexão recusada",
+  packet_loss: "Perda de pacotes",
+  no_response: "Sem resposta",
+  dns_failure: "Falha DNS",
+  unknown: "Desconhecido",
+};
+
+export function StatusBadge({ status, reason }: StatusBadgeProps) {
   const config = statusConfig[status] || defaultConfig;
+  const isOffline = status === "offline" || status === "down";
+  const reasonLabel = reason ? (reasonLabels[reason] || reason) : null;
   
   return (
     <Badge variant="outline" className={config.className} data-testid={`badge-status-${status}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5" />
       {config.label}
+      {isOffline && reasonLabel && (
+        <span className="ml-1 opacity-80">({reasonLabel})</span>
+      )}
     </Badge>
   );
 }

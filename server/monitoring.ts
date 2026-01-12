@@ -277,6 +277,7 @@ interface PingResult {
   latency: number;
   packetLoss: number;
   success: boolean;
+  failureReason?: string;
 }
 
 interface TrafficResult {
@@ -372,11 +373,24 @@ export async function pingHost(ipAddress: string, count: number = 5): Promise<Pi
       return simulatePing();
     }
     
+    // Determine failure reason from error message
+    let failureReason = "unknown";
+    if (errorMessage.includes("timed out") || errorMessage.includes("timeout")) {
+      failureReason = "timeout";
+    } else if (errorMessage.includes("Destination Host Unreachable") || errorOutput.includes("Destination Host Unreachable")) {
+      failureReason = "host_unreachable";
+    } else if (errorMessage.includes("Network is unreachable") || errorOutput.includes("Network is unreachable")) {
+      failureReason = "network_unreachable";
+    } else if (errorMessage.includes("100% packet loss") || errorOutput.includes("100% packet loss")) {
+      failureReason = "no_response";
+    }
+    
     console.error(`Ping failed for ${ipAddress}:`, errorMessage);
     return {
       latency: 0,
       packetLoss: 100,
       success: false,
+      failureReason,
     };
   }
 }
@@ -947,6 +961,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   cpuUsage: number;
   memoryUsage: number;
   status: string;
+  failureReason: string | null;
 }> {
   const ipToMonitor = link.monitoredIp || link.snmpRouterIp || link.address;
 
@@ -1057,8 +1072,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   }
 
   let status = "operational";
+  let failureReason: string | null = null;
+  
   if (!pingResult.success || pingResult.packetLoss >= 50) {
     status = "offline";
+    // Determine failure reason
+    if (pingResult.failureReason) {
+      failureReason = pingResult.failureReason;
+    } else if (pingResult.packetLoss >= 100) {
+      failureReason = "no_response";
+    } else if (pingResult.packetLoss >= 50) {
+      failureReason = "packet_loss";
+    }
   } else if (pingResult.latency > link.latencyThreshold || pingResult.packetLoss > link.packetLossThreshold) {
     status = "degraded";
   }
@@ -1071,6 +1096,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     cpuUsage,
     memoryUsage,
     status,
+    failureReason,
   };
 }
 
@@ -1215,6 +1241,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       cpuUsage: safeCpuUsage,
       memoryUsage: safeMemoryUsage,
       status: collectedMetrics.status,
+      failureReason: collectedMetrics.failureReason,
+      lastFailureAt: collectedMetrics.status === 'offline' ? new Date() : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
     }).where(eq(links.id, link.id));

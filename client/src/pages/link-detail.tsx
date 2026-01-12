@@ -246,7 +246,7 @@ export default function LinkDetail() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-semibold">{link.name}</h1>
-            <StatusBadge status={link.status} />
+            <StatusBadge status={link.status} reason={link.failureReason} />
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="w-4 h-4" />
