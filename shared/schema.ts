@@ -91,6 +91,8 @@ export const links = pgTable("links", {
   failureReason: varchar("failure_reason", { length: 50 }),
   failureSource: text("failure_source"),
   lastFailureAt: timestamp("last_failure_at"),
+  lastFailureReason: varchar("last_failure_reason", { length: 50 }),
+  lastFailureSource: text("last_failure_source"),
   monitoringEnabled: boolean("monitoring_enabled").notNull().default(true),
   oltEndpoint: text("olt_endpoint"),
   snmpCommunity: varchar("snmp_community", { length: 100 }),
