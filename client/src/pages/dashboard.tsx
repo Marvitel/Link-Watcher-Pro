@@ -370,7 +370,7 @@ function DashboardContent() {
                 ))}
               </div>
             ) : (
-              <EventsTable events={(events || []).slice(0, 5)} compact />
+              <EventsTable events={Array.isArray(events) ? events.slice(0, 5) : []} compact />
             )}
           </CardContent>
         </Card>
