@@ -113,9 +113,6 @@ function DashboardContent() {
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
 
-  // Debug log
-  console.log("[Dashboard] Rendering. isSuperAdmin:", isSuperAdmin, "isViewingAsClient:", isViewingAsClient, "selectedClientId:", selectedClientId);
-
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
     enabled: isSuperAdmin,
@@ -159,6 +156,9 @@ function DashboardContent() {
   const availability = getSLAIndicator("sla-de"); // Disponibilidade do Enlace
   const latency = getSLAIndicator("sla-lat"); // Latência
   const packetLoss = getSLAIndicator("sla-dp"); // Descarte de Pacotes
+
+  // Loading state for client dashboard - show skeleton while data loads
+  const isLoading = statsLoading || linksLoading;
 
   if (isSuperAdmin && !isViewingAsClient) {
     return (
@@ -267,12 +267,12 @@ function DashboardContent() {
           <>
             <MetricCard
               title="Links Operacionais"
-              value={`${stats?.operationalLinks || 0}/${stats?.totalLinks || 0}`}
+              value={`${stats?.operationalLinks ?? 0}/${stats?.totalLinks ?? 0}`}
               icon={Activity}
               trend={{
-                value: stats?.totalLinks ? Math.round((stats.operationalLinks / stats.totalLinks) * 100) : 0,
-                direction: stats?.operationalLinks === stats?.totalLinks ? "up" : stats?.operationalLinks === 0 ? "down" : "neutral",
-                isGood: stats?.operationalLinks === stats?.totalLinks,
+                value: (stats?.totalLinks ?? 0) > 0 ? Math.round(((stats?.operationalLinks ?? 0) / (stats?.totalLinks ?? 1)) * 100) : 0,
+                direction: (stats?.operationalLinks ?? 0) === (stats?.totalLinks ?? 0) ? "up" : (stats?.operationalLinks ?? 0) === 0 ? "down" : "neutral",
+                isGood: (stats?.operationalLinks ?? 0) === (stats?.totalLinks ?? 0),
               }}
               subtitle="links ativos"
               testId="metric-operational-links"
