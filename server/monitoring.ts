@@ -1167,11 +1167,21 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       }
       
       // Check if we already have OLT diagnosis saved in DB (after server restart)
+      const oltReasons = ['rompimento_fibra', 'queda_energia', 'sinal_degradado', 'onu_inativa', 'olt_alarm'];
       const isOltReason = link.failureSource === 'olt' && link.failureReason && 
-        ['rompimento_fibra', 'queda_energia', 'sinal_degradado', 'onu_inativa', 'olt_alarm'].includes(link.failureReason);
+        oltReasons.includes(link.failureReason);
       if (isOltReason) {
         collectedMetrics.failureReason = link.failureReason;
-        return "";
+        // Return the saved diagnosis label for event description
+        const reasonLabels: Record<string, string> = {
+          "rompimento_fibra": "Rompimento de Fibra",
+          "queda_energia": "Queda de Energia",
+          "sinal_degradado": "Sinal Degradado",
+          "onu_inativa": "ONU Inativa",
+          "olt_alarm": "Alarme OLT",
+        };
+        const label = reasonLabels[link.failureReason!] || link.failureReason;
+        return ` | OLT: ${label}`;
       }
       
       try {
