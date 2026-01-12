@@ -1278,6 +1278,11 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       resetLinkState(link.id);
     }
 
+    // Determine failure source based on whether we have OLT diagnosis
+    const cached = oltDiagnosisCache.get(link.id);
+    const hasOltDiagnosis = cached?.failureReason && collectedMetrics.status === 'offline';
+    const failureSource = hasOltDiagnosis ? 'olt' : (collectedMetrics.status === 'offline' ? 'monitoring' : null);
+    
     await db.update(links).set({
       currentDownload: safeDownload,
       currentUpload: safeUpload,
@@ -1286,7 +1291,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       cpuUsage: safeCpuUsage,
       memoryUsage: safeMemoryUsage,
       status: collectedMetrics.status,
-      failureReason: collectedMetrics.failureReason,
+      failureReason: hasOltDiagnosis ? cached.failureReason : collectedMetrics.failureReason,
+      failureSource: failureSource,
       lastFailureAt: collectedMetrics.status === 'offline' ? new Date() : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
