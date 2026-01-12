@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, real, timestamp, boolean, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -571,6 +571,33 @@ export type LinkStatus = "operational" | "degraded" | "down" | "maintenance";
 export type HostStatus = "online" | "offline" | "degraded" | "unknown";
 export type FailureReason = "falha_eletrica" | "rompimento_fibra" | "falha_equipamento" | "indefinido" | null;
 export type IncidentStatus = "aberto" | "em_andamento" | "aguardando_peca" | "resolvido" | "cancelado";
+
+// Configurações globais de monitoramento (parâmetros de alerta e média móvel)
+export const monitoringSettings = pgTable("monitoring_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Estado de monitoramento em tempo real por link (para média móvel e persistência de alertas)
+export const linkMonitoringState = pgTable("link_monitoring_state", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull().unique(),
+  packetLossWindow: jsonb("packet_loss_window").notNull().default([]),
+  packetLossAvg: real("packet_loss_avg").notNull().default(0),
+  consecutiveLossBreaches: integer("consecutive_loss_breaches").notNull().default(0),
+  lastAlertAt: timestamp("last_alert_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertMonitoringSettingsSchema = createInsertSchema(monitoringSettings).omit({ id: true, updatedAt: true });
+export const insertLinkMonitoringStateSchema = createInsertSchema(linkMonitoringState).omit({ id: true });
+export type MonitoringSetting = typeof monitoringSettings.$inferSelect;
+export type InsertMonitoringSetting = z.infer<typeof insertMonitoringSettingsSchema>;
+export type LinkMonitoringState = typeof linkMonitoringState.$inferSelect;
+export type InsertLinkMonitoringState = z.infer<typeof insertLinkMonitoringStateSchema>;
 
 export interface SLAIndicator {
   id: string;
