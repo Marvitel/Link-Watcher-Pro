@@ -1301,8 +1301,36 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
 
     // Determine failure source based on whether we have OLT diagnosis
     const cached = oltDiagnosisCache.get(link.id);
-    const hasOltDiagnosis = cached?.failureReason && collectedMetrics.status === 'offline';
-    const failureSource = hasOltDiagnosis ? 'olt' : (collectedMetrics.status === 'offline' ? 'monitoring' : null);
+    const hasOltDiagnosisFromCache = cached?.failureReason && collectedMetrics.status === 'offline';
+    
+    // Preserve OLT diagnosis from database if already set (even if not in cache)
+    const hasOltDiagnosisFromDb = collectedMetrics.status === 'offline' && 
+      link.failureSource === 'olt' && 
+      link.failureReason && 
+      ['rompimento_fibra', 'queda_energia', 'sinal_degradado', 'onu_inativa', 'olt_alarm'].includes(link.failureReason);
+    
+    // Determine final failureReason and failureSource
+    let finalFailureReason: string | null = null;
+    let finalFailureSource: string | null = null;
+    
+    if (collectedMetrics.status === 'offline') {
+      if (hasOltDiagnosisFromCache && cached.failureReason) {
+        finalFailureReason = cached.failureReason;
+        finalFailureSource = 'olt';
+      } else if (hasOltDiagnosisFromDb) {
+        // Preserve existing OLT diagnosis from database
+        finalFailureReason = link.failureReason;
+        finalFailureSource = 'olt';
+      } else {
+        finalFailureReason = collectedMetrics.failureReason;
+        finalFailureSource = 'monitoring';
+      }
+    } else if (collectedMetrics.status === 'degraded') {
+      // For degraded status, use monitoring-derived reason (e.g., packet_loss)
+      finalFailureReason = collectedMetrics.failureReason;
+      finalFailureSource = collectedMetrics.failureReason ? 'monitoring' : null;
+    }
+    // For operational status, both remain null (no failure)
     
     await db.update(links).set({
       currentDownload: safeDownload,
@@ -1312,8 +1340,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       cpuUsage: safeCpuUsage,
       memoryUsage: safeMemoryUsage,
       status: collectedMetrics.status,
-      failureReason: hasOltDiagnosis ? cached.failureReason : collectedMetrics.failureReason,
-      failureSource: failureSource,
+      failureReason: finalFailureReason,
+      failureSource: finalFailureSource,
       lastFailureAt: collectedMetrics.status === 'offline' ? new Date() : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
