@@ -339,7 +339,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
 interface PacketLossChartProps {
   data: Array<{
     timestamp: string;
-    packetLoss: number;
+    packetLoss: number | null;
     status?: string;
   }>;
   height?: number;
@@ -369,9 +369,16 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           const wasDown = isDownStatus(prevStatus);
           
           const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
-          const loss = item.packetLoss ?? 0;
+          const loss = item.packetLoss;
           
-          if (prevItem && isDown !== wasDown) {
+          if (loss === null || loss === undefined) {
+            result.push({
+              time,
+              threshold,
+              packetLoss: null,
+              packetLossDown: null,
+            });
+          } else if (prevItem && isDown !== wasDown) {
             result.push({
               time,
               threshold,

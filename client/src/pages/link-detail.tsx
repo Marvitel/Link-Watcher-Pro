@@ -188,7 +188,7 @@ export default function LinkDetail() {
 
   const packetLossData = sortedMetrics.map((m) => ({
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
-    packetLoss: m.packetLoss ?? 0,
+    packetLoss: m.packetLoss != null ? m.packetLoss : null,
     status: m.status,
   }));
 
