@@ -9,6 +9,7 @@ import { SLACompactCard } from "@/components/sla-indicators";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
+import { Component, ErrorInfo, ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -20,6 +21,39 @@ import {
   Building2,
 } from "lucide-react";
 import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator } from "@shared/schema";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("[Dashboard Error]", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center">
+          <h2 className="text-xl font-bold text-destructive mb-4">Erro no Dashboard</h2>
+          <p className="text-muted-foreground mb-2">Ocorreu um erro ao renderizar o dashboard.</p>
+          <pre className="text-sm bg-muted p-4 rounded text-left overflow-auto max-h-48">
+            {this.state.error?.message}
+          </pre>
+          <Button className="mt-4" onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
@@ -75,9 +109,12 @@ function ClientsOverview({ clients, setSelectedClient }: {
   );
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
+
+  // Debug log
+  console.log("[Dashboard] Rendering. isSuperAdmin:", isSuperAdmin, "isViewingAsClient:", isViewingAsClient, "selectedClientId:", selectedClientId);
 
   const { data: clients, isLoading: clientsLoading } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -423,5 +460,13 @@ export default function Dashboard() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <ErrorBoundary>
+      <DashboardContent />
+    </ErrorBoundary>
   );
 }
