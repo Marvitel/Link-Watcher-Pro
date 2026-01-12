@@ -1151,78 +1151,99 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     const previousStatus = link.status;
     const newStatus = collectedMetrics.status;
     
+    // Helper function to enrich with OLT diagnosis
+    const enrichWithOltDiagnosis = async (): Promise<string> => {
+      if (!link.oltId || !link.onuId) return "";
+      
+      const cached = oltDiagnosisCache.get(link.id);
+      const now = Date.now();
+      
+      // Use cache if still valid
+      if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
+        if (cached.failureReason) {
+          collectedMetrics.failureReason = cached.failureReason;
+        }
+        return cached.diagnosis;
+      }
+      
+      // Check if we already have OLT diagnosis saved in DB (after server restart)
+      const isOltReason = link.failureSource === 'olt' && link.failureReason && 
+        ['rompimento_fibra', 'queda_energia', 'sinal_degradado', 'onu_inativa', 'olt_alarm'].includes(link.failureReason);
+      if (isOltReason) {
+        collectedMetrics.failureReason = link.failureReason;
+        return "";
+      }
+      
+      try {
+        const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId!));
+        
+        if (olt && olt.isActive) {
+          let diagnosisSuffix = "";
+          let oltAlarmType: string | null = null;
+          
+          const diagnosisKey = buildOnuDiagnosisKey(olt, {
+            onuSearchString: link.onuSearchString,
+            onuId: link.onuId,
+            slotOlt: link.slotOlt,
+            portOlt: link.portOlt,
+          });
+          
+          if (!diagnosisKey) {
+            diagnosisSuffix = " | OLT: Dados de ONU incompletos para diagnóstico";
+          } else if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
+            const diagnosis = await queryOltAlarm(olt, diagnosisKey);
+            oltAlarmType = diagnosis.alarmType;
+            diagnosisSuffix = diagnosis.alarmType 
+              ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
+              : ` | OLT: ${diagnosis.description}`;
+          } else {
+            const allAlarms = await queryAllOltAlarms(olt);
+            const diagnosis = getDiagnosisFromAlarms(allAlarms, diagnosisKey);
+            oltAlarmType = diagnosis.alarmType;
+            diagnosisSuffix = diagnosis.alarmType 
+              ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
+              : ` | OLT: ${diagnosis.description}`;
+          }
+          
+          const oltFailureReason = mapOltAlarmToFailureReason(oltAlarmType);
+          if (oltFailureReason) {
+            collectedMetrics.failureReason = oltFailureReason;
+          }
+          
+          oltDiagnosisCache.set(link.id, { 
+            timestamp: now, 
+            diagnosis: diagnosisSuffix,
+            failureReason: oltFailureReason,
+            alarmType: oltAlarmType,
+            alarmTime: null,
+          });
+          
+          return diagnosisSuffix;
+        }
+      } catch (oltError) {
+        console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
+      }
+      
+      return "";
+    }
+    
+    // Clear cache and failureReason when link comes back online
+    if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
+      oltDiagnosisCache.delete(link.id);
+      collectedMetrics.failureReason = null;
+    }
+    
+    // Enrich with OLT diagnosis when offline (both transition and ongoing)
+    let diagnosisSuffix = "";
+    if (newStatus === "offline" && link.oltId && link.onuId) {
+      diagnosisSuffix = await enrichWithOltDiagnosis();
+    }
+    
+    // Create event on status change
     if (previousStatus !== newStatus) {
       const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
       if (eventConfig) {
-        let eventDescription = eventConfig.description;
-        
-        if (newStatus === "operational" && (previousStatus === "offline" || previousStatus === "degraded")) {
-          oltDiagnosisCache.delete(link.id);
-        }
-        
-        if (newStatus === "offline" && link.oltId && link.onuId) {
-          const cached = oltDiagnosisCache.get(link.id);
-          const now = Date.now();
-          
-          if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
-            eventDescription += cached.diagnosis;
-            // Update failureReason from cache if we have OLT diagnosis
-            if (cached.failureReason) {
-              collectedMetrics.failureReason = cached.failureReason;
-            }
-          } else {
-            try {
-              const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
-              
-              if (olt && olt.isActive) {
-                let diagnosisSuffix = "";
-                let oltAlarmType: string | null = null;
-                
-                // Monta a chave de diagnóstico baseada no template da OLT ou fallback por vendor
-                const diagnosisKey = buildOnuDiagnosisKey(olt, {
-                  onuSearchString: link.onuSearchString,
-                  onuId: link.onuId,
-                  slotOlt: link.slotOlt,
-                  portOlt: link.portOlt,
-                });
-                
-                if (!diagnosisKey) {
-                  diagnosisSuffix = " | OLT: Dados de ONU incompletos para diagnóstico";
-                } else if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
-                  const diagnosis = await queryOltAlarm(olt, diagnosisKey);
-                  oltAlarmType = diagnosis.alarmType;
-                  diagnosisSuffix = diagnosis.alarmType 
-                    ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
-                    : ` | OLT: ${diagnosis.description}`;
-                } else {
-                  const allAlarms = await queryAllOltAlarms(olt);
-                  const diagnosis = getDiagnosisFromAlarms(allAlarms, diagnosisKey);
-                  oltAlarmType = diagnosis.alarmType;
-                  diagnosisSuffix = diagnosis.alarmType 
-                    ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
-                    : ` | OLT: ${diagnosis.description}`;
-                }
-                
-                // Map OLT alarm to canonical failureReason
-                const oltFailureReason = mapOltAlarmToFailureReason(oltAlarmType);
-                if (oltFailureReason) {
-                  collectedMetrics.failureReason = oltFailureReason;
-                }
-                
-                eventDescription += diagnosisSuffix;
-                oltDiagnosisCache.set(link.id, { 
-                  timestamp: now, 
-                  diagnosis: diagnosisSuffix,
-                  failureReason: oltFailureReason,
-                  alarmType: oltAlarmType,
-                  alarmTime: null,
-                });
-              }
-            } catch (oltError) {
-              console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
-            }
-          }
-        }
+        let eventDescription = eventConfig.description + diagnosisSuffix;
         
         await db.insert(events).values({
           linkId: link.id,

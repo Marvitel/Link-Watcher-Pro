@@ -661,6 +661,74 @@ export async function registerRoutes(
     }
   });
 
+  // Diagnóstico OLT para um link específico - consulta e atualiza failureReason
+  app.post("/api/links/:id/olt-diagnosis", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+      
+      if (!link.oltId || !link.onuId) {
+        return res.json({
+          alarmType: null,
+          diagnosis: "Link sem OLT/ONU configurado",
+          description: "Configure a OLT e ONU do link para habilitar diagnóstico",
+        });
+      }
+      
+      const olt = await storage.getOlt(link.oltId);
+      if (!olt || !olt.isActive) {
+        return res.json({
+          alarmType: null,
+          diagnosis: "OLT não disponível",
+          description: "A OLT configurada não está ativa ou não foi encontrada",
+        });
+      }
+      
+      const { buildOnuDiagnosisKey } = await import("./olt");
+      const diagnosisKey = buildOnuDiagnosisKey(olt, {
+        onuId: link.onuId,
+        slotOlt: link.slotOlt,
+        portOlt: link.portOlt,
+        onuSearchString: link.onuSearchString,
+      });
+      
+      if (!diagnosisKey) {
+        return res.json({
+          alarmType: null,
+          diagnosis: "Dados insuficientes para diagnóstico",
+          description: "Verifique os campos ONU ID, Slot e Porta do link",
+        });
+      }
+      
+      const result = await queryOltAlarm(olt, diagnosisKey);
+      
+      // Update link's failureReason based on OLT diagnosis
+      if (result.alarmType) {
+        const failureReasonMap: Record<string, string> = {
+          "GPON_LOSi": "rompimento_fibra",
+          "GPON_LOFi": "rompimento_fibra",
+          "GPON_DGi": "queda_energia",
+          "GPON_SFi": "sinal_degradado",
+          "GPON_SDi": "sinal_degradado",
+          "GPON_DOWi": "onu_inativa",
+        };
+        const failureReason = failureReasonMap[result.alarmType] || "olt_alarm";
+        await storage.updateLinkFailureState(linkId, failureReason, "olt");
+      }
+      
+      return res.json(result);
+    } catch (error) {
+      console.error("Erro no diagnóstico OLT do link:", error);
+      return res.status(500).json({ error: "Falha ao realizar diagnóstico OLT" });
+    }
+  });
+
   app.get("/api/links/:id/incidents", requireAuth, async (req, res) => {
     try {
       const linkId = parseInt(req.params.id, 10);
@@ -2107,7 +2175,7 @@ export async function registerRoutes(
       if (!olt) {
         return res.status(404).json({ error: "OLT não encontrada" });
       }
-      const { onuId, slotOlt, portOlt, equipmentSerialNumber } = req.body;
+      const { onuId, slotOlt, portOlt, equipmentSerialNumber, linkId, updateLink } = req.body;
       if (!onuId) {
         return res.status(400).json({ error: "ID da ONU é obrigatório" });
       }
@@ -2131,6 +2199,21 @@ export async function registerRoutes(
       }
       
       const result = await queryOltAlarm(olt, diagnosisKey);
+      
+      // If linkId provided and updateLink=true, update the link's failureReason
+      if (linkId && updateLink && result.alarmType) {
+        const failureReasonMap: Record<string, string> = {
+          "GPON_LOSi": "rompimento_fibra",
+          "GPON_LOFi": "rompimento_fibra",
+          "GPON_DGi": "queda_energia",
+          "GPON_SFi": "sinal_degradado",
+          "GPON_SDi": "sinal_degradado",
+          "GPON_DOWi": "onu_inativa",
+        };
+        const failureReason = failureReasonMap[result.alarmType] || "olt_alarm";
+        await storage.updateLinkFailureState(linkId, failureReason, "olt");
+      }
+      
       res.json(result);
     } catch (error) {
       console.error("Erro ao testar diagnóstico:", error);

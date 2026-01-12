@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,20 @@ export default function LinkDetail() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [oltDiagnosisResult, setOltDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
+  const queryClient = useQueryClient();
+
+  const oltDiagnosisMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/links/${linkId}/olt-diagnosis`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setOltDiagnosisResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
+    },
+  });
 
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
@@ -275,19 +290,42 @@ export default function LinkDetail() {
                 Fonte: {failureInfo.source === "olt" ? "Monitoramento OLT" : "Registro Manual"} 
                 {failureInfo.lastFailureAt && ` - ${formatDistanceToNow(new Date(failureInfo.lastFailureAt), { addSuffix: true, locale: ptBR })}`}
               </p>
+              {oltDiagnosisResult && (
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Último diagnóstico: {oltDiagnosisResult.diagnosis}
+                </p>
+              )}
             </div>
-            {activeIncident && (
-              <div className="text-right">
-                <Badge variant={getStatusColor(activeIncident.status) as "destructive" | "default" | "secondary" | "outline"}>
-                  {getStatusLabel(activeIncident.status)}
-                </Badge>
-                {activeIncident.erpTicketId && (
-                  <p className="text-xs text-muted-foreground mt-1" data-testid="text-erp-ticket">
-                    Ticket ERP: {activeIncident.erpTicketId}
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {link.oltId && link.onuId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => oltDiagnosisMutation.mutate()}
+                  disabled={oltDiagnosisMutation.isPending}
+                  data-testid="button-olt-diagnosis"
+                >
+                  {oltDiagnosisMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Server className="w-4 h-4 mr-2" />
+                  )}
+                  Consultar OLT
+                </Button>
+              )}
+              {activeIncident && (
+                <div className="text-right">
+                  <Badge variant={getStatusColor(activeIncident.status) as "destructive" | "default" | "secondary" | "outline"}>
+                    {getStatusLabel(activeIncident.status)}
+                  </Badge>
+                  {activeIncident.erpTicketId && (
+                    <p className="text-xs text-muted-foreground mt-1" data-testid="text-erp-ticket">
+                      Ticket ERP: {activeIncident.erpTicketId}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
