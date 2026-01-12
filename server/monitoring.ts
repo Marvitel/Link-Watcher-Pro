@@ -1241,7 +1241,9 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     // Enrich with OLT diagnosis when offline (both transition and ongoing)
     let diagnosisSuffix = "";
     if (newStatus === "offline" && link.oltId && link.onuId) {
+      console.log(`[Monitor] ${link.name}: Offline detected, consulting OLT for diagnosis...`);
       diagnosisSuffix = await enrichWithOltDiagnosis();
+      console.log(`[Monitor] ${link.name}: OLT diagnosis result: "${diagnosisSuffix}"`);
     }
     
     // Create event on status change
@@ -1249,6 +1251,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
       if (eventConfig) {
         let eventDescription = eventConfig.description + diagnosisSuffix;
+        console.log(`[Monitor] ${link.name}: Creating event with description: "${eventDescription}"`);
         
         await db.insert(events).values({
           linkId: link.id,
