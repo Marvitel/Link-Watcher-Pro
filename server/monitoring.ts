@@ -168,7 +168,7 @@ const previousTrafficData = new Map<number, TrafficResult>();
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
 
-export async function pingHost(ipAddress: string, count: number = 5): Promise<PingResult> {
+export async function pingHost(ipAddress: string, count: number = 10): Promise<PingResult> {
   if (pingPermissionDenied) {
     return simulatePing();
   }

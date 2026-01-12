@@ -192,10 +192,13 @@ interface LatencyChartProps {
   data: Array<{
     timestamp: string;
     latency: number;
+    packetLoss?: number;
     status?: string;
   }>;
   height?: number;
   threshold?: number;
+  packetLossThreshold?: number;
+  showPacketLoss?: boolean;
   status?: string;
 }
 
@@ -326,6 +329,149 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           stroke="hsl(0, 84%, 60%)"
           strokeWidth={2}
           fill="url(#colorLatencyRed)"
+          connectNulls={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+interface PacketLossChartProps {
+  data: Array<{
+    timestamp: string;
+    packetLoss: number;
+    status?: string;
+  }>;
+  height?: number;
+  threshold?: number;
+}
+
+export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLossChartProps) {
+  const chartData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return [];
+    try {
+      const filtered = data.filter((item) => item && item.timestamp);
+      const result: Array<{
+        time: string;
+        threshold: number;
+        packetLoss: number | null;
+        packetLossDown: number | null;
+      }> = [];
+      
+      for (let i = 0; i < filtered.length; i++) {
+        const item = filtered[i];
+        const prevItem = i > 0 ? filtered[i - 1] : null;
+        
+        try {
+          const pointStatus = item.status || "operational";
+          const isDown = isDownStatus(pointStatus);
+          const prevStatus = prevItem?.status || "operational";
+          const wasDown = isDownStatus(prevStatus);
+          
+          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const loss = item.packetLoss ?? 0;
+          
+          if (prevItem && isDown !== wasDown) {
+            result.push({
+              time,
+              threshold,
+              packetLoss: loss,
+              packetLossDown: loss,
+            });
+          } else {
+            result.push({
+              time,
+              threshold,
+              packetLoss: isDown ? null : loss,
+              packetLossDown: isDown ? loss : null,
+            });
+          }
+        } catch {
+          // skip invalid item
+        }
+      }
+      
+      return result;
+    } catch {
+      return [];
+    }
+  }, [data, threshold]);
+
+  if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
+    return (
+      <div 
+        className="flex items-center justify-center h-full text-muted-foreground text-sm"
+        style={{ height }}
+      >
+        Carregando dados...
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
+        <defs>
+          <linearGradient id="colorPacketLoss" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(280, 70%, 50%)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(280, 70%, 50%)" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="colorPacketLossRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <XAxis
+          dataKey="time"
+          axisLine={false}
+          tickLine={false}
+          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+        />
+        <YAxis
+          axisLine={false}
+          tickLine={false}
+          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          tickFormatter={(value) => `${value}%`}
+          domain={[0, "auto"]}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "6px",
+            fontSize: "12px",
+          }}
+          labelStyle={{ color: "hsl(var(--foreground))" }}
+          formatter={(value, name: string) => {
+            if (value === null || value === undefined) return [null, null];
+            const numVal = typeof value === 'number' ? value : 0;
+            if (name === "threshold") return [`${numVal}%`, "Limite SLA"];
+            const label = name === "packetLossDown" ? "Perda (Down)" : "Perda de Pacotes";
+            return [`${numVal.toFixed(1)}%`, label];
+          }}
+        />
+        <Area
+          type="monotone"
+          dataKey="threshold"
+          stroke="hsl(0, 84%, 60%)"
+          strokeWidth={1}
+          strokeDasharray="5 5"
+          fill="none"
+        />
+        <Area
+          type="monotone"
+          dataKey="packetLoss"
+          stroke="hsl(280, 70%, 50%)"
+          strokeWidth={2}
+          fill="url(#colorPacketLoss)"
+          connectNulls={false}
+        />
+        <Area
+          type="monotone"
+          dataKey="packetLossDown"
+          stroke="hsl(0, 84%, 60%)"
+          strokeWidth={2}
+          fill="url(#colorPacketLossRed)"
           connectNulls={false}
         />
       </AreaChart>
