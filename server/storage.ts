@@ -24,6 +24,8 @@ import {
   snmpConcentrators,
   erpIntegrations,
   clientErpMappings,
+  monitoringSettings,
+  linkMonitoringState,
   type Client,
   type User,
   type Link,
@@ -47,6 +49,8 @@ import {
   type SnmpConcentrator,
   type ErpIntegration,
   type ClientErpMapping,
+  type MonitoringSetting,
+  type LinkMonitoringState,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -960,6 +964,7 @@ export class DatabaseStorage {
     await this.initializeDefaultEventTypes();
     await this.initializeDefaultEquipmentVendors();
     await this.initializeSuperAdmin();
+    await this.initializeDefaultMonitoringSettings();
     
     const existingClients = await this.getClients();
     if (existingClients.length > 0) return;
@@ -1701,6 +1706,89 @@ export class DatabaseStorage {
     }));
     
     return result;
+  }
+
+  // ============ Monitoring Settings (Global Parameters) ============
+
+  async getMonitoringSettings(): Promise<MonitoringSetting[]> {
+    return db.select().from(monitoringSettings);
+  }
+
+  async getMonitoringSetting(key: string): Promise<string | null> {
+    const result = await db.select().from(monitoringSettings)
+      .where(eq(monitoringSettings.key, key));
+    return result[0]?.value ?? null;
+  }
+
+  async setMonitoringSetting(key: string, value: string, description?: string): Promise<void> {
+    await db.insert(monitoringSettings)
+      .values({ key, value, description })
+      .onConflictDoUpdate({
+        target: monitoringSettings.key,
+        set: { value, description, updatedAt: new Date() }
+      });
+  }
+
+  async getMonitoringSettingsMap(): Promise<Record<string, string>> {
+    const settings = await this.getMonitoringSettings();
+    return settings.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {} as Record<string, string>);
+  }
+
+  // ============ Link Monitoring State (Moving Average & Persistence) ============
+
+  async getLinkMonitoringState(linkId: number): Promise<LinkMonitoringState | null> {
+    const result = await db.select().from(linkMonitoringState)
+      .where(eq(linkMonitoringState.linkId, linkId));
+    return result[0] ?? null;
+  }
+
+  async upsertLinkMonitoringState(
+    linkId: number,
+    packetLossWindow: Array<{ loss: number; timestamp: string }>,
+    packetLossAvg: number,
+    consecutiveLossBreaches: number,
+    lastAlertAt?: Date
+  ): Promise<void> {
+    await db.insert(linkMonitoringState)
+      .values({
+        linkId,
+        packetLossWindow: packetLossWindow as any,
+        packetLossAvg,
+        consecutiveLossBreaches,
+        lastAlertAt,
+        updatedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: linkMonitoringState.linkId,
+        set: {
+          packetLossWindow: packetLossWindow as any,
+          packetLossAvg,
+          consecutiveLossBreaches,
+          lastAlertAt,
+          updatedAt: new Date()
+        }
+      });
+  }
+
+  async initializeDefaultMonitoringSettings(): Promise<void> {
+    const defaults = [
+      { key: "packet_loss_window_cycles", value: "10", description: "Número de ciclos para média móvel de perda de pacotes (ex: 10 ciclos = 5 minutos)" },
+      { key: "packet_loss_threshold_pct", value: "2", description: "Threshold de perda de pacotes para alerta (%)" },
+      { key: "packet_loss_persistence_cycles", value: "3", description: "Número de ciclos consecutivos acima do threshold para disparar alerta" },
+      { key: "latency_window_cycles", value: "10", description: "Número de ciclos para média móvel de latência" },
+      { key: "latency_threshold_ms", value: "80", description: "Threshold de latência para alerta (ms)" },
+      { key: "latency_persistence_cycles", value: "3", description: "Número de ciclos consecutivos acima do threshold para disparar alerta" },
+    ];
+
+    for (const setting of defaults) {
+      const existing = await this.getMonitoringSetting(setting.key);
+      if (existing === null) {
+        await this.setMonitoringSetting(setting.key, setting.value, setting.description);
+      }
+    }
   }
 }
 

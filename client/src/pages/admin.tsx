@@ -4604,12 +4604,130 @@ function SystemSettingsTab() {
         </Card>
       </div>
 
+      <MonitoringSettingsCard />
+
       <div className="flex justify-end">
         <Button onClick={handleSave} data-testid="button-save-system-settings">
           Salvar Configuracoes
         </Button>
       </div>
     </div>
+  );
+}
+
+function MonitoringSettingsCard() {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  
+  const { data: monitoringSettings, isLoading, refetch } = useQuery<Array<{ id: number; key: string; value: string; description: string | null }>>({
+    queryKey: ["/api/monitoring-settings"],
+  });
+
+  const [localSettings, setLocalSettings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (monitoringSettings) {
+      const map: Record<string, string> = {};
+      monitoringSettings.forEach(s => { map[s.key] = s.value; });
+      setLocalSettings(map);
+    }
+  }, [monitoringSettings]);
+
+  const handleChange = (key: string, value: string) => {
+    setLocalSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const [key, value] of Object.entries(localSettings)) {
+        await apiRequest("PUT", `/api/monitoring-settings/${key}`, { value });
+      }
+      toast({ title: "Configuracoes de monitoramento salvas" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleInitialize = async () => {
+    try {
+      await apiRequest("POST", "/api/monitoring-settings/initialize", {});
+      toast({ title: "Configuracoes inicializadas" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="col-span-2">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Carregando configuracoes...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const settingsConfig = [
+    { key: "packet_loss_window_cycles", label: "Janela Media Movel (ciclos)", help: "Numero de ciclos para calcular media (ex: 10 = 5 min)" },
+    { key: "packet_loss_threshold_pct", label: "Limite Perda de Pacotes (%)", help: "Percentual acima do qual gera alerta" },
+    { key: "packet_loss_persistence_cycles", label: "Persistencia (ciclos)", help: "Ciclos consecutivos acima do limite para alertar" },
+  ];
+
+  return (
+    <Card className="col-span-2">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Activity className="w-4 h-4" />
+          Alertas de Media Movel (Perda de Pacotes)
+        </CardTitle>
+        <CardDescription>
+          Configure a media movel e regra de persistencia para evitar alarmes falsos.
+          Com 5 pacotes de ping, cada pacote perdido = 20%. A media movel suaviza variacoes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {(!monitoringSettings || monitoringSettings.length === 0) ? (
+          <div className="text-center py-4">
+            <p className="text-muted-foreground mb-4">Nenhuma configuracao encontrada.</p>
+            <Button onClick={handleInitialize} variant="outline" data-testid="button-initialize-monitoring">
+              Inicializar Configuracoes Padrao
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {settingsConfig.map(cfg => (
+                <div key={cfg.key} className="space-y-2">
+                  <Label htmlFor={cfg.key}>{cfg.label}</Label>
+                  <Input
+                    id={cfg.key}
+                    type="number"
+                    value={localSettings[cfg.key] || ""}
+                    onChange={(e) => handleChange(cfg.key, e.target.value)}
+                    data-testid={`input-${cfg.key}`}
+                  />
+                  <p className="text-xs text-muted-foreground">{cfg.help}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button onClick={handleSave} disabled={saving} data-testid="button-save-monitoring">
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : null}
+                Salvar Configuracoes de Alerta
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, type OltAlarm } from "./olt";
 import { findInterfaceByName, type SnmpProfile as SnmpProfileType } from "./snmp";
@@ -11,6 +11,164 @@ const execAsync = promisify(exec);
 
 const PARALLEL_WORKERS = 10;
 const COLLECTION_TIMEOUT_MS = 30000;
+
+// ============ Moving Average & Persistence Alert System ============
+
+interface PacketLossSample {
+  loss: number;
+  timestamp: string;
+}
+
+interface LinkAlertState {
+  packetLossWindow: PacketLossSample[];
+  packetLossAvg: number;
+  consecutiveLossBreaches: number;
+  lastAlertAt: Date | null;
+}
+
+// In-memory cache for link alert states (faster than DB queries each cycle)
+const linkAlertStateCache = new Map<number, LinkAlertState>();
+
+// Global monitoring settings cache
+let monitoringSettingsCache: Record<string, string> = {};
+let monitoringSettingsCacheTime = 0;
+const SETTINGS_CACHE_TTL_MS = 60000; // Refresh settings every 1 minute
+
+async function loadMonitoringSettings(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (now - monitoringSettingsCacheTime < SETTINGS_CACHE_TTL_MS && Object.keys(monitoringSettingsCache).length > 0) {
+    return monitoringSettingsCache;
+  }
+  
+  try {
+    const settings = await db.select().from(monitoringSettings);
+    monitoringSettingsCache = settings.reduce((acc, s) => {
+      acc[s.key] = s.value;
+      return acc;
+    }, {} as Record<string, string>);
+    monitoringSettingsCacheTime = now;
+  } catch (error) {
+    console.error("[Monitor] Error loading monitoring settings:", error);
+  }
+  
+  return monitoringSettingsCache;
+}
+
+function getMonitoringParam(settings: Record<string, string>, key: string, defaultValue: number): number {
+  const val = settings[key];
+  if (!val) return defaultValue;
+  const num = parseFloat(val);
+  return isNaN(num) ? defaultValue : num;
+}
+
+async function updatePacketLossState(
+  linkId: number,
+  currentLoss: number,
+  settings: Record<string, string>
+): Promise<{ avgLoss: number; shouldAlert: boolean; consecutiveBreaches: number }> {
+  const windowSize = getMonitoringParam(settings, "packet_loss_window_cycles", 10);
+  const threshold = getMonitoringParam(settings, "packet_loss_threshold_pct", 2);
+  const persistenceCycles = getMonitoringParam(settings, "packet_loss_persistence_cycles", 3);
+  
+  // Get or initialize state from cache
+  let state = linkAlertStateCache.get(linkId);
+  if (!state) {
+    // Try to load from DB on first access
+    try {
+      const dbState = await db.select().from(linkMonitoringState).where(eq(linkMonitoringState.linkId, linkId));
+      if (dbState[0]) {
+        state = {
+          packetLossWindow: (dbState[0].packetLossWindow as PacketLossSample[]) || [],
+          packetLossAvg: dbState[0].packetLossAvg,
+          consecutiveLossBreaches: dbState[0].consecutiveLossBreaches,
+          lastAlertAt: dbState[0].lastAlertAt,
+        };
+      }
+    } catch (e) {
+      // Ignore DB errors, start fresh
+    }
+    
+    if (!state) {
+      state = {
+        packetLossWindow: [],
+        packetLossAvg: 0,
+        consecutiveLossBreaches: 0,
+        lastAlertAt: null,
+      };
+    }
+    linkAlertStateCache.set(linkId, state);
+  }
+  
+  // Add new sample to window
+  state.packetLossWindow.push({
+    loss: currentLoss,
+    timestamp: new Date().toISOString(),
+  });
+  
+  // Trim window to size
+  while (state.packetLossWindow.length > windowSize) {
+    state.packetLossWindow.shift();
+  }
+  
+  // Calculate moving average
+  const totalLoss = state.packetLossWindow.reduce((sum, s) => sum + s.loss, 0);
+  state.packetLossAvg = state.packetLossWindow.length > 0 ? totalLoss / state.packetLossWindow.length : 0;
+  
+  // Check if average exceeds threshold
+  const isBreaching = state.packetLossAvg > threshold;
+  
+  if (isBreaching) {
+    state.consecutiveLossBreaches++;
+  } else {
+    state.consecutiveLossBreaches = 0;
+  }
+  
+  // Determine if we should alert (persistence rule)
+  const shouldAlert = state.consecutiveLossBreaches >= persistenceCycles;
+  
+  // Persist state to DB periodically (every 5 cycles or on breach change)
+  if (state.packetLossWindow.length % 5 === 0 || shouldAlert) {
+    try {
+      await db.insert(linkMonitoringState)
+        .values({
+          linkId,
+          packetLossWindow: state.packetLossWindow as any,
+          packetLossAvg: state.packetLossAvg,
+          consecutiveLossBreaches: state.consecutiveLossBreaches,
+          lastAlertAt: state.lastAlertAt,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: linkMonitoringState.linkId,
+          set: {
+            packetLossWindow: state.packetLossWindow as any,
+            packetLossAvg: state.packetLossAvg,
+            consecutiveLossBreaches: state.consecutiveLossBreaches,
+            lastAlertAt: state.lastAlertAt,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (e) {
+      // Log but don't fail
+      console.error(`[Monitor] Error persisting alert state for link ${linkId}:`, e);
+    }
+  }
+  
+  return {
+    avgLoss: state.packetLossAvg,
+    shouldAlert,
+    consecutiveBreaches: state.consecutiveLossBreaches,
+  };
+}
+
+function markAlertSent(linkId: number): void {
+  const state = linkAlertStateCache.get(linkId);
+  if (state) {
+    state.lastAlertAt = new Date();
+    // Reset counter after alert to avoid repeated alerts
+    state.consecutiveLossBreaches = 0;
+  }
+}
 
 // Interface auto-discovery constants
 const IFINDEX_MISMATCH_THRESHOLD = 3; // Number of consecutive failures before auto-discovery
@@ -1017,16 +1175,23 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       });
     }
     
-    if (safePacketLoss > packetLossThreshold && link.packetLoss <= packetLossThreshold) {
+    // Use moving average and persistence rule for packet loss alerts
+    const globalSettings = await loadMonitoringSettings();
+    const lossState = await updatePacketLossState(link.id, safePacketLoss, globalSettings);
+    
+    // Only alert if persistence rule is met (X consecutive cycles above threshold)
+    if (lossState.shouldAlert) {
       await db.insert(events).values({
         linkId: link.id,
         clientId: link.clientId,
         type: "warning",
         title: `Perda de pacotes elevada em ${link.name}`,
-        description: `Perda atual: ${safePacketLoss.toFixed(1)}% (limite: ${packetLossThreshold}%)`,
+        description: `Média móvel: ${lossState.avgLoss.toFixed(1)}% (limite: ${packetLossThreshold}%) - ${lossState.consecutiveBreaches} ciclos consecutivos`,
         timestamp: new Date(),
         resolved: false,
       });
+      // Mark alert sent to reset consecutive counter and avoid repeated alerts
+      markAlertSent(link.id);
     }
 
     await db.update(links).set({

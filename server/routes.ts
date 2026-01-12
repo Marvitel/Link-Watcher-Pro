@@ -2555,5 +2555,45 @@ export async function registerRoutes(
     }
   });
 
+  // ============ Monitoring Settings (Global Parameters) ============
+
+  app.get("/api/monitoring-settings", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getMonitoringSettings();
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error fetching monitoring settings:", error);
+      res.status(500).json({ error: "Erro ao buscar configurações de monitoramento" });
+    }
+  });
+
+  app.put("/api/monitoring-settings/:key", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value, description } = req.body;
+      
+      if (value === undefined || value === null) {
+        return res.status(400).json({ error: "Valor é obrigatório" });
+      }
+      
+      await storage.setMonitoringSetting(key, String(value), description);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating monitoring setting:", error);
+      res.status(500).json({ error: "Erro ao atualizar configuração" });
+    }
+  });
+
+  app.post("/api/monitoring-settings/initialize", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      await storage.initializeDefaultMonitoringSettings();
+      const settings = await storage.getMonitoringSettings();
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Error initializing monitoring settings:", error);
+      res.status(500).json({ error: "Erro ao inicializar configurações" });
+    }
+  });
+
   return httpServer;
 }
