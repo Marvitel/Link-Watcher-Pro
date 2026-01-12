@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -157,6 +157,26 @@ function DashboardContent() {
   
   const linksArray = useMemo(() => Array.isArray(links) ? links : [], [links]);
   const linkCount = linksArray.length;
+
+  const metricsQueries = useQueries({
+    queries: linksArray.map((link) => ({
+      queryKey: [`/api/links/${link.id}/metrics`],
+      refetchInterval: viewMode === "table" ? 10000 : 5000,
+      staleTime: 5000,
+      enabled: viewMode === "table" && linksArray.length > 0,
+    })),
+  });
+
+  const metricsMap = useMemo(() => {
+    const map: Record<number, Metric[]> = {};
+    linksArray.forEach((link, index) => {
+      const queryResult = metricsQueries[index];
+      if (queryResult?.data && Array.isArray(queryResult.data)) {
+        map[link.id] = queryResult.data;
+      }
+    });
+    return map;
+  }, [linksArray, metricsQueries]);
 
   const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
     queryKey: [eventsUrl],
@@ -393,7 +413,7 @@ function DashboardContent() {
             </div>
           ) : linksArray.length > 0 ? (
             viewMode === "table" ? (
-              <LinksTable links={linksArray} pageSize={10} />
+              <LinksTable links={linksArray} metricsMap={metricsMap} pageSize={10} />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {linksArray.map((link) => (

@@ -107,12 +107,12 @@ export function LinksTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-sm">{link.ipBlock}</span>
+                        <span className="font-mono text-sm">{link.monitoredIp || link.snmpRouterIp || link.ipBlock}</span>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => copyToClipboard(link.ipBlock)}
+                          onClick={() => copyToClipboard(link.monitoredIp || link.snmpRouterIp || link.ipBlock)}
                           data-testid={`button-copy-ip-${link.id}`}
                         >
                           <Copy className="h-3 w-3" />
