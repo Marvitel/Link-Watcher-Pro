@@ -38,6 +38,13 @@ const defaultConfig = {
 };
 
 const reasonLabels: Record<string, string> = {
+  // OLT diagnosis reasons
+  rompimento_fibra: "Rompimento de Fibra",
+  queda_energia: "Queda de Energia",
+  sinal_degradado: "Sinal Degradado",
+  onu_inativa: "ONU Inativa",
+  olt_alarm: "Alarme OLT",
+  // Network/ping reasons
   timeout: "Timeout",
   host_unreachable: "Host inacessível",
   network_unreachable: "Rede inacessível",

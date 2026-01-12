@@ -220,8 +220,34 @@ interface StatusChangeEvent {
 }
 
 // Cache para evitar múltiplas consultas de OLT durante transições rápidas
-const oltDiagnosisCache = new Map<number, { timestamp: number; diagnosis: string }>();
+interface OltDiagnosisCacheEntry {
+  timestamp: number;
+  diagnosis: string;
+  failureReason: string | null;
+  alarmType: string | null;
+  alarmTime: string | null;
+}
+const oltDiagnosisCache = new Map<number, OltDiagnosisCacheEntry>();
 const OLT_DIAGNOSIS_COOLDOWN_MS = 300000; // 5 minutos
+
+// Mapeamento de códigos OLT para failureReason canônicos
+function mapOltAlarmToFailureReason(alarmType: string | null): string | null {
+  if (!alarmType) return null;
+  const alarmUpper = alarmType.toUpperCase();
+  if (alarmUpper.includes("LOS") || alarmUpper.includes("LOF")) {
+    return "rompimento_fibra";
+  }
+  if (alarmUpper.includes("DG") || alarmUpper.includes("DYING")) {
+    return "queda_energia";
+  }
+  if (alarmUpper.includes("SF") || alarmUpper.includes("SD")) {
+    return "sinal_degradado";
+  }
+  if (alarmUpper.includes("DOWN") || alarmUpper.includes("DOW")) {
+    return "onu_inativa";
+  }
+  return "olt_alarm";
+}
 
 function getStatusChangeEvent(
   previousStatus: string,
@@ -1140,12 +1166,17 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           
           if (cached && (now - cached.timestamp) < OLT_DIAGNOSIS_COOLDOWN_MS) {
             eventDescription += cached.diagnosis;
+            // Update failureReason from cache if we have OLT diagnosis
+            if (cached.failureReason) {
+              collectedMetrics.failureReason = cached.failureReason;
+            }
           } else {
             try {
               const [olt] = await db.select().from(olts).where(eq(olts.id, link.oltId));
               
               if (olt && olt.isActive) {
                 let diagnosisSuffix = "";
+                let oltAlarmType: string | null = null;
                 
                 // Monta a chave de diagnóstico baseada no template da OLT ou fallback por vendor
                 const diagnosisKey = buildOnuDiagnosisKey(olt, {
@@ -1159,19 +1190,33 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
                   diagnosisSuffix = " | OLT: Dados de ONU incompletos para diagnóstico";
                 } else if (olt.connectionType === "mysql" || hasSpecificDiagnosisCommand(olt.vendor)) {
                   const diagnosis = await queryOltAlarm(olt, diagnosisKey);
+                  oltAlarmType = diagnosis.alarmType;
                   diagnosisSuffix = diagnosis.alarmType 
                     ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
                     : ` | OLT: ${diagnosis.description}`;
                 } else {
                   const allAlarms = await queryAllOltAlarms(olt);
                   const diagnosis = getDiagnosisFromAlarms(allAlarms, diagnosisKey);
+                  oltAlarmType = diagnosis.alarmType;
                   diagnosisSuffix = diagnosis.alarmType 
                     ? ` | Diagnóstico OLT: ${diagnosis.diagnosis} (${diagnosis.alarmType})`
                     : ` | OLT: ${diagnosis.description}`;
                 }
                 
+                // Map OLT alarm to canonical failureReason
+                const oltFailureReason = mapOltAlarmToFailureReason(oltAlarmType);
+                if (oltFailureReason) {
+                  collectedMetrics.failureReason = oltFailureReason;
+                }
+                
                 eventDescription += diagnosisSuffix;
-                oltDiagnosisCache.set(link.id, { timestamp: now, diagnosis: diagnosisSuffix });
+                oltDiagnosisCache.set(link.id, { 
+                  timestamp: now, 
+                  diagnosis: diagnosisSuffix,
+                  failureReason: oltFailureReason,
+                  alarmType: oltAlarmType,
+                  alarmTime: null,
+                });
               }
             } catch (oltError) {
               console.error(`[Monitor] Erro ao consultar OLT:`, oltError);
