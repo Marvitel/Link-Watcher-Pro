@@ -1102,7 +1102,14 @@ export async function registerRoutes(
     try {
       const clientId = getEffectiveClientId(req);
       const groups = await storage.getLinkGroups(clientId);
-      res.json(groups);
+      
+      // Enrich with members
+      const groupsWithMembers = await Promise.all(groups.map(async (group) => {
+        const members = await storage.getLinkGroupMembers(group.id);
+        return { ...group, members };
+      }));
+      
+      res.json(groupsWithMembers);
     } catch (error) {
       console.error("Erro ao buscar grupos de links:", error);
       res.status(500).json({ error: "Falha ao buscar grupos de links" });
