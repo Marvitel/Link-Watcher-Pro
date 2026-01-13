@@ -2792,11 +2792,10 @@ export async function registerRoutes(
   app.post("/api/system/update", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { exec } = await import("child_process");
-      const { promisify } = await import("util");
-      const execAsync = promisify(exec);
       
       // Execute the update script
       const updateScript = "/opt/link-monitor/deploy/update-from-github.sh";
+      const logFile = "/var/log/link-monitor-update.log";
       
       // Check if script exists
       const fs = await import("fs");
@@ -2807,18 +2806,19 @@ export async function registerRoutes(
         });
       }
       
-      // Run update in background and return immediately
-      exec(`sudo bash ${updateScript}`, (error, stdout, stderr) => {
+      // Run update completely detached using nohup + disown so it survives service restart
+      // The script runs independently of the Node.js process
+      const command = `nohup sudo bash ${updateScript} > ${logFile} 2>&1 &`;
+      
+      exec(command, { detached: true, stdio: 'ignore' }, (error) => {
         if (error) {
-          console.error("Update script error:", error);
+          console.error("Failed to start update script:", error);
         }
-        console.log("Update stdout:", stdout);
-        if (stderr) console.error("Update stderr:", stderr);
       });
       
       res.json({ 
         success: true, 
-        message: "Atualização iniciada. O sistema será reiniciado em alguns instantes." 
+        message: "Atualização iniciada. O sistema será reiniciado em alguns instantes. Aguarde cerca de 2 minutos." 
       });
     } catch (error: any) {
       console.error("Error running update:", error);
