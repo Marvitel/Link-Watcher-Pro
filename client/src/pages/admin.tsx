@@ -1081,57 +1081,40 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 data-testid="input-monitored-ip"
                 className="flex-1"
               />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    disabled={isLoadingTags || !voalleContractTags?.tags?.length}
-                    title="Buscar IP do Voalle"
-                    data-testid="button-search-voalle-ip"
-                  >
-                    {isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-0" align="end">
-                  <div className="p-3 border-b">
-                    <h4 className="font-medium text-sm">Selecionar IP do Voalle</h4>
-                    <p className="text-xs text-muted-foreground">Escolha uma etiqueta para usar o IP</p>
-                  </div>
-                  <ScrollArea className="max-h-60">
-                    <div className="p-2 space-y-1">
-                      {voalleContractTags?.tags?.filter(tag => tag.ip).map((tag) => (
-                        <Button
-                          key={tag.id}
-                          variant="ghost"
-                          className="w-full justify-start text-left h-auto py-2"
-                          onClick={() => {
-                            setFormData({ ...formData, monitoredIp: tag.ip || "" });
-                            toast({
-                              title: "IP selecionado",
-                              description: `IP ${tag.ip} da etiqueta ${tag.serviceTag || tag.description || `#${tag.id}`}`,
-                            });
-                          }}
-                          data-testid={`button-select-voalle-ip-${tag.id}`}
-                        >
-                          <div className="flex flex-col items-start">
-                            <span className="font-mono text-sm">{tag.ip}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {tag.serviceTag || tag.description || `Etiqueta #${tag.id}`}
-                            </span>
-                          </div>
-                        </Button>
-                      ))}
-                      {(!voalleContractTags?.tags?.length || !voalleContractTags.tags.some(t => t.ip)) && (
-                        <div className="text-sm text-muted-foreground text-center py-4">
-                          Nenhuma etiqueta com IP disponível
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </PopoverContent>
-              </Popover>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={isLoadingTags || !formData.voalleContractTagId}
+                title={formData.voalleContractTagId ? "Atualizar IP da etiqueta vinculada" : "Selecione uma etiqueta primeiro"}
+                onClick={() => {
+                  if (!formData.voalleContractTagId) {
+                    toast({
+                      title: "Nenhuma etiqueta vinculada",
+                      description: "Selecione uma etiqueta de contrato primeiro",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  const tag = voalleContractTags?.tags?.find(t => t.id === formData.voalleContractTagId);
+                  if (tag?.ip) {
+                    setFormData({ ...formData, monitoredIp: tag.ip });
+                    toast({
+                      title: "IP atualizado",
+                      description: `IP ${tag.ip} da etiqueta ${tag.serviceTag || tag.description || `#${tag.id}`}`,
+                    });
+                  } else {
+                    toast({
+                      title: "IP não encontrado",
+                      description: "A etiqueta vinculada não possui IP cadastrado no Voalle",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                data-testid="button-refresh-voalle-ip"
+              >
+                {isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
           <div className="space-y-2">
