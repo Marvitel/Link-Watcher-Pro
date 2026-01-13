@@ -314,12 +314,15 @@ export class DatabaseStorage {
   }
 
   async deleteLink(id: number): Promise<void> {
-    // Delete associated events, metrics, and hosts
+    // Delete all associated records from related tables
     await db.delete(events).where(eq(events.linkId, id));
     await db.delete(metrics).where(eq(metrics.linkId, id));
     await db.delete(metricsHourly).where(eq(metricsHourly.linkId, id));
     await db.delete(metricsDaily).where(eq(metricsDaily.linkId, id));
     await db.delete(hosts).where(eq(hosts.linkId, id));
+    await db.delete(ddosEvents).where(eq(ddosEvents.linkId, id));
+    await db.delete(incidents).where(eq(incidents.linkId, id));
+    await db.delete(linkMonitoringState).where(eq(linkMonitoringState.linkId, id));
     await db.delete(links).where(eq(links.id, id));
   }
 
