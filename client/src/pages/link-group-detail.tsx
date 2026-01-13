@@ -128,7 +128,7 @@ export default function LinkGroupDetail() {
         <AlertTriangle className="w-12 h-12 text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold mb-2">Grupo não encontrado</h2>
         <p className="text-muted-foreground mb-4">O grupo de links solicitado não existe.</p>
-        <Link href="/dashboard">
+        <Link href="/">
           <Button>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar ao Dashboard
@@ -142,13 +142,15 @@ export default function LinkGroupDetail() {
   const membersOnline = metrics?.membersOnline ?? group.members?.filter(m => m.link?.status === "operational").length ?? 0;
   const membersTotal = metrics?.membersTotal ?? group.members?.length ?? 0;
   const status = metrics?.status ?? "unknown";
-  const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  // bandwidth is stored in Mbps, convert to bps for formatting
+  const totalBandwidthMbps = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  const totalBandwidth = totalBandwidthMbps * 1000000;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard">
+          <Link href="/">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="w-5 h-5" />
             </Button>

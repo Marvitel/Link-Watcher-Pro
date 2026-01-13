@@ -128,7 +128,9 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
 
   const { download, upload, latency, packetLoss, status } = calculatedMetrics;
 
-  const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  // bandwidth is stored in Mbps, convert to bps for formatting
+  const totalBandwidthMbps = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  const totalBandwidth = totalBandwidthMbps * 1000000;
 
   return (
     <Link href={`/link-groups/${group.id}`}>
