@@ -708,3 +708,27 @@ export interface LoginCredentials {
   email: string;
   password: string;
 }
+
+// ============ RADIUS Authentication Settings ============
+export const radiusSettings = pgTable("radius_settings", {
+  id: serial("id").primaryKey(),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  primaryHost: varchar("primary_host", { length: 255 }).notNull(),
+  primaryPort: integer("primary_port").notNull().default(1812),
+  sharedSecretEncrypted: text("shared_secret_encrypted").notNull(),
+  secondaryHost: varchar("secondary_host", { length: 255 }),
+  secondaryPort: integer("secondary_port").default(1812),
+  secondarySecretEncrypted: text("secondary_secret_encrypted"),
+  nasIdentifier: varchar("nas_identifier", { length: 100 }).default("LinkMonitor"),
+  timeout: integer("timeout").notNull().default(5000),
+  retries: integer("retries").notNull().default(3),
+  allowLocalFallback: boolean("allow_local_fallback").notNull().default(true),
+  lastHealthCheck: timestamp("last_health_check"),
+  lastHealthStatus: varchar("last_health_status", { length: 20 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertRadiusSettingsSchema = createInsertSchema(radiusSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export type RadiusSettings = typeof radiusSettings.$inferSelect;
+export type InsertRadiusSettings = z.infer<typeof insertRadiusSettingsSchema>;

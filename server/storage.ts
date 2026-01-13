@@ -27,6 +27,7 @@ import {
   monitoringSettings,
   linkMonitoringState,
   auditLogs,
+  radiusSettings,
   type Client,
   type User,
   type Link,
@@ -54,6 +55,8 @@ import {
   type LinkMonitoringState,
   type AuditLog,
   type InsertAuditLog,
+  type RadiusSettings,
+  type InsertRadiusSettings,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -1973,6 +1976,36 @@ export class DatabaseStorage {
       byStatus,
       recentActivity,
     };
+  }
+
+  // ============ RADIUS Settings ============
+  async getRadiusSettings(): Promise<RadiusSettings | undefined> {
+    const [settings] = await db.select().from(radiusSettings).limit(1);
+    return settings || undefined;
+  }
+
+  async saveRadiusSettings(data: InsertRadiusSettings): Promise<RadiusSettings> {
+    const existing = await this.getRadiusSettings();
+    
+    if (existing) {
+      await db.update(radiusSettings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(radiusSettings.id, existing.id));
+      const [updated] = await db.select().from(radiusSettings).where(eq(radiusSettings.id, existing.id));
+      return updated;
+    } else {
+      const [created] = await db.insert(radiusSettings).values(data).returning();
+      return created;
+    }
+  }
+
+  async updateRadiusHealthStatus(status: string): Promise<void> {
+    const existing = await this.getRadiusSettings();
+    if (existing) {
+      await db.update(radiusSettings)
+        .set({ lastHealthCheck: new Date(), lastHealthStatus: status })
+        .where(eq(radiusSettings.id, existing.id));
+    }
   }
 }
 

@@ -66,6 +66,106 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email e senha são obrigatórios" });
       }
       
+      // Primeiro verifica se o usuário existe no sistema
+      const localUser = await storage.getUserByEmail(email);
+      
+      // Se é super admin, tenta autenticação RADIUS primeiro
+      if (localUser && localUser.isSuperAdmin) {
+        const radiusSettings = await storage.getRadiusSettings();
+        
+        if (radiusSettings && radiusSettings.isEnabled) {
+          try {
+            const { createRadiusServiceFromSettings } = await import("./radius");
+            
+            const radiusService = await createRadiusServiceFromSettings({
+              primaryHost: radiusSettings.primaryHost,
+              primaryPort: radiusSettings.primaryPort,
+              sharedSecretEncrypted: radiusSettings.sharedSecretEncrypted,
+              nasIdentifier: radiusSettings.nasIdentifier,
+              timeout: radiusSettings.timeout,
+              retries: radiusSettings.retries,
+            });
+            
+            // Para RADIUS, usar o email como username
+            const radiusResult = await radiusService.authenticate(email, password);
+            
+            await storage.updateRadiusHealthStatus(
+              radiusResult.code === "TIMEOUT" ? "timeout" : "online"
+            );
+            
+            if (radiusResult.success) {
+              // RADIUS autenticou com sucesso
+              const user: AuthUser = {
+                id: localUser.id,
+                email: localUser.email,
+                name: localUser.name,
+                role: localUser.role as any,
+                clientId: localUser.clientId,
+                isSuperAdmin: localUser.isSuperAdmin,
+              };
+              
+              const token = signToken(user);
+              
+              await logAuditEvent({
+                clientId: user.clientId,
+                action: "login",
+                entity: "user",
+                entityId: user.id,
+                entityName: user.name,
+                actor: user,
+                status: "success",
+                metadata: { authMethod: "radius" },
+                request: req,
+              });
+              
+              (req.session as any).user = user;
+              req.session.save((err) => {
+                if (err) console.error("Session save error:", err);
+                res.json({ user, token, authMethod: "radius" });
+              });
+              return;
+            } else if (radiusResult.code === "ACCESS_REJECT") {
+              // RADIUS rejeitou credenciais
+              await logAuditEvent({
+                action: "login_failed",
+                entity: "user",
+                actor: { id: null, email, name: email, role: "unknown" },
+                status: "failure",
+                errorMessage: "RADIUS: Credenciais inválidas",
+                metadata: { authMethod: "radius" },
+                request: req,
+              });
+              return res.status(401).json({ error: "Credenciais inválidas" });
+            } else if (radiusSettings.allowLocalFallback) {
+              // RADIUS falhou (timeout, erro de rede), tenta fallback local
+              console.log(`[RADIUS] Falha de conexão (${radiusResult.code}), tentando fallback local`);
+            } else {
+              // Sem fallback, retorna erro
+              await logAuditEvent({
+                action: "login_failed",
+                entity: "user",
+                actor: { id: null, email, name: email, role: "unknown" },
+                status: "failure",
+                errorMessage: `RADIUS indisponível: ${radiusResult.message}`,
+                metadata: { authMethod: "radius", radiusCode: radiusResult.code },
+                request: req,
+              });
+              return res.status(503).json({ 
+                error: "Servidor de autenticação indisponível",
+                radiusError: radiusResult.message,
+              });
+            }
+          } catch (radiusError) {
+            console.error("[RADIUS] Exception during auth:", radiusError);
+            if (!radiusSettings.allowLocalFallback) {
+              return res.status(503).json({ error: "Erro no servidor de autenticação" });
+            }
+            // Continua para fallback local
+          }
+        }
+      }
+      
+      // Autenticação local (fallback ou usuário não-super-admin)
       const user = await storage.validateCredentials(email, password);
       if (!user) {
         await logAuditEvent({
@@ -74,6 +174,7 @@ export async function registerRoutes(
           actor: { id: null, email, name: email, role: "unknown" },
           status: "failure",
           errorMessage: "Credenciais inválidas",
+          metadata: { authMethod: "local" },
           request: req,
         });
         return res.status(401).json({ error: "Credenciais inválidas" });
@@ -89,6 +190,7 @@ export async function registerRoutes(
         entityName: user.name,
         actor: user,
         status: "success",
+        metadata: { authMethod: "local" },
         request: req,
       });
       
@@ -97,7 +199,7 @@ export async function registerRoutes(
         if (err) {
           console.error("Session save error:", err);
         }
-        res.json({ user, token });
+        res.json({ user, token, authMethod: "local" });
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -3178,6 +3280,159 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Failed to fetch audit summary:", error);
       res.status(500).json({ error: "Falha ao buscar resumo de auditoria" });
+    }
+  });
+
+  // ============ RADIUS Authentication Settings ============
+  app.get("/api/radius/settings", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getRadiusSettings();
+      if (!settings) {
+        return res.json({ configured: false });
+      }
+      res.json({
+        configured: true,
+        isEnabled: settings.isEnabled,
+        primaryHost: settings.primaryHost,
+        primaryPort: settings.primaryPort,
+        secondaryHost: settings.secondaryHost,
+        secondaryPort: settings.secondaryPort,
+        nasIdentifier: settings.nasIdentifier,
+        timeout: settings.timeout,
+        retries: settings.retries,
+        allowLocalFallback: settings.allowLocalFallback,
+        lastHealthCheck: settings.lastHealthCheck,
+        lastHealthStatus: settings.lastHealthStatus,
+      });
+    } catch (error) {
+      console.error("[RADIUS] Error fetching settings:", error);
+      res.status(500).json({ error: "Erro ao buscar configurações RADIUS" });
+    }
+  });
+
+  app.post("/api/radius/settings", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { encrypt } = await import("./crypto");
+      
+      const {
+        isEnabled,
+        primaryHost,
+        primaryPort,
+        sharedSecret,
+        secondaryHost,
+        secondaryPort,
+        secondarySecret,
+        nasIdentifier,
+        timeout,
+        retries,
+        allowLocalFallback,
+      } = req.body;
+
+      if (!primaryHost || !sharedSecret) {
+        return res.status(400).json({ error: "Host e shared secret são obrigatórios" });
+      }
+
+      const settings = await storage.saveRadiusSettings({
+        isEnabled: isEnabled ?? false,
+        primaryHost,
+        primaryPort: primaryPort || 1812,
+        sharedSecretEncrypted: encrypt(sharedSecret),
+        secondaryHost: secondaryHost || null,
+        secondaryPort: secondaryPort || 1812,
+        secondarySecretEncrypted: secondarySecret ? encrypt(secondarySecret) : null,
+        nasIdentifier: nasIdentifier || "LinkMonitor",
+        timeout: timeout || 5000,
+        retries: retries || 3,
+        allowLocalFallback: allowLocalFallback ?? true,
+      });
+
+      await logAuditEvent({
+        actor: req.user!,
+        action: "config_change",
+        entity: "settings",
+        entityName: "RADIUS",
+        current: { isEnabled, primaryHost, primaryPort, nasIdentifier },
+        request: req,
+      });
+
+      res.json({ success: true, isEnabled: settings.isEnabled });
+    } catch (error) {
+      console.error("[RADIUS] Error saving settings:", error);
+      res.status(500).json({ error: "Erro ao salvar configurações RADIUS" });
+    }
+  });
+
+  app.post("/api/radius/test", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { createRadiusServiceFromSettings } = await import("./radius");
+      const { encrypt } = await import("./crypto");
+      
+      const { host, port, sharedSecret, nasIdentifier } = req.body;
+
+      if (!host || !sharedSecret) {
+        return res.status(400).json({ error: "Host e shared secret são obrigatórios" });
+      }
+
+      const radiusService = await createRadiusServiceFromSettings({
+        primaryHost: host,
+        primaryPort: port || 1812,
+        sharedSecretEncrypted: encrypt(sharedSecret),
+        nasIdentifier: nasIdentifier || "LinkMonitor",
+        timeout: 5000,
+        retries: 2,
+      });
+
+      const result = await radiusService.testConnection();
+
+      await storage.updateRadiusHealthStatus(result.success ? "online" : "offline");
+
+      res.json(result);
+    } catch (error) {
+      console.error("[RADIUS] Test error:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Erro ao testar conexão: ${error instanceof Error ? error.message : String(error)}`,
+        code: "SERVER_ERROR",
+      });
+    }
+  });
+
+  app.post("/api/radius/authenticate", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { createRadiusServiceFromSettings } = await import("./radius");
+      
+      const { username, password } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+      }
+
+      const settings = await storage.getRadiusSettings();
+      if (!settings || !settings.isEnabled) {
+        return res.status(400).json({ error: "RADIUS não está configurado ou habilitado" });
+      }
+
+      const radiusService = await createRadiusServiceFromSettings({
+        primaryHost: settings.primaryHost,
+        primaryPort: settings.primaryPort,
+        sharedSecretEncrypted: settings.sharedSecretEncrypted,
+        nasIdentifier: settings.nasIdentifier,
+        timeout: settings.timeout,
+        retries: settings.retries,
+      });
+
+      const result = await radiusService.authenticate(username, password);
+
+      await storage.updateRadiusHealthStatus(result.code === "TIMEOUT" ? "timeout" : result.success ? "online" : "online");
+
+      res.json(result);
+    } catch (error) {
+      console.error("[RADIUS] Authentication error:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Erro ao autenticar: ${error instanceof Error ? error.message : String(error)}`,
+        code: "SERVER_ERROR",
+      });
     }
   });
 
