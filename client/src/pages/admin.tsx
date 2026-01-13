@@ -49,6 +49,8 @@ import {
   AlertTriangle,
   AlertCircle,
   Activity,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -104,6 +106,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const [isSearchingOnu, setIsSearchingOnu] = useState(false);
   const [isTestingDiagnosis, setIsTestingDiagnosis] = useState(false);
   const [diagnosisResult, setDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
+
+  // Estados para busca de clientes e etiquetas
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [tagSearchOpen, setTagSearchOpen] = useState(false);
+  const [tagSearchTerm, setTagSearchTerm] = useState("");
 
   const { data: olts } = useQuery<Olt[]>({
     queryKey: ["/api/olts"],
@@ -477,21 +485,67 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               <span className="text-sm">{clients[0].name}</span>
             </div>
           ) : (
-            <Select
-              value={formData.clientId.toString()}
-              onValueChange={(value) => setFormData({ ...formData, clientId: parseInt(value, 10), snmpProfileId: null })}
-            >
-              <SelectTrigger data-testid="select-link-client">
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id.toString()}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between"
+                  data-testid="select-link-client"
+                >
+                  <span className="truncate">
+                    {clients?.find(c => c.id === formData.clientId)?.name || "Selecione um cliente"}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="start">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar cliente..."
+                      value={clientSearchTerm}
+                      onChange={(e) => setClientSearchTerm(e.target.value)}
+                      className="pl-8 h-9"
+                      data-testid="input-search-link-client"
+                    />
+                  </div>
+                </div>
+                <ScrollArea className="max-h-60">
+                  <div className="p-1">
+                    {clients
+                      ?.filter(c => !clientSearchTerm.trim() || 
+                        c.name?.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+                        c.cnpj?.toLowerCase().includes(clientSearchTerm.toLowerCase())
+                      )
+                      .map((client) => (
+                        <Button
+                          key={client.id}
+                          variant="ghost"
+                          className={`w-full justify-start text-left h-9 px-2 ${formData.clientId === client.id ? "bg-accent" : ""}`}
+                          onClick={() => {
+                            setFormData({ ...formData, clientId: client.id, snmpProfileId: null });
+                            setClientSearchOpen(false);
+                            setClientSearchTerm("");
+                          }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${formData.clientId === client.id ? "opacity-100" : "opacity-0"}`} />
+                          <span className="truncate">{client.name}</span>
+                        </Button>
+                      ))}
+                    {clients?.filter(c => !clientSearchTerm.trim() || 
+                      c.name?.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+                      c.cnpj?.toLowerCase().includes(clientSearchTerm.toLowerCase())
+                    ).length === 0 && (
+                      <div className="py-4 text-center text-sm text-muted-foreground">
+                        Nenhum cliente encontrado
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           )}
         </div>
       )}
@@ -527,22 +581,95 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             <span className="text-sm text-destructive">{voalleContractTags.error}</span>
           </div>
         ) : voalleContractTags?.tags && voalleContractTags.tags.length > 0 ? (
-          <Select
-            value={formData.voalleContractTagId?.toString() || "none"}
-            onValueChange={handleSelectContractTag}
-          >
-            <SelectTrigger data-testid="select-voalle-contract-tag-top">
-              <SelectValue placeholder="Selecione uma etiqueta (opcional)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Nenhuma etiqueta</SelectItem>
-              {voalleContractTags.tags.map((tag) => (
-                <SelectItem key={tag.id} value={tag.id.toString()}>
-                  {tag.serviceTag || `#${tag.id}`} - {tag.description || "Sem descrição"}{tag.contractNumber ? ` (Contrato ${tag.contractNumber})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={tagSearchOpen} onOpenChange={setTagSearchOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="w-full justify-between"
+                data-testid="select-voalle-contract-tag-top"
+              >
+                <span className="truncate">
+                  {formData.voalleContractTagId 
+                    ? (() => {
+                        const tag = voalleContractTags.tags.find(t => t.id === formData.voalleContractTagId);
+                        return tag ? `${tag.serviceTag || `#${tag.id}`} - ${tag.description || "Sem descrição"}` : "Selecione uma etiqueta";
+                      })()
+                    : "Selecione uma etiqueta (opcional)"
+                  }
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-96 p-0" align="start">
+              <div className="p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar etiqueta, descrição, contrato..."
+                    value={tagSearchTerm}
+                    onChange={(e) => setTagSearchTerm(e.target.value)}
+                    className="pl-8 h-9"
+                    data-testid="input-search-tag"
+                  />
+                </div>
+              </div>
+              <ScrollArea className="max-h-64">
+                <div className="p-1">
+                  <Button
+                    variant="ghost"
+                    className={`w-full justify-start text-left h-9 px-2 ${!formData.voalleContractTagId ? "bg-accent" : ""}`}
+                    onClick={() => {
+                      handleSelectContractTag("none");
+                      setTagSearchOpen(false);
+                      setTagSearchTerm("");
+                    }}
+                  >
+                    <Check className={`mr-2 h-4 w-4 ${!formData.voalleContractTagId ? "opacity-100" : "opacity-0"}`} />
+                    Nenhuma etiqueta
+                  </Button>
+                  {voalleContractTags.tags
+                    .filter(tag => !tagSearchTerm.trim() || 
+                      tag.serviceTag?.toLowerCase().includes(tagSearchTerm.toLowerCase()) ||
+                      tag.description?.toLowerCase().includes(tagSearchTerm.toLowerCase()) ||
+                      tag.contractNumber?.toString().includes(tagSearchTerm) ||
+                      tag.ip?.includes(tagSearchTerm)
+                    )
+                    .map((tag) => (
+                      <Button
+                        key={tag.id}
+                        variant="ghost"
+                        className={`w-full justify-start text-left h-auto py-2 px-2 ${formData.voalleContractTagId === tag.id ? "bg-accent" : ""}`}
+                        onClick={() => {
+                          handleSelectContractTag(tag.id.toString());
+                          setTagSearchOpen(false);
+                          setTagSearchTerm("");
+                        }}
+                      >
+                        <Check className={`mr-2 h-4 w-4 shrink-0 ${formData.voalleContractTagId === tag.id ? "opacity-100" : "opacity-0"}`} />
+                        <div className="flex flex-col items-start min-w-0">
+                          <span className="font-medium truncate w-full">{tag.serviceTag || `#${tag.id}`}</span>
+                          <span className="text-xs text-muted-foreground truncate w-full">
+                            {tag.description || "Sem descrição"}{tag.contractNumber ? ` (Contrato ${tag.contractNumber})` : ""}
+                          </span>
+                          {tag.ip && <span className="text-xs font-mono text-muted-foreground">IP: {tag.ip}</span>}
+                        </div>
+                      </Button>
+                    ))}
+                  {voalleContractTags.tags.filter(tag => !tagSearchTerm.trim() || 
+                    tag.serviceTag?.toLowerCase().includes(tagSearchTerm.toLowerCase()) ||
+                    tag.description?.toLowerCase().includes(tagSearchTerm.toLowerCase()) ||
+                    tag.contractNumber?.toString().includes(tagSearchTerm) ||
+                    tag.ip?.includes(tagSearchTerm)
+                  ).length === 0 && (
+                    <div className="py-4 text-center text-sm text-muted-foreground">
+                      Nenhuma etiqueta encontrada
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
         ) : (
           <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50">
             <span className="text-sm text-muted-foreground">
