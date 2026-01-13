@@ -255,6 +255,87 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     });
   };
 
+  // Função para FORÇAR atualização de todos os campos do Voalle (sobrescreve campos existentes)
+  const handleForceRefreshFromVoalle = async () => {
+    if (!formData.voalleContractTagId) {
+      toast({
+        title: "Nenhuma etiqueta vinculada",
+        description: "Selecione uma etiqueta de contrato primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Primeiro, atualizar os dados das etiquetas do Voalle
+    await refetchTags();
+    
+    // Aguardar um momento para os dados serem atualizados
+    setTimeout(() => {
+      const tag = voalleContractTags?.tags?.find(t => t.id === formData.voalleContractTagId);
+      if (!tag) {
+        toast({
+          title: "Etiqueta não encontrada",
+          description: "A etiqueta vinculada não foi encontrada no Voalle",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Tentar match automático de OLT pelo voalleId
+      let matchedOltId: number | null = null;
+      if (tag.oltId && olts) {
+        const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
+        if (matchedOlt) {
+          matchedOltId = matchedOlt.id;
+        }
+      }
+
+      // Tentar match automático de Concentrador pelo voalleId
+      let matchedConcentratorId: number | null = null;
+      if (tag.concentratorId && concentrators) {
+        const matchedConc = concentrators.find(c => c.voalleId === tag.concentratorId);
+        if (matchedConc) {
+          matchedConcentratorId = matchedConc.id;
+        }
+      }
+
+      // FORÇAR atualização de TODOS os campos (sobrescrever valores existentes)
+      setFormData(prev => ({
+        ...prev,
+        name: tag.serviceTag || tag.description || prev.name,
+        identifier: tag.serviceTag || prev.identifier,
+        monitoredIp: tag.ip || prev.monitoredIp,
+        bandwidth: tag.bandwidth || prev.bandwidth,
+        address: tag.address || prev.address,
+        location: tag.location || prev.location,
+        oltId: matchedOltId || prev.oltId,
+        concentratorId: matchedConcentratorId || prev.concentratorId,
+        slotOlt: tag.slotOlt ?? prev.slotOlt,
+        portOlt: tag.portOlt ?? prev.portOlt,
+        equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
+      }));
+
+      // Se encontrou concentrador, mudar modo para concentrador
+      if (matchedConcentratorId) {
+        setSnmpCollectionMode('concentrator');
+      }
+
+      // Mensagem de feedback
+      const updates: string[] = [];
+      if (tag.serviceTag || tag.description) updates.push(`Nome: ${tag.serviceTag || tag.description}`);
+      if (tag.ip) updates.push(`IP: ${tag.ip}`);
+      if (matchedOltId) updates.push(`OLT atualizada`);
+      if (matchedConcentratorId) updates.push(`Concentrador atualizado`);
+      if (tag.slotOlt && tag.portOlt) updates.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
+      if (tag.equipmentSerialNumber) updates.push(`Serial: ${tag.equipmentSerialNumber}`);
+      
+      toast({
+        title: "Dados atualizados do Voalle",
+        description: updates.join(" | ") || "Todos os campos foram atualizados",
+      });
+    }, 500);
+  };
+
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
   });
@@ -405,8 +486,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => refetchTags()}
-            disabled={isLoadingTags}
+            onClick={handleForceRefreshFromVoalle}
+            disabled={isLoadingTags || !formData.voalleContractTagId}
+            title={formData.voalleContractTagId ? "Atualizar todos os dados do Voalle" : "Selecione uma etiqueta primeiro"}
             data-testid="button-refresh-tags-top"
           >
             {isLoadingTags ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
