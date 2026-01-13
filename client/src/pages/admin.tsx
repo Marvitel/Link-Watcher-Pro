@@ -65,7 +65,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
-import { Database, Globe, Plug, Server } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 
 interface SnmpInterface {
@@ -86,6 +86,488 @@ function formatSpeed(speedBps: number): string {
     return `${(speedBps / 1000).toFixed(0)} Kbps`;
   }
   return speedBps > 0 ? `${speedBps} bps` : "";
+}
+
+interface LinkGroup {
+  id: number;
+  clientId: number;
+  name: string;
+  description: string | null;
+  groupType: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  members?: Array<{
+    id: number;
+    groupId: number;
+    linkId: number;
+    role: string;
+    displayOrder: number;
+    link?: Link;
+  }>;
+}
+
+function LinkGroupsTab({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<LinkGroup | undefined>();
+  const [selectedClientId, setSelectedClientId] = useState<number | undefined>();
+  
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    groupType: "redundancy",
+    clientId: 0,
+    selectedLinks: [] as Array<{ linkId: number; role: string; displayOrder: number }>,
+  });
+
+  const { data: linkGroups, isLoading } = useQuery<LinkGroup[]>({
+    queryKey: ["/api/link-groups"],
+  });
+
+  const { data: allLinks } = useQuery<Link[]>({
+    queryKey: ["/api/links"],
+  });
+
+  const clientLinks = allLinks?.filter(l => 
+    !selectedClientId || l.clientId === selectedClientId
+  ) || [];
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await apiRequest("POST", "/api/link-groups", {
+        name: data.name,
+        description: data.description || null,
+        groupType: data.groupType,
+        clientId: data.clientId,
+        members: data.selectedLinks,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/link-groups"] });
+      toast({ title: "Grupo criado com sucesso" });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar grupo", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
+      const res = await apiRequest("PATCH", `/api/link-groups/${id}`, {
+        name: data.name,
+        description: data.description || null,
+        groupType: data.groupType,
+        members: data.selectedLinks,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/link-groups"] });
+      toast({ title: "Grupo atualizado com sucesso" });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar grupo", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/link-groups/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/link-groups"] });
+      toast({ title: "Grupo excluído com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao excluir grupo", variant: "destructive" });
+    },
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      groupType: "redundancy",
+      clientId: 0,
+      selectedLinks: [],
+    });
+    setEditingGroup(undefined);
+    setSelectedClientId(undefined);
+  };
+
+  const handleEdit = (group: LinkGroup) => {
+    setEditingGroup(group);
+    setSelectedClientId(group.clientId);
+    setFormData({
+      name: group.name,
+      description: group.description || "",
+      groupType: group.groupType,
+      clientId: group.clientId,
+      selectedLinks: group.members?.map(m => ({
+        linkId: m.linkId,
+        role: m.role,
+        displayOrder: m.displayOrder,
+      })) || [],
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.name || !formData.clientId || formData.selectedLinks.length < 2) {
+      toast({ 
+        title: "Preencha os campos obrigatórios", 
+        description: "Nome, cliente e pelo menos 2 links são necessários",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (editingGroup) {
+      updateMutation.mutate({ id: editingGroup.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const toggleLinkSelection = (linkId: number) => {
+    const existing = formData.selectedLinks.find(l => l.linkId === linkId);
+    if (existing) {
+      setFormData({
+        ...formData,
+        selectedLinks: formData.selectedLinks.filter(l => l.linkId !== linkId),
+      });
+    } else {
+      const role = formData.groupType === "redundancy" 
+        ? (formData.selectedLinks.length === 0 ? "primary" : "backup")
+        : (formData.groupType === "aggregation" ? "member" : "member");
+      setFormData({
+        ...formData,
+        selectedLinks: [
+          ...formData.selectedLinks,
+          { linkId, role, displayOrder: formData.selectedLinks.length },
+        ],
+      });
+    }
+  };
+
+  const updateLinkRole = (linkId: number, role: string) => {
+    setFormData({
+      ...formData,
+      selectedLinks: formData.selectedLinks.map(l => 
+        l.linkId === linkId ? { ...l, role } : l
+      ),
+    });
+  };
+
+  const getClientName = (clientId: number) => {
+    return clients.find(c => c.id === clientId)?.name || "Cliente desconhecido";
+  };
+
+  const getLinkName = (linkId: number) => {
+    return allLinks?.find(l => l.id === linkId)?.name || "Link desconhecido";
+  };
+
+  const filteredGroups = selectedClientId 
+    ? linkGroups?.filter(g => g.clientId === selectedClientId)
+    : linkGroups;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-lg font-medium">Grupos de Links</h2>
+          <p className="text-sm text-muted-foreground">
+            Agrupe links para visualização consolidada (redundância ou agregação de banda)
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedClientId?.toString() || "all"}
+            onValueChange={(v) => setSelectedClientId(v === "all" ? undefined : parseInt(v))}
+          >
+            <SelectTrigger className="w-48" data-testid="select-filter-client">
+              <SelectValue placeholder="Todos os clientes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os clientes</SelectItem>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-group">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Grupo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingGroup ? "Editar Grupo" : "Novo Grupo de Links"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="group-name">Nome do Grupo *</Label>
+                    <Input
+                      id="group-name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: Sede Principal - Redundância"
+                      data-testid="input-group-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="group-type">Perfil do Grupo *</Label>
+                    <Select
+                      value={formData.groupType}
+                      onValueChange={(v) => setFormData({ ...formData, groupType: v })}
+                    >
+                      <SelectTrigger data-testid="select-group-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="redundancy">
+                          Redundância (Ativo/Passivo)
+                        </SelectItem>
+                        <SelectItem value="aggregation">
+                          Agregação (Dual-Stack/Bonding)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="group-description">Descrição</Label>
+                  <Input
+                    id="group-description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Descrição opcional do grupo"
+                    data-testid="input-group-description"
+                  />
+                </div>
+
+                {!editingGroup && (
+                  <div className="space-y-2">
+                    <Label>Cliente *</Label>
+                    <Select
+                      value={formData.clientId?.toString() || ""}
+                      onValueChange={(v) => {
+                        const clientId = parseInt(v);
+                        setFormData({ ...formData, clientId, selectedLinks: [] });
+                      }}
+                    >
+                      <SelectTrigger data-testid="select-group-client">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map((c) => (
+                          <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Links do Grupo * (mínimo 2)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {formData.groupType === "redundancy" 
+                      ? "Selecione os links e defina qual é o primário e qual é o backup"
+                      : "Selecione os links para agregar a banda (ex: IPv4 + IPv6)"
+                    }
+                  </p>
+                  <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {formData.clientId ? (
+                      allLinks?.filter(l => l.clientId === formData.clientId).map((link) => {
+                        const selected = formData.selectedLinks.find(s => s.linkId === link.id);
+                        return (
+                          <div key={link.id} className="flex items-center justify-between gap-2 p-2 rounded hover:bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!selected}
+                                onChange={() => toggleLinkSelection(link.id)}
+                                className="h-4 w-4"
+                                data-testid={`checkbox-link-${link.id}`}
+                              />
+                              <span className="text-sm">{link.name}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {formatBandwidth(link.bandwidth)}
+                              </Badge>
+                            </div>
+                            {selected && formData.groupType === "redundancy" && (
+                              <Select
+                                value={selected.role}
+                                onValueChange={(r) => updateLinkRole(link.id, r)}
+                              >
+                                <SelectTrigger className="w-28 h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="primary">Primário</SelectItem>
+                                  <SelectItem value="backup">Backup</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                            {selected && formData.groupType === "aggregation" && (
+                              <Select
+                                value={selected.role}
+                                onValueChange={(r) => updateLinkRole(link.id, r)}
+                              >
+                                <SelectTrigger className="w-28 h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ipv4">IPv4</SelectItem>
+                                  <SelectItem value="ipv6">IPv6</SelectItem>
+                                  <SelectItem value="member">Membro</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Selecione um cliente primeiro
+                      </p>
+                    )}
+                    {formData.clientId && allLinks?.filter(l => l.clientId === formData.clientId).length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhum link encontrado para este cliente
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-muted/50 rounded-md text-sm">
+                  {formData.groupType === "redundancy" ? (
+                    <div className="space-y-1">
+                      <p className="font-medium">Perfil: Redundância (Ativo/Passivo)</p>
+                      <p className="text-muted-foreground">
+                        O grupo é considerado online se qualquer link estiver ativo. 
+                        A banda exibida é do link primário quando ativo.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="font-medium">Perfil: Agregação (Dual-Stack/Bonding)</p>
+                      <p className="text-muted-foreground">
+                        A banda de todos os links é somada para exibir o tráfego total. 
+                        Status degradado se algum membro estiver offline.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSave}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  data-testid="button-save-group"
+                >
+                  {(createMutation.isPending || updateMutation.isPending) && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  {editingGroup ? "Salvar" : "Criar Grupo"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-40" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredGroups?.map((group) => (
+            <Card key={group.id} data-testid={`card-group-${group.id}`}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">{group.name}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{getClientName(group.clientId)}</p>
+                  </div>
+                  <Badge variant={group.groupType === "redundancy" ? "default" : "secondary"}>
+                    {group.groupType === "redundancy" ? "Redundância" : "Agregação"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {group.description && (
+                  <p className="text-sm text-muted-foreground">{group.description}</p>
+                )}
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Links:</p>
+                  {group.members?.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between text-sm">
+                      <span>{m.link?.name || getLinkName(m.linkId)}</span>
+                      <Badge variant="outline" className="text-xs">{m.role}</Badge>
+                    </div>
+                  ))}
+                  {(!group.members || group.members.length === 0) && (
+                    <p className="text-sm text-muted-foreground">Nenhum link associado</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(group)}
+                    data-testid={`button-edit-group-${group.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm("Tem certeza que deseja excluir este grupo?")) {
+                        deleteMutation.mutate(group.id);
+                      }
+                    }}
+                    data-testid={`button-delete-group-${group.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {(!filteredGroups || filteredGroups.length === 0) && (
+            <Card className="col-span-full">
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <Layers className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum grupo de links cadastrado.</p>
+                <p className="text-sm">Clique em "Novo Grupo" para criar um grupo de links.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreated }: { 
@@ -3109,6 +3591,10 @@ export default function Admin() {
             <Network className="w-4 h-4" />
             Links
           </TabsTrigger>
+          <TabsTrigger value="link-groups" className="gap-2">
+            <Layers className="w-4 h-4" />
+            Grupos
+          </TabsTrigger>
           <TabsTrigger value="clients" className="gap-2">
             <Building2 className="w-4 h-4" />
             Clientes
@@ -3265,6 +3751,10 @@ export default function Admin() {
             </div>
           )}
 
+        </TabsContent>
+
+        <TabsContent value="link-groups" className="space-y-4">
+          <LinkGroupsTab clients={clients || []} />
         </TabsContent>
 
         <TabsContent value="clients" className="space-y-4">
