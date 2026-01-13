@@ -16,11 +16,12 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
   const detailUrl = `/link/${link.id}`;
   
   // Proteção contra valores nulos/undefined com suporte a inversão de banda
+  // Inversão é o padrão (concentradores). invertBandwidth=true = manter original
   const rawDownload = link.currentDownload ?? 0;
   const rawUpload = link.currentUpload ?? 0;
-  const invertBandwidth = (link as any)?.invertBandwidth ?? false;
-  const currentDownload = invertBandwidth ? rawUpload : rawDownload;
-  const currentUpload = invertBandwidth ? rawDownload : rawUpload;
+  const keepOriginal = (link as any)?.invertBandwidth ?? false;
+  const currentDownload = keepOriginal ? rawDownload : rawUpload;
+  const currentUpload = keepOriginal ? rawUpload : rawDownload;
   const latency = link.latency ?? 0;
   const packetLoss = link.packetLoss ?? 0;
   const uptime = link.uptime ?? 0;

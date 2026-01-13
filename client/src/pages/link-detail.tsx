@@ -246,11 +246,12 @@ export default function LinkDetail() {
   const safeUptime = slaDE?.current ?? link.uptime ?? 0;
   const safeLatency = slaLAT?.current ?? link.latency ?? 0;
   const safePacketLoss = slaDP?.current ?? link.packetLoss ?? 0;
+  // Inversão é o padrão (concentradores). invertBandwidth=true = manter original
   const rawDownload = link.currentDownload ?? 0;
   const rawUpload = link.currentUpload ?? 0;
-  const invertBandwidth = (link as any)?.invertBandwidth ?? false;
-  const safeCurrentDownload = invertBandwidth ? rawUpload : rawDownload;
-  const safeCurrentUpload = invertBandwidth ? rawDownload : rawUpload;
+  const keepOriginal = (link as any)?.invertBandwidth ?? false;
+  const safeCurrentDownload = keepOriginal ? rawDownload : rawUpload;
+  const safeCurrentUpload = keepOriginal ? rawUpload : rawDownload;
   const safeBandwidth = link.bandwidth ?? 1;
 
   const failureInfo = statusDetail?.failureInfo || null;

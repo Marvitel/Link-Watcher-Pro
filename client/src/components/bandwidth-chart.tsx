@@ -58,8 +58,10 @@ export function BandwidthChart({
           const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
           const rawDl = item.download ?? 0;
           const rawUl = item.upload ?? 0;
-          const dl = invertBandwidth ? rawUl : rawDl;
-          const ul = invertBandwidth ? rawDl : rawUl;
+          // Inversão é o padrão (concentradores). invertBandwidth=true = manter original
+          const shouldInvert = !invertBandwidth;
+          const dl = shouldInvert ? rawUl : rawDl;
+          const ul = shouldInvert ? rawDl : rawUl;
           
           // Se mudou de status, adicionar ponto de transição
           if (prevItem && isDown !== wasDown) {

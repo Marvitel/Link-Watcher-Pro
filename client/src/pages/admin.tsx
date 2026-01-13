@@ -1374,9 +1374,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
           <div className="col-span-2 flex items-center justify-between p-3 rounded-md bg-muted/50">
             <div>
-              <p className="font-medium text-sm">Inverter Direção de Banda</p>
+              <p className="font-medium text-sm">Manter Direção Original</p>
               <p className="text-xs text-muted-foreground">
-                Trocar download ↔ upload nos gráficos (usar quando monitorar interface de concentrador)
+                Desativa a inversão automática de banda (por padrão, download ↔ upload são invertidos para concentradores)
               </p>
             </div>
             <Switch
