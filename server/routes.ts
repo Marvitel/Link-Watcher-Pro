@@ -681,9 +681,9 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
-      const previousLink = await storage.getLinkById(linkId);
+      const previousLink = await storage.getLink(linkId);
       await storage.updateLink(linkId, req.body);
-      const updatedLink = await storage.getLinkById(linkId);
+      const updatedLink = await storage.getLink(linkId);
       
       await logAuditEvent({
         clientId: previousLink?.clientId,
@@ -711,7 +711,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
-      const previousLink = await storage.getLinkById(linkId);
+      const previousLink = await storage.getLink(linkId);
       await storage.deleteLink(linkId);
       
       await logAuditEvent({
@@ -727,7 +727,8 @@ export async function registerRoutes(
       
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete link" });
+      console.error("[API] Error deleting link:", error);
+      res.status(500).json({ error: "Erro ao excluir link", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
