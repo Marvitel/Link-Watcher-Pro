@@ -40,10 +40,12 @@ fi
 
 echo ""
 echo "[3/6] Parando o serviço..."
-systemctl stop link-monitor || true
+systemctl stop link-monitor 2>/dev/null || true
 # Parar PM2 se estiver rodando (migração de versões antigas)
-pm2 stop all 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
+if command -v pm2 &> /dev/null; then
+    pm2 stop all 2>/dev/null || true
+    pm2 delete all 2>/dev/null || true
+fi
 
 echo ""
 echo "[4/6] Atualizando arquivos..."
