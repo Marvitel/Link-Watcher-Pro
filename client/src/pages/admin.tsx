@@ -125,7 +125,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const activeConcentrators = concentrators?.filter(c => c.isActive);
   
   const [formData, setFormData] = useState({
-    clientId: link?.clientId || (clients && clients.length > 0 ? clients[0].id : 1),
+    clientId: link?.clientId || 0,
     identifier: link?.identifier || "",
     name: link?.name || "",
     location: link?.location || "",
