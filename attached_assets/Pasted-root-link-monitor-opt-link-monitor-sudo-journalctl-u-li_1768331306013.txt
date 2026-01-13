@@ -1,0 +1,71 @@
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+jan 13 16:01:08 link-monitor npm[84870]: [Monitor] RB MARECHAL - 100M: lat=1.2ms, loss=0.0%, status=operational
+jan 13 16:01:08 link-monitor npm[84870]: [Monitor] FACILIT PROMOTORA - IP Dedicado 100M: lat=3.5ms, loss=0.0%, status=operational
+jan 13 16:01:08 link-monitor npm[84870]: [Monitor] Hotel Aquarios - IP Dedicado 400M - LINK BKP: lat=1.6ms, loss=0.0%, status=operational
+jan 13 16:01:08 link-monitor npm[84870]: [Monitor]  Hotel Aquarios - IP Dedicado 400M - LINK PRINCIPAL: lat=2.5ms, loss=0.0%, status=operational
+jan 13 16:01:09 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 13 16:01:09 link-monitor sudo[84933]: pam_unix(sudo:session): session closed for user root
+jan 13 16:01:09 link-monitor systemd[1]: link-monitor.service: Killing process 84879 (node) with signal SIGKILL.
+jan 13 16:01:09 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 13 16:01:09 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 13 16:01:09 link-monitor systemd[1]: link-monitor.service: Consumed 12.318s CPU time.
+^C
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+git pull
+npm run build
+sudo systemctl start link-monitor
+remote: Enumerating objects: 16, done.
+remote: Counting objects: 100% (16/16), done.
+remote: Compressing objects: 100% (4/4), done.
+remote: Total 12 (delta 8), reused 12 (delta 8), pack-reused 0 (from 0)
+Unpacking objects: 100% (12/12), 4.51 KiB | 231.00 KiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   f3900d8..f63ded9  main       -> origin/main
+Updating f3900d8..f63ded9
+Fast-forward
+ attached_assets/Pasted-root-link-monitor-cat-opt-link-monitor-deploy-update-fr_1768330660882.txt | 110 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ attached_assets/Pasted-root-link-monitor-sudo-systemctl-status-link-monitor-su_1768330590937.txt |  31 ++++++++++++++++++++++++
+ server/routes.ts                                                                                 |  16 ++++++------
+ 3 files changed, 149 insertions(+), 8 deletions(-)
+ create mode 100644 attached_assets/Pasted-root-link-monitor-cat-opt-link-monitor-deploy-update-fr_1768330660882.txt
+ create mode 100644 attached_assets/Pasted-root-link-monitor-sudo-systemctl-status-link-monitor-su_1768330590937.txt
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3448 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-BiTWUmiA.css              75.99 kB │ gzip:  12.35 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-DBa4JCpJ.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-H9CX5D5g.js            1,518.01 kB │ gzip: 437.89 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 27.52s
+building server...
+
+  dist/index.cjs  1.3mb ⚠️
+
+⚡ Done in 296ms
+root@link-monitor:/opt/link-monitor# sudo systemctl start link-monitor
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+git pull
+npm run build
+sudo systemctl restart link-monitor
+Already up to date.
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/wouter/esm/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
