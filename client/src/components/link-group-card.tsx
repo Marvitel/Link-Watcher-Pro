@@ -47,15 +47,16 @@ interface LinkGroupCardProps {
   aggregatedMetrics?: AggregatedMetrics;
 }
 
-function formatBandwidth(bps: number): string {
-  if (bps >= 1000000000) {
-    return `${(bps / 1000000000).toFixed(2)} Gbps`;
-  } else if (bps >= 1000000) {
-    return `${(bps / 1000000).toFixed(2)} Mbps`;
-  } else if (bps >= 1000) {
-    return `${(bps / 1000).toFixed(2)} Kbps`;
+function formatBandwidth(mbps: number): string {
+  // Values are stored in Mbps
+  if (mbps >= 1000) {
+    return `${(mbps / 1000).toFixed(2)} Gbps`;
+  } else if (mbps >= 1) {
+    return `${mbps.toFixed(2)} Mbps`;
+  } else if (mbps >= 0.001) {
+    return `${(mbps * 1000).toFixed(2)} Kbps`;
   }
-  return `${bps.toFixed(0)} bps`;
+  return `${(mbps * 1000000).toFixed(0)} bps`;
 }
 
 function getStatusBadge(status: string, membersOnline: number, membersTotal: number) {
@@ -128,9 +129,8 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
 
   const { download, upload, latency, packetLoss, status } = calculatedMetrics;
 
-  // bandwidth is stored in Mbps, convert to bps for formatting
-  const totalBandwidthMbps = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
-  const totalBandwidth = totalBandwidthMbps * 1000000;
+  // bandwidth is stored in Mbps
+  const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
 
   return (
     <Link href={`/link-groups/${group.id}`}>
