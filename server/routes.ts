@@ -2791,7 +2791,7 @@ export async function registerRoutes(
   
   app.post("/api/system/update", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
-      const { spawn } = await import("child_process");
+      const { exec } = await import("child_process");
       const fs = await import("fs");
       
       // Execute the update script
@@ -2806,21 +2806,17 @@ export async function registerRoutes(
         });
       }
       
-      // Open log file for output
-      const out = fs.openSync(logFile, 'w');
-      const err = fs.openSync(logFile, 'a');
+      // Use systemd-run to create a transient unit that runs outside our cgroup
+      // This survives when systemd kills link-monitor.service
+      const command = `sudo systemd-run --scope --unit=link-monitor-update bash -c "bash ${updateScript} > ${logFile} 2>&1"`;
       
-      // Spawn completely detached process that survives parent termination
-      const child = spawn('sudo', ['bash', updateScript], {
-        detached: true,
-        stdio: ['ignore', out, err],
-        cwd: '/opt/link-monitor'
+      exec(command, (error: Error | null) => {
+        if (error) {
+          console.error("Failed to start update via systemd-run:", error);
+        }
       });
       
-      // Unreference the child so parent can exit independently
-      child.unref();
-      
-      console.log(`Update script started with PID: ${child.pid}`);
+      console.log("Update started via systemd-run");
       
       res.json({ 
         success: true, 
