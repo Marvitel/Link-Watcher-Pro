@@ -24,6 +24,8 @@ import {
   insertSnmpConcentratorSchema,
   insertErpIntegrationSchema,
   insertClientErpMappingSchema,
+  insertLinkGroupSchema,
+  insertLinkGroupMemberSchema,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -1090,6 +1092,163 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete host" });
+    }
+  });
+
+  // ==================== Link Groups CRUD ====================
+  
+  // Get all link groups for a client
+  app.get("/api/link-groups", requireAuth, async (req, res) => {
+    try {
+      const clientId = getEffectiveClientId(req);
+      const groups = await storage.getLinkGroups(clientId);
+      res.json(groups);
+    } catch (error) {
+      console.error("Erro ao buscar grupos de links:", error);
+      res.status(500).json({ error: "Falha ao buscar grupos de links" });
+    }
+  });
+
+  // Get single link group with members
+  app.get("/api/link-groups/:id", requireAuth, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.id, 10);
+      const group = await storage.getLinkGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ error: "Grupo não encontrado" });
+      }
+      
+      // Verify client access
+      const clientId = getEffectiveClientId(req);
+      if (clientId && group.clientId !== clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      // Get members with link details
+      const members = await storage.getLinkGroupMembers(groupId);
+      res.json({ ...group, members });
+    } catch (error) {
+      console.error("Erro ao buscar grupo de links:", error);
+      res.status(500).json({ error: "Falha ao buscar grupo de links" });
+    }
+  });
+
+  // Create link group
+  app.post("/api/link-groups", requireAuth, async (req, res) => {
+    try {
+      const clientId = getEffectiveClientId(req);
+      if (!clientId) {
+        return res.status(400).json({ error: "Cliente não identificado" });
+      }
+      
+      const { members, ...groupData } = req.body;
+      const validatedData = insertLinkGroupSchema.parse({ ...groupData, clientId });
+      const group = await storage.createLinkGroup(validatedData);
+      
+      // Add members if provided
+      if (members && Array.isArray(members)) {
+        for (const member of members) {
+          await storage.addLinkGroupMember({
+            groupId: group.id,
+            linkId: member.linkId,
+            role: member.role || "member",
+            displayOrder: member.displayOrder || 0,
+          });
+        }
+      }
+      
+      const groupWithMembers = await storage.getLinkGroup(group.id);
+      const membersList = await storage.getLinkGroupMembers(group.id);
+      res.status(201).json({ ...groupWithMembers, members: membersList });
+    } catch (error) {
+      console.error("Erro ao criar grupo de links:", error);
+      res.status(400).json({ error: "Dados de grupo inválidos" });
+    }
+  });
+
+  // Update link group
+  app.patch("/api/link-groups/:id", requireAuth, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.id, 10);
+      const group = await storage.getLinkGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ error: "Grupo não encontrado" });
+      }
+      
+      const clientId = getEffectiveClientId(req);
+      if (clientId && group.clientId !== clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const { members, ...groupData } = req.body;
+      await storage.updateLinkGroup(groupId, groupData);
+      
+      // Update members if provided
+      if (members && Array.isArray(members)) {
+        // Remove existing members
+        await storage.clearLinkGroupMembers(groupId);
+        // Add new members
+        for (const member of members) {
+          await storage.addLinkGroupMember({
+            groupId,
+            linkId: member.linkId,
+            role: member.role || "member",
+            displayOrder: member.displayOrder || 0,
+          });
+        }
+      }
+      
+      const updatedGroup = await storage.getLinkGroup(groupId);
+      const membersList = await storage.getLinkGroupMembers(groupId);
+      res.json({ ...updatedGroup, members: membersList });
+    } catch (error) {
+      console.error("Erro ao atualizar grupo de links:", error);
+      res.status(500).json({ error: "Falha ao atualizar grupo de links" });
+    }
+  });
+
+  // Delete link group
+  app.delete("/api/link-groups/:id", requireAuth, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.id, 10);
+      const group = await storage.getLinkGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ error: "Grupo não encontrado" });
+      }
+      
+      const clientId = getEffectiveClientId(req);
+      if (clientId && group.clientId !== clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      await storage.deleteLinkGroup(groupId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Erro ao deletar grupo de links:", error);
+      res.status(500).json({ error: "Falha ao deletar grupo de links" });
+    }
+  });
+
+  // Get aggregated metrics for a link group
+  app.get("/api/link-groups/:id/metrics", requireAuth, async (req, res) => {
+    try {
+      const groupId = parseInt(req.params.id, 10);
+      const group = await storage.getLinkGroup(groupId);
+      if (!group) {
+        return res.status(404).json({ error: "Grupo não encontrado" });
+      }
+      
+      const clientId = getEffectiveClientId(req);
+      if (clientId && group.clientId !== clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      const period = req.query.period as string || "24h";
+      const metrics = await storage.getLinkGroupMetrics(groupId, period);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Erro ao buscar métricas do grupo:", error);
+      res.status(500).json({ error: "Falha ao buscar métricas do grupo" });
     }
   });
 

@@ -28,6 +28,8 @@ import {
   linkMonitoringState,
   auditLogs,
   radiusSettings,
+  linkGroups,
+  linkGroupMembers,
   type Client,
   type User,
   type Link,
@@ -57,6 +59,8 @@ import {
   type InsertAuditLog,
   type RadiusSettings,
   type InsertRadiusSettings,
+  type LinkGroup,
+  type LinkGroupMember,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -74,6 +78,8 @@ import {
   type InsertErpIntegration,
   type InsertClientErpMapping,
   type InsertEquipmentVendor,
+  type InsertLinkGroup,
+  type InsertLinkGroupMember,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -2017,6 +2023,178 @@ export class DatabaseStorage {
         .set({ lastHealthCheck: new Date(), lastHealthStatus: status })
         .where(eq(radiusSettings.id, existing.id));
     }
+  }
+
+  // ============ Link Groups ============
+  
+  async getLinkGroups(clientId?: number): Promise<LinkGroup[]> {
+    if (clientId) {
+      return db.select().from(linkGroups)
+        .where(and(eq(linkGroups.clientId, clientId), eq(linkGroups.isActive, true)))
+        .orderBy(linkGroups.name);
+    }
+    return db.select().from(linkGroups)
+      .where(eq(linkGroups.isActive, true))
+      .orderBy(linkGroups.name);
+  }
+
+  async getLinkGroup(id: number): Promise<LinkGroup | undefined> {
+    const [group] = await db.select().from(linkGroups).where(eq(linkGroups.id, id));
+    return group;
+  }
+
+  async createLinkGroup(data: InsertLinkGroup): Promise<LinkGroup> {
+    const [group] = await db.insert(linkGroups).values(data).returning();
+    return group;
+  }
+
+  async updateLinkGroup(id: number, data: Partial<InsertLinkGroup>): Promise<void> {
+    await db.update(linkGroups)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(linkGroups.id, id));
+  }
+
+  async deleteLinkGroup(id: number): Promise<void> {
+    // Remove members first
+    await db.delete(linkGroupMembers).where(eq(linkGroupMembers.groupId, id));
+    // Then remove the group
+    await db.delete(linkGroups).where(eq(linkGroups.id, id));
+  }
+
+  async getLinkGroupMembers(groupId: number): Promise<Array<LinkGroupMember & { link?: Link }>> {
+    const members = await db.select().from(linkGroupMembers)
+      .where(eq(linkGroupMembers.groupId, groupId))
+      .orderBy(linkGroupMembers.displayOrder);
+    
+    // Enrich with link data
+    const enrichedMembers = await Promise.all(members.map(async (member) => {
+      const link = await this.getLink(member.linkId);
+      return { ...member, link: link || undefined };
+    }));
+    
+    return enrichedMembers;
+  }
+
+  async addLinkGroupMember(data: InsertLinkGroupMember): Promise<LinkGroupMember> {
+    const [member] = await db.insert(linkGroupMembers).values(data).returning();
+    return member;
+  }
+
+  async removeLinkGroupMember(groupId: number, linkId: number): Promise<void> {
+    await db.delete(linkGroupMembers)
+      .where(and(eq(linkGroupMembers.groupId, groupId), eq(linkGroupMembers.linkId, linkId)));
+  }
+
+  async clearLinkGroupMembers(groupId: number): Promise<void> {
+    await db.delete(linkGroupMembers).where(eq(linkGroupMembers.groupId, groupId));
+  }
+
+  async getLinkGroupMetrics(groupId: number, period: string): Promise<Array<{
+    timestamp: string;
+    download: number;
+    upload: number;
+    latency: number;
+    packetLoss: number;
+    status: string;
+  }>> {
+    const group = await this.getLinkGroup(groupId);
+    if (!group) return [];
+    
+    const members = await this.getLinkGroupMembers(groupId);
+    if (members.length === 0) return [];
+    
+    const linkIds = members.map(m => m.linkId);
+    
+    // Get period filter
+    const now = new Date();
+    let startDate: Date;
+    switch (period) {
+      case "1h":
+        startDate = new Date(now.getTime() - 60 * 60 * 1000);
+        break;
+      case "6h":
+        startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+        break;
+      case "24h":
+      default:
+        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case "7d":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+    }
+    
+    // Fetch metrics for all member links
+    const allMetrics: Array<{linkId: number; timestamp: Date; download: number; upload: number; latency: number; packetLoss: number; status: string}> = [];
+    
+    for (const linkId of linkIds) {
+      const linkMetrics = await db.select().from(metrics)
+        .where(and(
+          eq(metrics.linkId, linkId),
+          gte(metrics.timestamp, startDate)
+        ))
+        .orderBy(metrics.timestamp);
+      
+      for (const m of linkMetrics) {
+        allMetrics.push({
+          linkId,
+          timestamp: m.timestamp,
+          download: m.download,
+          upload: m.upload,
+          latency: m.latency,
+          packetLoss: m.packetLoss,
+          status: m.status,
+        });
+      }
+    }
+    
+    // Group by timestamp (rounded to minute)
+    const grouped: Record<string, {downloads: number[]; uploads: number[]; latencies: number[]; losses: number[]; statuses: string[]}> = {};
+    
+    for (const m of allMetrics) {
+      const key = new Date(Math.floor(m.timestamp.getTime() / 60000) * 60000).toISOString();
+      if (!grouped[key]) {
+        grouped[key] = { downloads: [], uploads: [], latencies: [], losses: [], statuses: [] };
+      }
+      grouped[key].downloads.push(m.download);
+      grouped[key].uploads.push(m.upload);
+      grouped[key].latencies.push(m.latency);
+      grouped[key].losses.push(m.packetLoss);
+      grouped[key].statuses.push(m.status);
+    }
+    
+    // Calculate aggregated metrics based on group type
+    const result: Array<{timestamp: string; download: number; upload: number; latency: number; packetLoss: number; status: string}> = [];
+    
+    for (const [timestamp, data] of Object.entries(grouped)) {
+      let download: number, upload: number, latency: number, packetLoss: number, status: string;
+      
+      if (group.groupType === "aggregation") {
+        // Aggregation: sum bandwidth, average latency, max packet loss
+        download = data.downloads.reduce((a, b) => a + b, 0);
+        upload = data.uploads.reduce((a, b) => a + b, 0);
+        latency = data.latencies.reduce((a, b) => a + b, 0) / data.latencies.length;
+        packetLoss = Math.max(...data.losses);
+        // Status: degraded if any member is down, otherwise operational
+        status = data.statuses.some(s => s === "offline" || s === "critical" || s === "down") 
+          ? "degraded" 
+          : "operational";
+      } else {
+        // Redundancy: take primary link values, status is online if any is online
+        download = Math.max(...data.downloads); // Use best performing
+        upload = Math.max(...data.uploads);
+        latency = Math.min(...data.latencies); // Use best latency
+        packetLoss = Math.min(...data.losses); // Use best packet loss
+        // Status: operational if any member is online
+        status = data.statuses.some(s => s === "operational") 
+          ? "operational" 
+          : "offline";
+      }
+      
+      result.push({ timestamp, download, upload, latency, packetLoss, status });
+    }
+    
+    return result.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   }
 }
 
