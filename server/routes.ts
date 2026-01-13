@@ -1265,43 +1265,44 @@ export async function registerRoutes(
       const membersTotal = members.length;
       const membersOnline = members.filter(m => m.link?.status === "operational").length;
       
-      // Calculate current aggregated values from most recent metrics
+      // Calculate current aggregated values from member's current data (always fresh)
       let download = 0, upload = 0, latency = 0, packetLoss = 0, status = "unknown";
       
-      if (metricsHistory.length > 0) {
+      // For cards, always use current member data for real-time values
+      if (group.groupType === "aggregation") {
+        for (const m of members) {
+          if (m.link) {
+            download += m.link.currentDownload || 0;
+            upload += m.link.currentUpload || 0;
+          }
+        }
+        const onlineMembers = members.filter(m => m.link?.status === "operational");
+        if (onlineMembers.length > 0) {
+          latency = onlineMembers.reduce((sum, m) => sum + (m.link?.latency || 0), 0) / onlineMembers.length;
+          packetLoss = Math.max(...onlineMembers.map(m => m.link?.packetLoss || 0));
+        }
+        status = membersOnline === membersTotal ? "operational" : (membersOnline > 0 ? "degraded" : "offline");
+      } else {
+        // Redundancy: use primary or best available
+        const primaryMember = members.find(m => m.role === "primary" && m.link?.status === "operational");
+        const activeMember = primaryMember || members.find(m => m.link?.status === "operational");
+        if (activeMember?.link) {
+          download = activeMember.link.currentDownload || 0;
+          upload = activeMember.link.currentUpload || 0;
+          latency = activeMember.link.latency || 0;
+          packetLoss = activeMember.link.packetLoss || 0;
+        }
+        status = membersOnline > 0 ? "operational" : "offline";
+      }
+      
+      // Fallback to metricsHistory only if no current data
+      if (download === 0 && upload === 0 && metricsHistory.length > 0) {
         const latest = metricsHistory[metricsHistory.length - 1];
         download = latest.download;
         upload = latest.upload;
         latency = latest.latency;
         packetLoss = latest.packetLoss;
         status = latest.status;
-      } else {
-        // Calculate from current member data
-        if (group.groupType === "aggregation") {
-          for (const m of members) {
-            if (m.link) {
-              download += m.link.currentDownload || 0;
-              upload += m.link.currentUpload || 0;
-            }
-          }
-          const onlineMembers = members.filter(m => m.link?.status === "operational");
-          if (onlineMembers.length > 0) {
-            latency = onlineMembers.reduce((sum, m) => sum + (m.link?.latency || 0), 0) / onlineMembers.length;
-            packetLoss = Math.max(...onlineMembers.map(m => m.link?.packetLoss || 0));
-          }
-          status = membersOnline === membersTotal ? "operational" : (membersOnline > 0 ? "degraded" : "offline");
-        } else {
-          // Redundancy: use primary or best available
-          const primaryMember = members.find(m => m.role === "primary" && m.link?.status === "operational");
-          const activeMember = primaryMember || members.find(m => m.link?.status === "operational");
-          if (activeMember?.link) {
-            download = activeMember.link.currentDownload || 0;
-            upload = activeMember.link.currentUpload || 0;
-            latency = activeMember.link.latency || 0;
-            packetLoss = activeMember.link.packetLoss || 0;
-          }
-          status = membersOnline > 0 ? "operational" : "offline";
-        }
       }
       
       res.json({
