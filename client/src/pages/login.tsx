@@ -241,15 +241,18 @@ export default function Login() {
             <TabsContent value="admin" className="space-y-4 mt-4">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
+                  <Label htmlFor="email">Usuário</Label>
                   <Input
                     id="email"
-                    type="email"
-                    placeholder="seu@email.com"
+                    type="text"
+                    placeholder="usuario ou email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     data-testid="input-email"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Use seu usuário RADIUS ou email cadastrado
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>

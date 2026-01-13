@@ -82,7 +82,7 @@ import {
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
 import { startAggregationJobs } from "./aggregation";
-import { eq, desc, gte, lte, and, lt, isNull, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, and, lt, isNull, sql, or } from "drizzle-orm";
 import crypto from "crypto";
 
 function hashPassword(password: string): string {
@@ -234,6 +234,17 @@ export class DatabaseStorage {
     return user || undefined;
   }
 
+  async getUserByEmailOrUsername(identifier: string): Promise<User | undefined> {
+    const lowerIdentifier = identifier.toLowerCase();
+    const [user] = await db.select().from(users).where(
+      or(
+        eq(users.email, lowerIdentifier),
+        eq(sql`LOWER(${users.radiusUsername})`, lowerIdentifier)
+      )
+    );
+    return user || undefined;
+  }
+
   async createUser(data: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values({
       ...data,
@@ -256,8 +267,8 @@ export class DatabaseStorage {
     await db.delete(users).where(eq(users.id, id));
   }
 
-  async validateCredentials(email: string, password: string): Promise<AuthUser | null> {
-    const user = await this.getUserByEmail(email);
+  async validateCredentials(identifier: string, password: string): Promise<AuthUser | null> {
+    const user = await this.getUserByEmailOrUsername(identifier);
     if (!user || !user.isActive) return null;
     
     const hashedPassword = hashPassword(password);

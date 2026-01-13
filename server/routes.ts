@@ -66,8 +66,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email e senha são obrigatórios" });
       }
       
-      // Primeiro verifica se o usuário existe no sistema
-      const localUser = await storage.getUserByEmail(email);
+      // Primeiro verifica se o usuário existe no sistema (por email ou username RADIUS)
+      const localUser = await storage.getUserByEmailOrUsername(email);
       
       // Se é super admin, tenta autenticação RADIUS primeiro
       if (localUser && localUser.isSuperAdmin) {
