@@ -60,7 +60,7 @@ export function LinksTable({
     return metrics
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       .slice(-12)
-      .map((m) => m.packetLoss ?? 0);
+      .map((m) => m.download ?? 0);
   };
 
   const getLatestBandwidth = (linkId: number) => {
@@ -106,10 +106,11 @@ export function LinksTable({
               paginatedLinks.map((link) => {
                 const sparklineData = getSparklineData(link.id);
                 const bandwidth = getLatestBandwidth(link.id);
-                const isDown = link.status === "down";
                 const packetLoss = link.packetLoss ?? 0;
                 const latency = link.latency ?? 0;
                 const displayIp = link.monitoredIp || link.snmpRouterIp || link.ipBlock;
+                
+                const isDown = link.status === "down" || (packetLoss >= 100 && latency === 0);
                 
                 const lossColor = isDown ? "text-muted-foreground" : 
                   packetLoss > 2 ? "text-red-500" : packetLoss > 0.5 ? "text-yellow-500" : "text-green-500";
@@ -183,14 +184,14 @@ export function LinksTable({
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center">
-                        {isDown ? (
+                        {isDown || sparklineData.length < 2 ? (
                           <span className="text-muted-foreground text-xs">--</span>
                         ) : (
                           <Sparkline
                             data={sparklineData}
                             width={60}
                             height={20}
-                            color={packetLoss > 2 ? "#ef4444" : packetLoss > 0.5 ? "#eab308" : "#22c55e"}
+                            color="#3b82f6"
                           />
                         )}
                       </div>
