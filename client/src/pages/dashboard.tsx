@@ -7,6 +7,7 @@ import { LinkCard } from "@/components/link-card";
 import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
+import { LinkGroupCard } from "@/components/link-group-card";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
@@ -22,6 +23,7 @@ import {
   Building2,
   LayoutGrid,
   List,
+  Layers,
 } from "lucide-react";
 import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator } from "@shared/schema";
 
@@ -188,6 +190,40 @@ function DashboardContent() {
     queryKey: [slaUrl],
     refetchInterval: 30000,
   });
+
+  interface LinkGroupMember {
+    id: number;
+    groupId: number;
+    linkId: number;
+    role: string;
+    displayOrder: number;
+    link?: LinkType;
+  }
+
+  interface LinkGroup {
+    id: number;
+    clientId: number;
+    name: string;
+    description: string | null;
+    groupType: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    members?: LinkGroupMember[];
+  }
+
+  const linkGroupsUrl = selectedClientId 
+    ? `/api/link-groups?clientId=${selectedClientId}` 
+    : "/api/link-groups";
+  const { data: linkGroups, isLoading: linkGroupsLoading } = useQuery<LinkGroup[]>({
+    queryKey: [linkGroupsUrl],
+    refetchInterval: 10000,
+  });
+
+  const linkGroupsArray = useMemo(() => 
+    Array.isArray(linkGroups) ? linkGroups : [], 
+    [linkGroups]
+  );
 
   // Helper to get SLA indicator by id
   const getSLAIndicator = (id: string) => slaIndicators?.find(i => i.id === id);
@@ -428,6 +464,47 @@ function DashboardContent() {
           )}
         </CardContent>
       </Card>
+
+      {linkGroupsArray.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
+            <div>
+              <CardTitle className="text-lg">Grupos de Links</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {linkGroupsArray.length} grupo{linkGroupsArray.length === 1 ? "" : "s"} configurado{linkGroupsArray.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <Link href="/link-groups">
+              <Button variant="ghost" size="sm" data-testid="button-view-all-groups">
+                Ver todos
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {linkGroupsLoading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {[1, 2].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-48" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Skeleton className="h-24 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {linkGroupsArray.slice(0, 4).map((group) => (
+                  <LinkGroupCard key={group.id} group={group} />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">

@@ -16,6 +16,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Links from "@/pages/links";
 import LinkDetail from "@/pages/link-detail";
+import LinkGroupDetail from "@/pages/link-group-detail";
 import Security from "@/pages/security";
 import Events from "@/pages/events";
 import Reports from "@/pages/reports";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/links" component={Links} />
       <Route path="/link/:id" component={LinkDetail} />
+      <Route path="/link-groups/:id" component={LinkGroupDetail} />
       <Route path="/security" component={Security} />
       <Route path="/events" component={Events} />
       <Route path="/reports" component={Reports} />
