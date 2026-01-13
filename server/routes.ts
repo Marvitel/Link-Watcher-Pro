@@ -2746,8 +2746,8 @@ export async function registerRoutes(
       } catch (e) {}
       
       try {
-        const { stdout: date } = await execAsync("git log -1 --format=%ci");
-        lastUpdate = date.trim();
+        const { stdout: date } = await execAsync("git log -1 --format=%cI");
+        lastUpdate = date.trim(); // ISO 8601 format
       } catch (e) {}
       
       try {
@@ -2841,18 +2841,39 @@ export async function registerRoutes(
         return res.json({ backups: [], message: "Diretório de backups não encontrado" });
       }
       
-      const files = fs.readdirSync(backupDir);
-      const backups = files
-        .filter(f => f.endsWith(".tar.gz") || f.endsWith(".zip") || f.endsWith(".sql") || f.endsWith(".backup"))
-        .map(f => {
-          const filePath = path.join(backupDir, f);
+      const entries = fs.readdirSync(backupDir, { withFileTypes: true });
+      const backups = entries
+        .filter(entry => {
+          // Include directories starting with "backup-" or files with backup extensions
+          if (entry.isDirectory()) {
+            return entry.name.startsWith("backup-");
+          }
+          return entry.name.endsWith(".tar.gz") || entry.name.endsWith(".zip") || 
+                 entry.name.endsWith(".sql") || entry.name.endsWith(".backup");
+        })
+        .map(entry => {
+          const filePath = path.join(backupDir, entry.name);
           const stats = fs.statSync(filePath);
+          let size = stats.size;
+          
+          // For directories, calculate total size
+          if (entry.isDirectory()) {
+            try {
+              const { execSync } = require("child_process");
+              const duOutput = execSync(`du -sb "${filePath}"`).toString();
+              size = parseInt(duOutput.split("\t")[0]) || 0;
+            } catch (e) {
+              size = 0;
+            }
+          }
+          
           return {
-            name: f,
+            name: entry.name,
             path: filePath,
-            size: stats.size,
-            sizeFormatted: formatBytes(stats.size),
+            size: size,
+            sizeFormatted: formatBytes(size),
             createdAt: stats.mtime.toISOString(),
+            isDirectory: entry.isDirectory(),
           };
         })
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
