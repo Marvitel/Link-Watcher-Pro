@@ -77,12 +77,56 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
   
   const membersOnline = aggregatedMetrics?.membersOnline ?? group.members?.filter(m => m.link?.status === "operational").length ?? 0;
   const membersTotal = aggregatedMetrics?.membersTotal ?? group.members?.length ?? 0;
-  const status = aggregatedMetrics?.status ?? "unknown";
 
-  const download = aggregatedMetrics?.download ?? 0;
-  const upload = aggregatedMetrics?.upload ?? 0;
-  const latency = aggregatedMetrics?.latency ?? 0;
-  const packetLoss = aggregatedMetrics?.packetLoss ?? 0;
+  // Calculate metrics from members if aggregatedMetrics not provided
+  const calculatedMetrics = (() => {
+    if (aggregatedMetrics) {
+      return {
+        download: aggregatedMetrics.download,
+        upload: aggregatedMetrics.upload,
+        latency: aggregatedMetrics.latency,
+        packetLoss: aggregatedMetrics.packetLoss,
+        status: aggregatedMetrics.status
+      };
+    }
+    
+    // Calculate from member links
+    const members = group.members || [];
+    const onlineMembers = members.filter(m => m.link?.status === "operational");
+    
+    if (group.groupType === "redundancy") {
+      // Redundancy: use best (primary) online link
+      const primaryOnline = onlineMembers.find(m => m.role === "primary");
+      const activeLink = primaryOnline?.link || onlineMembers[0]?.link;
+      
+      return {
+        download: activeLink?.currentDownload || 0,
+        upload: activeLink?.currentUpload || 0,
+        latency: activeLink?.latency || 0,
+        packetLoss: activeLink?.packetLoss || 0,
+        status: onlineMembers.length > 0 ? "operational" : "offline"
+      };
+    } else {
+      // Aggregation: sum all members
+      const download = members.reduce((sum, m) => sum + (m.link?.currentDownload || 0), 0);
+      const upload = members.reduce((sum, m) => sum + (m.link?.currentUpload || 0), 0);
+      const latencies = onlineMembers.map(m => m.link?.latency || 0).filter(l => l > 0);
+      const latency = latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
+      const packetLosses = onlineMembers.map(m => m.link?.packetLoss || 0);
+      const packetLoss = packetLosses.length > 0 ? Math.max(...packetLosses) : 0;
+      
+      let status = "offline";
+      if (onlineMembers.length === members.length) {
+        status = "operational";
+      } else if (onlineMembers.length > 0) {
+        status = "degraded";
+      }
+      
+      return { download, upload, latency, packetLoss, status };
+    }
+  })();
+
+  const { download, upload, latency, packetLoss, status } = calculatedMetrics;
 
   const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
 
