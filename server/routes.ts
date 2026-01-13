@@ -1185,14 +1185,17 @@ export async function registerRoutes(
       }
       
       const { members, ...groupData } = req.body;
+      console.log("[LinkGroups] Updating group", groupId, "with members:", JSON.stringify(members));
       await storage.updateLinkGroup(groupId, groupData);
       
       // Update members if provided
-      if (members && Array.isArray(members)) {
+      if (members && Array.isArray(members) && members.length > 0) {
         // Remove existing members
         await storage.clearLinkGroupMembers(groupId);
+        console.log("[LinkGroups] Cleared existing members, adding", members.length, "new members");
         // Add new members
         for (const member of members) {
+          console.log("[LinkGroups] Adding member:", member);
           await storage.addLinkGroupMember({
             groupId,
             linkId: member.linkId,
