@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,7 @@ function LinkCardWithMetrics({ link }: { link: LinkType }) {
 
 export default function Links() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const { selectedClientId, selectedClientName, isEditable } = useClientContext();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkType | null>(null);
@@ -178,7 +180,7 @@ export default function Links() {
           </p>
         </div>
         {isEditable && (
-          <Button onClick={openCreateDialog} data-testid="button-add-link">
+          <Button onClick={() => navigate("/admin")} data-testid="button-add-link">
             <Plus className="w-4 h-4 mr-2" />
             Adicionar Link
           </Button>
