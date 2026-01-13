@@ -1136,7 +1136,11 @@ export async function registerRoutes(
   // Create link group
   app.post("/api/link-groups", requireAuth, async (req, res) => {
     try {
-      const clientId = getEffectiveClientId(req);
+      // Super admin can specify clientId in body, regular users use their own clientId
+      let clientId = getEffectiveClientId(req);
+      if (req.user?.isSuperAdmin && req.body.clientId) {
+        clientId = parseInt(req.body.clientId, 10);
+      }
       if (!clientId) {
         return res.status(400).json({ error: "Cliente não identificado" });
       }
