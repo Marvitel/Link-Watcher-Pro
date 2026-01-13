@@ -156,6 +156,33 @@ export const hosts = pgTable("hosts", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Link Groups - Agrupa links para visualização consolidada
+// Perfil "redundancy": Ativo/Passivo - foco no uptime, considera online se qualquer membro estiver online
+// Perfil "aggregation": Dual-Stack/Bonding - foco no volume, soma a banda de todos os membros
+export const linkGroups = pgTable("link_groups", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Tipo do grupo: 'redundancy' (ativo/passivo) ou 'aggregation' (soma de banda)
+  groupType: varchar("group_type", { length: 20 }).notNull().default("redundancy"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Membros de um grupo de links
+export const linkGroupMembers = pgTable("link_group_members", {
+  id: serial("id").primaryKey(),
+  groupId: integer("group_id").notNull(),
+  linkId: integer("link_id").notNull(),
+  // Papel do link no grupo: 'primary', 'backup', 'ipv4', 'ipv6', 'member'
+  role: varchar("role", { length: 20 }).notNull().default("member"),
+  // Ordem de exibição/prioridade (menor = mais prioritário)
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const snmpProfiles = pgTable("snmp_profiles", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id"), // Nullable para perfis globais (concentradores)
@@ -457,6 +484,8 @@ export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: t
 export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOltSchema = createInsertSchema(olts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSnmpConcentratorSchema = createInsertSchema(snmpConcentrators).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLinkGroupSchema = createInsertSchema(linkGroups).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLinkGroupMemberSchema = createInsertSchema(linkGroupMembers).omit({ id: true, createdAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -481,6 +510,8 @@ export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
 export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
 export type InsertOlt = z.infer<typeof insertOltSchema>;
 export type InsertSnmpConcentrator = z.infer<typeof insertSnmpConcentratorSchema>;
+export type InsertLinkGroup = z.infer<typeof insertLinkGroupSchema>;
+export type InsertLinkGroupMember = z.infer<typeof insertLinkGroupMemberSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -505,6 +536,8 @@ export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 export type Olt = typeof olts.$inferSelect;
 export type SnmpConcentrator = typeof snmpConcentrators.$inferSelect;
+export type LinkGroup = typeof linkGroups.$inferSelect;
+export type LinkGroupMember = typeof linkGroupMembers.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {
