@@ -2791,14 +2791,14 @@ export async function registerRoutes(
   
   app.post("/api/system/update", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
-      const { exec } = await import("child_process");
+      const { spawn } = await import("child_process");
+      const fs = await import("fs");
       
       // Execute the update script
       const updateScript = "/opt/link-monitor/deploy/update-from-github.sh";
       const logFile = "/var/log/link-monitor-update.log";
       
       // Check if script exists
-      const fs = await import("fs");
       if (!fs.existsSync(updateScript)) {
         return res.status(404).json({ 
           error: "Script de atualização não encontrado",
@@ -2806,15 +2806,21 @@ export async function registerRoutes(
         });
       }
       
-      // Use setsid to create a completely new session, detached from the current process group
-      // This ensures the script survives even when systemd kills the parent service
-      const command = `setsid nohup sudo bash ${updateScript} > ${logFile} 2>&1 < /dev/null &`;
+      // Open log file for output
+      const out = fs.openSync(logFile, 'w');
+      const err = fs.openSync(logFile, 'a');
       
-      exec(command, (error: Error | null) => {
-        if (error) {
-          console.error("Failed to start update script:", error);
-        }
+      // Spawn completely detached process that survives parent termination
+      const child = spawn('sudo', ['bash', updateScript], {
+        detached: true,
+        stdio: ['ignore', out, err],
+        cwd: '/opt/link-monitor'
       });
+      
+      // Unreference the child so parent can exit independently
+      child.unref();
+      
+      console.log(`Update script started with PID: ${child.pid}`);
       
       res.json({ 
         success: true, 
