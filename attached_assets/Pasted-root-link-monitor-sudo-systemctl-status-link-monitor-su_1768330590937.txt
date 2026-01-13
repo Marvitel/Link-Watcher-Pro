@@ -1,0 +1,31 @@
+root@link-monitor:~# sudo systemctl status link-monitor
+sudo journalctl -u link-monitor -n 50
+○ link-monitor.service - Link Monitor - Marvitel
+     Loaded: loaded (/etc/systemd/system/link-monitor.service; enabled; preset: enabled)
+     Active: inactive (dead) since Tue 2026-01-13 15:47:36 -03; 8min ago
+   Duration: 4min 11.922s
+    Process: 83787 ExecStart=/usr/bin/npm start (code=killed, signal=TERM)
+   Main PID: 83787 (code=killed, signal=TERM)
+        CPU: 20.746s
+
+jan 13 15:47:34 link-monitor npm[83800]: [Monitor] MARIA OLIVIA - 1S2T2WHX: lat=3.0ms, loss=0.0%, status=operational
+jan 13 15:47:34 link-monitor npm[83800]: [Monitor] RB MARECHAL - 100M: lat=1.1ms, loss=0.0%, status=operational
+jan 13 15:47:34 link-monitor npm[83800]: [Monitor] RP PARK SHOP - 50M - 4Z0T3S1R: lat=2.1ms, loss=0.0%, status=operational
+jan 13 15:47:34 link-monitor npm[83800]: [Monitor] FACILIT PROMOTORA - IP Dedicado 100M: lat=3.7ms, loss=0.0%, status=operational
+jan 13 15:47:36 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 13 15:47:36 link-monitor sudo[84127]: pam_unix(sudo:session): session closed for user root
+jan 13 15:47:36 link-monitor systemd[1]: link-monitor.service: Killing process 83803 (node) with signal SIGKILL.
+jan 13 15:47:36 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 13 15:47:36 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 13 15:47:36 link-monitor systemd[1]: link-monitor.service: Consumed 20.746s CPU time.
+jan 13 15:47:04 link-monitor npm[83800]: [Monitor] IP BGP DEDICADO 3G : lat=0.5ms, loss=0.0%, status=operational
+jan 13 15:47:04 link-monitor npm[83800]: [Monitor] Collection complete: 12 ok, 0 failed, 8297ms elapsed
+jan 13 15:47:22 link-monitor npm[83800]: 3:47:22 PM [express] POST /api/system/update 200 in 12ms :: {"success":true,"message":"Atualização iniciada. O sistema será reiniciado em alguns i>
+jan 13 15:47:22 link-monitor sudo[84127]:     root : PWD=/opt/link-monitor ; USER=root ; COMMAND=/usr/bin/bash /opt/link-monitor/deploy/update-from-github.sh
+jan 13 15:47:22 link-monitor sudo[84127]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=0)
+jan 13 15:47:26 link-monitor npm[83800]: [Monitor] Starting parallel collection for 12 links (10 workers)
+jan 13 15:47:30 link-monitor npm[83800]: [Monitor]  Hotel Aquarios - IP Dedicado 400M - LINK PRINCIPAL - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid>
+jan 13 15:47:30 link-monitor npm[83800]: [Monitor]  Hotel Aquarios - IP Dedicado 400M - LINK PRINCIPAL - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memC>
+jan 13 15:47:30 link-monitor npm[83800]: [Monitor] Emgetis - Link IP BGP 20G - vendorId: 5, vendor: Datacom, cpuOid: 1.3.6.1.4.1.3709.3.6.4.1.2.1.4.1.1.49, memOid: , memTotalOid: 1.3.6.1.>
+jan 13 15:47:30 link-monitor npm[83800]: [Monitor] Emgetis - Link IP BGP 20G - Coletando CPU/Mem via SNMP: 100.65.131.122, cpuOid: 1.3.6.1.4.1.3709.3.6.4.1.2.1.4.1.1.49, memConfig: {"memo>
+jan 13 15:47:30 link-monitor npm[83800]: [Monitor]  Hotel Aquarios - 
