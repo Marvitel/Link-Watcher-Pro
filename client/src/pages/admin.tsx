@@ -52,6 +52,8 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
 import { Database, Globe, Plug, Server } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
@@ -1070,13 +1072,67 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="monitoredIp">IP para Monitoramento</Label>
-            <Input
-              id="monitoredIp"
-              value={formData.monitoredIp}
-              onChange={(e) => setFormData({ ...formData, monitoredIp: e.target.value })}
-              placeholder="191.52.248.26"
-              data-testid="input-monitored-ip"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="monitoredIp"
+                value={formData.monitoredIp}
+                onChange={(e) => setFormData({ ...formData, monitoredIp: e.target.value })}
+                placeholder="191.52.248.26"
+                data-testid="input-monitored-ip"
+                className="flex-1"
+              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={isLoadingTags || !voalleContractTags?.tags?.length}
+                    title="Buscar IP do Voalle"
+                    data-testid="button-search-voalle-ip"
+                  >
+                    {isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="end">
+                  <div className="p-3 border-b">
+                    <h4 className="font-medium text-sm">Selecionar IP do Voalle</h4>
+                    <p className="text-xs text-muted-foreground">Escolha uma etiqueta para usar o IP</p>
+                  </div>
+                  <ScrollArea className="max-h-60">
+                    <div className="p-2 space-y-1">
+                      {voalleContractTags?.tags?.filter(tag => tag.ip).map((tag) => (
+                        <Button
+                          key={tag.id}
+                          variant="ghost"
+                          className="w-full justify-start text-left h-auto py-2"
+                          onClick={() => {
+                            setFormData({ ...formData, monitoredIp: tag.ip || "" });
+                            toast({
+                              title: "IP selecionado",
+                              description: `IP ${tag.ip} da etiqueta ${tag.serviceTag || tag.description || `#${tag.id}`}`,
+                            });
+                          }}
+                          data-testid={`button-select-voalle-ip-${tag.id}`}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span className="font-mono text-sm">{tag.ip}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {tag.serviceTag || tag.description || `Etiqueta #${tag.id}`}
+                            </span>
+                          </div>
+                        </Button>
+                      ))}
+                      {(!voalleContractTags?.tags?.length || !voalleContractTags.tags.some(t => t.ip)) && (
+                        <div className="text-sm text-muted-foreground text-center py-4">
+                          Nenhuma etiqueta com IP disponível
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="latencyThreshold">Limite Latência (ms)</Label>
