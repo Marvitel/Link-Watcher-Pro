@@ -2709,5 +2709,220 @@ export async function registerRoutes(
     }
   });
 
+  // ============ System Version & Updates ============
+  
+  app.get("/api/system/info", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      let version = "1.0.0";
+      let gitCommit = "";
+      let gitBranch = "";
+      let lastUpdate = "";
+      let githubUrl = "";
+      
+      // Try to read version from package.json
+      try {
+        const packagePath = path.join(process.cwd(), "package.json");
+        if (fs.existsSync(packagePath)) {
+          const pkg = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+          version = pkg.version || "1.0.0";
+        }
+      } catch (e) {}
+      
+      // Try to get git info
+      try {
+        const { stdout: commit } = await execAsync("git rev-parse --short HEAD");
+        gitCommit = commit.trim();
+      } catch (e) {}
+      
+      try {
+        const { stdout: branch } = await execAsync("git rev-parse --abbrev-ref HEAD");
+        gitBranch = branch.trim();
+      } catch (e) {}
+      
+      try {
+        const { stdout: date } = await execAsync("git log -1 --format=%ci");
+        lastUpdate = date.trim();
+      } catch (e) {}
+      
+      try {
+        const { stdout: remote } = await execAsync("git remote get-url origin");
+        githubUrl = remote.trim();
+      } catch (e) {}
+      
+      // Read saved github URL from settings if not from git
+      const savedGithubUrl = await storage.getMonitoringSetting("github_repo_url");
+      if (savedGithubUrl && !githubUrl) {
+        githubUrl = savedGithubUrl;
+      }
+      
+      res.json({
+        version,
+        gitCommit,
+        gitBranch,
+        lastUpdate,
+        githubUrl: savedGithubUrl || githubUrl,
+        environment: "Produção",
+      });
+    } catch (error: any) {
+      console.error("Error fetching system info:", error);
+      res.status(500).json({ error: "Erro ao buscar informações do sistema" });
+    }
+  });
+  
+  app.post("/api/system/github-url", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "URL do GitHub é obrigatória" });
+      }
+      await storage.setMonitoringSetting("github_repo_url", url, "URL do repositório GitHub");
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error saving GitHub URL:", error);
+      res.status(500).json({ error: "Erro ao salvar URL do GitHub" });
+    }
+  });
+  
+  app.post("/api/system/update", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      // Execute the update script
+      const updateScript = "/opt/link-monitor/deploy/update-from-github.sh";
+      
+      // Check if script exists
+      const fs = await import("fs");
+      if (!fs.existsSync(updateScript)) {
+        return res.status(404).json({ 
+          error: "Script de atualização não encontrado",
+          details: `O arquivo ${updateScript} não existe no servidor`
+        });
+      }
+      
+      // Run update in background and return immediately
+      exec(`sudo bash ${updateScript}`, (error, stdout, stderr) => {
+        if (error) {
+          console.error("Update script error:", error);
+        }
+        console.log("Update stdout:", stdout);
+        if (stderr) console.error("Update stderr:", stderr);
+      });
+      
+      res.json({ 
+        success: true, 
+        message: "Atualização iniciada. O sistema será reiniciado em alguns instantes." 
+      });
+    } catch (error: any) {
+      console.error("Error running update:", error);
+      res.status(500).json({ error: "Erro ao executar atualização", details: error.message });
+    }
+  });
+  
+  // ============ Backups ============
+  
+  app.get("/api/system/backups", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      
+      const backupDir = "/opt/link-monitor-backups";
+      
+      if (!fs.existsSync(backupDir)) {
+        return res.json({ backups: [], message: "Diretório de backups não encontrado" });
+      }
+      
+      const files = fs.readdirSync(backupDir);
+      const backups = files
+        .filter(f => f.endsWith(".tar.gz") || f.endsWith(".zip") || f.endsWith(".sql") || f.endsWith(".backup"))
+        .map(f => {
+          const filePath = path.join(backupDir, f);
+          const stats = fs.statSync(filePath);
+          return {
+            name: f,
+            path: filePath,
+            size: stats.size,
+            sizeFormatted: formatBytes(stats.size),
+            createdAt: stats.mtime.toISOString(),
+          };
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      res.json({ backups });
+    } catch (error: any) {
+      console.error("Error listing backups:", error);
+      res.status(500).json({ error: "Erro ao listar backups" });
+    }
+  });
+  
+  app.post("/api/system/backups/restore", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { backupName } = req.body;
+      if (!backupName) {
+        return res.status(400).json({ error: "Nome do backup é obrigatório" });
+      }
+      
+      const fs = await import("fs");
+      const path = await import("path");
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      const backupPath = path.join("/opt/link-monitor-backups", backupName);
+      
+      if (!fs.existsSync(backupPath)) {
+        return res.status(404).json({ error: "Arquivo de backup não encontrado" });
+      }
+      
+      // For SQL backups, restore to database
+      if (backupName.endsWith(".sql")) {
+        const dbUrl = process.env.DATABASE_URL;
+        if (!dbUrl) {
+          return res.status(500).json({ error: "DATABASE_URL não configurada" });
+        }
+        
+        try {
+          await execAsync(`psql "${dbUrl}" < "${backupPath}"`);
+          res.json({ success: true, message: "Backup SQL restaurado com sucesso" });
+        } catch (e: any) {
+          res.status(500).json({ error: "Erro ao restaurar backup SQL", details: e.message });
+        }
+      } else if (backupName.endsWith(".tar.gz")) {
+        // For tar.gz, extract to the application directory
+        try {
+          await execAsync(`cd /opt/link-monitor && sudo tar -xzf "${backupPath}"`);
+          res.json({ success: true, message: "Backup restaurado. Reinicie o serviço para aplicar." });
+        } catch (e: any) {
+          res.status(500).json({ error: "Erro ao restaurar backup", details: e.message });
+        }
+      } else {
+        res.status(400).json({ error: "Tipo de backup não suportado" });
+      }
+    } catch (error: any) {
+      console.error("Error restoring backup:", error);
+      res.status(500).json({ error: "Erro ao restaurar backup", details: error.message });
+    }
+  });
+  
+  app.post("/api/system/backups/upload", requireAuth, requireSuperAdmin, async (req, res) => {
+    // This would need multipart form handling - simplified for now
+    res.status(501).json({ error: "Upload de backup ainda não implementado. Use o diretório /opt/link-monitor-backups diretamente." });
+  });
+
   return httpServer;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }

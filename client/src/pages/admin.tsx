@@ -51,6 +51,7 @@ import {
   Activity,
   Check,
   ChevronsUpDown,
+  Save,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -4894,35 +4895,12 @@ function SystemSettingsTab() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Informacoes do Sistema</CardTitle>
-            <CardDescription>
-              Informacoes sobre a versao e estado do sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Versao</span>
-              <span className="font-mono">1.0.0</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Ambiente</span>
-              <Badge variant="outline">Producao</Badge>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Banco de Dados</span>
-              <Badge variant="default">Conectado</Badge>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Ultima Atualizacao</span>
-              <span className="font-mono text-xs">23/12/2025</span>
-            </div>
-          </CardContent>
-        </Card>
+        <SystemInfoCard />
       </div>
 
       <MonitoringSettingsCard />
+      
+      <BackupsCard />
 
       <div className="flex justify-end">
         <Button onClick={handleSave} data-testid="button-save-system-settings">
@@ -4930,6 +4908,287 @@ function SystemSettingsTab() {
         </Button>
       </div>
     </div>
+  );
+}
+
+interface SystemInfo {
+  version: string;
+  gitCommit: string;
+  gitBranch: string;
+  lastUpdate: string;
+  githubUrl: string;
+  environment: string;
+}
+
+function SystemInfoCard() {
+  const { toast } = useToast();
+  const [githubUrl, setGithubUrl] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isSavingUrl, setIsSavingUrl] = useState(false);
+  
+  const { data: systemInfo, isLoading, refetch } = useQuery<SystemInfo>({
+    queryKey: ["/api/system/info"],
+  });
+  
+  useEffect(() => {
+    if (systemInfo?.githubUrl) {
+      setGithubUrl(systemInfo.githubUrl);
+    }
+  }, [systemInfo]);
+  
+  const handleSaveGithubUrl = async () => {
+    setIsSavingUrl(true);
+    try {
+      await apiRequest("POST", "/api/system/github-url", { url: githubUrl });
+      toast({ title: "URL do GitHub salva com sucesso" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar URL", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSavingUrl(false);
+    }
+  };
+  
+  const handleUpdate = async () => {
+    if (!confirm("Tem certeza que deseja atualizar o sistema? O serviço será reiniciado.")) {
+      return;
+    }
+    
+    setIsUpdating(true);
+    try {
+      const response = await apiRequest("POST", "/api/system/update");
+      const data = await response.json();
+      toast({ 
+        title: "Atualização iniciada", 
+        description: data.message || "O sistema será reiniciado em alguns instantes." 
+      });
+    } catch (error: any) {
+      toast({ title: "Erro na atualização", description: error.message, variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+  
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "N/A";
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString("pt-BR");
+    } catch {
+      return dateStr;
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Informações do Sistema</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Informações do Sistema</CardTitle>
+        <CardDescription>
+          Versão, repositório e atualizações do sistema
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Versão</span>
+            <span className="font-mono">{systemInfo?.version || "1.0.0"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Ambiente</span>
+            <Badge variant="outline">{systemInfo?.environment || "Produção"}</Badge>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Branch</span>
+            <span className="font-mono text-xs">{systemInfo?.gitBranch || "N/A"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Commit</span>
+            <span className="font-mono text-xs">{systemInfo?.gitCommit || "N/A"}</span>
+          </div>
+          <div className="col-span-2 flex justify-between">
+            <span className="text-muted-foreground">Última Atualização</span>
+            <span className="font-mono text-xs">{formatDate(systemInfo?.lastUpdate || "")}</span>
+          </div>
+        </div>
+        
+        <Separator />
+        
+        <div className="space-y-2">
+          <Label>Repositório GitHub</Label>
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://github.com/usuario/repositorio.git"
+              value={githubUrl}
+              onChange={(e) => setGithubUrl(e.target.value)}
+              data-testid="input-github-url"
+            />
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={handleSaveGithubUrl}
+              disabled={isSavingUrl}
+              data-testid="button-save-github-url"
+            >
+              {isSavingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+        
+        <div className="flex gap-2 pt-2">
+          <Button 
+            onClick={handleUpdate} 
+            disabled={isUpdating}
+            className="flex-1"
+            data-testid="button-update-system"
+          >
+            {isUpdating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Atualizando...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Atualizar Sistema
+              </>
+            )}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => refetch()}
+            data-testid="button-refresh-system-info"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface Backup {
+  name: string;
+  path: string;
+  size: number;
+  sizeFormatted: string;
+  createdAt: string;
+}
+
+function BackupsCard() {
+  const { toast } = useToast();
+  const [isRestoring, setIsRestoring] = useState<string | null>(null);
+  
+  const { data: backupsData, isLoading, refetch } = useQuery<{ backups: Backup[]; message?: string }>({
+    queryKey: ["/api/system/backups"],
+  });
+  
+  const handleRestore = async (backupName: string) => {
+    if (!confirm(`Tem certeza que deseja restaurar o backup "${backupName}"? Isso pode sobrescrever dados atuais.`)) {
+      return;
+    }
+    
+    setIsRestoring(backupName);
+    try {
+      const response = await apiRequest("POST", "/api/system/backups/restore", { backupName });
+      const data = await response.json();
+      toast({ title: "Backup restaurado", description: data.message });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao restaurar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsRestoring(null);
+    }
+  };
+  
+  const formatDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString("pt-BR");
+    } catch {
+      return dateStr;
+    }
+  };
+  
+  const backups = Array.isArray(backupsData?.backups) ? backupsData.backups : [];
+  
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <div>
+          <CardTitle className="text-base">Backups do Sistema</CardTitle>
+          <CardDescription>
+            Arquivos de backup disponíveis em /opt/link-monitor-backups/
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="icon" onClick={() => refetch()} data-testid="button-refresh-backups">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : backups.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>Nenhum backup encontrado</p>
+            <p className="text-xs mt-1">Coloque arquivos .sql, .tar.gz ou .backup no diretório de backups</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {backups.map((backup) => (
+              <div 
+                key={backup.name} 
+                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Database className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{backup.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {backup.sizeFormatted} • {formatDate(backup.createdAt)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRestore(backup.name)}
+                  disabled={isRestoring === backup.name}
+                  data-testid={`button-restore-${backup.name}`}
+                >
+                  {isRestoring === backup.name ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Restaurar
+                    </>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
