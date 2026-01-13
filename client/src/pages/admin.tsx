@@ -5289,19 +5289,32 @@ function RadiusSettingsCard() {
   };
 
   const handleTest = async () => {
-    if (!formData.primaryHost || !formData.sharedSecret) {
-      toast({ title: "Preencha host e shared secret para testar", variant: "destructive" });
+    if (!formData.primaryHost) {
+      toast({ title: "Preencha o host do servidor RADIUS", variant: "destructive" });
+      return;
+    }
+    
+    if (!formData.sharedSecret && !radiusSettings?.configured) {
+      toast({ title: "Preencha o shared secret para testar", variant: "destructive" });
       return;
     }
 
     setTesting(true);
     try {
-      const response = await apiRequest("POST", "/api/radius/test", {
-        host: formData.primaryHost,
-        port: formData.primaryPort,
-        sharedSecret: formData.sharedSecret,
-        nasIdentifier: formData.nasIdentifier,
-      });
+      const endpoint = formData.sharedSecret 
+        ? "/api/radius/test" 
+        : "/api/radius/test-saved";
+      
+      const payload = formData.sharedSecret 
+        ? {
+            host: formData.primaryHost,
+            port: formData.primaryPort,
+            sharedSecret: formData.sharedSecret,
+            nasIdentifier: formData.nasIdentifier,
+          }
+        : {};
+      
+      const response = await apiRequest("POST", endpoint, payload);
       const result = await response.json();
       
       if (result.success) {
@@ -5500,7 +5513,7 @@ function RadiusSettingsCard() {
         <Button
           variant="outline"
           onClick={handleTest}
-          disabled={testing || !formData.primaryHost || !formData.sharedSecret}
+          disabled={testing || !formData.primaryHost || (!formData.sharedSecret && !radiusSettings?.configured)}
           data-testid="button-test-radius"
         >
           {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}

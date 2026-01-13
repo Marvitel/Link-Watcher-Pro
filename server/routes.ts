@@ -77,7 +77,8 @@ export async function registerRoutes(
           try {
             const { authenticateWithFailover } = await import("./radius");
             
-            // Para RADIUS, usar o email como username - com suporte a failover para servidor secundário
+            // Para RADIUS, usar o email/username - com timeout reduzido para não atrasar login
+            // Usa timeout de 2s e 1 retry (máx ~4s) ao invés dos valores configurados (pode ser até 15s)
             const radiusResult = await authenticateWithFailover({
               primaryHost: radiusSettings.primaryHost,
               primaryPort: radiusSettings.primaryPort,
@@ -86,8 +87,8 @@ export async function registerRoutes(
               secondaryPort: radiusSettings.secondaryPort,
               secondarySecretEncrypted: radiusSettings.secondarySecretEncrypted,
               nasIdentifier: radiusSettings.nasIdentifier,
-              timeout: radiusSettings.timeout,
-              retries: radiusSettings.retries,
+              timeout: Math.min(radiusSettings.timeout || 5000, 2000),
+              retries: Math.min(radiusSettings.retries || 3, 1),
             }, email, password);
             
             await storage.updateRadiusHealthStatus(
@@ -3398,6 +3399,43 @@ export async function registerRoutes(
       res.json(result);
     } catch (error) {
       console.error("[RADIUS] Test error:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Erro ao testar conexão: ${error instanceof Error ? error.message : String(error)}`,
+        code: "SERVER_ERROR",
+      });
+    }
+  });
+
+  app.post("/api/radius/test-saved", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { createRadiusServiceFromSettings } = await import("./radius");
+      
+      const settings = await storage.getRadiusSettings();
+      if (!settings) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "RADIUS não está configurado",
+          code: "NOT_CONFIGURED",
+        });
+      }
+
+      const radiusService = await createRadiusServiceFromSettings({
+        primaryHost: settings.primaryHost,
+        primaryPort: settings.primaryPort,
+        sharedSecretEncrypted: settings.sharedSecretEncrypted,
+        nasIdentifier: settings.nasIdentifier,
+        timeout: 3000,
+        retries: 1,
+      });
+
+      const result = await radiusService.testConnection();
+
+      await storage.updateRadiusHealthStatus(result.success ? "online" : "offline");
+
+      res.json(result);
+    } catch (error) {
+      console.error("[RADIUS] Test-saved error:", error);
       res.status(500).json({ 
         success: false, 
         message: `Erro ao testar conexão: ${error instanceof Error ? error.message : String(error)}`,
