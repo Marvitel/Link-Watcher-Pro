@@ -2806,11 +2806,11 @@ export async function registerRoutes(
         });
       }
       
-      // Run update completely detached using nohup + disown so it survives service restart
-      // The script runs independently of the Node.js process
+      // Run update completely detached using nohup so it survives service restart
+      // The & at the end makes it run in background, nohup prevents SIGHUP
       const command = `nohup sudo bash ${updateScript} > ${logFile} 2>&1 &`;
       
-      exec(command, { detached: true, stdio: 'ignore' }, (error) => {
+      exec(command, (error: Error | null) => {
         if (error) {
           console.error("Failed to start update script:", error);
         }
