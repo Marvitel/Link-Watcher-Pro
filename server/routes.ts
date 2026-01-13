@@ -3101,6 +3101,85 @@ export async function registerRoutes(
     res.status(501).json({ error: "Upload de backup ainda não implementado. Use o diretório /opt/link-monitor-backups diretamente." });
   });
 
+  // ===========================================
+  // AUDIT LOGS ENDPOINTS
+  // ===========================================
+  
+  app.get("/api/audit", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { 
+        clientId, 
+        action, 
+        entity, 
+        actorId,
+        startDate,
+        endDate,
+        status,
+        page = "1", 
+        limit = "50" 
+      } = req.query;
+      
+      const pageNum = Math.max(1, parseInt(page as string, 10));
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10)));
+      const offset = (pageNum - 1) * limitNum;
+      
+      const filters: Record<string, any> = {};
+      if (clientId) filters.clientId = parseInt(clientId as string, 10);
+      if (action) filters.action = action as string;
+      if (entity) filters.entity = entity as string;
+      if (actorId) filters.actorId = parseInt(actorId as string, 10);
+      if (status) filters.status = status as string;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      
+      const { logs, total } = await storage.getAuditLogs(filters, limitNum, offset);
+      
+      res.json({
+        logs,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        }
+      });
+    } catch (error) {
+      console.error("Failed to fetch audit logs:", error);
+      res.status(500).json({ error: "Falha ao buscar logs de auditoria" });
+    }
+  });
+  
+  app.get("/api/audit/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const logId = parseInt(req.params.id, 10);
+      const log = await storage.getAuditLogById(logId);
+      
+      if (!log) {
+        return res.status(404).json({ error: "Log não encontrado" });
+      }
+      
+      res.json(log);
+    } catch (error) {
+      console.error("Failed to fetch audit log:", error);
+      res.status(500).json({ error: "Falha ao buscar log de auditoria" });
+    }
+  });
+  
+  app.get("/api/audit/stats/summary", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { days = "7" } = req.query;
+      const daysNum = parseInt(days as string, 10);
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      
+      const summary = await storage.getAuditLogsSummary(startDate);
+      res.json(summary);
+    } catch (error) {
+      console.error("Failed to fetch audit summary:", error);
+      res.status(500).json({ error: "Falha ao buscar resumo de auditoria" });
+    }
+  });
+
   return httpServer;
 }
 

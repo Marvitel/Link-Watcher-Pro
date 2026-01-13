@@ -26,6 +26,7 @@ import {
   clientErpMappings,
   monitoringSettings,
   linkMonitoringState,
+  auditLogs,
   type Client,
   type User,
   type Link,
@@ -51,6 +52,8 @@ import {
   type ClientErpMapping,
   type MonitoringSetting,
   type LinkMonitoringState,
+  type AuditLog,
+  type InsertAuditLog,
   type InsertClient,
   type InsertUser,
   type InsertLink,
@@ -1852,6 +1855,121 @@ export class DatabaseStorage {
         await this.setMonitoringSetting(setting.key, setting.value, setting.description);
       }
     }
+  }
+
+  // =====================================
+  // AUDIT LOGS METHODS
+  // =====================================
+
+  async createAuditLog(data: InsertAuditLog): Promise<AuditLog> {
+    const [log] = await db.insert(auditLogs).values(data).returning();
+    return log;
+  }
+
+  async getAuditLogs(
+    filters: {
+      clientId?: number;
+      action?: string;
+      entity?: string;
+      actorId?: number;
+      status?: string;
+      startDate?: Date;
+      endDate?: Date;
+    },
+    limit: number,
+    offset: number
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    const conditions: any[] = [];
+    
+    if (filters.clientId) {
+      conditions.push(eq(auditLogs.clientId, filters.clientId));
+    }
+    if (filters.action) {
+      conditions.push(eq(auditLogs.action, filters.action));
+    }
+    if (filters.entity) {
+      conditions.push(eq(auditLogs.entity, filters.entity));
+    }
+    if (filters.actorId) {
+      conditions.push(eq(auditLogs.actorUserId, filters.actorId));
+    }
+    if (filters.status) {
+      conditions.push(eq(auditLogs.status, filters.status));
+    }
+    if (filters.startDate) {
+      conditions.push(gte(auditLogs.createdAt, filters.startDate));
+    }
+    if (filters.endDate) {
+      conditions.push(lte(auditLogs.createdAt, filters.endDate));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    const logs = await db
+      .select()
+      .from(auditLogs)
+      .where(whereClause)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+    
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(auditLogs)
+      .where(whereClause);
+    
+    return {
+      logs,
+      total: Number(countResult?.count || 0),
+    };
+  }
+
+  async getAuditLogById(id: number): Promise<AuditLog | undefined> {
+    const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+    return log || undefined;
+  }
+
+  async getAuditLogsSummary(startDate: Date): Promise<{
+    totalEvents: number;
+    byAction: Record<string, number>;
+    byEntity: Record<string, number>;
+    byStatus: Record<string, number>;
+    recentActivity: { date: string; count: number }[];
+  }> {
+    const logs = await db
+      .select()
+      .from(auditLogs)
+      .where(gte(auditLogs.createdAt, startDate));
+    
+    const byAction: Record<string, number> = {};
+    const byEntity: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+    const byDate: Record<string, number> = {};
+    
+    for (const log of logs) {
+      byAction[log.action] = (byAction[log.action] || 0) + 1;
+      if (log.entity) {
+        byEntity[log.entity] = (byEntity[log.entity] || 0) + 1;
+      }
+      byStatus[log.status] = (byStatus[log.status] || 0) + 1;
+      
+      if (log.createdAt) {
+        const dateKey = log.createdAt.toISOString().split('T')[0];
+        byDate[dateKey] = (byDate[dateKey] || 0) + 1;
+      }
+    }
+    
+    const recentActivity = Object.entries(byDate)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    
+    return {
+      totalEvents: logs.length,
+      byAction,
+      byEntity,
+      byStatus,
+      recentActivity,
+    };
   }
 }
 
