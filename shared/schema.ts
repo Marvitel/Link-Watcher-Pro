@@ -130,6 +130,8 @@ export const links = pgTable("links", {
   lastIfIndexValidation: timestamp("last_if_index_validation"),
   ifIndexMismatchCount: integer("if_index_mismatch_count").notNull().default(0),
   originalIfName: varchar("original_if_name", { length: 100 }),
+  // Inverter direção de banda (download ↔ upload) para interfaces de concentrador
+  invertBandwidth: boolean("invert_bandwidth").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

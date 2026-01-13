@@ -64,6 +64,7 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Path Aliases**: `@/` for client source, `@shared/` for shared code
 - **Real-time Simulation**: Server generates simulated network metrics every 5 seconds
 - **Data Cleanup**: Automatic cleanup of old metrics data to manage storage (6-month retention)
+- **Bandwidth Direction Inversion**: Links can have `invertBandwidth` flag to swap download ↔ upload in charts/displays (useful when monitoring concentrator interfaces where client download = interface upload)
 
 ### API Endpoints
 - `GET /api/stats` - Dashboard aggregate statistics

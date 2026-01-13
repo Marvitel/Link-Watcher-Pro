@@ -168,6 +168,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     equipmentSerialNumber: (link as any)?.equipmentSerialNumber || "",
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
+    invertBandwidth: (link as any)?.invertBandwidth ?? false,
   });
 
   // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador
@@ -1369,6 +1370,19 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               value={formData.packetLossThreshold}
               onChange={(e) => setFormData({ ...formData, packetLossThreshold: parseFloat(e.target.value) || 2 })}
               data-testid="input-packetloss-threshold"
+            />
+          </div>
+          <div className="col-span-2 flex items-center justify-between p-3 rounded-md bg-muted/50">
+            <div>
+              <p className="font-medium text-sm">Inverter Direção de Banda</p>
+              <p className="text-xs text-muted-foreground">
+                Trocar download ↔ upload nos gráficos (usar quando monitorar interface de concentrador)
+              </p>
+            </div>
+            <Switch
+              checked={formData.invertBandwidth}
+              onCheckedChange={(checked) => setFormData({ ...formData, invertBandwidth: checked })}
+              data-testid="switch-invert-bandwidth"
             />
           </div>
         </div>

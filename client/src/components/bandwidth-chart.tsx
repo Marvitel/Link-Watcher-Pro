@@ -21,6 +21,7 @@ interface BandwidthChartProps {
   showAxes?: boolean;
   showLegend?: boolean;
   status?: string;
+  invertBandwidth?: boolean;
 }
 
 const isDownStatus = (s: string | undefined) => 
@@ -30,6 +31,7 @@ export function BandwidthChart({
   data,
   height = 200,
   showAxes = false,
+  invertBandwidth = false,
 }: BandwidthChartProps) {
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
@@ -54,8 +56,10 @@ export function BandwidthChart({
           const wasDown = isDownStatus(prevStatus);
           
           const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
-          const dl = item.download ?? 0;
-          const ul = item.upload ?? 0;
+          const rawDl = item.download ?? 0;
+          const rawUl = item.upload ?? 0;
+          const dl = invertBandwidth ? rawUl : rawDl;
+          const ul = invertBandwidth ? rawDl : rawUl;
           
           // Se mudou de status, adicionar ponto de transição
           if (prevItem && isDown !== wasDown) {

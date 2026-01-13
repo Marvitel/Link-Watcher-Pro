@@ -246,8 +246,11 @@ export default function LinkDetail() {
   const safeUptime = slaDE?.current ?? link.uptime ?? 0;
   const safeLatency = slaLAT?.current ?? link.latency ?? 0;
   const safePacketLoss = slaDP?.current ?? link.packetLoss ?? 0;
-  const safeCurrentDownload = link.currentDownload ?? 0;
-  const safeCurrentUpload = link.currentUpload ?? 0;
+  const rawDownload = link.currentDownload ?? 0;
+  const rawUpload = link.currentUpload ?? 0;
+  const invertBandwidth = (link as any)?.invertBandwidth ?? false;
+  const safeCurrentDownload = invertBandwidth ? rawUpload : rawDownload;
+  const safeCurrentUpload = invertBandwidth ? rawDownload : rawUpload;
   const safeBandwidth = link.bandwidth ?? 1;
 
   const failureInfo = statusDetail?.failureInfo || null;
@@ -501,7 +504,7 @@ export default function LinkDetail() {
               </div>
             </CardHeader>
             <CardContent>
-              <BandwidthChart data={bandwidthData} height={300} showAxes />
+              <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
             </CardContent>
           </Card>
 

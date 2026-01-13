@@ -15,9 +15,12 @@ interface LinkCardProps {
 export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
   const detailUrl = `/link/${link.id}`;
   
-  // Proteção contra valores nulos/undefined
-  const currentDownload = link.currentDownload ?? 0;
-  const currentUpload = link.currentUpload ?? 0;
+  // Proteção contra valores nulos/undefined com suporte a inversão de banda
+  const rawDownload = link.currentDownload ?? 0;
+  const rawUpload = link.currentUpload ?? 0;
+  const invertBandwidth = (link as any)?.invertBandwidth ?? false;
+  const currentDownload = invertBandwidth ? rawUpload : rawDownload;
+  const currentUpload = invertBandwidth ? rawDownload : rawUpload;
   const latency = link.latency ?? 0;
   const packetLoss = link.packetLoss ?? 0;
   const uptime = link.uptime ?? 0;
@@ -36,7 +39,7 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="h-24">
-          <BandwidthChart data={metricsHistory} height={96} />
+          <BandwidthChart data={metricsHistory} height={96} invertBandwidth={(link as any).invertBandwidth} />
         </div>
         
         <div className="grid grid-cols-2 gap-4">
