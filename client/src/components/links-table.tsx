@@ -4,7 +4,8 @@ import { Sparkline } from "./sparkline";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, ExternalLink, FileSpreadsheet, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ExternalLink, FileSpreadsheet, Copy, ChevronLeft, ChevronRight, Globe, ArrowDown, ArrowUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Link, Metric } from "@shared/schema";
 import { formatBandwidth } from "@/lib/export-utils";
@@ -62,6 +63,22 @@ export function LinksTable({
       .map((m) => m.packetLoss ?? 0);
   };
 
+  const getLatestBandwidth = (linkId: number) => {
+    const metrics = metricsMap[linkId];
+    if (!Array.isArray(metrics) || metrics.length === 0) return null;
+    const sorted = [...metrics].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const latest = sorted[0];
+    return {
+      download: latest.download ?? 0,
+      upload: latest.upload ?? 0,
+    };
+  };
+
+  const openDeviceInNewTab = (ip: string) => {
+    const url = `http://${ip}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="space-y-2">
       <ScrollArea className="rounded-md border">
@@ -70,9 +87,10 @@ export function LinksTable({
             <TableRow className="bg-muted/50">
               <TableHead className="w-12">Status</TableHead>
               <TableHead>Dispositivo</TableHead>
-              <TableHead className="w-32">IP</TableHead>
+              <TableHead className="w-36">IP</TableHead>
               <TableHead className="w-24 text-right">Perda (%)</TableHead>
               <TableHead className="w-24 text-right">Latência</TableHead>
+              <TableHead className="w-32 text-center">Tráfego</TableHead>
               <TableHead className="w-24 text-center">Tendência</TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
@@ -80,17 +98,23 @@ export function LinksTable({
           <TableBody>
             {paginatedLinks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   Nenhum link encontrado
                 </TableCell>
               </TableRow>
             ) : (
               paginatedLinks.map((link) => {
                 const sparklineData = getSparklineData(link.id);
+                const bandwidth = getLatestBandwidth(link.id);
+                const isDown = link.status === "down";
                 const packetLoss = link.packetLoss ?? 0;
                 const latency = link.latency ?? 0;
-                const lossColor = packetLoss > 2 ? "text-red-500" : packetLoss > 0.5 ? "text-yellow-500" : "text-green-500";
-                const latencyColor = latency > 80 ? "text-red-500" : latency > 50 ? "text-yellow-500" : "text-green-500";
+                const displayIp = link.monitoredIp || link.snmpRouterIp || link.ipBlock;
+                
+                const lossColor = isDown ? "text-muted-foreground" : 
+                  packetLoss > 2 ? "text-red-500" : packetLoss > 0.5 ? "text-yellow-500" : "text-green-500";
+                const latencyColor = isDown ? "text-muted-foreground" : 
+                  latency > 80 ? "text-red-500" : latency > 50 ? "text-yellow-500" : "text-green-500";
 
                 return (
                   <TableRow key={link.id} className="hover-elevate" data-testid={`row-link-${link.id}`}>
@@ -107,12 +131,24 @@ export function LinksTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-sm">{link.monitoredIp || link.snmpRouterIp || link.ipBlock}</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="font-mono text-sm text-primary hover:underline cursor-pointer flex items-center gap-1"
+                              onClick={() => openDeviceInNewTab(displayIp)}
+                              data-testid={`button-open-ip-${link.id}`}
+                            >
+                              {displayIp}
+                              <Globe className="h-3 w-3 opacity-50" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>Abrir dispositivo em nova aba</TooltipContent>
+                        </Tooltip>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => copyToClipboard(link.monitoredIp || link.snmpRouterIp || link.ipBlock)}
+                          onClick={() => copyToClipboard(displayIp)}
                           data-testid={`button-copy-ip-${link.id}`}
                         >
                           <Copy className="h-3 w-3" />
@@ -121,22 +157,42 @@ export function LinksTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={`font-mono font-medium ${lossColor}`}>
-                        {packetLoss.toFixed(2)}%
+                        {isDown ? "--" : `${packetLoss.toFixed(2)}%`}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={`font-mono font-medium ${latencyColor}`}>
-                        {latency.toFixed(0)}ms
+                        {isDown ? "--" : `${latency.toFixed(0)}ms`}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
+                      {bandwidth && !isDown ? (
+                        <div className="flex flex-col items-center text-xs font-mono gap-0.5">
+                          <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
+                            <ArrowDown className="h-3 w-3" />
+                            {formatBandwidth(bandwidth.download)}
+                          </span>
+                          <span className="text-blue-600 dark:text-blue-400 flex items-center gap-0.5">
+                            <ArrowUp className="h-3 w-3" />
+                            {formatBandwidth(bandwidth.upload)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">--</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
                       <div className="flex justify-center">
-                        <Sparkline
-                          data={sparklineData}
-                          width={60}
-                          height={20}
-                          color={packetLoss > 2 ? "#ef4444" : packetLoss > 0.5 ? "#eab308" : "#22c55e"}
-                        />
+                        {isDown ? (
+                          <span className="text-muted-foreground text-xs">--</span>
+                        ) : (
+                          <Sparkline
+                            data={sparklineData}
+                            width={60}
+                            height={20}
+                            color={packetLoss > 2 ? "#ef4444" : packetLoss > 0.5 ? "#eab308" : "#22c55e"}
+                          />
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
