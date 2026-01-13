@@ -601,6 +601,59 @@ export type InsertMonitoringSetting = z.infer<typeof insertMonitoringSettingsSch
 export type LinkMonitoringState = typeof linkMonitoringState.$inferSelect;
 export type InsertLinkMonitoringState = z.infer<typeof insertLinkMonitoringStateSchema>;
 
+// ============ Audit Logs ============
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id"),
+  actorUserId: integer("actor_user_id"),
+  actorEmail: varchar("actor_email", { length: 255 }),
+  actorName: text("actor_name"),
+  actorRole: varchar("actor_role", { length: 50 }),
+  action: varchar("action", { length: 50 }).notNull(),
+  entity: varchar("entity", { length: 50 }),
+  entityId: integer("entity_id"),
+  entityName: text("entity_name"),
+  previousValues: jsonb("previous_values"),
+  newValues: jsonb("new_values"),
+  metadata: jsonb("metadata"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  status: varchar("status", { length: 20 }).notNull().default("success"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type AuditAction = 
+  | "login" 
+  | "logout" 
+  | "login_failed" 
+  | "create" 
+  | "update" 
+  | "delete" 
+  | "config_change"
+  | "system_update"
+  | "backup_restore"
+  | "password_change"
+  | "permission_change";
+
+export type AuditEntity = 
+  | "user" 
+  | "client" 
+  | "link" 
+  | "host" 
+  | "group" 
+  | "incident" 
+  | "snmp_profile" 
+  | "equipment_vendor"
+  | "concentrator"
+  | "olt"
+  | "settings"
+  | "system";
+
 export interface SLAIndicator {
   id: string;
   name: string;
