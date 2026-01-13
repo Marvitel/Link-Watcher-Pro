@@ -1,0 +1,78 @@
+oot@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+git pull
+npm run build
+sudo systemctl restart link-monitor
+remote: Enumerating objects: 12, done.
+remote: Counting objects: 100% (12/12), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 8 (delta 6), reused 8 (delta 6), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 2.79 KiB | 158.00 KiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   f63ded9..5bf4a04  main       -> origin/main
+Updating f63ded9..5bf4a04
+Fast-forward
+ attached_assets/Pasted-root-link-monitor-opt-link-monitor-sudo-journalctl-u-li_1768331306013.txt | 71 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ server/routes.ts                                                                                 |  6 +++---
+ 2 files changed, 74 insertions(+), 3 deletions(-)
+ create mode 100644 attached_assets/Pasted-root-link-monitor-opt-link-monitor-sudo-journalctl-u-li_1768331306013.txt
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3448 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-BiTWUmiA.css              75.99 kB │ gzip:  12.35 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-DBa4JCpJ.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-H9CX5D5g.js            1,518.01 kB │ gzip: 437.89 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 28.48s
+building server...
+
+  dist/index.cjs  1.3mb ⚠️
+
+⚡ Done in 356ms
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G  - Resultado CPU/Mem: cpu=23, mem=46.470640151043135
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Central de Atendimento: lat=2.1ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G : lat=0.4ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Collection complete: 12 ok, 0 failed, 8352ms elapsed
+jan 13 16:17:14 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 13 16:17:14 link-monitor sudo[86304]: pam_unix(sudo:session): session closed for user root
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Killing process 85957 (node) with signal SIGKILL.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 13 16:17:14 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Consumed 13.715s CPU time.
+^C
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G  - Resultado CPU/Mem: cpu=23, mem=46.470640151043135
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Central de Atendimento: lat=2.1ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G : lat=0.4ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Collection complete: 12 ok, 0 failed, 8352ms elapsed
+jan 13 16:17:14 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 13 16:17:14 link-monitor sudo[86304]: pam_unix(sudo:session): session closed for user root
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Killing process 85957 (node) with signal SIGKILL.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 13 16:17:14 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Consumed 13.715s CPU time.
+^C
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor -f
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G  - Resultado CPU/Mem: cpu=23, mem=46.470640151043135
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Central de Atendimento: lat=2.1ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] IP BGP DEDICADO 3G : lat=0.4ms, loss=0.0%, status=operational
+jan 13 16:17:08 link-monitor npm[85948]: [Monitor] Collection complete: 12 ok, 0 failed, 8352ms elapsed
+jan 13 16:17:14 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 13 16:17:14 link-monitor sudo[86304]: pam_unix(sudo:session): session closed for user root
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Killing process 85957 (node) with signal SIGKILL.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 13 16:17:14 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 13 16:17:14 link-monitor systemd[1]: link-monitor.service: Consumed 13.715s CPU time.
