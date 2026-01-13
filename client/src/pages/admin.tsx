@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth, getAuthToken } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,9 +55,11 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Filter,
   Calendar,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -4911,6 +4913,8 @@ function SystemSettingsTab() {
         <SystemInfoCard />
       </div>
 
+      <RadiusSettingsCard />
+      
       <MonitoringSettingsCard />
       
       <BackupsCard />
@@ -5201,6 +5205,316 @@ function BackupsCard() {
           </div>
         )}
       </CardContent>
+    </Card>
+  );
+}
+
+interface RadiusSettingsData {
+  configured: boolean;
+  isEnabled: boolean;
+  primaryHost: string;
+  primaryPort: number;
+  secondaryHost?: string | null;
+  secondaryPort?: number | null;
+  nasIdentifier?: string | null;
+  timeout: number;
+  retries: number;
+  allowLocalFallback: boolean;
+  lastHealthCheck?: string | null;
+  lastHealthStatus?: string | null;
+}
+
+function RadiusSettingsCard() {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    isEnabled: false,
+    primaryHost: "",
+    primaryPort: 1812,
+    sharedSecret: "",
+    secondaryHost: "",
+    secondaryPort: 1812,
+    secondarySecret: "",
+    nasIdentifier: "LinkMonitor",
+    timeout: 5000,
+    retries: 3,
+    allowLocalFallback: true,
+  });
+
+  const { data: radiusSettings, isLoading, refetch } = useQuery<RadiusSettingsData>({
+    queryKey: ["/api/radius/settings"],
+  });
+
+  useEffect(() => {
+    if (radiusSettings && radiusSettings.configured) {
+      setFormData(prev => ({
+        ...prev,
+        isEnabled: radiusSettings.isEnabled,
+        primaryHost: radiusSettings.primaryHost || "",
+        primaryPort: radiusSettings.primaryPort || 1812,
+        secondaryHost: radiusSettings.secondaryHost || "",
+        secondaryPort: radiusSettings.secondaryPort || 1812,
+        nasIdentifier: radiusSettings.nasIdentifier || "LinkMonitor",
+        timeout: radiusSettings.timeout || 5000,
+        retries: radiusSettings.retries || 3,
+        allowLocalFallback: radiusSettings.allowLocalFallback ?? true,
+      }));
+    }
+  }, [radiusSettings]);
+
+  const handleSave = async () => {
+    if (!formData.primaryHost) {
+      toast({ title: "Host do servidor RADIUS e obrigatorio", variant: "destructive" });
+      return;
+    }
+    if (!formData.sharedSecret && !radiusSettings?.configured) {
+      toast({ title: "Shared secret e obrigatorio", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiRequest("POST", "/api/radius/settings", formData);
+      toast({ title: "Configuracoes RADIUS salvas com sucesso" });
+      refetch();
+      setFormData(prev => ({ ...prev, sharedSecret: "", secondarySecret: "" }));
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!formData.primaryHost || !formData.sharedSecret) {
+      toast({ title: "Preencha host e shared secret para testar", variant: "destructive" });
+      return;
+    }
+
+    setTesting(true);
+    try {
+      const response = await apiRequest("POST", "/api/radius/test", {
+        host: formData.primaryHost,
+        port: formData.primaryPort,
+        sharedSecret: formData.sharedSecret,
+        nasIdentifier: formData.nasIdentifier,
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({ title: "Conexao RADIUS bem-sucedida", description: result.message });
+      } else {
+        toast({ title: "Falha na conexao RADIUS", description: result.message, variant: "destructive" });
+      }
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao testar conexao", description: error.message, variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Autenticacao RADIUS
+            </CardTitle>
+            <CardDescription>
+              Configure autenticacao RADIUS para usuarios super admin
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {radiusSettings?.lastHealthStatus && (
+              <Badge variant={radiusSettings.lastHealthStatus === "online" ? "default" : "destructive"}>
+                {radiusSettings.lastHealthStatus === "online" ? "Online" : radiusSettings.lastHealthStatus}
+              </Badge>
+            )}
+            <Switch
+              checked={formData.isEnabled}
+              onCheckedChange={(checked) => setFormData({ ...formData, isEnabled: checked })}
+              data-testid="switch-radius-enabled"
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="radiusHost">Servidor RADIUS (IP/Host)</Label>
+            <Input
+              id="radiusHost"
+              value={formData.primaryHost}
+              onChange={(e) => setFormData({ ...formData, primaryHost: e.target.value })}
+              placeholder="100.66.128.78"
+              data-testid="input-radius-host"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radiusPort">Porta</Label>
+            <Input
+              id="radiusPort"
+              type="number"
+              value={formData.primaryPort}
+              onChange={(e) => setFormData({ ...formData, primaryPort: parseInt(e.target.value) || 1812 })}
+              placeholder="1812"
+              data-testid="input-radius-port"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="radiusSecret">Shared Secret</Label>
+          <div className="flex gap-2">
+            <Input
+              id="radiusSecret"
+              type={showSecret ? "text" : "password"}
+              value={formData.sharedSecret}
+              onChange={(e) => setFormData({ ...formData, sharedSecret: e.target.value })}
+              placeholder={radiusSettings?.configured ? "••••••••••••" : "Informe o shared secret"}
+              data-testid="input-radius-secret"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setShowSecret(!showSecret)}
+            >
+              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
+          {radiusSettings?.configured && (
+            <p className="text-xs text-muted-foreground">
+              Deixe em branco para manter o secret atual
+            </p>
+          )}
+        </div>
+
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+              <span className="text-sm font-medium">Servidor Secundario (opcional)</span>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="radiusSecondaryHost">Servidor Secundario (IP/Host)</Label>
+                <Input
+                  id="radiusSecondaryHost"
+                  value={formData.secondaryHost}
+                  onChange={(e) => setFormData({ ...formData, secondaryHost: e.target.value })}
+                  placeholder="Opcional"
+                  data-testid="input-radius-secondary-host"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="radiusSecondaryPort">Porta Secundaria</Label>
+                <Input
+                  id="radiusSecondaryPort"
+                  type="number"
+                  value={formData.secondaryPort}
+                  onChange={(e) => setFormData({ ...formData, secondaryPort: parseInt(e.target.value) || 1812 })}
+                  placeholder="1812"
+                  data-testid="input-radius-secondary-port"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="radiusSecondarySecret">Shared Secret Secundario</Label>
+              <Input
+                id="radiusSecondarySecret"
+                type="password"
+                value={formData.secondarySecret}
+                onChange={(e) => setFormData({ ...formData, secondarySecret: e.target.value })}
+                placeholder={radiusSettings?.configured && radiusSettings.secondaryHost ? "••••••••••••" : "Opcional"}
+                data-testid="input-radius-secondary-secret"
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="nasIdentifier">NAS Identifier</Label>
+            <Input
+              id="nasIdentifier"
+              value={formData.nasIdentifier}
+              onChange={(e) => setFormData({ ...formData, nasIdentifier: e.target.value })}
+              placeholder="LinkMonitor"
+              data-testid="input-nas-identifier"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radiusTimeout">Timeout (ms)</Label>
+            <Input
+              id="radiusTimeout"
+              type="number"
+              value={formData.timeout}
+              onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) || 5000 })}
+              placeholder="5000"
+              data-testid="input-radius-timeout"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radiusRetries">Tentativas</Label>
+            <Input
+              id="radiusRetries"
+              type="number"
+              value={formData.retries}
+              onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) || 3 })}
+              placeholder="3"
+              data-testid="input-radius-retries"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium">Fallback para autenticacao local</p>
+            <p className="text-sm text-muted-foreground">
+              Permite login com senha local se RADIUS estiver indisponivel
+            </p>
+          </div>
+          <Switch
+            checked={formData.allowLocalFallback}
+            onCheckedChange={(checked) => setFormData({ ...formData, allowLocalFallback: checked })}
+            data-testid="switch-radius-fallback"
+          />
+        </div>
+
+        {radiusSettings?.lastHealthCheck && (
+          <div className="text-xs text-muted-foreground">
+            Ultima verificacao: {new Date(radiusSettings.lastHealthCheck).toLocaleString("pt-BR")}
+          </div>
+        )}
+      </CardContent>
+      <CardFooter className="flex justify-between gap-2">
+        <Button
+          variant="outline"
+          onClick={handleTest}
+          disabled={testing || !formData.primaryHost || !formData.sharedSecret}
+          data-testid="button-test-radius"
+        >
+          {testing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Testar Conexao
+        </Button>
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          data-testid="button-save-radius"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          Salvar Configuracoes
+        </Button>
+      </CardFooter>
     </Card>
   );
 }

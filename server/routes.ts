@@ -75,19 +75,20 @@ export async function registerRoutes(
         
         if (radiusSettings && radiusSettings.isEnabled) {
           try {
-            const { createRadiusServiceFromSettings } = await import("./radius");
+            const { authenticateWithFailover } = await import("./radius");
             
-            const radiusService = await createRadiusServiceFromSettings({
+            // Para RADIUS, usar o email como username - com suporte a failover para servidor secundário
+            const radiusResult = await authenticateWithFailover({
               primaryHost: radiusSettings.primaryHost,
               primaryPort: radiusSettings.primaryPort,
               sharedSecretEncrypted: radiusSettings.sharedSecretEncrypted,
+              secondaryHost: radiusSettings.secondaryHost,
+              secondaryPort: radiusSettings.secondaryPort,
+              secondarySecretEncrypted: radiusSettings.secondarySecretEncrypted,
               nasIdentifier: radiusSettings.nasIdentifier,
               timeout: radiusSettings.timeout,
               retries: radiusSettings.retries,
-            });
-            
-            // Para RADIUS, usar o email como username
-            const radiusResult = await radiusService.authenticate(email, password);
+            }, email, password);
             
             await storage.updateRadiusHealthStatus(
               radiusResult.code === "TIMEOUT" ? "timeout" : "online"
@@ -114,7 +115,7 @@ export async function registerRoutes(
                 entityName: user.name,
                 actor: user,
                 status: "success",
-                metadata: { authMethod: "radius" },
+                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
                 request: req,
               });
               
@@ -132,7 +133,7 @@ export async function registerRoutes(
                 actor: { id: null, email, name: email, role: "unknown" },
                 status: "failure",
                 errorMessage: "RADIUS: Credenciais inválidas",
-                metadata: { authMethod: "radius" },
+                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
                 request: req,
               });
               return res.status(401).json({ error: "Credenciais inválidas" });
@@ -147,7 +148,7 @@ export async function registerRoutes(
                 actor: { id: null, email, name: email, role: "unknown" },
                 status: "failure",
                 errorMessage: `RADIUS indisponível: ${radiusResult.message}`,
-                metadata: { authMethod: "radius", radiusCode: radiusResult.code },
+                metadata: { authMethod: "radius", radiusCode: radiusResult.code, radiusServer: radiusResult.usedServer },
                 request: req,
               });
               return res.status(503).json({ 
@@ -3328,18 +3329,26 @@ export async function registerRoutes(
         allowLocalFallback,
       } = req.body;
 
-      if (!primaryHost || !sharedSecret) {
-        return res.status(400).json({ error: "Host e shared secret são obrigatórios" });
+      if (!primaryHost) {
+        return res.status(400).json({ error: "Host do servidor RADIUS é obrigatório" });
+      }
+
+      const existingSettings = await storage.getRadiusSettings();
+      
+      if (!sharedSecret && !existingSettings) {
+        return res.status(400).json({ error: "Shared secret é obrigatório na primeira configuração" });
       }
 
       const settings = await storage.saveRadiusSettings({
         isEnabled: isEnabled ?? false,
         primaryHost,
         primaryPort: primaryPort || 1812,
-        sharedSecretEncrypted: encrypt(sharedSecret),
+        sharedSecretEncrypted: sharedSecret ? encrypt(sharedSecret) : existingSettings!.sharedSecretEncrypted,
         secondaryHost: secondaryHost || null,
         secondaryPort: secondaryPort || 1812,
-        secondarySecretEncrypted: secondarySecret ? encrypt(secondarySecret) : null,
+        secondarySecretEncrypted: secondarySecret 
+          ? encrypt(secondarySecret) 
+          : (secondaryHost ? existingSettings?.secondarySecretEncrypted || null : null),
         nasIdentifier: nasIdentifier || "LinkMonitor",
         timeout: timeout || 5000,
         retries: retries || 3,

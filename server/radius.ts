@@ -261,14 +261,19 @@ export class RadiusAuthService {
   }
 }
 
-export async function createRadiusServiceFromSettings(settings: {
+export interface RadiusSettingsForService {
   primaryHost: string;
   primaryPort: number;
   sharedSecretEncrypted: string;
+  secondaryHost?: string | null;
+  secondaryPort?: number | null;
+  secondarySecretEncrypted?: string | null;
   nasIdentifier?: string | null;
   timeout?: number;
   retries?: number;
-}): Promise<RadiusAuthService> {
+}
+
+export async function createRadiusServiceFromSettings(settings: RadiusSettingsForService): Promise<RadiusAuthService> {
   const decryptedSecret = decrypt(settings.sharedSecretEncrypted);
   
   return new RadiusAuthService({
@@ -279,4 +284,38 @@ export async function createRadiusServiceFromSettings(settings: {
     timeout: settings.timeout || 5000,
     retries: settings.retries || 3,
   });
+}
+
+export async function authenticateWithFailover(
+  settings: RadiusSettingsForService,
+  username: string,
+  password: string
+): Promise<RadiusAuthResult & { usedServer: "primary" | "secondary" }> {
+  const primaryService = await createRadiusServiceFromSettings(settings);
+  
+  console.log(`[RADIUS] Tentando autenticação no servidor primário: ${settings.primaryHost}:${settings.primaryPort}`);
+  const primaryResult = await primaryService.authenticate(username, password);
+  
+  if (primaryResult.success || primaryResult.code === "ACCESS_REJECT") {
+    return { ...primaryResult, usedServer: "primary" };
+  }
+  
+  if (settings.secondaryHost && settings.secondarySecretEncrypted) {
+    console.log(`[RADIUS] Servidor primário falhou (${primaryResult.code}), tentando secundário: ${settings.secondaryHost}:${settings.secondaryPort}`);
+    
+    const secondarySecret = decrypt(settings.secondarySecretEncrypted);
+    const secondaryService = new RadiusAuthService({
+      host: settings.secondaryHost,
+      port: settings.secondaryPort || 1812,
+      secret: secondarySecret,
+      nasIdentifier: settings.nasIdentifier || "LinkMonitor",
+      timeout: settings.timeout || 5000,
+      retries: settings.retries || 3,
+    });
+    
+    const secondaryResult = await secondaryService.authenticate(username, password);
+    return { ...secondaryResult, usedServer: "secondary" };
+  }
+  
+  return { ...primaryResult, usedServer: "primary" };
 }
