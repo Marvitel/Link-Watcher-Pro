@@ -8,6 +8,7 @@ import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { queryOltAlarm, testOltConnection } from "./olt";
 import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
 import { encrypt, decrypt, isEncrypted } from "./crypto";
+import { logAuditEvent } from "./audit";
 import pg from "pg";
 import { 
   insertIncidentSchema, 
@@ -67,10 +68,29 @@ export async function registerRoutes(
       
       const user = await storage.validateCredentials(email, password);
       if (!user) {
+        await logAuditEvent({
+          action: "login_failed",
+          entity: "user",
+          actor: { id: null, email, name: email, role: "unknown" },
+          status: "failure",
+          errorMessage: "Credenciais inválidas",
+          request: req,
+        });
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
       
       const token = signToken(user);
+      
+      await logAuditEvent({
+        clientId: user.clientId,
+        action: "login",
+        entity: "user",
+        entityId: user.id,
+        entityName: user.name,
+        actor: user,
+        status: "success",
+        request: req,
+      });
       
       (req.session as any).user = user;
       req.session.save((err) => {
@@ -312,7 +332,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/clients", async (req, res) => {
+  app.post("/api/clients", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const validatedData = insertClientSchema.parse(req.body);
       
@@ -332,11 +352,37 @@ export async function registerRoutes(
           portalCredentialsStatus: "unchecked",
         });
         const reactivatedClient = await storage.getClient(existingClient.id);
+        
+        await logAuditEvent({
+          clientId: existingClient.id,
+          action: "update",
+          entity: "client",
+          entityId: existingClient.id,
+          entityName: reactivatedClient?.name,
+          actor: req.user!,
+          previous: existingClient as unknown as Record<string, unknown>,
+          current: reactivatedClient as unknown as Record<string, unknown>,
+          metadata: { reactivated: true },
+          request: req,
+        });
+        
         console.log(`[POST /api/clients] Reactivated existing client: ${existingClient.slug}`);
         return res.status(200).json(reactivatedClient);
       }
       
       const client = await storage.createClient(validatedData);
+      
+      await logAuditEvent({
+        clientId: client.id,
+        action: "create",
+        entity: "client",
+        entityId: client.id,
+        entityName: client.name,
+        actor: req.user!,
+        current: client as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.status(201).json(client);
     } catch (error) {
       console.error("[POST /api/clients] Validation error:", error);
@@ -348,8 +394,10 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/clients/:id", async (req, res) => {
+  app.patch("/api/clients/:id", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
+      const clientId = parseInt(req.params.id, 10);
+      const previousClient = await storage.getClient(clientId);
       const updateData = { ...req.body };
       
       // Criptografar senha do portal se está sendo atualizada
@@ -358,16 +406,45 @@ export async function registerRoutes(
         updateData.portalCredentialsStatus = "unchecked";
       }
       
-      await storage.updateClient(parseInt(req.params.id, 10), updateData);
+      await storage.updateClient(clientId, updateData);
+      const updatedClient = await storage.getClient(clientId);
+      
+      await logAuditEvent({
+        clientId,
+        action: "update",
+        entity: "client",
+        entityId: clientId,
+        entityName: updatedClient?.name || previousClient?.name,
+        actor: req.user!,
+        previous: previousClient as unknown as Record<string, unknown>,
+        current: updatedClient as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update client" });
     }
   });
 
-  app.delete("/api/clients/:id", async (req, res) => {
+  app.delete("/api/clients/:id", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
-      await storage.deleteClient(parseInt(req.params.id, 10));
+      const clientId = parseInt(req.params.id, 10);
+      const previousClient = await storage.getClient(clientId);
+      
+      await storage.deleteClient(clientId);
+      
+      await logAuditEvent({
+        clientId,
+        action: "delete",
+        entity: "client",
+        entityId: clientId,
+        entityName: previousClient?.name,
+        actor: req.user!,
+        previous: previousClient as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete client" });
@@ -414,6 +491,18 @@ export async function registerRoutes(
       
       const validatedData = insertUserSchema.parse(userDataWithHash);
       const user = await storage.createUser(validatedData);
+      
+      await logAuditEvent({
+        clientId: user.clientId,
+        action: "create",
+        entity: "user",
+        entityId: user.id,
+        entityName: user.name,
+        actor: req.user!,
+        current: { ...user, passwordHash: undefined } as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.status(201).json({ ...user, passwordHash: undefined });
     } catch (error: any) {
       console.error("Error creating user:", error);
@@ -427,12 +516,30 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
+      const userId = parseInt(req.params.id, 10);
+      const previousUser = await storage.getUser(userId);
+      
       const { password, ...updateData } = req.body;
+      const hasPasswordChange = !!password;
       if (password) {
         updateData.passwordHash = password;
       }
       
-      await storage.updateUser(parseInt(req.params.id, 10), updateData);
+      await storage.updateUser(userId, updateData);
+      const updatedUser = await storage.getUser(userId);
+      
+      await logAuditEvent({
+        clientId: updatedUser?.clientId || previousUser?.clientId,
+        action: hasPasswordChange ? "password_change" : "update",
+        entity: "user",
+        entityId: userId,
+        entityName: updatedUser?.name || previousUser?.name,
+        actor: req.user!,
+        previous: previousUser ? { ...previousUser, passwordHash: undefined } as unknown as Record<string, unknown> : null,
+        current: updatedUser ? { ...updatedUser, passwordHash: undefined } as unknown as Record<string, unknown> : null,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar usuario" });
@@ -445,7 +552,22 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
-      await storage.deleteUser(parseInt(req.params.id, 10));
+      const userId = parseInt(req.params.id, 10);
+      const previousUser = await storage.getUser(userId);
+      
+      await storage.deleteUser(userId);
+      
+      await logAuditEvent({
+        clientId: previousUser?.clientId,
+        action: "delete",
+        entity: "user",
+        entityId: userId,
+        entityName: previousUser?.name,
+        actor: req.user!,
+        previous: previousUser ? { ...previousUser, passwordHash: undefined } as unknown as Record<string, unknown> : null,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao excluir usuario" });
@@ -533,6 +655,18 @@ export async function registerRoutes(
       }
       
       const link = await storage.createLink(validatedData);
+      
+      await logAuditEvent({
+        clientId: link.clientId,
+        action: "create",
+        entity: "link",
+        entityId: link.id,
+        entityName: link.name,
+        actor: user!,
+        current: link as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.status(201).json(link);
     } catch (error) {
       res.status(400).json({ error: "Invalid link data" });
@@ -547,7 +681,22 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
+      const previousLink = await storage.getLinkById(linkId);
       await storage.updateLink(linkId, req.body);
+      const updatedLink = await storage.getLinkById(linkId);
+      
+      await logAuditEvent({
+        clientId: previousLink?.clientId,
+        action: "update",
+        entity: "link",
+        entityId: linkId,
+        entityName: updatedLink?.name || previousLink?.name,
+        actor: req.user!,
+        previous: previousLink as unknown as Record<string, unknown>,
+        current: updatedLink as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update link" });
@@ -562,7 +711,20 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
+      const previousLink = await storage.getLinkById(linkId);
       await storage.deleteLink(linkId);
+      
+      await logAuditEvent({
+        clientId: previousLink?.clientId,
+        action: "delete",
+        entity: "link",
+        entityId: linkId,
+        entityName: previousLink?.name,
+        actor: req.user!,
+        previous: previousLink as unknown as Record<string, unknown>,
+        request: req,
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete link" });

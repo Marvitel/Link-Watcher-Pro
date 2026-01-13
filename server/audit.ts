@@ -113,7 +113,7 @@ export function computeDiff(
     return { added: [], removed: [], changed: [] };
   }
 
-  const allKeys = new Set([...Object.keys(previous), ...Object.keys(current)]);
+  const allKeys = Array.from(new Set([...Object.keys(previous), ...Object.keys(current)]));
   for (const key of allKeys) {
     const prevValue = previous[key];
     const currValue = current[key];
