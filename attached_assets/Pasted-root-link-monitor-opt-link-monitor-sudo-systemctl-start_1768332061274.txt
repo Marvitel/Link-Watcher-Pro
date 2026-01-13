@@ -1,0 +1,24 @@
+root@link-monitor:/opt/link-monitor# sudo systemctl start link-monitor
+root@link-monitor:/opt/link-monitor# sudo systemctl status link-monitor
+● link-monitor.service - Link Monitor - Marvitel
+     Loaded: loaded (/etc/systemd/system/link-monitor.service; enabled; preset: enabled)
+     Active: active (running) since Tue 2026-01-13 16:19:48 -03; 48s ago
+   Main PID: 86402 (npm start)
+      Tasks: 23 (limit: 9467)
+     Memory: 52.4M
+        CPU: 3.942s
+     CGroup: /system.slice/link-monitor.service
+             ├─86402 "npm start"
+             ├─86413 sh -c "NODE_ENV=production node dist/index.cjs"
+             └─86414 node dist/index.cjs
+
+jan 13 16:20:26 link-monitor npm[86414]: [Monitor] RP Paty - 50M - LEBQ29F7: lat=0.0ms, loss=100.0%, status=offline
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] Central de Atendimento - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.>
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] Central de Atendimento - Coletando CPU/Mem via SNMP: 191.52.248.227, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"mem>
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] IP BGP DEDICADO 3G  - vendorId: 3, vendor: Cisco (IOS), cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memOid: null, memTotalOid: 1.3.6.1.4.1.9.9.48.1.>
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] IP BGP DEDICADO 3G  - Coletando CPU/Mem via SNMP: 191.52.255.253, cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memConfig: {"memoryOid":null,"memoryTo>
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] IP BGP DEDICADO 3G  - Resultado CPU/Mem: cpu=19, mem=46.57533523264828
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] IP BGP DEDICADO 3G : lat=0.5ms, loss=0.0%, status=operational
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] Central de Atendimento - Resultado CPU/Mem: cpu=21, mem=40.62296549479167
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] Central de Atendimento: lat=2.5ms, loss=0.0%, status=operational
+jan 13 16:20:28 link-monitor npm[86414]: [Monitor] Collection complete: 12 ok, 0 failed, 8673ms elapsed
