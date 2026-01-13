@@ -2646,6 +2646,10 @@ export default function Admin() {
     voallePortalPassword: "",
   });
 
+  // Estados de busca para links e clientes
+  const [linkSearchTerm, setLinkSearchTerm] = useState("");
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+
   // Estados para importação de clientes do Voalle
   const [voalleImportDialogOpen, setVoalleImportDialogOpen] = useState(false);
   const [voalleSearchQuery, setVoalleSearchQuery] = useState("");
@@ -2684,6 +2688,33 @@ export default function Admin() {
   const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
     queryKey: ["/api/snmp-profiles"],
     enabled: isSuperAdmin,
+  });
+
+  // Filtragem de links
+  const filteredLinks = links?.filter(link => {
+    if (!linkSearchTerm.trim()) return true;
+    const search = linkSearchTerm.toLowerCase();
+    const clientName = clients?.find(c => c.id === link.clientId)?.name?.toLowerCase() || "";
+    return (
+      link.name?.toLowerCase().includes(search) ||
+      link.identifier?.toLowerCase().includes(search) ||
+      link.location?.toLowerCase().includes(search) ||
+      link.address?.toLowerCase().includes(search) ||
+      link.monitoredIp?.toLowerCase().includes(search) ||
+      link.ipBlock?.toLowerCase().includes(search) ||
+      clientName.includes(search)
+    );
+  });
+
+  // Filtragem de clientes
+  const filteredClients = clients?.filter(client => {
+    if (!clientSearchTerm.trim()) return true;
+    const search = clientSearchTerm.toLowerCase();
+    return (
+      client.name?.toLowerCase().includes(search) ||
+      client.slug?.toLowerCase().includes(search) ||
+      client.cnpj?.toLowerCase().includes(search)
+    );
   });
 
   const createLinkMutation = useMutation({
@@ -2964,23 +2995,34 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-lg font-medium">Links Monitorados</h2>
               <p className="text-sm text-muted-foreground">
                 Gerencie os links de internet dedicados
               </p>
             </div>
-            <Dialog open={linkDialogOpen} onOpenChange={(open) => {
-              setLinkDialogOpen(open);
-              if (!open) setEditingLink(undefined);
-            }}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-link">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar Link
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar link, cliente, IP..."
+                  value={linkSearchTerm}
+                  onChange={(e) => setLinkSearchTerm(e.target.value)}
+                  className="pl-8 w-64"
+                  data-testid="input-search-links"
+                />
+              </div>
+              <Dialog open={linkDialogOpen} onOpenChange={(open) => {
+                setLinkDialogOpen(open);
+                if (!open) setEditingLink(undefined);
+              }}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-add-link">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Link
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingLink ? "Editar Link" : "Novo Link"}</DialogTitle>
@@ -2998,6 +3040,7 @@ export default function Admin() {
                 />
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {linksLoading ? (
@@ -3008,7 +3051,7 @@ export default function Admin() {
             </div>
           ) : (
             <div className="space-y-4">
-              {links?.map((link) => {
+              {filteredLinks?.map((link) => {
                 const clientName = clients?.find(c => c.id === link.clientId)?.name;
                 return (
                   <Card key={link.id} data-testid={`card-admin-link-${link.id}`}>
@@ -3059,10 +3102,10 @@ export default function Admin() {
                   </Card>
                 );
               })}
-              {(!links || links.length === 0) && (
+              {(!filteredLinks || filteredLinks.length === 0) && (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhum link cadastrado. Clique em "Adicionar Link" para comecar.
+                    {linkSearchTerm ? "Nenhum link encontrado para a busca." : "Nenhum link cadastrado. Clique em \"Adicionar Link\" para começar."}
                   </CardContent>
                 </Card>
               )}
@@ -3080,6 +3123,16 @@ export default function Admin() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar cliente, CNPJ..."
+                  value={clientSearchTerm}
+                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                  className="pl-8 w-56"
+                  data-testid="input-search-clients"
+                />
+              </div>
               <Dialog open={voalleImportDialogOpen} onOpenChange={(open) => {
                 setVoalleImportDialogOpen(open);
                 if (!open) {
@@ -3349,7 +3402,7 @@ export default function Admin() {
             </div>
           ) : (
             <div className="space-y-3">
-              {clients?.map((client) => (
+              {filteredClients?.map((client) => (
                 <Card key={client.id} data-testid={`card-admin-client-${client.id}`}>
                   <CardContent className="flex items-center justify-between gap-4 py-4">
                     <div className="flex items-center gap-4">
