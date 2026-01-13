@@ -83,6 +83,23 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - `POST/PATCH/DELETE /api/hosts` - Host management
 - `POST/PATCH/DELETE /api/clients` - Client management
 
+### Link Groups Endpoints
+- `GET /api/link-groups` - List all link groups for client
+- `GET /api/link-groups/:id` - Get single group with members
+- `GET /api/link-groups/:id/metrics` - Aggregated metrics for group
+- `POST /api/link-groups` - Create new link group
+- `PATCH /api/link-groups/:id` - Update link group
+- `DELETE /api/link-groups/:id` - Delete link group
+
+### Link Groups (Grupos de Links)
+- **Tables**: `linkGroups` e `linkGroupMembers` em schema.ts
+- **Perfis**:
+  - **Redundância (Ativo/Passivo)**: Status online se qualquer membro ativo, banda do link ativo, uptime combinado
+  - **Agregação (Dual-Stack/Bonding)**: Soma banda de todos membros, status degradado se algum offline, ideal para IPv4+IPv6
+- **Papéis de Membro**: primary, backup (redundância) / ipv4, ipv6, member (agregação)
+- **Interface**: Aba "Grupos" no painel admin, cards no dashboard, página de detalhes em /link-groups/:id
+- **Agregação de Métricas**: Por perfil - redundancy usa valores do melhor link, aggregation soma todos
+
 ### Wanguard Integration Endpoints
 - `POST /api/clients/:clientId/wanguard/test` - Test Wanguard connection
 - `POST /api/clients/:clientId/wanguard/sync` - Sync DDoS events from Wanguard
