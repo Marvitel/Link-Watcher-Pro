@@ -266,12 +266,21 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       return;
     }
 
-    // Primeiro, atualizar os dados das etiquetas do Voalle
-    await refetchTags();
-    
-    // Aguardar um momento para os dados serem atualizados
-    setTimeout(() => {
-      const tag = voalleContractTags?.tags?.find(t => t.id === formData.voalleContractTagId);
+    try {
+      // Buscar dados atualizados das etiquetas do Voalle
+      const result = await refetchTags();
+      const freshTags = result.data;
+      
+      if (!freshTags?.tags) {
+        toast({
+          title: "Erro ao buscar etiquetas",
+          description: "Não foi possível obter os dados atualizados do Voalle",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const tag = freshTags.tags.find(t => t.id === formData.voalleContractTagId);
       if (!tag) {
         toast({
           title: "Etiqueta não encontrada",
@@ -281,7 +290,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         return;
       }
 
-      // Tentar match automático de OLT pelo voalleId
+      // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
       let matchedOltId: number | null = null;
       if (tag.oltId && olts) {
         const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
@@ -290,7 +299,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         }
       }
 
-      // Tentar match automático de Concentrador pelo voalleId
+      // Tentar match automático de Concentrador pelo voalleId (authenticationConcentrator)
       let matchedConcentratorId: number | null = null;
       if (tag.concentratorId && concentrators) {
         const matchedConc = concentrators.find(c => c.voalleId === tag.concentratorId);
@@ -308,8 +317,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         bandwidth: tag.bandwidth || prev.bandwidth,
         address: tag.address || prev.address,
         location: tag.location || prev.location,
-        oltId: matchedOltId || prev.oltId,
-        concentratorId: matchedConcentratorId || prev.concentratorId,
+        oltId: matchedOltId ?? prev.oltId,
+        concentratorId: matchedConcentratorId ?? prev.concentratorId,
         slotOlt: tag.slotOlt ?? prev.slotOlt,
         portOlt: tag.portOlt ?? prev.portOlt,
         equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
@@ -320,20 +329,28 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         setSnmpCollectionMode('concentrator');
       }
 
-      // Mensagem de feedback
+      // Mensagem de feedback detalhada
       const updates: string[] = [];
       if (tag.serviceTag || tag.description) updates.push(`Nome: ${tag.serviceTag || tag.description}`);
       if (tag.ip) updates.push(`IP: ${tag.ip}`);
-      if (matchedOltId) updates.push(`OLT atualizada`);
-      if (matchedConcentratorId) updates.push(`Concentrador atualizado`);
-      if (tag.slotOlt && tag.portOlt) updates.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
+      if (matchedOltId) updates.push(`OLT: encontrada`);
+      else if (tag.oltId) updates.push(`OLT Voalle #${tag.oltId}: não mapeada`);
+      if (matchedConcentratorId) updates.push(`Concentrador: encontrado`);
+      else if (tag.concentratorId) updates.push(`Conc. Voalle #${tag.concentratorId}: não mapeado`);
+      if (tag.slotOlt !== null && tag.portOlt !== null) updates.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
       if (tag.equipmentSerialNumber) updates.push(`Serial: ${tag.equipmentSerialNumber}`);
       
       toast({
         title: "Dados atualizados do Voalle",
         description: updates.join(" | ") || "Todos os campos foram atualizados",
       });
-    }, 500);
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar",
+        description: "Falha ao buscar dados do Voalle",
+        variant: "destructive",
+      });
+    }
   };
 
   const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
