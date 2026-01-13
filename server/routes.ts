@@ -2806,9 +2806,9 @@ export async function registerRoutes(
         });
       }
       
-      // Run update completely detached using nohup so it survives service restart
-      // The & at the end makes it run in background, nohup prevents SIGHUP
-      const command = `nohup sudo bash ${updateScript} > ${logFile} 2>&1 &`;
+      // Use setsid to create a completely new session, detached from the current process group
+      // This ensures the script survives even when systemd kills the parent service
+      const command = `setsid nohup sudo bash ${updateScript} > ${logFile} 2>&1 < /dev/null &`;
       
       exec(command, (error: Error | null) => {
         if (error) {
