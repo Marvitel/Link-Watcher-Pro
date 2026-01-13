@@ -52,6 +52,11 @@ import {
   Check,
   ChevronsUpDown,
   Save,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Calendar,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -3120,6 +3125,10 @@ export default function Admin() {
             <Database className="w-4 h-4" />
             Banco de Dados
           </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-2" data-testid="tab-audit">
+            <ClipboardList className="w-4 h-4" />
+            Auditoria
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -3613,6 +3622,10 @@ export default function Admin() {
 
         <TabsContent value="database" className="space-y-4">
           <DatabaseConfigTab />
+        </TabsContent>
+        
+        <TabsContent value="audit" className="space-y-4">
+          <AuditLogsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -6485,6 +6498,453 @@ function EquipmentVendorsTab() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface AuditLog {
+  id: number;
+  clientId: number | null;
+  actorUserId: number | null;
+  actorEmail: string | null;
+  actorName: string | null;
+  actorRole: string | null;
+  action: string;
+  entity: string | null;
+  entityId: number | null;
+  entityName: string | null;
+  previousValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  status: string;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+function AuditLogsTab() {
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({
+    action: "",
+    entity: "",
+    clientId: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  const queryParams = new URLSearchParams();
+  queryParams.set("page", page.toString());
+  queryParams.set("limit", "25");
+  if (filters.action) queryParams.set("action", filters.action);
+  if (filters.entity) queryParams.set("entity", filters.entity);
+  if (filters.clientId) queryParams.set("clientId", filters.clientId);
+  if (filters.startDate) queryParams.set("startDate", filters.startDate);
+  if (filters.endDate) queryParams.set("endDate", filters.endDate);
+  
+  const { data: auditData, isLoading, refetch } = useQuery<{
+    logs: AuditLog[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>({
+    queryKey: ["/api/audit", page, filters.action, filters.entity, filters.clientId, filters.startDate, filters.endDate],
+    queryFn: async () => {
+      const response = await fetch(`/api/audit?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!response.ok) throw new Error("Falha ao buscar logs");
+      return response.json();
+    },
+    refetchInterval: 30000,
+  });
+  
+  const { data: clients } = useQuery<Client[]>({
+    queryKey: ["/api/clients"],
+  });
+  
+  const getActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      login: "Login",
+      login_failed: "Login Falhou",
+      logout: "Logout",
+      create: "Criação",
+      update: "Atualização",
+      delete: "Exclusão",
+      password_change: "Troca de Senha",
+    };
+    return labels[action] || action;
+  };
+  
+  const getEntityLabel = (entity: string | null) => {
+    if (!entity) return "-";
+    const labels: Record<string, string> = {
+      user: "Usuário",
+      client: "Cliente",
+      link: "Link",
+      host: "Host",
+      incident: "Incidente",
+      group: "Grupo",
+      snmpProfile: "Perfil SNMP",
+      olt: "OLT",
+    };
+    return labels[entity] || entity;
+  };
+  
+  const getStatusBadge = (status: string) => {
+    if (status === "success") {
+      return <Badge variant="default" className="bg-green-600">Sucesso</Badge>;
+    }
+    return <Badge variant="destructive">Falha</Badge>;
+  };
+  
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+  
+  const getClientName = (clientId: number | null) => {
+    if (!clientId) return "Sistema";
+    const client = clients?.find(c => c.id === clientId);
+    return client?.name || `Cliente #${clientId}`;
+  };
+  
+  const handleClearFilters = () => {
+    setFilters({ action: "", entity: "", clientId: "", startDate: "", endDate: "" });
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-lg font-medium">Logs de Auditoria</h2>
+          <p className="text-sm text-muted-foreground">
+            Histórico de ações realizadas no sistema
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+            data-testid="button-toggle-filters"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filtros
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => refetch()}
+            data-testid="button-refresh-audit"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
+      </div>
+      
+      {showFilters && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <Label>Ação</Label>
+                <Select 
+                  value={filters.action} 
+                  onValueChange={(v) => { setFilters({...filters, action: v}); setPage(1); }}
+                >
+                  <SelectTrigger data-testid="select-filter-action">
+                    <SelectValue placeholder="Todas as ações" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value="login">Login</SelectItem>
+                    <SelectItem value="login_failed">Login Falhou</SelectItem>
+                    <SelectItem value="create">Criação</SelectItem>
+                    <SelectItem value="update">Atualização</SelectItem>
+                    <SelectItem value="delete">Exclusão</SelectItem>
+                    <SelectItem value="password_change">Troca de Senha</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Entidade</Label>
+                <Select 
+                  value={filters.entity} 
+                  onValueChange={(v) => { setFilters({...filters, entity: v}); setPage(1); }}
+                >
+                  <SelectTrigger data-testid="select-filter-entity">
+                    <SelectValue placeholder="Todas as entidades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value="user">Usuário</SelectItem>
+                    <SelectItem value="client">Cliente</SelectItem>
+                    <SelectItem value="link">Link</SelectItem>
+                    <SelectItem value="host">Host</SelectItem>
+                    <SelectItem value="incident">Incidente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select 
+                  value={filters.clientId} 
+                  onValueChange={(v) => { setFilters({...filters, clientId: v}); setPage(1); }}
+                >
+                  <SelectTrigger data-testid="select-filter-client">
+                    <SelectValue placeholder="Todos os clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    {clients?.map(client => (
+                      <SelectItem key={client.id} value={client.id.toString()}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Data Inicial</Label>
+                <Input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => { setFilters({...filters, startDate: e.target.value}); setPage(1); }}
+                  data-testid="input-filter-start-date"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Data Final</Label>
+                <Input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => { setFilters({...filters, endDate: e.target.value}); setPage(1); }}
+                  data-testid="input-filter-end-date"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-4">
+              <Button variant="ghost" onClick={handleClearFilters} data-testid="button-clear-filters">
+                <X className="w-4 h-4 mr-2" />
+                Limpar Filtros
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {isLoading ? (
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Carregando logs...</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Data/Hora</th>
+                      <th className="text-left p-3 font-medium">Usuário</th>
+                      <th className="text-left p-3 font-medium">Ação</th>
+                      <th className="text-left p-3 font-medium">Entidade</th>
+                      <th className="text-left p-3 font-medium">Nome</th>
+                      <th className="text-left p-3 font-medium">Cliente</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-left p-3 font-medium">IP</th>
+                      <th className="text-center p-3 font-medium">Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditData?.logs.map((log) => (
+                      <tr key={log.id} className="border-t hover-elevate">
+                        <td className="p-3 whitespace-nowrap font-mono text-xs">
+                          {formatDate(log.createdAt)}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{log.actorName || "-"}</span>
+                            <span className="text-xs text-muted-foreground">{log.actorEmail}</span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="outline">{getActionLabel(log.action)}</Badge>
+                        </td>
+                        <td className="p-3">{getEntityLabel(log.entity)}</td>
+                        <td className="p-3">{log.entityName || "-"}</td>
+                        <td className="p-3">{getClientName(log.clientId)}</td>
+                        <td className="p-3">{getStatusBadge(log.status)}</td>
+                        <td className="p-3 font-mono text-xs">{log.ipAddress || "-"}</td>
+                        <td className="p-3 text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSelectedLog(log)}
+                            data-testid={`button-view-log-${log.id}`}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!auditData?.logs || auditData.logs.length === 0) && (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                          Nenhum log encontrado com os filtros selecionados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {auditData?.pagination && auditData.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((page - 1) * 25) + 1} a {Math.min(page * 25, auditData.pagination.total)} de {auditData.pagination.total} registros
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Anterior
+                </Button>
+                <span className="text-sm px-2">
+                  Página {page} de {auditData.pagination.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(auditData.pagination.totalPages, p + 1))}
+                  disabled={page === auditData.pagination.totalPages}
+                  data-testid="button-next-page"
+                >
+                  Próxima
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      
+      <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Log de Auditoria</DialogTitle>
+          </DialogHeader>
+          {selectedLog && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Data/Hora</Label>
+                  <p className="font-mono">{formatDate(selectedLog.createdAt)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <p>{getStatusBadge(selectedLog.status)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Usuário</Label>
+                  <p>{selectedLog.actorName || "-"}</p>
+                  <p className="text-sm text-muted-foreground">{selectedLog.actorEmail}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Função</Label>
+                  <p>{selectedLog.actorRole || "-"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Ação</Label>
+                  <p>{getActionLabel(selectedLog.action)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Entidade</Label>
+                  <p>{getEntityLabel(selectedLog.entity)} {selectedLog.entityId && `#${selectedLog.entityId}`}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Nome da Entidade</Label>
+                  <p>{selectedLog.entityName || "-"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Cliente</Label>
+                  <p>{getClientName(selectedLog.clientId)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">IP</Label>
+                  <p className="font-mono">{selectedLog.ipAddress || "-"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">User Agent</Label>
+                  <p className="text-xs truncate">{selectedLog.userAgent || "-"}</p>
+                </div>
+              </div>
+              
+              {selectedLog.errorMessage && (
+                <div>
+                  <Label className="text-muted-foreground">Mensagem de Erro</Label>
+                  <p className="text-destructive">{selectedLog.errorMessage}</p>
+                </div>
+              )}
+              
+              {selectedLog.previousValues && Object.keys(selectedLog.previousValues).length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Valores Anteriores</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
+                    {JSON.stringify(selectedLog.previousValues, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              {selectedLog.newValues && Object.keys(selectedLog.newValues).length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Novos Valores</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
+                    {JSON.stringify(selectedLog.newValues, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Metadados</Label>
+                  <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
+                    {JSON.stringify(selectedLog.metadata, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,17 +11,30 @@ const SENSITIVE_FIELDS = [
   "apiKey",
   "secret",
   "token",
+  "accessToken",
+  "refreshToken",
+  "authKey",
+  "privKey",
+  "bearer",
+  "credential",
+  "privateKey",
 ];
 
-function maskSensitiveData(obj: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
-  if (!obj) return null;
+function maskSensitiveData(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return null;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => maskSensitiveData(item));
+  }
+  
+  if (typeof obj !== "object") return obj;
   
   const masked: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     if (SENSITIVE_FIELDS.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
       masked[key] = "***";
-    } else if (value && typeof value === "object" && !Array.isArray(value)) {
-      masked[key] = maskSensitiveData(value as Record<string, unknown>);
+    } else if (value !== null && typeof value === "object") {
+      masked[key] = maskSensitiveData(value);
     } else {
       masked[key] = value;
     }
@@ -30,11 +43,17 @@ function maskSensitiveData(obj: Record<string, unknown> | null | undefined): Rec
 }
 
 function getClientIp(req: Request): string | null {
+  const realIp = req.headers["x-real-ip"];
+  if (realIp) {
+    return typeof realIp === "string" ? realIp : realIp[0];
+  }
+  
   const forwarded = req.headers["x-forwarded-for"];
   if (forwarded) {
     const ips = (typeof forwarded === "string" ? forwarded : forwarded[0]).split(",");
     return ips[0].trim();
   }
+  
   return req.socket?.remoteAddress || null;
 }
 
@@ -80,8 +99,8 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
       entity: entity ?? null,
       entityId: entityId ? (typeof entityId === "string" ? parseInt(entityId) || null : entityId) : null,
       entityName: entityName ?? null,
-      previousValues: maskSensitiveData(previous),
-      newValues: maskSensitiveData(current),
+      previousValues: maskSensitiveData(previous) as Record<string, unknown> | null,
+      newValues: maskSensitiveData(current) as Record<string, unknown> | null,
       metadata: metadata ?? null,
       ipAddress: request ? getClientIp(request) : null,
       userAgent: request?.headers["user-agent"] ?? null,

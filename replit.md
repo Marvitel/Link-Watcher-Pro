@@ -161,6 +161,33 @@ Preferred communication style: Simple, everyday language (Portuguese).
 - **Frontend**: Tela de login com abas "Cliente" e "Administrador", botão "Esqueci minha senha"
 - **Configurações**: Botão de recuperação de senha na página de Configurações do cliente
 
+## Sistema de Auditoria
+
+### Arquitetura
+- **Tabela**: `audit_logs` - Armazena todos os eventos de auditoria do sistema
+- **Helper**: `server/audit.ts` - Função `logAuditEvent` para registrar eventos com mascaramento automático de dados sensíveis
+- **Campos registrados**: clientId, actorUserId, actorEmail, actorName, actorRole, action, entity, entityId, entityName, previousValues, newValues, metadata, ipAddress, userAgent, status, errorMessage, createdAt
+
+### Eventos Monitorados
+- **Autenticação**: login, login_failed, logout
+- **CRUD de Links**: create, update, delete
+- **CRUD de Clientes**: create, update, delete
+- **CRUD de Usuários**: create, update, delete, password_change
+
+### Segurança
+- **Mascaramento automático**: Dados sensíveis (password, passwordHash, snmpCommunity, apiKey, token, secret, authKey, privKey) são automaticamente mascarados nos logs
+- **Captura de IP**: IP do cliente é registrado via headers x-forwarded-for ou x-real-ip
+- **User Agent**: Navegador/cliente é registrado para rastreabilidade
+
+### Endpoints
+- `GET /api/audit` - Lista logs com filtros (clientId, action, entity, actorId, startDate, endDate, status) e paginação
+- `GET /api/audit/:id` - Detalhes de um log específico
+- `GET /api/audit/stats/summary` - Resumo estatístico dos logs (últimos N dias)
+
+### Interface
+- **Localização**: Painel Marvitel → aba "Auditoria"
+- **Funcionalidades**: Filtros por ação, entidade, cliente, período; tabela paginada; visualização de detalhes com valores anteriores/novos
+
 ## External Dependencies
 
 ### Database
