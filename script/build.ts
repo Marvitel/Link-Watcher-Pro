@@ -32,6 +32,24 @@ const allowlist = [
   "zod-validation-error",
 ];
 
+// Node.js built-in modules that should never be bundled
+const nodeBuiltins = [
+  "crypto",
+  "dgram",
+  "dns",
+  "fs",
+  "http",
+  "https",
+  "net",
+  "os",
+  "path",
+  "stream",
+  "tls",
+  "url",
+  "util",
+  "zlib",
+];
+
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
@@ -45,6 +63,8 @@ async function buildAll() {
     ...Object.keys(pkg.devDependencies || {}),
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  // Add Node.js built-ins to externals to prevent polyfilling
+  const allExternals = [...externals, ...nodeBuiltins];
 
   await esbuild({
     entryPoints: ["server/index.ts"],
@@ -56,7 +76,7 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
-    external: externals,
+    external: allExternals,
     logLevel: "info",
   });
 }

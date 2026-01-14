@@ -3,13 +3,11 @@ import radius from "radius";
 import dgram from "dgram";
 import crypto from "crypto";
 import path from "path";
-import { fileURLToPath } from "url";
 import { decrypt } from "./crypto";
 
 // Load Microsoft vendor-specific dictionary for MS-CHAPv2
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dictionaryPath = path.join(__dirname, "dictionaries", "dictionary.microsoft");
+// Use process.cwd() for production builds (CJS format)
+const dictionaryPath = path.join(process.cwd(), "server", "dictionaries", "dictionary.microsoft");
 try {
   radius.add_dictionary(dictionaryPath);
   console.log("[RADIUS] Microsoft dictionary loaded from:", dictionaryPath);
