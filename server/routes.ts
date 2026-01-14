@@ -69,125 +69,179 @@ export async function registerRoutes(
       }
       
       // Primeiro verifica se o usuário existe no sistema (por email ou username RADIUS)
-      const localUser = await storage.getUserByEmailOrUsername(email);
+      let localUser = await storage.getUserByEmailOrUsername(email);
       
-      // Se é super admin, tenta autenticação RADIUS primeiro
-      if (localUser && localUser.isSuperAdmin) {
-        const radiusSettings = await storage.getRadiusSettings();
-        
-        if (radiusSettings && radiusSettings.isEnabled) {
-          try {
-            const { authenticateWithFailover } = await import("./radius");
+      // Verifica se RADIUS está habilitado - tenta autenticação RADIUS para todos os usuários
+      const radiusSettings = await storage.getRadiusSettings();
+      
+      if (radiusSettings && radiusSettings.isEnabled) {
+        // RADIUS habilitado - tentar autenticação mesmo sem usuário local
+        // Isso permite auto-criação de usuários AD/RADIUS
+        try {
+          const { authenticateWithFailover } = await import("./radius");
+          
+          console.log(`[LOGIN] Iniciando autenticação RADIUS para: ${email}`);
+          console.log(`[LOGIN] RADIUS habilitado: ${radiusSettings.isEnabled}, Host: ${radiusSettings.primaryHost}:${radiusSettings.primaryPort}`);
+          console.log(`[LOGIN] Fallback local: ${radiusSettings.allowLocalFallback}, Usuário local existe: ${!!localUser}`);
+          
+          // Para RADIUS, usar o email/username - com timeout reduzido para não atrasar login
+          const radiusResult = await authenticateWithFailover({
+            primaryHost: radiusSettings.primaryHost,
+            primaryPort: radiusSettings.primaryPort,
+            sharedSecretEncrypted: radiusSettings.sharedSecretEncrypted,
+            secondaryHost: radiusSettings.secondaryHost,
+            secondaryPort: radiusSettings.secondaryPort,
+            secondarySecretEncrypted: radiusSettings.secondarySecretEncrypted,
+            nasIdentifier: radiusSettings.nasIdentifier,
+            timeout: Math.min(radiusSettings.timeout || 5000, 2000),
+            retries: Math.min(radiusSettings.retries || 3, 1),
+          }, email, password);
+          
+          console.log(`[LOGIN] Resultado RADIUS: success=${radiusResult.success}, code=${radiusResult.code}, server=${radiusResult.usedServer}`);
+          console.log(`[LOGIN] Mensagem RADIUS: ${radiusResult.message}`);
+          
+          await storage.updateRadiusHealthStatus(
+            radiusResult.code === "TIMEOUT" ? "timeout" : "online"
+          );
+          
+          if (radiusResult.success) {
+            // RADIUS autenticou com sucesso
+            const radiusGroups = radiusResult.groups || [];
+            let isSuperAdmin = localUser?.isSuperAdmin || false;
+            let canManageSuperAdmins = false;
+            let radiusGroupName: string | undefined;
+            let defaultRole: UserRole = "viewer";
             
-            console.log(`[LOGIN] Iniciando autenticação RADIUS para: ${email}`);
-            console.log(`[LOGIN] RADIUS habilitado: ${radiusSettings.isEnabled}, Host: ${radiusSettings.primaryHost}:${radiusSettings.primaryPort}`);
-            console.log(`[LOGIN] Fallback local: ${radiusSettings.allowLocalFallback}`);
-            
-            // Para RADIUS, usar o email/username - com timeout reduzido para não atrasar login
-            // Usa timeout de 2s e 1 retry (máx ~4s) ao invés dos valores configurados (pode ser até 15s)
-            const radiusResult = await authenticateWithFailover({
-              primaryHost: radiusSettings.primaryHost,
-              primaryPort: radiusSettings.primaryPort,
-              sharedSecretEncrypted: radiusSettings.sharedSecretEncrypted,
-              secondaryHost: radiusSettings.secondaryHost,
-              secondaryPort: radiusSettings.secondaryPort,
-              secondarySecretEncrypted: radiusSettings.secondarySecretEncrypted,
-              nasIdentifier: radiusSettings.nasIdentifier,
-              timeout: Math.min(radiusSettings.timeout || 5000, 2000),
-              retries: Math.min(radiusSettings.retries || 3, 1),
-            }, email, password);
-            
-            console.log(`[LOGIN] Resultado RADIUS: success=${radiusResult.success}, code=${radiusResult.code}, server=${radiusResult.usedServer}`);
-            console.log(`[LOGIN] Mensagem RADIUS: ${radiusResult.message}`);
-            
-            await storage.updateRadiusHealthStatus(
-              radiusResult.code === "TIMEOUT" ? "timeout" : "online"
-            );
-            
-            if (radiusResult.success) {
-              // RADIUS autenticou com sucesso
-              // Verificar grupos retornados pelo RADIUS/NPS
-              const radiusGroups = radiusResult.groups || [];
-              let isSuperAdmin: boolean = localUser.isSuperAdmin;
-              let canManageSuperAdmins = false;
-              let radiusGroupName: string | undefined;
-              
-              if (radiusGroups.length > 0) {
-                console.log(`[RADIUS] Grupos retornados: ${radiusGroups.join(", ")}`);
-                const groupMapping = await storage.findBestRadiusGroupMapping(radiusGroups);
-                if (groupMapping) {
-                  isSuperAdmin = groupMapping.isSuperAdmin;
-                  canManageSuperAdmins = groupMapping.canManageSuperAdmins;
-                  radiusGroupName = groupMapping.radiusGroupName;
-                  console.log(`[RADIUS] Mapeamento encontrado: ${groupMapping.radiusGroupName} -> superAdmin=${isSuperAdmin}, canManageSuperAdmins=${canManageSuperAdmins}`);
-                } else {
-                  console.log(`[RADIUS] Nenhum mapeamento encontrado para grupos: ${radiusGroups.join(", ")}`);
-                }
+            // Verificar grupos retornados pelo RADIUS/NPS
+            if (radiusGroups.length > 0) {
+              console.log(`[RADIUS] Grupos retornados: ${radiusGroups.join(", ")}`);
+              const groupMapping = await storage.findBestRadiusGroupMapping(radiusGroups);
+              if (groupMapping) {
+                isSuperAdmin = groupMapping.isSuperAdmin;
+                canManageSuperAdmins = groupMapping.canManageSuperAdmins;
+                radiusGroupName = groupMapping.radiusGroupName;
+                defaultRole = (groupMapping.defaultRole as UserRole) || "admin";
+                console.log(`[RADIUS] Mapeamento encontrado: ${groupMapping.radiusGroupName} -> superAdmin=${isSuperAdmin}, canManageSuperAdmins=${canManageSuperAdmins}, role=${defaultRole}`);
+              } else {
+                console.log(`[RADIUS] Nenhum mapeamento encontrado para grupos: ${radiusGroups.join(", ")}`);
+                // Sem mapeamento = sem permissão de super admin
+                isSuperAdmin = false;
               }
+            } else {
+              console.log(`[RADIUS] Nenhum grupo retornado pelo NPS`);
+              // Sem grupos = sem permissão de super admin (a menos que já exista localmente)
+            }
+            
+            // Se usuário não existe localmente e tem mapeamento de grupo, criar automaticamente
+            if (!localUser && radiusGroupName) {
+              console.log(`[RADIUS] Criando usuário automaticamente: ${email}`);
               
-              const user: AuthUser = {
-                id: localUser.id,
-                email: localUser.email,
-                name: localUser.name,
-                role: localUser.role as any,
-                clientId: localUser.clientId,
+              // Extrair nome do email ou usar o próprio email
+              const nameParts = email.split("@")[0].split(".");
+              const displayName = nameParts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+              
+              const newUser = await storage.createUser({
+                email: email.includes("@") ? email : `${email}@radius.local`,
+                name: displayName,
+                passwordHash: "RADIUS_AUTH", // Marcador especial - não permite login local
+                role: defaultRole,
+                clientId: null,
                 isSuperAdmin,
-              };
+                isActive: true,
+              });
               
-              const token = signToken(user);
+              localUser = newUser;
+              console.log(`[RADIUS] Usuário criado com ID: ${newUser.id}, superAdmin=${isSuperAdmin}`);
               
               await logAuditEvent({
-                clientId: user.clientId,
-                action: "login",
+                action: "create",
                 entity: "user",
-                entityId: user.id,
-                entityName: user.name,
-                actor: user,
+                entityId: newUser.id,
+                entityName: displayName,
+                actor: { id: newUser.id, email: newUser.email, name: displayName, role: defaultRole, clientId: null, isSuperAdmin },
                 status: "success",
                 metadata: { 
-                  authMethod: "radius", 
-                  radiusServer: radiusResult.usedServer,
+                  authMethod: "radius_auto_create", 
                   radiusGroups,
                   radiusGroupName,
-                  canManageSuperAdmins,
+                  isSuperAdmin,
                 },
                 request: req,
               });
-              
-              (req.session as any).user = user;
-              (req.session as any).canManageSuperAdmins = canManageSuperAdmins;
-              req.session.save((err) => {
-                if (err) console.error("Session save error:", err);
-                res.json({ 
-                  user, 
-                  token, 
-                  authMethod: "radius",
-                  radiusGroups,
-                  canManageSuperAdmins,
-                });
+            } else if (!localUser && !radiusGroupName) {
+              // RADIUS autenticou mas sem mapeamento de grupo - não criar usuário automaticamente
+              console.log(`[RADIUS] Usuário ${email} autenticou via RADIUS mas não tem mapeamento de grupo configurado`);
+              return res.status(403).json({ 
+                error: "Usuário não autorizado. Contate o administrador para configurar acesso.",
+                code: "NO_GROUP_MAPPING",
               });
-              return;
-            } else if (radiusResult.code === "ACCESS_REJECT") {
-              // RADIUS rejeitou credenciais - tenta fallback local se permitido
-              if (radiusSettings.allowLocalFallback) {
-                console.log(`[RADIUS] Access-Reject, tentando fallback local para: ${email}`);
-                // Continua para autenticação local abaixo
-              } else {
-                // Sem fallback, retorna erro
-                await logAuditEvent({
-                  action: "login_failed",
-                  entity: "user",
-                  actor: { id: null, email, name: email, role: "unknown" },
-                  status: "failure",
-                  errorMessage: "RADIUS: Credenciais inválidas",
-                  metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
-                  request: req,
-                });
-                return res.status(401).json({ error: "Credenciais inválidas" });
-              }
-            } else if (radiusSettings.allowLocalFallback) {
-              // RADIUS falhou (timeout, erro de rede), tenta fallback local
-              console.log(`[RADIUS] Falha de conexão (${radiusResult.code}), tentando fallback local`);
+            }
+            
+            // Atualizar permissões do usuário se mudaram (baseado no grupo RADIUS)
+            if (localUser && radiusGroupName && localUser.isSuperAdmin !== isSuperAdmin) {
+              console.log(`[RADIUS] Atualizando permissões do usuário ${localUser.id}: superAdmin ${localUser.isSuperAdmin} -> ${isSuperAdmin}`);
+              await storage.updateUser(localUser.id, { isSuperAdmin });
+            }
+            
+            const user: AuthUser = {
+              id: localUser!.id,
+              email: localUser!.email,
+              name: localUser!.name,
+              role: localUser!.role as any,
+              clientId: localUser!.clientId,
+              isSuperAdmin,
+            };
+            
+            const token = signToken(user);
+            
+            await logAuditEvent({
+              clientId: user.clientId,
+              action: "login",
+              entity: "user",
+              entityId: user.id,
+              entityName: user.name,
+              actor: user,
+              status: "success",
+              metadata: { 
+                authMethod: "radius", 
+                radiusServer: radiusResult.usedServer,
+                radiusGroups,
+                radiusGroupName,
+                canManageSuperAdmins,
+              },
+              request: req,
+            });
+            
+            (req.session as any).user = user;
+            (req.session as any).canManageSuperAdmins = canManageSuperAdmins;
+            req.session.save((err) => {
+              if (err) console.error("Session save error:", err);
+              res.json({ 
+                user, 
+                token, 
+                authMethod: "radius",
+                radiusGroups,
+                canManageSuperAdmins,
+              });
+            });
+            return;
+          } else if (radiusResult.code === "ACCESS_REJECT") {
+            // RADIUS rejeitou credenciais - tenta fallback local se permitido
+            if (radiusSettings.allowLocalFallback && localUser) {
+              console.log(`[RADIUS] Access-Reject, tentando fallback local para: ${email}`);
+              // Continua para autenticação local abaixo
+            } else if (!localUser) {
+              // Usuário não existe localmente e RADIUS rejeitou
+              await logAuditEvent({
+                action: "login_failed",
+                entity: "user",
+                actor: { id: null, email, name: email, role: "unknown" },
+                status: "failure",
+                errorMessage: "RADIUS: Credenciais inválidas",
+                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
+                request: req,
+              });
+              return res.status(401).json({ error: "Credenciais inválidas" });
             } else {
               // Sem fallback, retorna erro
               await logAuditEvent({
@@ -195,22 +249,43 @@ export async function registerRoutes(
                 entity: "user",
                 actor: { id: null, email, name: email, role: "unknown" },
                 status: "failure",
-                errorMessage: `RADIUS indisponível: ${radiusResult.message}`,
-                metadata: { authMethod: "radius", radiusCode: radiusResult.code, radiusServer: radiusResult.usedServer },
+                errorMessage: "RADIUS: Credenciais inválidas",
+                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
                 request: req,
               });
-              return res.status(503).json({ 
-                error: "Servidor de autenticação indisponível",
-                radiusError: radiusResult.message,
-              });
+              return res.status(401).json({ error: "Credenciais inválidas" });
             }
-          } catch (radiusError) {
-            console.error("[RADIUS] Exception during auth:", radiusError);
-            if (!radiusSettings.allowLocalFallback) {
-              return res.status(503).json({ error: "Erro no servidor de autenticação" });
-            }
-            // Continua para fallback local
+          } else if (radiusSettings.allowLocalFallback && localUser) {
+            // RADIUS falhou (timeout, erro de rede), tenta fallback local
+            console.log(`[RADIUS] Falha de conexão (${radiusResult.code}), tentando fallback local`);
+          } else if (!localUser) {
+            // Usuário não existe localmente e RADIUS falhou
+            return res.status(503).json({ 
+              error: "Servidor de autenticação indisponível",
+              radiusError: radiusResult.message,
+            });
+          } else {
+            // Sem fallback, retorna erro
+            await logAuditEvent({
+              action: "login_failed",
+              entity: "user",
+              actor: { id: null, email, name: email, role: "unknown" },
+              status: "failure",
+              errorMessage: `RADIUS indisponível: ${radiusResult.message}`,
+              metadata: { authMethod: "radius", radiusCode: radiusResult.code, radiusServer: radiusResult.usedServer },
+              request: req,
+            });
+            return res.status(503).json({ 
+              error: "Servidor de autenticação indisponível",
+              radiusError: radiusResult.message,
+            });
           }
+        } catch (radiusError) {
+          console.error("[RADIUS] Exception during auth:", radiusError);
+          if (!radiusSettings.allowLocalFallback || !localUser) {
+            return res.status(503).json({ error: "Erro no servidor de autenticação" });
+          }
+          // Continua para fallback local
         }
       }
       
