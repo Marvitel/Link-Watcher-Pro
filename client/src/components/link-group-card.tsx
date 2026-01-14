@@ -100,17 +100,20 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
       const primaryOnline = onlineMembers.find(m => m.role === "primary");
       const activeLink = primaryOnline?.link || onlineMembers[0]?.link;
       
+      // Invert: currentDownload is actually upload data, currentUpload is actually download data
+      // (monitor inverts by default when storing to database)
       return {
-        download: activeLink?.currentDownload || 0,
-        upload: activeLink?.currentUpload || 0,
+        download: activeLink?.currentUpload || 0,
+        upload: activeLink?.currentDownload || 0,
         latency: activeLink?.latency || 0,
         packetLoss: activeLink?.packetLoss || 0,
         status: onlineMembers.length > 0 ? "operational" : "offline"
       };
     } else {
       // Aggregation: sum all members
-      const download = members.reduce((sum, m) => sum + (m.link?.currentDownload || 0), 0);
-      const upload = members.reduce((sum, m) => sum + (m.link?.currentUpload || 0), 0);
+      // Invert: currentDownload is actually upload data, currentUpload is actually download data
+      const download = members.reduce((sum, m) => sum + (m.link?.currentUpload || 0), 0);
+      const upload = members.reduce((sum, m) => sum + (m.link?.currentDownload || 0), 0);
       const latencies = onlineMembers.map(m => m.link?.latency || 0).filter(l => l > 0);
       const latency = latencies.length > 0 ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
       const packetLosses = onlineMembers.map(m => m.link?.packetLoss || 0);
