@@ -165,11 +165,11 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Download</p>
-              <p className="font-medium text-green-600">{formatBandwidth(download)}</p>
+              <p className="font-medium text-blue-600">{formatBandwidth(download)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Upload</p>
-              <p className="font-medium text-blue-600">{formatBandwidth(upload)}</p>
+              <p className="font-medium text-green-600">{formatBandwidth(upload)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Latência</p>

@@ -192,7 +192,7 @@ export default function LinkGroupDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-blue-600">
               {metricsLoading ? <Skeleton className="h-8 w-24" /> : formatBandwidth(metrics?.download || 0)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -209,7 +209,7 @@ export default function LinkGroupDetail() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-2xl font-bold text-green-600">
               {metricsLoading ? <Skeleton className="h-8 w-24" /> : formatBandwidth(metrics?.upload || 0)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -261,7 +261,7 @@ export default function LinkGroupDetail() {
           {metricsLoading || !metrics?.metricsHistory ? (
             <Skeleton className="h-64 w-full" />
           ) : metrics.metricsHistory.length > 0 ? (
-            <BandwidthChart data={metrics.metricsHistory} height={250} invertBandwidth={true} />
+            <BandwidthChart data={metrics.metricsHistory} height={250} />
           ) : (
             <div className="flex items-center justify-center h-64 text-muted-foreground">
               Aguardando dados de métricas...
