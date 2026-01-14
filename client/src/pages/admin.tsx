@@ -5419,6 +5419,8 @@ function SystemSettingsTab() {
 
       <RadiusSettingsCard />
       
+      <RadiusGroupMappingsCard />
+      
       <MonitoringSettingsCard />
       
       <BackupsCard />
@@ -6032,6 +6034,306 @@ function RadiusSettingsCard() {
           Salvar Configuracoes
         </Button>
       </CardFooter>
+    </Card>
+  );
+}
+
+interface RadiusGroupMapping {
+  id: number;
+  radiusGroupName: string;
+  isSuperAdmin: boolean;
+  canManageSuperAdmins: boolean;
+  defaultRole: string;
+  description: string | null;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function RadiusGroupMappingsCard() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingMapping, setEditingMapping] = useState<RadiusGroupMapping | null>(null);
+  const [formData, setFormData] = useState({
+    radiusGroupName: "",
+    isSuperAdmin: true,
+    canManageSuperAdmins: false,
+    defaultRole: "admin",
+    description: "",
+    priority: 50,
+    isActive: true,
+  });
+
+  const { data: mappings, isLoading, refetch } = useQuery<RadiusGroupMapping[]>({
+    queryKey: ["/api/radius/group-mappings"],
+  });
+
+  const resetForm = () => {
+    setFormData({
+      radiusGroupName: "",
+      isSuperAdmin: true,
+      canManageSuperAdmins: false,
+      defaultRole: "admin",
+      description: "",
+      priority: 50,
+      isActive: true,
+    });
+    setEditingMapping(null);
+  };
+
+  const handleEdit = (mapping: RadiusGroupMapping) => {
+    setEditingMapping(mapping);
+    setFormData({
+      radiusGroupName: mapping.radiusGroupName,
+      isSuperAdmin: mapping.isSuperAdmin,
+      canManageSuperAdmins: mapping.canManageSuperAdmins,
+      defaultRole: mapping.defaultRole,
+      description: mapping.description || "",
+      priority: mapping.priority,
+      isActive: mapping.isActive,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.radiusGroupName.trim()) {
+      toast({ title: "Nome do grupo e obrigatorio", variant: "destructive" });
+      return;
+    }
+
+    try {
+      if (editingMapping) {
+        await apiRequest("PATCH", `/api/radius/group-mappings/${editingMapping.id}`, formData);
+        toast({ title: "Mapeamento atualizado com sucesso" });
+      } else {
+        await apiRequest("POST", "/api/radius/group-mappings", formData);
+        toast({ title: "Mapeamento criado com sucesso" });
+      }
+      setDialogOpen(false);
+      resetForm();
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza que deseja excluir este mapeamento?")) return;
+
+    try {
+      await apiRequest("DELETE", `/api/radius/group-mappings/${id}`);
+      toast({ title: "Mapeamento excluido com sucesso" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Mapeamento de Grupos RADIUS/AD
+            </CardTitle>
+            <CardDescription>
+              Configure permissoes baseadas em grupos do Active Directory
+            </CardDescription>
+          </div>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button size="sm" data-testid="button-add-radius-mapping">
+                <Plus className="h-4 w-4 mr-1" />
+                Novo Mapeamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingMapping ? "Editar Mapeamento" : "Novo Mapeamento"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="radiusGroupName">Nome do Grupo AD/RADIUS</Label>
+                  <Input
+                    id="radiusGroupName"
+                    value={formData.radiusGroupName}
+                    onChange={(e) => setFormData({ ...formData, radiusGroupName: e.target.value })}
+                    placeholder="Ex: MT-Full-Admin, MT-Write"
+                    data-testid="input-radius-group-name"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nome exato do grupo retornado pelo NPS via Filter-Id ou Class attribute
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Prioridade</Label>
+                    <Input
+                      id="priority"
+                      type="number"
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 50 })}
+                      placeholder="50"
+                      data-testid="input-mapping-priority"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Maior prioridade prevalece quando usuario pertence a multiplos grupos
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultRole">Role Padrao</Label>
+                    <Select
+                      value={formData.defaultRole}
+                      onValueChange={(value) => setFormData({ ...formData, defaultRole: value })}
+                    >
+                      <SelectTrigger data-testid="select-default-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Super Admin</p>
+                      <p className="text-sm text-muted-foreground">
+                        Acesso ao Painel Marvitel
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.isSuperAdmin}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isSuperAdmin: checked })}
+                      data-testid="switch-is-super-admin"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Pode Gerenciar Super Admins</p>
+                      <p className="text-sm text-muted-foreground">
+                        Pode alterar permissoes de outros super admins
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.canManageSuperAdmins}
+                      onCheckedChange={(checked) => setFormData({ ...formData, canManageSuperAdmins: checked })}
+                      data-testid="switch-can-manage-super-admins"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Ativo</p>
+                      <p className="text-sm text-muted-foreground">
+                        Mapeamento habilitado
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.isActive}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                      data-testid="switch-mapping-active"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descricao (opcional)</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Descricao do mapeamento"
+                    data-testid="input-mapping-description"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} data-testid="button-save-mapping">
+                  {editingMapping ? "Atualizar" : "Criar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : mappings && mappings.length > 0 ? (
+          <div className="space-y-2">
+            {mappings.sort((a, b) => b.priority - a.priority).map((mapping) => (
+              <div
+                key={mapping.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full ${mapping.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{mapping.radiusGroupName}</span>
+                      <Badge variant="outline" className="text-xs">
+                        Prioridade: {mapping.priority}
+                      </Badge>
+                      {mapping.isSuperAdmin && (
+                        <Badge variant="default" className="text-xs">
+                          Super Admin
+                        </Badge>
+                      )}
+                      {mapping.canManageSuperAdmins && (
+                        <Badge variant="secondary" className="text-xs">
+                          Gerencia Admins
+                        </Badge>
+                      )}
+                    </div>
+                    {mapping.description && (
+                      <p className="text-sm text-muted-foreground">{mapping.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleEdit(mapping)}
+                    data-testid={`button-edit-mapping-${mapping.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDelete(mapping.id)}
+                    data-testid={`button-delete-mapping-${mapping.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground">
+            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>Nenhum mapeamento configurado</p>
+            <p className="text-sm">Crie mapeamentos para autorizar usuarios baseado em grupos AD</p>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
