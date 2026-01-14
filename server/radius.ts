@@ -516,14 +516,23 @@ export class RadiusAuthService {
   }
 
   async testConnection(): Promise<RadiusAuthResult> {
+    // Use MS-CHAPv2 for connection test (required by NPS)
+    const testUsername = "__radius_health_check__";
+    const testPassword = "__test__";
+    const authChallenge = crypto.randomBytes(16);
+    const peerChallenge = crypto.randomBytes(16);
+    const ntResponse = generateNTResponse(authChallenge, peerChallenge, testUsername, testPassword);
+    const mschapResponse = buildMSCHAP2Response(peerChallenge, ntResponse);
+
     const testPacket = {
       code: "Access-Request",
       secret: this.config.secret,
       identifier: Math.floor(Math.random() * 256),
       attributes: [
-        ["User-Name", "__radius_health_check__"],
-        ["User-Password", "__test__"],
+        ["User-Name", testUsername],
         ["NAS-Identifier", this.config.nasIdentifier || "LinkMonitor"],
+        ["MS-CHAP-Challenge", authChallenge],
+        ["MS-CHAP2-Response", mschapResponse],
       ],
     };
 
@@ -573,6 +582,8 @@ export class RadiusAuthService {
         clearTimeout(timeout);
         try {
           const response = radius.decode({ packet: msg, secret: this.config.secret });
+          // Any response (Access-Accept OR Access-Reject) means connection works
+          // Access-Reject just means the test user doesn't exist, which is expected
           doResolve({
             success: true,
             message: `Servidor RADIUS respondeu (${response.code})`,
