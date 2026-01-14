@@ -129,17 +129,23 @@ export async function registerRoutes(
               });
               return;
             } else if (radiusResult.code === "ACCESS_REJECT") {
-              // RADIUS rejeitou credenciais
-              await logAuditEvent({
-                action: "login_failed",
-                entity: "user",
-                actor: { id: null, email, name: email, role: "unknown" },
-                status: "failure",
-                errorMessage: "RADIUS: Credenciais inválidas",
-                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
-                request: req,
-              });
-              return res.status(401).json({ error: "Credenciais inválidas" });
+              // RADIUS rejeitou credenciais - tenta fallback local se permitido
+              if (radiusSettings.allowLocalFallback) {
+                console.log(`[RADIUS] Access-Reject, tentando fallback local para: ${email}`);
+                // Continua para autenticação local abaixo
+              } else {
+                // Sem fallback, retorna erro
+                await logAuditEvent({
+                  action: "login_failed",
+                  entity: "user",
+                  actor: { id: null, email, name: email, role: "unknown" },
+                  status: "failure",
+                  errorMessage: "RADIUS: Credenciais inválidas",
+                  metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
+                  request: req,
+                });
+                return res.status(401).json({ error: "Credenciais inválidas" });
+              }
             } else if (radiusSettings.allowLocalFallback) {
               // RADIUS falhou (timeout, erro de rede), tenta fallback local
               console.log(`[RADIUS] Falha de conexão (${radiusResult.code}), tentando fallback local`);
