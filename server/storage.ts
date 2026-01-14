@@ -2148,45 +2148,63 @@ export class DatabaseStorage {
       }
     }
     
-    // Group by timestamp (rounded to minute)
-    const grouped: Record<string, {downloads: number[]; uploads: number[]; latencies: number[]; losses: number[]; statuses: string[]}> = {};
+    // First: Group by linkId + timestamp (rounded to minute) to get average per link per minute
+    // This prevents multiple samples per minute from being summed (monitor collects every 30s)
+    const perLinkPerMinute: Record<string, Record<number, {downloads: number[]; uploads: number[]; latencies: number[]; losses: number[]; statuses: string[]}>> = {};
     
     for (const m of allMetrics) {
-      const key = new Date(Math.floor(m.timestamp.getTime() / 60000) * 60000).toISOString();
-      if (!grouped[key]) {
-        grouped[key] = { downloads: [], uploads: [], latencies: [], losses: [], statuses: [] };
+      const timeKey = new Date(Math.floor(m.timestamp.getTime() / 60000) * 60000).toISOString();
+      if (!perLinkPerMinute[timeKey]) {
+        perLinkPerMinute[timeKey] = {};
       }
-      grouped[key].downloads.push(m.download);
-      grouped[key].uploads.push(m.upload);
-      grouped[key].latencies.push(m.latency);
-      grouped[key].losses.push(m.packetLoss);
-      grouped[key].statuses.push(m.status);
+      if (!perLinkPerMinute[timeKey][m.linkId]) {
+        perLinkPerMinute[timeKey][m.linkId] = { downloads: [], uploads: [], latencies: [], losses: [], statuses: [] };
+      }
+      perLinkPerMinute[timeKey][m.linkId].downloads.push(m.download);
+      perLinkPerMinute[timeKey][m.linkId].uploads.push(m.upload);
+      perLinkPerMinute[timeKey][m.linkId].latencies.push(m.latency);
+      perLinkPerMinute[timeKey][m.linkId].losses.push(m.packetLoss);
+      perLinkPerMinute[timeKey][m.linkId].statuses.push(m.status);
     }
     
-    // Calculate aggregated metrics based on group type
+    // Second: Calculate average per link, then aggregate across links
     const result: Array<{timestamp: string; download: number; upload: number; latency: number; packetLoss: number; status: string}> = [];
     
-    for (const [timestamp, data] of Object.entries(grouped)) {
+    for (const [timestamp, linkData] of Object.entries(perLinkPerMinute)) {
+      // Calculate average for each link in this minute
+      const linkAverages: Array<{download: number; upload: number; latency: number; packetLoss: number; status: string}> = [];
+      
+      for (const [, data] of Object.entries(linkData)) {
+        const avgDownload = data.downloads.reduce((a, b) => a + b, 0) / data.downloads.length;
+        const avgUpload = data.uploads.reduce((a, b) => a + b, 0) / data.uploads.length;
+        const avgLatency = data.latencies.reduce((a, b) => a + b, 0) / data.latencies.length;
+        const maxLoss = Math.max(...data.losses);
+        // Use most recent status
+        const linkStatus = data.statuses[data.statuses.length - 1];
+        
+        linkAverages.push({ download: avgDownload, upload: avgUpload, latency: avgLatency, packetLoss: maxLoss, status: linkStatus });
+      }
+      
       let download: number, upload: number, latency: number, packetLoss: number, status: string;
       
       if (group.groupType === "aggregation") {
-        // Aggregation: sum bandwidth, average latency, max packet loss
-        download = data.downloads.reduce((a, b) => a + b, 0);
-        upload = data.uploads.reduce((a, b) => a + b, 0);
-        latency = data.latencies.reduce((a, b) => a + b, 0) / data.latencies.length;
-        packetLoss = Math.max(...data.losses);
+        // Aggregation: sum bandwidth across links, average latency, max packet loss
+        download = linkAverages.reduce((sum, l) => sum + l.download, 0);
+        upload = linkAverages.reduce((sum, l) => sum + l.upload, 0);
+        latency = linkAverages.reduce((sum, l) => sum + l.latency, 0) / linkAverages.length;
+        packetLoss = Math.max(...linkAverages.map(l => l.packetLoss));
         // Status: degraded if any member is down, otherwise operational
-        status = data.statuses.some(s => s === "offline" || s === "critical" || s === "down") 
+        status = linkAverages.some(l => l.status === "offline" || l.status === "critical" || l.status === "down") 
           ? "degraded" 
           : "operational";
       } else {
-        // Redundancy: take primary link values, status is online if any is online
-        download = Math.max(...data.downloads); // Use best performing
-        upload = Math.max(...data.uploads);
-        latency = Math.min(...data.latencies); // Use best latency
-        packetLoss = Math.min(...data.losses); // Use best packet loss
+        // Redundancy: use best link values
+        download = Math.max(...linkAverages.map(l => l.download));
+        upload = Math.max(...linkAverages.map(l => l.upload));
+        latency = Math.min(...linkAverages.map(l => l.latency));
+        packetLoss = Math.min(...linkAverages.map(l => l.packetLoss));
         // Status: operational if any member is online
-        status = data.statuses.some(s => s === "operational") 
+        status = linkAverages.some(l => l.status === "operational") 
           ? "operational" 
           : "offline";
       }
