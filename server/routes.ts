@@ -101,7 +101,7 @@ export async function registerRoutes(
               // RADIUS autenticou com sucesso
               // Verificar grupos retornados pelo RADIUS/NPS
               const radiusGroups = radiusResult.groups || [];
-              let isSuperAdmin = localUser.isSuperAdmin;
+              let isSuperAdmin: boolean = localUser.isSuperAdmin;
               let canManageSuperAdmins = false;
               let radiusGroupName: string | undefined;
               
