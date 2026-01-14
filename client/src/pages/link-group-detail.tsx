@@ -277,7 +277,7 @@ export default function LinkGroupDetail() {
         <CardContent>
           <div className="space-y-3">
             {group.members?.map((member) => (
-              <Link key={member.id} href={`/links/${member.linkId}`}>
+              <Link key={member.id} href={`/link/${member.linkId}`}>
                 <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
                   <div className="flex items-center gap-4">
                     <div className="flex flex-col">

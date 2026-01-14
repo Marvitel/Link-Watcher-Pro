@@ -197,7 +197,12 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
                   <Badge 
                     key={m.id} 
                     variant="outline" 
-                    className="text-xs"
+                    className="text-xs cursor-pointer hover:bg-accent"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.location.href = `/link/${m.linkId}`;
+                    }}
                   >
                     {m.link?.name || `Link ${m.linkId}`}
                     {m.role !== "member" && ` (${m.role})`}

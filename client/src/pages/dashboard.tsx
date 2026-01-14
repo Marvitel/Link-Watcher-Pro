@@ -474,7 +474,7 @@ function DashboardContent() {
                 {linkGroupsArray.length} grupo{linkGroupsArray.length === 1 ? "" : "s"} configurado{linkGroupsArray.length === 1 ? "" : "s"}
               </p>
             </div>
-            <Link href="/link-groups">
+            <Link href="/admin?tab=link-groups">
               <Button variant="ghost" size="sm" data-testid="button-view-all-groups">
                 Ver todos
                 <ArrowRight className="w-4 h-4 ml-1" />
