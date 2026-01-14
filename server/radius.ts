@@ -259,6 +259,8 @@ export class RadiusAuthService {
     const mschapResponse = buildMSCHAP2Response(peerChallenge, ntResponse);
     console.log("[RADIUS/MSCHAP] MS-CHAP2-Response length:", mschapResponse.length, "bytes");
     
+    // MS-CHAP attributes must be sent as Vendor-Specific Attributes (VSA)
+    // Microsoft Vendor ID is 311
     const packet = {
       code: "Access-Request",
       secret: secret,
@@ -268,12 +270,14 @@ export class RadiusAuthService {
         ["NAS-Identifier", this.config.nasIdentifier || "LinkMonitor"],
         ["NAS-Port-Type", 15], // Ethernet
         ["Service-Type", 2], // Framed
-        ["MS-CHAP-Challenge", authChallenge],
-        ["MS-CHAP2-Response", mschapResponse],
+        // Microsoft VSA format: ['Vendor-Specific', vendorId, [[attrName, value]]]
+        ["Vendor-Specific", 311, [["MS-CHAP-Challenge", authChallenge]]],
+        ["Vendor-Specific", 311, [["MS-CHAP2-Response", mschapResponse]]],
       ],
     };
     
-    console.log("[RADIUS/MSCHAP] Packet attributes:", packet.attributes.map(a => a[0]));
+    console.log("[RADIUS/MSCHAP] Packet attributes (VSA format for MS-CHAP):", 
+      packet.attributes.map(a => a[0] === "Vendor-Specific" ? `VSA:${a[2]?.[0]?.[0]}` : a[0]));
 
     return new Promise((resolve) => {
       const client = dgram.createSocket("udp4");
@@ -575,6 +579,7 @@ export class RadiusAuthService {
     const ntResponse = generateNTResponse(authChallenge, peerChallenge, testUsername, testPassword);
     const mschapResponse = buildMSCHAP2Response(peerChallenge, ntResponse);
 
+    // MS-CHAP attributes must be sent as Vendor-Specific Attributes (VSA)
     const testPacket = {
       code: "Access-Request",
       secret: this.config.secret,
@@ -582,8 +587,9 @@ export class RadiusAuthService {
       attributes: [
         ["User-Name", testUsername],
         ["NAS-Identifier", this.config.nasIdentifier || "LinkMonitor"],
-        ["MS-CHAP-Challenge", authChallenge],
-        ["MS-CHAP2-Response", mschapResponse],
+        ["NAS-Port-Type", 15], // Ethernet
+        ["Vendor-Specific", 311, [["MS-CHAP-Challenge", authChallenge]]],
+        ["Vendor-Specific", 311, [["MS-CHAP2-Response", mschapResponse]]],
       ],
     };
 
