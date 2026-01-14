@@ -1,0 +1,24 @@
+an 14 17:44:24 link-monitor npm[230459]: [LOGIN] Iniciando autenticação RADIUS para: marcus.melo
+jan 14 17:44:24 link-monitor npm[230459]: [LOGIN] RADIUS habilitado: true, Host: 100.66.128.78:1812
+jan 14 17:44:24 link-monitor npm[230459]: [LOGIN] Fallback local: true, Usuário local existe: false
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS] Tentando autenticação MS-CHAPv2 no servidor primário: 100.66.128.78:1812
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] Starting authentication for: marcus.melo
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] Target: 100.66.128.78:1812
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] AuthChallenge: c66f60d8fcff15d65132a393414a1218
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] PeerChallenge: 46d5d7d3597c9583f2c6cea768476bc7
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] NT Response: c89fba1bfa13875141f2685f650c2ebd5c7452df236b3a2b
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] MS-CHAP2-Response length: 50 bytes
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] Packet attributes (VSA format for MS-CHAP): [
+jan 14 17:44:24 link-monitor npm[230459]:   'User-Name',
+jan 14 17:44:24 link-monitor npm[230459]:   'NAS-Identifier',
+jan 14 17:44:24 link-monitor npm[230459]:   'NAS-Port-Type',
+jan 14 17:44:24 link-monitor npm[230459]:   'Service-Type',
+jan 14 17:44:24 link-monitor npm[230459]:   'VSA:MS-CHAP-Challenge',
+jan 14 17:44:24 link-monitor npm[230459]:   'VSA:MS-CHAP2-Response'
+jan 14 17:44:24 link-monitor npm[230459]: ]
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS/MSCHAP] Access-Accept para usuário: marcus.melo
+jan 14 17:44:24 link-monitor npm[230459]: [LOGIN] Resultado RADIUS: success=true, code=ACCESS_ACCEPT, server=primary
+jan 14 17:44:24 link-monitor npm[230459]: [LOGIN] Mensagem RADIUS: Autenticação MS-CHAPv2 bem-sucedida
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS] Nenhum grupo retornado pelo NPS
+jan 14 17:44:24 link-monitor npm[230459]: [RADIUS] Usuário marcus.melo autenticou via RADIUS mas não tem mapeamento de grupo configurado
+jan 14 17:44:24 link-monitor npm[230459]: 5:44:24 PM [express] POST /api/auth/login 403 in 77ms :: {"error":"Usuário não autorizado. Contate o administrador para configurar acesso.","code":"NO_GROUP_MAPPING"}
