@@ -180,10 +180,11 @@ function DashboardContent() {
     return map;
   }, [linksArray, metricsQueries]);
 
-  const { data: events, isLoading: eventsLoading } = useQuery<Event[]>({
+  const { data: eventsData, isLoading: eventsLoading } = useQuery<{ events: Event[]; total: number }>({
     queryKey: [eventsUrl],
     refetchInterval: 10000,
   });
+  const events = eventsData?.events || [];
 
   const slaUrl = selectedClientId ? `/api/sla?clientId=${selectedClientId}&type=accumulated` : "/api/sla?type=accumulated";
   const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
@@ -525,7 +526,7 @@ function DashboardContent() {
                 ))}
               </div>
             ) : (
-              <EventsTable events={Array.isArray(events) ? events.slice(0, 5) : []} compact />
+              <EventsTable events={events.slice(0, 5)} compact />
             )}
           </CardContent>
         </Card>
