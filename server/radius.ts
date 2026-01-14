@@ -4,6 +4,8 @@ import dgram from "dgram";
 import crypto from "crypto";
 import path from "path";
 import CryptoJS from "crypto-js";
+// @ts-ignore - js-md4 lacks type definitions
+import md4 from "js-md4";
 import { decrypt } from "./crypto";
 
 // Load Microsoft vendor-specific dictionary for MS-CHAPv2
@@ -65,7 +67,9 @@ function wordArrayToBuffer(wordArray: CryptoJS.lib.WordArray): Buffer {
 
 function ntHash(password: string): Buffer {
   const utf16le = Buffer.from(password, "utf16le");
-  return crypto.createHash("md4").update(utf16le).digest();
+  // Use js-md4 for OpenSSL 3.0+ compatibility (MD4 is legacy)
+  const hashArray = md4.array(utf16le);
+  return Buffer.from(hashArray);
 }
 
 function challengeHash(peerChallenge: Buffer, authChallenge: Buffer, username: string): Buffer {
