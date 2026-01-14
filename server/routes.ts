@@ -1269,11 +1269,14 @@ export async function registerRoutes(
       let download = 0, upload = 0, latency = 0, packetLoss = 0, status = "unknown";
       
       // For cards, always use current member data for real-time values
+      // Note: currentDownload/currentUpload are already inverted in the database (monitor inverts by default)
+      // So we need to swap them again to show correctly: download shows upload values, upload shows download values
       if (group.groupType === "aggregation") {
         for (const m of members) {
           if (m.link) {
-            download += m.link.currentDownload || 0;
-            upload += m.link.currentUpload || 0;
+            // Invert: currentDownload is actually upload data, currentUpload is actually download data
+            download += m.link.currentUpload || 0;
+            upload += m.link.currentDownload || 0;
           }
         }
         const onlineMembers = members.filter(m => m.link?.status === "operational");
@@ -1287,8 +1290,9 @@ export async function registerRoutes(
         const primaryMember = members.find(m => m.role === "primary" && m.link?.status === "operational");
         const activeMember = primaryMember || members.find(m => m.link?.status === "operational");
         if (activeMember?.link) {
-          download = activeMember.link.currentDownload || 0;
-          upload = activeMember.link.currentUpload || 0;
+          // Invert: currentDownload is actually upload data, currentUpload is actually download data
+          download = activeMember.link.currentUpload || 0;
+          upload = activeMember.link.currentDownload || 0;
           latency = activeMember.link.latency || 0;
           packetLoss = activeMember.link.packetLoss || 0;
         }

@@ -261,7 +261,7 @@ export default function LinkGroupDetail() {
           {metricsLoading || !metrics?.metricsHistory ? (
             <Skeleton className="h-64 w-full" />
           ) : metrics.metricsHistory.length > 0 ? (
-            <BandwidthChart data={metrics.metricsHistory} height={250} invertBandwidth={true} />
+            <BandwidthChart data={metrics.metricsHistory} height={250} />
           ) : (
             <div className="flex items-center justify-center h-64 text-muted-foreground">
               Aguardando dados de métricas...
