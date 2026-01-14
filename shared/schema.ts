@@ -768,3 +768,21 @@ export const radiusSettings = pgTable("radius_settings", {
 export const insertRadiusSettingsSchema = createInsertSchema(radiusSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export type RadiusSettings = typeof radiusSettings.$inferSelect;
 export type InsertRadiusSettings = z.infer<typeof insertRadiusSettingsSchema>;
+
+// ============ RADIUS Group Mappings ============
+export const radiusGroupMappings = pgTable("radius_group_mappings", {
+  id: serial("id").primaryKey(),
+  radiusGroupName: varchar("radius_group_name", { length: 255 }).notNull(),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
+  canManageSuperAdmins: boolean("can_manage_super_admins").notNull().default(false),
+  defaultRole: varchar("default_role", { length: 50 }).notNull().default("viewer"),
+  description: text("description"),
+  priority: integer("priority").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertRadiusGroupMappingSchema = createInsertSchema(radiusGroupMappings).omit({ id: true, createdAt: true, updatedAt: true });
+export type RadiusGroupMapping = typeof radiusGroupMappings.$inferSelect;
+export type InsertRadiusGroupMapping = z.infer<typeof insertRadiusGroupMappingSchema>;

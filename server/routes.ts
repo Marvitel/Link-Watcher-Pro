@@ -99,13 +99,32 @@ export async function registerRoutes(
             
             if (radiusResult.success) {
               // RADIUS autenticou com sucesso
+              // Verificar grupos retornados pelo RADIUS/NPS
+              const radiusGroups = radiusResult.groups || [];
+              let isSuperAdmin = localUser.isSuperAdmin;
+              let canManageSuperAdmins = false;
+              let radiusGroupName: string | undefined;
+              
+              if (radiusGroups.length > 0) {
+                console.log(`[RADIUS] Grupos retornados: ${radiusGroups.join(", ")}`);
+                const groupMapping = await storage.findBestRadiusGroupMapping(radiusGroups);
+                if (groupMapping) {
+                  isSuperAdmin = groupMapping.isSuperAdmin;
+                  canManageSuperAdmins = groupMapping.canManageSuperAdmins;
+                  radiusGroupName = groupMapping.radiusGroupName;
+                  console.log(`[RADIUS] Mapeamento encontrado: ${groupMapping.radiusGroupName} -> superAdmin=${isSuperAdmin}, canManageSuperAdmins=${canManageSuperAdmins}`);
+                } else {
+                  console.log(`[RADIUS] Nenhum mapeamento encontrado para grupos: ${radiusGroups.join(", ")}`);
+                }
+              }
+              
               const user: AuthUser = {
                 id: localUser.id,
                 email: localUser.email,
                 name: localUser.name,
                 role: localUser.role as any,
                 clientId: localUser.clientId,
-                isSuperAdmin: localUser.isSuperAdmin,
+                isSuperAdmin,
               };
               
               const token = signToken(user);
@@ -118,14 +137,27 @@ export async function registerRoutes(
                 entityName: user.name,
                 actor: user,
                 status: "success",
-                metadata: { authMethod: "radius", radiusServer: radiusResult.usedServer },
+                metadata: { 
+                  authMethod: "radius", 
+                  radiusServer: radiusResult.usedServer,
+                  radiusGroups,
+                  radiusGroupName,
+                  canManageSuperAdmins,
+                },
                 request: req,
               });
               
               (req.session as any).user = user;
+              (req.session as any).canManageSuperAdmins = canManageSuperAdmins;
               req.session.save((err) => {
                 if (err) console.error("Session save error:", err);
-                res.json({ user, token, authMethod: "radius" });
+                res.json({ 
+                  user, 
+                  token, 
+                  authMethod: "radius",
+                  radiusGroups,
+                  canManageSuperAdmins,
+                });
               });
               return;
             } else if (radiusResult.code === "ACCESS_REJECT") {
@@ -3718,6 +3750,91 @@ export async function registerRoutes(
         message: `Erro ao autenticar: ${error instanceof Error ? error.message : String(error)}`,
         code: "SERVER_ERROR",
       });
+    }
+  });
+
+  // ============ RADIUS Group Mappings ============
+  app.get("/api/radius/group-mappings", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const mappings = await storage.getRadiusGroupMappings();
+      res.json(mappings);
+    } catch (error) {
+      console.error("[RADIUS] Error fetching group mappings:", error);
+      res.status(500).json({ error: "Erro ao buscar mapeamentos de grupos" });
+    }
+  });
+
+  app.get("/api/radius/group-mappings/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const mapping = await storage.getRadiusGroupMapping(id);
+      if (!mapping) {
+        return res.status(404).json({ error: "Mapeamento não encontrado" });
+      }
+      res.json(mapping);
+    } catch (error) {
+      console.error("[RADIUS] Error fetching group mapping:", error);
+      res.status(500).json({ error: "Erro ao buscar mapeamento" });
+    }
+  });
+
+  app.post("/api/radius/group-mappings", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { radiusGroupName, isSuperAdmin, canManageSuperAdmins, defaultRole, description, priority } = req.body;
+      
+      if (!radiusGroupName) {
+        return res.status(400).json({ error: "Nome do grupo RADIUS é obrigatório" });
+      }
+      
+      const mapping = await storage.createRadiusGroupMapping({
+        radiusGroupName,
+        isSuperAdmin: isSuperAdmin || false,
+        canManageSuperAdmins: canManageSuperAdmins || false,
+        defaultRole: defaultRole || "viewer",
+        description: description || null,
+        priority: priority || 0,
+        isActive: true,
+      });
+      
+      res.status(201).json(mapping);
+    } catch (error) {
+      console.error("[RADIUS] Error creating group mapping:", error);
+      res.status(500).json({ error: "Erro ao criar mapeamento" });
+    }
+  });
+
+  app.patch("/api/radius/group-mappings/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getRadiusGroupMapping(id);
+      
+      if (!existing) {
+        return res.status(404).json({ error: "Mapeamento não encontrado" });
+      }
+      
+      await storage.updateRadiusGroupMapping(id, req.body);
+      const updated = await storage.getRadiusGroupMapping(id);
+      res.json(updated);
+    } catch (error) {
+      console.error("[RADIUS] Error updating group mapping:", error);
+      res.status(500).json({ error: "Erro ao atualizar mapeamento" });
+    }
+  });
+
+  app.delete("/api/radius/group-mappings/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getRadiusGroupMapping(id);
+      
+      if (!existing) {
+        return res.status(404).json({ error: "Mapeamento não encontrado" });
+      }
+      
+      await storage.deleteRadiusGroupMapping(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[RADIUS] Error deleting group mapping:", error);
+      res.status(500).json({ error: "Erro ao excluir mapeamento" });
     }
   });
 

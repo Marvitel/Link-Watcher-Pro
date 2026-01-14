@@ -18,6 +18,86 @@ export interface RadiusAuthResult {
   message: string;
   code?: string;
   attributes?: Record<string, unknown>;
+  groups?: string[];
+}
+
+function extractGroupsFromAttributes(attributes: unknown): string[] {
+  const groups: string[] = [];
+  
+  if (!attributes || typeof attributes !== "object") {
+    return groups;
+  }
+  
+  const attrs = attributes as Record<string, unknown>;
+  
+  // Filter-Id - common way NPS returns group info
+  if (attrs["Filter-Id"]) {
+    const filterId = attrs["Filter-Id"];
+    if (Array.isArray(filterId)) {
+      groups.push(...filterId.map(String));
+    } else if (typeof filterId === "string") {
+      groups.push(filterId);
+    }
+  }
+  
+  // Class attribute - another common method
+  if (attrs["Class"]) {
+    const classAttr = attrs["Class"];
+    if (Array.isArray(classAttr)) {
+      classAttr.forEach((c) => {
+        const str = String(c);
+        // Class often contains group names or DN paths
+        if (str.includes("CN=")) {
+          const match = str.match(/CN=([^,]+)/);
+          if (match) groups.push(match[1]);
+        } else {
+          groups.push(str);
+        }
+      });
+    } else if (typeof classAttr === "string") {
+      if (classAttr.includes("CN=")) {
+        const match = classAttr.match(/CN=([^,]+)/);
+        if (match) groups.push(match[1]);
+      } else {
+        groups.push(classAttr);
+      }
+    }
+  }
+  
+  // Vendor-Specific Attributes (VSA) - check for Microsoft attributes
+  if (attrs["Vendor-Specific"]) {
+    const vsa = attrs["Vendor-Specific"];
+    if (Array.isArray(vsa)) {
+      vsa.forEach((v) => {
+        if (typeof v === "object" && v !== null) {
+          const vsaObj = v as Record<string, unknown>;
+          // Microsoft NPS may return groups in various VSA formats
+          Object.values(vsaObj).forEach((val) => {
+            if (typeof val === "string" && val.length > 0) {
+              groups.push(val);
+            }
+          });
+        } else if (typeof v === "string") {
+          groups.push(v);
+        }
+      });
+    }
+  }
+  
+  // MS-MPPE attributes sometimes contain group info
+  if (attrs["MS-MPPE-Encryption-Policy"] || attrs["MS-MPPE-Encryption-Types"]) {
+    // These are encryption settings, not groups - skip
+  }
+  
+  // Reply-Message may contain group info in some configurations
+  if (attrs["Reply-Message"]) {
+    const replyMsg = attrs["Reply-Message"];
+    if (typeof replyMsg === "string" && replyMsg.startsWith("Group:")) {
+      groups.push(replyMsg.replace("Group:", "").trim());
+    }
+  }
+  
+  return Array.from(new Set(groups)); // Remove duplicates
 }
 
 export class RadiusAuthService {
@@ -127,11 +207,16 @@ export class RadiusAuthService {
 
           if (response.code === "Access-Accept") {
             console.log(`[RADIUS] Access-Accept para usuário: ${username}`);
+            const groups = extractGroupsFromAttributes(response.attributes);
+            if (groups.length > 0) {
+              console.log(`[RADIUS] Grupos detectados: ${groups.join(", ")}`);
+            }
             doResolve({
               success: true,
               message: "Autenticação RADIUS bem-sucedida",
               code: "ACCESS_ACCEPT",
               attributes: response.attributes as Record<string, unknown>,
+              groups,
             });
           } else if (response.code === "Access-Reject") {
             console.log(`[RADIUS] Access-Reject para usuário: ${username}`);

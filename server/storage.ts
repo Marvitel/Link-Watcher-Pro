@@ -28,6 +28,7 @@ import {
   linkMonitoringState,
   auditLogs,
   radiusSettings,
+  radiusGroupMappings,
   linkGroups,
   linkGroupMembers,
   type Client,
@@ -80,6 +81,8 @@ import {
   type InsertEquipmentVendor,
   type InsertLinkGroup,
   type InsertLinkGroupMember,
+  type RadiusGroupMapping,
+  type InsertRadiusGroupMapping,
   type SLAIndicator,
   type DashboardStats,
   type LinkStatusDetail,
@@ -2213,6 +2216,57 @@ export class DatabaseStorage {
     }
     
     return result.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  // ============ RADIUS Group Mappings ============
+  async getRadiusGroupMappings(): Promise<RadiusGroupMapping[]> {
+    return db.select().from(radiusGroupMappings)
+      .where(eq(radiusGroupMappings.isActive, true))
+      .orderBy(desc(radiusGroupMappings.priority));
+  }
+
+  async getRadiusGroupMapping(id: number): Promise<RadiusGroupMapping | undefined> {
+    const [mapping] = await db.select().from(radiusGroupMappings).where(eq(radiusGroupMappings.id, id));
+    return mapping;
+  }
+
+  async getRadiusGroupMappingByName(groupName: string): Promise<RadiusGroupMapping | undefined> {
+    const [mapping] = await db.select().from(radiusGroupMappings)
+      .where(and(
+        eq(radiusGroupMappings.radiusGroupName, groupName),
+        eq(radiusGroupMappings.isActive, true)
+      ));
+    return mapping;
+  }
+
+  async findBestRadiusGroupMapping(groups: string[]): Promise<RadiusGroupMapping | undefined> {
+    if (!groups || groups.length === 0) return undefined;
+    
+    // Get all active mappings ordered by priority (highest first)
+    const mappings = await this.getRadiusGroupMappings();
+    
+    // Find the first matching mapping (highest priority wins)
+    for (const mapping of mappings) {
+      if (groups.some(g => g.toLowerCase() === mapping.radiusGroupName.toLowerCase())) {
+        return mapping;
+      }
+    }
+    return undefined;
+  }
+
+  async createRadiusGroupMapping(data: InsertRadiusGroupMapping): Promise<RadiusGroupMapping> {
+    const [mapping] = await db.insert(radiusGroupMappings).values(data).returning();
+    return mapping;
+  }
+
+  async updateRadiusGroupMapping(id: number, data: Partial<InsertRadiusGroupMapping>): Promise<void> {
+    await db.update(radiusGroupMappings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(radiusGroupMappings.id, id));
+  }
+
+  async deleteRadiusGroupMapping(id: number): Promise<void> {
+    await db.delete(radiusGroupMappings).where(eq(radiusGroupMappings.id, id));
   }
 }
 
