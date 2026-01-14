@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BandwidthChart } from "@/components/bandwidth-chart";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { 
   Layers, 
   ArrowLeft, 
@@ -17,6 +19,15 @@ import {
   RefreshCw
 } from "lucide-react";
 import type { Link as LinkType, Metric } from "@shared/schema";
+
+// Opções de período para os gráficos
+const PERIOD_OPTIONS = [
+  { value: "1h", label: "1h" },
+  { value: "6h", label: "6h" },
+  { value: "24h", label: "24h" },
+  { value: "7d", label: "7d" },
+  { value: "30d", label: "30d" },
+] as const;
 
 interface LinkGroupMember {
   id: number;
@@ -93,6 +104,7 @@ function getMemberStatusBadge(status: string) {
 export default function LinkGroupDetail() {
   const { id } = useParams<{ id: string }>();
   const groupId = parseInt(id || "0", 10);
+  const [selectedPeriod, setSelectedPeriod] = useState("24h");
 
   const { data: group, isLoading: groupLoading } = useQuery<LinkGroup>({
     queryKey: [`/api/link-groups/${groupId}`],
@@ -101,7 +113,12 @@ export default function LinkGroupDetail() {
   });
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<AggregatedMetrics>({
-    queryKey: [`/api/link-groups/${groupId}/metrics`],
+    queryKey: [`/api/link-groups/${groupId}/metrics`, selectedPeriod],
+    queryFn: async () => {
+      const res = await fetch(`/api/link-groups/${groupId}/metrics?period=${selectedPeriod}`);
+      if (!res.ok) throw new Error("Failed to fetch metrics");
+      return res.json();
+    },
     enabled: groupId > 0,
     refetchInterval: 5000,
   });
@@ -254,16 +271,49 @@ export default function LinkGroupDetail() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Tráfego Agregado</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 flex-wrap">
+          <CardTitle className="text-lg">Consumo de Banda</CardTitle>
+          <div className="flex items-center gap-3 flex-wrap">
+            <ToggleGroup 
+              type="single" 
+              value={selectedPeriod} 
+              onValueChange={(value) => {
+                if (value) setSelectedPeriod(value);
+              }}
+              className="border rounded-md"
+              data-testid="toggle-period-bandwidth"
+            >
+              {PERIOD_OPTIONS.map((option) => (
+                <ToggleGroupItem 
+                  key={option.value} 
+                  value={option.value}
+                  size="sm"
+                  className="px-3 text-xs"
+                  data-testid={`toggle-period-${option.label}`}
+                >
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                Download
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                Upload
+              </span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {metricsLoading || !metrics?.metricsHistory ? (
-            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-80 w-full" />
           ) : metrics.metricsHistory.length > 0 ? (
-            <BandwidthChart data={metrics.metricsHistory} height={250} />
+            <BandwidthChart data={metrics.metricsHistory} height={300} showAxes />
           ) : (
-            <div className="flex items-center justify-center h-64 text-muted-foreground">
+            <div className="flex items-center justify-center h-80 text-muted-foreground">
               Aguardando dados de métricas...
             </div>
           )}
