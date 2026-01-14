@@ -69,7 +69,8 @@ function desEncrypt(key7: Buffer, data: Buffer): Buffer {
     key8[i] = (key8[i] & 0xfe) | (parity ^ 1);
   }
   
-  const cipher = crypto.createCipheriv("des-ecb", key8, null);
+  // DES-ECB doesn't use IV, pass empty buffer
+  const cipher = crypto.createCipheriv("des-ecb", key8, Buffer.alloc(0));
   cipher.setAutoPadding(false);
   return Buffer.concat([cipher.update(data), cipher.final()]);
 }
