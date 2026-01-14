@@ -3,6 +3,7 @@ import radius from "radius";
 import dgram from "dgram";
 import crypto from "crypto";
 import path from "path";
+import CryptoJS from "crypto-js";
 import { decrypt } from "./crypto";
 
 // Load Microsoft vendor-specific dictionary for MS-CHAPv2
@@ -33,6 +34,35 @@ export interface RadiusAuthResult {
 }
 
 // MS-CHAPv2 helper functions (RFC 2759)
+
+// Helper functions for CryptoJS WordArray <-> Buffer conversion
+function bufferToWordArray(buffer: Buffer): CryptoJS.lib.WordArray {
+  const words: number[] = [];
+  for (let i = 0; i < buffer.length; i += 4) {
+    words.push(
+      ((buffer[i] || 0) << 24) |
+      ((buffer[i + 1] || 0) << 16) |
+      ((buffer[i + 2] || 0) << 8) |
+      (buffer[i + 3] || 0)
+    );
+  }
+  return CryptoJS.lib.WordArray.create(words, buffer.length);
+}
+
+function wordArrayToBuffer(wordArray: CryptoJS.lib.WordArray): Buffer {
+  const words = wordArray.words;
+  const sigBytes = wordArray.sigBytes;
+  const buffer = Buffer.alloc(sigBytes);
+  
+  for (let i = 0; i < sigBytes; i++) {
+    const wordIndex = Math.floor(i / 4);
+    const byteIndex = 3 - (i % 4);
+    buffer[i] = (words[wordIndex] >> (byteIndex * 8)) & 0xff;
+  }
+  
+  return buffer;
+}
+
 function ntHash(password: string): Buffer {
   const utf16le = Buffer.from(password, "utf16le");
   return crypto.createHash("md4").update(utf16le).digest();
@@ -67,10 +97,17 @@ function desEncrypt(key7: Buffer, data: Buffer): Buffer {
     key8[i] = (key8[i] & 0xfe) | (parity ^ 1);
   }
   
-  // DES-ECB doesn't use IV, pass empty buffer
-  const cipher = crypto.createCipheriv("des-ecb", key8, Buffer.alloc(0));
-  cipher.setAutoPadding(false);
-  return Buffer.concat([cipher.update(data), cipher.final()]);
+  // Use crypto-js DES for OpenSSL 3.0+ compatibility (DES is legacy)
+  const keyWordArray = bufferToWordArray(key8);
+  const dataWordArray = bufferToWordArray(data);
+  
+  const encrypted = CryptoJS.DES.encrypt(dataWordArray, keyWordArray, {
+    mode: CryptoJS.mode.ECB,
+    padding: CryptoJS.pad.NoPadding,
+  });
+  
+  // Convert CryptoJS result to Buffer
+  return wordArrayToBuffer(encrypted.ciphertext);
 }
 
 function challengeResponse(challenge: Buffer, passwordHash: Buffer): Buffer {
