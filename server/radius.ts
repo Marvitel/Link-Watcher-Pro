@@ -4,6 +4,45 @@ import dgram from "dgram";
 import crypto from "crypto";
 import { decrypt } from "./crypto";
 
+// Add Microsoft vendor-specific dictionary for MS-CHAPv2
+radius.add_dictionary(`
+VENDOR		Microsoft			311
+
+BEGIN-VENDOR	Microsoft
+ATTRIBUTE	MS-CHAP-Response		1	octets
+ATTRIBUTE	MS-CHAP-Error			2	string
+ATTRIBUTE	MS-CHAP-CPW-1			3	octets
+ATTRIBUTE	MS-CHAP-CPW-2			4	octets
+ATTRIBUTE	MS-CHAP-LM-Enc-PW		5	octets
+ATTRIBUTE	MS-CHAP-NT-Enc-PW		6	octets
+ATTRIBUTE	MS-MPPE-Encryption-Policy	7	octets
+ATTRIBUTE	MS-MPPE-Encryption-Type		8	octets
+ATTRIBUTE	MS-RAS-Vendor			9	integer
+ATTRIBUTE	MS-CHAP-Domain			10	string
+ATTRIBUTE	MS-CHAP-Challenge		11	octets
+ATTRIBUTE	MS-CHAP-MPPE-Keys		12	octets
+ATTRIBUTE	MS-BAP-Usage			13	integer
+ATTRIBUTE	MS-Link-Utilization-Threshold	14	integer
+ATTRIBUTE	MS-Link-Drop-Time-Limit		15	integer
+ATTRIBUTE	MS-MPPE-Send-Key		16	octets
+ATTRIBUTE	MS-MPPE-Recv-Key		17	octets
+ATTRIBUTE	MS-RAS-Version			18	string
+ATTRIBUTE	MS-Old-ARAP-Password		19	octets
+ATTRIBUTE	MS-New-ARAP-Password		20	octets
+ATTRIBUTE	MS-ARAP-PW-Change-Reason	21	integer
+ATTRIBUTE	MS-Filter			22	octets
+ATTRIBUTE	MS-Acct-Auth-Type		23	integer
+ATTRIBUTE	MS-Acct-EAP-Type		24	integer
+ATTRIBUTE	MS-CHAP2-Response		25	octets
+ATTRIBUTE	MS-CHAP2-Success		26	string
+ATTRIBUTE	MS-CHAP2-CPW			27	octets
+ATTRIBUTE	MS-Primary-DNS-Server		28	ipaddr
+ATTRIBUTE	MS-Secondary-DNS-Server		29	ipaddr
+ATTRIBUTE	MS-Primary-NBNS-Server		30	ipaddr
+ATTRIBUTE	MS-Secondary-NBNS-Server	31	ipaddr
+END-VENDOR	Microsoft
+`);
+
 export interface RadiusConfig {
   host: string;
   port: number;
@@ -19,6 +58,78 @@ export interface RadiusAuthResult {
   code?: string;
   attributes?: Record<string, unknown>;
   groups?: string[];
+}
+
+// MS-CHAPv2 helper functions (RFC 2759)
+function ntHash(password: string): Buffer {
+  const utf16le = Buffer.from(password, "utf16le");
+  return crypto.createHash("md4").update(utf16le).digest();
+}
+
+function challengeHash(peerChallenge: Buffer, authChallenge: Buffer, username: string): Buffer {
+  const hash = crypto.createHash("sha1");
+  hash.update(peerChallenge);
+  hash.update(authChallenge);
+  hash.update(Buffer.from(username, "utf8"));
+  return hash.digest().slice(0, 8);
+}
+
+function desEncrypt(key7: Buffer, data: Buffer): Buffer {
+  // Expand 7-byte key to 8-byte DES key with parity bits
+  const key8 = Buffer.alloc(8);
+  key8[0] = key7[0];
+  key8[1] = ((key7[0] << 7) | (key7[1] >> 1)) & 0xff;
+  key8[2] = ((key7[1] << 6) | (key7[2] >> 2)) & 0xff;
+  key8[3] = ((key7[2] << 5) | (key7[3] >> 3)) & 0xff;
+  key8[4] = ((key7[3] << 4) | (key7[4] >> 4)) & 0xff;
+  key8[5] = ((key7[4] << 3) | (key7[5] >> 5)) & 0xff;
+  key8[6] = ((key7[5] << 2) | (key7[6] >> 6)) & 0xff;
+  key8[7] = (key7[6] << 1) & 0xff;
+  
+  // Set parity bits
+  for (let i = 0; i < 8; i++) {
+    let parity = 0;
+    for (let j = 0; j < 8; j++) {
+      parity ^= (key8[i] >> j) & 1;
+    }
+    key8[i] = (key8[i] & 0xfe) | (parity ^ 1);
+  }
+  
+  const cipher = crypto.createCipheriv("des-ecb", key8, null);
+  cipher.setAutoPadding(false);
+  return Buffer.concat([cipher.update(data), cipher.final()]);
+}
+
+function challengeResponse(challenge: Buffer, passwordHash: Buffer): Buffer {
+  // Pad password hash to 21 bytes
+  const paddedHash = Buffer.alloc(21);
+  passwordHash.copy(paddedHash, 0, 0, 16);
+  
+  // Split into 3 7-byte keys and encrypt challenge with each
+  const response = Buffer.alloc(24);
+  desEncrypt(paddedHash.slice(0, 7), challenge).copy(response, 0);
+  desEncrypt(paddedHash.slice(7, 14), challenge).copy(response, 8);
+  desEncrypt(paddedHash.slice(14, 21), challenge).copy(response, 16);
+  
+  return response;
+}
+
+function generateNTResponse(authChallenge: Buffer, peerChallenge: Buffer, username: string, password: string): Buffer {
+  const challenge = challengeHash(peerChallenge, authChallenge, username);
+  const passwordHash = ntHash(password);
+  return challengeResponse(challenge, passwordHash);
+}
+
+function buildMSCHAP2Response(peerChallenge: Buffer, ntResponse: Buffer, flags: number = 0): Buffer {
+  // MS-CHAP2-Response structure (50 bytes):
+  // Ident (1) + Flags (1) + Peer-Challenge (16) + Reserved (8) + NT-Response (24)
+  const response = Buffer.alloc(50);
+  response[0] = Math.floor(Math.random() * 256); // Ident
+  response[1] = flags;
+  peerChallenge.copy(response, 2, 0, 16);
+  // Reserved bytes (8) are already zero
+  ntResponse.copy(response, 26, 0, 24);
+  return response;
 }
 
 function extractGroupsFromAttributes(attributes: unknown): string[] {
@@ -112,6 +223,175 @@ export class RadiusAuthService {
     };
   }
 
+  // MS-CHAPv2 authentication (recommended for Windows NPS)
+  async authenticateMSCHAPv2(username: string, password: string): Promise<RadiusAuthResult> {
+    const secret = this.config.secret;
+    
+    // Generate challenges
+    const authChallenge = crypto.randomBytes(16);
+    const peerChallenge = crypto.randomBytes(16);
+    
+    // Generate NT Response
+    const ntResponse = generateNTResponse(authChallenge, peerChallenge, username, password);
+    
+    // Build MS-CHAP2-Response (50 bytes)
+    const mschapResponse = buildMSCHAP2Response(peerChallenge, ntResponse);
+    
+    const packet = {
+      code: "Access-Request",
+      secret: secret,
+      identifier: Math.floor(Math.random() * 256),
+      attributes: [
+        ["User-Name", username],
+        ["NAS-Identifier", this.config.nasIdentifier || "LinkMonitor"],
+        ["NAS-Port-Type", 15], // Ethernet
+        ["Service-Type", 2], // Framed
+        ["MS-CHAP-Challenge", authChallenge],
+        ["MS-CHAP2-Response", mschapResponse],
+      ],
+    };
+
+    return new Promise((resolve) => {
+      const client = dgram.createSocket("udp4");
+      let attempts = 0;
+      let timeoutId: NodeJS.Timeout | null = null;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        try {
+          client.close();
+        } catch (e) {
+        }
+      };
+
+      const doResolve = (result: RadiusAuthResult) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve(result);
+      };
+
+      const sendRequest = () => {
+        attempts++;
+        
+        try {
+          const encoded = radius.encode(packet);
+          
+          client.send(encoded, 0, encoded.length, this.config.port, this.config.host, (err) => {
+            if (err) {
+              console.error("[RADIUS/MSCHAP] Send error:", err.message);
+              if (attempts < (this.config.retries || 3)) {
+                sendRequest();
+              } else {
+                doResolve({
+                  success: false,
+                  message: `Erro de conexão RADIUS: ${err.message}`,
+                  code: "CONNECTION_ERROR",
+                });
+              }
+            }
+          });
+
+          timeoutId = setTimeout(() => {
+            if (attempts < (this.config.retries || 3)) {
+              console.log(`[RADIUS/MSCHAP] Timeout, tentativa ${attempts + 1}/${this.config.retries || 3}`);
+              sendRequest();
+            } else {
+              doResolve({
+                success: false,
+                message: "Servidor RADIUS não respondeu (timeout)",
+                code: "TIMEOUT",
+              });
+            }
+          }, this.config.timeout || 5000);
+          
+        } catch (encodeError) {
+          console.error("[RADIUS/MSCHAP] Encode error:", encodeError);
+          doResolve({
+            success: false,
+            message: `Erro ao codificar pacote RADIUS: ${encodeError instanceof Error ? encodeError.message : String(encodeError)}`,
+            code: "ENCODE_ERROR",
+          });
+        }
+      };
+
+      client.on("message", (msg) => {
+        try {
+          const response = radius.decode({ packet: msg, secret: secret });
+          
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+
+          if (response.code === "Access-Accept") {
+            console.log(`[RADIUS/MSCHAP] Access-Accept para usuário: ${username}`);
+            const groups = extractGroupsFromAttributes(response.attributes);
+            if (groups.length > 0) {
+              console.log(`[RADIUS/MSCHAP] Grupos detectados: ${groups.join(", ")}`);
+            }
+            doResolve({
+              success: true,
+              message: "Autenticação MS-CHAPv2 bem-sucedida",
+              code: "ACCESS_ACCEPT",
+              attributes: response.attributes as Record<string, unknown>,
+              groups,
+            });
+          } else if (response.code === "Access-Reject") {
+            console.log(`[RADIUS/MSCHAP] Access-Reject para usuário: ${username}`);
+            // Check for MS-CHAP-Error
+            const attrs = response.attributes as Record<string, unknown>;
+            let errorMsg = "Credenciais inválidas";
+            if (attrs && attrs["MS-CHAP-Error"]) {
+              errorMsg = `MS-CHAP Error: ${attrs["MS-CHAP-Error"]}`;
+            }
+            doResolve({
+              success: false,
+              message: errorMsg,
+              code: "ACCESS_REJECT",
+            });
+          } else if (response.code === "Access-Challenge") {
+            console.log(`[RADIUS/MSCHAP] Access-Challenge para usuário: ${username}`);
+            doResolve({
+              success: false,
+              message: "Autenticação requer desafio adicional (não suportado)",
+              code: "ACCESS_CHALLENGE",
+            });
+          } else {
+            doResolve({
+              success: false,
+              message: `Resposta RADIUS inesperada: ${response.code}`,
+              code: response.code,
+            });
+          }
+        } catch (decodeError) {
+          console.error("[RADIUS/MSCHAP] Decode error:", decodeError);
+          doResolve({
+            success: false,
+            message: `Erro ao decodificar resposta RADIUS: ${decodeError instanceof Error ? decodeError.message : String(decodeError)}`,
+            code: "DECODE_ERROR",
+          });
+        }
+      });
+
+      client.on("error", (err) => {
+        console.error("[RADIUS/MSCHAP] Socket error:", err.message);
+        doResolve({
+          success: false,
+          message: `Erro de socket RADIUS: ${err.message}`,
+          code: "SOCKET_ERROR",
+        });
+      });
+
+      sendRequest();
+    });
+  }
+
+  // PAP authentication (legacy, simpler but less secure)
   async authenticate(username: string, password: string): Promise<RadiusAuthResult> {
     const secret = this.config.secret;
     
@@ -371,6 +651,7 @@ export async function createRadiusServiceFromSettings(settings: RadiusSettingsFo
   });
 }
 
+// MS-CHAPv2 authentication with failover (recommended for Windows NPS)
 export async function authenticateWithFailover(
   settings: RadiusSettingsForService,
   username: string,
@@ -378,8 +659,9 @@ export async function authenticateWithFailover(
 ): Promise<RadiusAuthResult & { usedServer: "primary" | "secondary" }> {
   const primaryService = await createRadiusServiceFromSettings(settings);
   
-  console.log(`[RADIUS] Tentando autenticação no servidor primário: ${settings.primaryHost}:${settings.primaryPort}`);
-  const primaryResult = await primaryService.authenticate(username, password);
+  // Use MS-CHAPv2 by default (compatible with Windows NPS)
+  console.log(`[RADIUS] Tentando autenticação MS-CHAPv2 no servidor primário: ${settings.primaryHost}:${settings.primaryPort}`);
+  const primaryResult = await primaryService.authenticateMSCHAPv2(username, password);
   
   if (primaryResult.success || primaryResult.code === "ACCESS_REJECT") {
     return { ...primaryResult, usedServer: "primary" };
@@ -398,7 +680,7 @@ export async function authenticateWithFailover(
       retries: settings.retries || 3,
     });
     
-    const secondaryResult = await secondaryService.authenticate(username, password);
+    const secondaryResult = await secondaryService.authenticateMSCHAPv2(username, password);
     return { ...secondaryResult, usedServer: "secondary" };
   }
   
