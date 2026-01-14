@@ -241,15 +241,23 @@ export class RadiusAuthService {
   async authenticateMSCHAPv2(username: string, password: string): Promise<RadiusAuthResult> {
     const secret = this.config.secret;
     
+    console.log("[RADIUS/MSCHAP] Starting authentication for:", username);
+    console.log("[RADIUS/MSCHAP] Target:", this.config.host + ":" + this.config.port);
+    
     // Generate challenges
     const authChallenge = crypto.randomBytes(16);
     const peerChallenge = crypto.randomBytes(16);
     
+    console.log("[RADIUS/MSCHAP] AuthChallenge:", authChallenge.toString("hex"));
+    console.log("[RADIUS/MSCHAP] PeerChallenge:", peerChallenge.toString("hex"));
+    
     // Generate NT Response
     const ntResponse = generateNTResponse(authChallenge, peerChallenge, username, password);
+    console.log("[RADIUS/MSCHAP] NT Response:", ntResponse.toString("hex"));
     
     // Build MS-CHAP2-Response (50 bytes)
     const mschapResponse = buildMSCHAP2Response(peerChallenge, ntResponse);
+    console.log("[RADIUS/MSCHAP] MS-CHAP2-Response length:", mschapResponse.length, "bytes");
     
     const packet = {
       code: "Access-Request",
@@ -264,6 +272,8 @@ export class RadiusAuthService {
         ["MS-CHAP2-Response", mschapResponse],
       ],
     };
+    
+    console.log("[RADIUS/MSCHAP] Packet attributes:", packet.attributes.map(a => a[0]));
 
     return new Promise((resolve) => {
       const client = dgram.createSocket("udp4");
