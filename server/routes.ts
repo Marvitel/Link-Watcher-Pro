@@ -10,6 +10,7 @@ import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission,
 import { encrypt, decrypt, isEncrypted } from "./crypto";
 import { logAuditEvent } from "./audit";
 import pg from "pg";
+import crypto from "crypto";
 import { 
   insertIncidentSchema, 
   insertClientSchema, 
@@ -143,7 +144,7 @@ export async function registerRoutes(
               const newUser = await storage.createUser({
                 email: email.includes("@") ? email : `${email}@radius.local`,
                 name: displayName,
-                passwordHash: "RADIUS_AUTH", // Marcador especial - não permite login local
+                passwordHash: `RADIUS_ONLY:${crypto.randomUUID()}`, // Prefixo especial bloqueia login local
                 role: defaultRole,
                 clientId: null,
                 isSuperAdmin,

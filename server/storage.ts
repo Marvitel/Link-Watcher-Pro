@@ -255,10 +255,15 @@ export class DatabaseStorage {
   }
 
   async createUser(data: InsertUser): Promise<User> {
+    // Preservar prefixo RADIUS_ONLY: sem hash (marcador de usuário apenas RADIUS)
+    const passwordHash = data.passwordHash.startsWith("RADIUS_ONLY:") 
+      ? data.passwordHash 
+      : hashPassword(data.passwordHash);
+    
     const [user] = await db.insert(users).values({
       ...data,
       email: data.email.toLowerCase(),
-      passwordHash: hashPassword(data.passwordHash),
+      passwordHash,
     }).returning();
     return user;
   }
@@ -266,7 +271,10 @@ export class DatabaseStorage {
   async updateUser(id: number, data: Partial<User>): Promise<void> {
     const updateData: Partial<User> = { ...data, updatedAt: new Date() };
     if (data.passwordHash) {
-      updateData.passwordHash = hashPassword(data.passwordHash);
+      // Preservar prefixo RADIUS_ONLY: sem hash (marcador de usuário apenas RADIUS)
+      updateData.passwordHash = data.passwordHash.startsWith("RADIUS_ONLY:")
+        ? data.passwordHash
+        : hashPassword(data.passwordHash);
     }
     await db.update(users).set(updateData).where(eq(users.id, id));
   }
@@ -279,6 +287,12 @@ export class DatabaseStorage {
   async validateCredentials(identifier: string, password: string): Promise<AuthUser | null> {
     const user = await this.getUserByEmailOrUsername(identifier);
     if (!user || !user.isActive) return null;
+    
+    // Rejeitar usuários criados via RADIUS - eles só podem autenticar via RADIUS
+    if (user.passwordHash.startsWith("RADIUS_ONLY:")) {
+      console.log(`[AUTH] Usuário ${identifier} é apenas RADIUS - rejeitando autenticação local`);
+      return null;
+    }
     
     const hashedPassword = hashPassword(password);
     if (user.passwordHash !== hashedPassword) return null;
