@@ -2,46 +2,20 @@
 import radius from "radius";
 import dgram from "dgram";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
 import { decrypt } from "./crypto";
 
-// Add Microsoft vendor-specific dictionary for MS-CHAPv2
-radius.add_dictionary(`
-VENDOR		Microsoft			311
-
-BEGIN-VENDOR	Microsoft
-ATTRIBUTE	MS-CHAP-Response		1	octets
-ATTRIBUTE	MS-CHAP-Error			2	string
-ATTRIBUTE	MS-CHAP-CPW-1			3	octets
-ATTRIBUTE	MS-CHAP-CPW-2			4	octets
-ATTRIBUTE	MS-CHAP-LM-Enc-PW		5	octets
-ATTRIBUTE	MS-CHAP-NT-Enc-PW		6	octets
-ATTRIBUTE	MS-MPPE-Encryption-Policy	7	octets
-ATTRIBUTE	MS-MPPE-Encryption-Type		8	octets
-ATTRIBUTE	MS-RAS-Vendor			9	integer
-ATTRIBUTE	MS-CHAP-Domain			10	string
-ATTRIBUTE	MS-CHAP-Challenge		11	octets
-ATTRIBUTE	MS-CHAP-MPPE-Keys		12	octets
-ATTRIBUTE	MS-BAP-Usage			13	integer
-ATTRIBUTE	MS-Link-Utilization-Threshold	14	integer
-ATTRIBUTE	MS-Link-Drop-Time-Limit		15	integer
-ATTRIBUTE	MS-MPPE-Send-Key		16	octets
-ATTRIBUTE	MS-MPPE-Recv-Key		17	octets
-ATTRIBUTE	MS-RAS-Version			18	string
-ATTRIBUTE	MS-Old-ARAP-Password		19	octets
-ATTRIBUTE	MS-New-ARAP-Password		20	octets
-ATTRIBUTE	MS-ARAP-PW-Change-Reason	21	integer
-ATTRIBUTE	MS-Filter			22	octets
-ATTRIBUTE	MS-Acct-Auth-Type		23	integer
-ATTRIBUTE	MS-Acct-EAP-Type		24	integer
-ATTRIBUTE	MS-CHAP2-Response		25	octets
-ATTRIBUTE	MS-CHAP2-Success		26	string
-ATTRIBUTE	MS-CHAP2-CPW			27	octets
-ATTRIBUTE	MS-Primary-DNS-Server		28	ipaddr
-ATTRIBUTE	MS-Secondary-DNS-Server		29	ipaddr
-ATTRIBUTE	MS-Primary-NBNS-Server		30	ipaddr
-ATTRIBUTE	MS-Secondary-NBNS-Server	31	ipaddr
-END-VENDOR	Microsoft
-`);
+// Load Microsoft vendor-specific dictionary for MS-CHAPv2
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dictionaryPath = path.join(__dirname, "dictionaries", "dictionary.microsoft");
+try {
+  radius.add_dictionary(dictionaryPath);
+  console.log("[RADIUS] Microsoft dictionary loaded from:", dictionaryPath);
+} catch (err) {
+  console.warn("[RADIUS] Failed to load Microsoft dictionary:", err);
+}
 
 export interface RadiusConfig {
   host: string;
