@@ -70,7 +70,11 @@ export async function registerRoutes(
       }
       
       // Primeiro verifica se o usuário existe no sistema (por email ou username RADIUS)
+      // Também verifica com @radius.local para usuários criados automaticamente
       let localUser = await storage.getUserByEmailOrUsername(email);
+      if (!localUser && !email.includes("@")) {
+        localUser = await storage.getUserByEmailOrUsername(`${email}@radius.local`);
+      }
       
       // Verifica se RADIUS está habilitado - tenta autenticação RADIUS para todos os usuários
       const radiusSettings = await storage.getRadiusSettings();

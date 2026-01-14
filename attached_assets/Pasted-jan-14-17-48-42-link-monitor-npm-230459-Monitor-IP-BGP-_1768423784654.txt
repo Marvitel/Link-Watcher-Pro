@@ -1,0 +1,131 @@
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor]  IP BGP DEDICADO 3G IPv6 - Resultado CPU/Mem: cpu=19, mem=46.703458352198695
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor] RP COELHO - 50M: lat=1.7ms, loss=0.0%, status=operational
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor] RP MAIS QUERIDO - 50M: lat=3.4ms, loss=0.0%, status=operational
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor]  IP BGP DEDICADO 3G IPv6: lat=0.7ms, loss=0.0%, status=operational
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor] IP BGP DEDICADO 3G IPv4: lat=0.8ms, loss=0.0%, status=operational
+jan 14 17:48:42 link-monitor npm[230459]: [Monitor] Collection complete: 14 ok, 0 failed, 8510ms elapsed
+jan 14 17:48:47 link-monitor npm[230459]: 5:48:47 PM [express] POST /api/auth/logout 200 in 4ms :: {"success":true}
+jan 14 17:48:52 link-monitor npm[230459]: [LOGIN] Iniciando autenticação RADIUS para: marcus.melo
+jan 14 17:48:52 link-monitor npm[230459]: [LOGIN] RADIUS habilitado: true, Host: 100.66.128.78:1812
+jan 14 17:48:52 link-monitor npm[230459]: [LOGIN] Fallback local: true, Usuário local existe: false
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS] Tentando autenticação MS-CHAPv2 no servidor primário: 100.66.128.78:1812
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] Starting authentication for: marcus.melo
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] Target: 100.66.128.78:1812
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] AuthChallenge: ceb37565268d92c61ed126d1877d9d2d
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] PeerChallenge: bd372e3c78d80abb78e70dbbfeaa853a
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] NT Response: b414a42a43d964e318df0ed267b88744c7f9d47cbe0d713a
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] MS-CHAP2-Response length: 50 bytes
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] Packet attributes (VSA format for MS-CHAP): [
+jan 14 17:48:52 link-monitor npm[230459]:   'User-Name',
+jan 14 17:48:52 link-monitor npm[230459]:   'NAS-Identifier',
+jan 14 17:48:52 link-monitor npm[230459]:   'NAS-Port-Type',
+jan 14 17:48:52 link-monitor npm[230459]:   'Service-Type',
+jan 14 17:48:52 link-monitor npm[230459]:   'VSA:MS-CHAP-Challenge',
+jan 14 17:48:52 link-monitor npm[230459]:   'VSA:MS-CHAP2-Response'
+jan 14 17:48:52 link-monitor npm[230459]: ]
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] Access-Accept para usuário: marcus.melo
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS/MSCHAP] Grupos detectados: MT-Full-Admin, ��
+jan 14 17:48:52 link-monitor npm[230459]: (
+jan 14 17:48:52 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: dB�N
+jan 14 17:48:52 link-monitor npm[230459]: [32B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [1B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [LOGIN] Resultado RADIUS: success=true, code=ACCESS_ACCEPT, server=primary
+jan 14 17:48:52 link-monitor npm[230459]: [LOGIN] Mensagem RADIUS: Autenticação MS-CHAPv2 bem-sucedida
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS] Grupos retornados: MT-Full-Admin, ��
+jan 14 17:48:52 link-monitor npm[230459]: (
+jan 14 17:48:52 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: dB�N
+jan 14 17:48:52 link-monitor npm[230459]: [32B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [1B blob data]
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS] Mapeamento encontrado: MT-Full-Admin -> superAdmin=true, canManageSuperAdmins=true, role=admin
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS] Criando usuário automaticamente: marcus.melo
+jan 14 17:48:52 link-monitor npm[230459]: [RADIUS] Exception during auth: error: duplicate key value violates unique constraint "users_email_unique"
+jan 14 17:48:52 link-monitor npm[230459]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 14 17:48:52 link-monitor npm[230459]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 14 17:48:52 link-monitor npm[230459]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 14 17:48:52 link-monitor npm[230459]:     at async p0.createUser (/opt/link-monitor/dist/index.cjs:257:4128)
+jan 14 17:48:52 link-monitor npm[230459]:     at async /opt/link-monitor/dist/index.cjs:283:17311 {
+jan 14 17:48:52 link-monitor npm[230459]:   length: 222,
+jan 14 17:48:52 link-monitor npm[230459]:   severity: 'ERROR',
+jan 14 17:48:52 link-monitor npm[230459]:   code: '23505',
+jan 14 17:48:52 link-monitor npm[230459]:   detail: 'Key (email)=(marcus.melo@radius.local) already exists.',
+jan 14 17:48:52 link-monitor npm[230459]:   hint: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   position: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   internalPosition: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   internalQuery: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   where: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   schema: 'public',
+jan 14 17:48:52 link-monitor npm[230459]:   table: 'users',
+jan 14 17:48:52 link-monitor npm[230459]:   column: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   dataType: undefined,
+jan 14 17:48:52 link-monitor npm[230459]:   constraint: 'users_email_unique',
+jan 14 17:48:52 link-monitor npm[230459]:   file: 'nbtinsert.c',
+jan 14 17:48:52 link-monitor npm[230459]:   line: '664',
+jan 14 17:48:52 link-monitor npm[230459]:   routine: '_bt_check_unique'
+jan 14 17:48:52 link-monitor npm[230459]: }
+jan 14 17:48:52 link-monitor npm[230459]: 5:48:52 PM [express] POST /api/auth/login 503 in 85ms :: {"error":"Erro no servidor de autenticação"}
+jan 14 17:48:58 link-monitor npm[230459]: [LOGIN] Iniciando autenticação RADIUS para: marcus.melo
+jan 14 17:48:58 link-monitor npm[230459]: [LOGIN] RADIUS habilitado: true, Host: 100.66.128.78:1812
+jan 14 17:48:58 link-monitor npm[230459]: [LOGIN] Fallback local: true, Usuário local existe: false
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS] Tentando autenticação MS-CHAPv2 no servidor primário: 100.66.128.78:1812
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] Starting authentication for: marcus.melo
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] Target: 100.66.128.78:1812
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] AuthChallenge: b931088cb6a23c1d897f705cfe984efa
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] PeerChallenge: 77fb1a85e8aef2d8317603503dad69c9
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] NT Response: b3e8f775579d012a0936b001eec26d1d9a420efd9da11545
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] MS-CHAP2-Response length: 50 bytes
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] Packet attributes (VSA format for MS-CHAP): [
+jan 14 17:48:58 link-monitor npm[230459]:   'User-Name',
+jan 14 17:48:58 link-monitor npm[230459]:   'NAS-Identifier',
+jan 14 17:48:58 link-monitor npm[230459]:   'NAS-Port-Type',
+jan 14 17:48:58 link-monitor npm[230459]:   'Service-Type',
+jan 14 17:48:58 link-monitor npm[230459]:   'VSA:MS-CHAP-Challenge',
+jan 14 17:48:58 link-monitor npm[230459]:   'VSA:MS-CHAP2-Response'
+jan 14 17:48:58 link-monitor npm[230459]: ]
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] Access-Accept para usuário: marcus.melo
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS/MSCHAP] Grupos detectados: MT-Full-Admin, ��
+jan 14 17:48:58 link-monitor npm[230459]: )
+jan 14 17:48:58 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: dB�N
+jan 14 17:48:58 link-monitor npm[230459]: [32B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [1B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [LOGIN] Resultado RADIUS: success=true, code=ACCESS_ACCEPT, server=primary
+jan 14 17:48:58 link-monitor npm[230459]: [LOGIN] Mensagem RADIUS: Autenticação MS-CHAPv2 bem-sucedida
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS] Grupos retornados: MT-Full-Admin, ��
+jan 14 17:48:58 link-monitor npm[230459]: )
+jan 14 17:48:58 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [2B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: dB�N
+jan 14 17:48:58 link-monitor npm[230459]: [32B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [1B blob data]
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS] Mapeamento encontrado: MT-Full-Admin -> superAdmin=true, canManageSuperAdmins=true, role=admin
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS] Criando usuário automaticamente: marcus.melo
+jan 14 17:48:58 link-monitor npm[230459]: [RADIUS] Exception during auth: error: duplicate key value violates unique constraint "users_email_unique"
+jan 14 17:48:58 link-monitor npm[230459]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 14 17:48:58 link-monitor npm[230459]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 14 17:48:58 link-monitor npm[230459]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 14 17:48:58 link-monitor npm[230459]:     at async p0.createUser (/opt/link-monitor/dist/index.cjs:257:4128)
+jan 14 17:48:58 link-monitor npm[230459]:     at async /opt/link-monitor/dist/index.cjs:283:17311 {
+jan 14 17:48:58 link-monitor npm[230459]:   length: 222,
+jan 14 17:48:58 link-monitor npm[230459]:   severity: 'ERROR',
+jan 14 17:48:58 link-monitor npm[230459]:   code: '23505',
+jan 14 17:48:58 link-monitor npm[230459]:   detail: 'Key (email)=(marcus.melo@radius.local) already exists.',
+jan 14 17:48:58 link-monitor npm[230459]:   hint: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   position: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   internalPosition: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   internalQuery: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   where: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   schema: 'public',
+jan 14 17:48:58 link-monitor npm[230459]:   table: 'users',
+jan 14 17:48:58 link-monitor npm[230459]:   column: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   dataType: undefined,
+jan 14 17:48:58 link-monitor npm[230459]:   constraint: 'users_email_unique',
+jan 14 17:48:58 link-monitor npm[230459]:   file: 'nbtinsert.c',
+jan 14 17:48:58 link-monitor npm[230459]:   line: '664',
+jan 14 17:48:58 link-monitor npm[230459]:   routine: '_bt_check_unique'
+jan 14 17:48:58 link-monitor npm[230459]: }
+jan 14 17:48:58 link-monitor npm[230459]: 5:48:58 PM [express] POST /api/auth/login 503 in 77ms :: {"error":"Erro no servidor de autenticação"}
