@@ -79,6 +79,10 @@ export async function registerRoutes(
           try {
             const { authenticateWithFailover } = await import("./radius");
             
+            console.log(`[LOGIN] Iniciando autenticação RADIUS para: ${email}`);
+            console.log(`[LOGIN] RADIUS habilitado: ${radiusSettings.isEnabled}, Host: ${radiusSettings.primaryHost}:${radiusSettings.primaryPort}`);
+            console.log(`[LOGIN] Fallback local: ${radiusSettings.allowLocalFallback}`);
+            
             // Para RADIUS, usar o email/username - com timeout reduzido para não atrasar login
             // Usa timeout de 2s e 1 retry (máx ~4s) ao invés dos valores configurados (pode ser até 15s)
             const radiusResult = await authenticateWithFailover({
@@ -92,6 +96,9 @@ export async function registerRoutes(
               timeout: Math.min(radiusSettings.timeout || 5000, 2000),
               retries: Math.min(radiusSettings.retries || 3, 1),
             }, email, password);
+            
+            console.log(`[LOGIN] Resultado RADIUS: success=${radiusResult.success}, code=${radiusResult.code}, server=${radiusResult.usedServer}`);
+            console.log(`[LOGIN] Mensagem RADIUS: ${radiusResult.message}`);
             
             await storage.updateRadiusHealthStatus(
               radiusResult.code === "TIMEOUT" ? "timeout" : "online"
