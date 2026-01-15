@@ -1,0 +1,51 @@
+Especificação do Módulo de Monitoramento Óptico
+1. Escopo do Monitoramento
+O sistema deve realizar a coleta cíclica via SNMP dos níveis de potência óptica em dois pontos críticos:
+
+Sinal de Descida (Downstream): RX medido na ONU (recepção do cliente).
+
+Sinal de Retorno (Upstream): RX medido na porta da OLT (recepção da central vinda do cliente).
+
+2. Parâmetros e Configurações (Globais e Específicos)
+O sistema deve permitir a parametrização de limites para tomada de decisão:
+
+Thresholds Globais: Definição de níveis de sinal "Crítico", "Alerta" e "Normal" (ex: −28 dBm como limite crítico).
+
+Delta de Variação (Δ): Valor configurável de variação (ex: 3 dB). Se o sinal oscilar mais que isso em um período X, um evento é gerado, mesmo que ainda esteja dentro da faixa "Normal".
+
+Sinal de Referência (Baseline): Campo no cadastro do link para registrar o sinal medido após a instalação ou reparo (o "sinal ideal").
+
+3. Gestão de Inventário e Topologia
+Para viabilizar diagnósticos inteligentes, o cadastro de links deve ser expandido:
+
+Vínculo OLT/Link: Cada cliente deve estar associado a uma OLT e porta específica.
+
+Campo de Splitters: Atributo reservado para identificar a qual splitter (ou cascata de splitters) o cliente pertence.
+
+Nota: Deve prever integração futura via API com o OZmap para automatizar essa árvore.
+
+4. Inteligência de Eventos e Alarmes
+O sistema não deve apenas alertar, mas classificar o problema:
+
+A. Evento de Link Degradado (Individual)
+
+Gatilho: Sinal abaixo do Threshold Global.
+
+Motivo Automático: O sistema compara o sinal de descida e retorno para sugerir se o erro é no laser da ONU, sujeira no conector ou falha no GBIC da OLT.
+
+B. Evento de Atenuação Suspeita
+
+Gatilho: Variação brusca baseada no histórico armazenado, ignorando os limites fixos.
+
+Justificativa: Identificar problemas passivos (fibras levemente dobradas ou conectores oxidando) antes da queda total.
+
+C. Evento Massivo (Correlação)
+
+Lógica: Se N clientes (parâmetro configurável) vinculados ao mesmo Splitter apresentarem atenuação ou queda simultânea, o sistema agrupa os alertas em um único Incidente Massivo.
+
+Facilitador: O relatório deve listar todos os clientes afetados e o "ponto comum" (Splitter/Cabo) para guiar a equipe de campo.
+
+5. Armazenamento e Histórico
+Todos os níveis coletados devem ser armazenados em banco de dados para consultas históricas.
+
+O sistema deve gerar gráficos de desempenho comparando o Sinal Atual vs. Sinal de Referência.

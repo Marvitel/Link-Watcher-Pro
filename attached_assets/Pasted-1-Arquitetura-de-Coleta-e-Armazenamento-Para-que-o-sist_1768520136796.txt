@@ -1,0 +1,50 @@
+1. Arquitetura de Coleta e Armazenamento
+Para que o sistema seja escalável, a coleta via SNMP deve ser organizada em camadas:
+
+Polling Inteligente: Não colete todos os clientes no mesmo intervalo. Clientes online podem ser consultados a cada 15-30 minutos; clientes que apresentaram variação recente podem entrar em uma "fila prioritária" de 5 em cada 5 minutos.
+
+Histórico (Série Temporal): Armazene os dados em um banco de dados de série temporal (como InfluxDB ou Prometheus). Isso permite gerar gráficos de tendência que mostram exatamente quando a fibra começou a degradar.
+
+2. Lógica de Alarmes e Eventos
+Aqui estão as sugestões para os gatilhos (triggers) que você mencionou:
+
+A. Link Degradado (Threshold Fixo)
+
+O sistema compara o valor lido com o parâmetro global (ex: −28 dBm).
+
+Sugestão: Crie "faixas de atenção".
+
+Normal: −15 a −25 dBm.
+
+Atenção: −25.1 a −27.9 dBm (Gera alerta preventivo).
+
+Crítico: >−28 dBm (Gera evento de link degradado).
+
+B. Variação Brusca (Delta de Atenuação)
+
+Como você bem pontuou, o sinal do cliente é estável. Se o sinal era −19 dBm e foi para −23 dBm, o cliente ainda está "navegando", mas houve um problema físico.
+
+Lógica: Comparar a leitura atual com a média das últimas 24 horas. Se a variação (Δ) for maior que o parametrizado (ex: 3 dB), gera-se o evento de Atenuação Suspeita.
+
+3. Inteligência de Rede: O Fator "Splitter"
+Esta é a parte mais valiosa da sua proposta. Ao vincular clientes a um Splitter no cadastro, o sistema deixa de ver "CPFs isolados" e passa a ver a "Árvore Óptica".
+
+Correlação Massiva
+
+Evento de Splitter: Se 3 ou mais clientes pendurados no mesmo Splitter (conforme cadastro manual ou futuro OZmap) apresentarem queda de sinal simultânea, o sistema não deve abrir 3 alertas, mas sim um único Evento de Falha na Distribuição (Splitter X).
+
+Diagnóstico de Causa Raiz:
+
+Se todos os clientes do splitter caíram: Rompimento de fibra alimentadora ou falha na porta da OLT.
+
+Se metade dos clientes do splitter atenuou: Possível macrocurvatura na caixa de atendimento ou sujeira no splitter.
+
+Campo de "Sinal de Referência" (Golden Signal)
+
+Para resolver a dificuldade de saber o sinal desejado após o reparo:
+
+Crie um campo chamado "Sinal de Referência / Baseline".
+
+Ao ativar o cliente ou finalizar um reparo, o técnico "seta" que o sinal ideal ali é −18 dBm.
+
+O sistema passará a comparar o sinal atual contra esse valor de referência, e não apenas contra o limite global de −28 dBm.
