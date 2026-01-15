@@ -574,3 +574,145 @@ function isVarbindError(varbind: any): boolean {
   if (!varbind) return true;
   return (snmp as any).isVarbindError(varbind);
 }
+
+// ============ Optical Signal Monitoring ============
+
+export interface OpticalSignalData {
+  rxPower: number | null;  // Potência RX na ONU (downstream) em dBm
+  txPower: number | null;  // Potência TX na ONU (upstream) em dBm
+  oltRxPower: number | null; // Potência RX na OLT (upstream do cliente) em dBm
+}
+
+// OIDs comuns para leitura de sinal óptico em ONUs
+// Estes OIDs variam por fabricante - configuráveis por equipamento
+export const OPTICAL_OIDS = {
+  // Huawei MA5800/MA5608T
+  huawei: {
+    onuRxPower: "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4", // hwGponOntOpticalDdmRxPower
+    onuTxPower: "1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5", // hwGponOntOpticalDdmTxPower
+  },
+  // ZTE C320/C300
+  zte: {
+    onuRxPower: "1.3.6.1.4.1.3902.1012.3.50.12.1.1.10", // zxAnGponOnuRxOpticalLevel
+    onuTxPower: "1.3.6.1.4.1.3902.1012.3.50.12.1.1.11", // zxAnGponOnuTxOpticalLevel
+  },
+  // Fiberhome AN5516
+  fiberhome: {
+    onuRxPower: "1.3.6.1.4.1.5875.800.3.10.1.1.6", // Custom OID
+    onuTxPower: "1.3.6.1.4.1.5875.800.3.10.1.1.7", // Custom OID
+  },
+  // Nokia (Alcatel-Lucent) ISAM
+  nokia: {
+    onuRxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.7", // asamOpticalRxLevel
+    onuTxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.8", // asamOpticalTxLevel
+  },
+};
+
+/**
+ * Coleta dados de sinal óptico via SNMP.
+ * @param targetIp IP do equipamento (OLT ou roteador com dados de ONU)
+ * @param profile Perfil SNMP
+ * @param rxOid OID personalizado para RX Power (opcional)
+ * @param txOid OID personalizado para TX Power (opcional)
+ * @param oltRxOid OID para RX Power na OLT (opcional)
+ * @returns Dados de sinal óptico ou null se falhar
+ */
+export async function getOpticalSignal(
+  targetIp: string,
+  profile: SnmpProfile,
+  rxOid?: string | null,
+  txOid?: string | null,
+  oltRxOid?: string | null
+): Promise<OpticalSignalData | null> {
+  if (!rxOid && !txOid && !oltRxOid) {
+    return null; // Sem OIDs configurados
+  }
+
+  const session = createSession(targetIp, profile);
+  
+  try {
+    const oidsToQuery: string[] = [];
+    const oidMapping: Record<string, keyof OpticalSignalData> = {};
+    
+    if (rxOid) {
+      oidsToQuery.push(rxOid);
+      oidMapping[rxOid] = 'rxPower';
+    }
+    if (txOid) {
+      oidsToQuery.push(txOid);
+      oidMapping[txOid] = 'txPower';
+    }
+    if (oltRxOid) {
+      oidsToQuery.push(oltRxOid);
+      oidMapping[oltRxOid] = 'oltRxPower';
+    }
+
+    return new Promise((resolve) => {
+      let completed = false;
+      
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          try { session.close(); } catch {}
+          resolve(null);
+        }
+      }, profile.timeout + 2000);
+      
+      (session as any).get(oidsToQuery, (error: any, varbinds: any[]) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timeoutId);
+          try { session.close(); } catch {}
+          
+          if (error || !varbinds || varbinds.length === 0) {
+            resolve(null);
+            return;
+          }
+          
+          const result: OpticalSignalData = {
+            rxPower: null,
+            txPower: null,
+            oltRxPower: null,
+          };
+          
+          oidsToQuery.forEach((oid, index) => {
+            const varbind = varbinds[index];
+            if (varbind && !isVarbindError(varbind)) {
+              const key = oidMapping[oid];
+              let value: number;
+              
+              // O valor pode vir em diferentes formatos dependendo do fabricante
+              // Alguns retornam em décimos de dBm, outros em centésimos
+              if (typeof varbind.value === 'number') {
+                value = varbind.value;
+              } else if (Buffer.isBuffer(varbind.value)) {
+                value = parseInt(varbind.value.toString(), 10);
+              } else {
+                value = parseFloat(String(varbind.value));
+              }
+              
+              // Verifica se precisa converter (alguns equipamentos retornam em centésimos de dBm)
+              // Se o valor for muito grande (>100 ou <-100), provavelmente está em centésimos
+              if (!isNaN(value)) {
+                if (value > 100 || value < -100) {
+                  value = value / 100; // Converte de centésimos para dBm
+                } else if (value > 10 || value < -50) {
+                  // Alguns retornam em décimos de dBm
+                  // Valores típicos de sinal são entre -5 dBm e -35 dBm
+                  // Se o valor estiver fora dessa faixa, pode precisar de conversão
+                }
+                result[key] = Math.round(value * 10) / 10; // Arredonda para 1 casa decimal
+              }
+            }
+          });
+          
+          resolve(result);
+        }
+      });
+    });
+  } catch (error) {
+    console.error(`[SNMP Optical] Error getting optical signal from ${targetIp}:`, error);
+    try { session.close(); } catch {}
+    return null;
+  }
+}

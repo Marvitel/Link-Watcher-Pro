@@ -138,6 +138,10 @@ export const links = pgTable("links", {
   opticalTxBaseline: real("optical_tx_baseline"), // Sinal TX de referência
   splitterId: integer("splitter_id"), // ID do splitter para correlação de eventos
   opticalDeltaThreshold: real("optical_delta_threshold").default(3), // Variação máxima em dB antes de alertar
+  // OIDs para coleta SNMP de sinal óptico (variam por fabricante)
+  opticalRxOid: varchar("optical_rx_oid", { length: 255 }), // OID para potência RX na ONU
+  opticalTxOid: varchar("optical_tx_oid", { length: 255 }), // OID para potência TX na ONU
+  opticalOltRxOid: varchar("optical_olt_rx_oid", { length: 255 }), // OID para RX na OLT
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

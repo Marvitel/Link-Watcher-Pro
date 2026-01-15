@@ -5,7 +5,7 @@ import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, type OltAlarm } from "./olt";
-import { findInterfaceByName, type SnmpProfile as SnmpProfileType } from "./snmp";
+import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
 const execAsync = promisify(exec);
 
@@ -247,6 +247,44 @@ function mapOltAlarmToFailureReason(alarmType: string | null): string | null {
     return "onu_inativa";
   }
   return "olt_alarm";
+}
+
+// Thresholds de sinal óptico padrão (em dBm)
+const OPTICAL_THRESHOLDS = {
+  rxNormalMin: -25,    // >= -25 dBm = Normal
+  rxWarningMin: -28,   // >= -28 dBm = Atenção  
+  // < -28 dBm = Crítico
+};
+
+/**
+ * Determina o status do sinal óptico baseado em thresholds e delta
+ */
+function getOpticalStatus(
+  rxPower: number | null | undefined,
+  baseline: number | null | undefined,
+  deltaThreshold: number
+): "normal" | "warning" | "critical" | null {
+  if (rxPower === null || rxPower === undefined) {
+    return null;
+  }
+
+  // Verificar delta em relação ao baseline
+  if (baseline !== null && baseline !== undefined) {
+    const delta = rxPower - baseline;
+    if (delta < -deltaThreshold) {
+      // Degradação significativa em relação ao baseline
+      return "warning";
+    }
+  }
+
+  // Verificar thresholds absolutos
+  if (rxPower >= OPTICAL_THRESHOLDS.rxNormalMin) {
+    return "normal";
+  }
+  if (rxPower >= OPTICAL_THRESHOLDS.rxWarningMin) {
+    return "warning";
+  }
+  return "critical";
 }
 
 function getStatusChangeEvent(
@@ -988,6 +1026,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   memoryUsage: number;
   status: string;
   failureReason: string | null;
+  opticalSignal: OpticalSignalData | null;
 }> {
   const ipToMonitor = link.monitoredIp || link.snmpRouterIp || link.address;
 
@@ -1114,6 +1153,27 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     status = "degraded";
   }
 
+  // Coleta de sinal óptico (se habilitado e configurado)
+  let opticalSignal: OpticalSignalData | null = null;
+  if (link.opticalMonitoringEnabled && link.snmpProfileId && link.snmpRouterIp) {
+    const hasOpticalOids = link.opticalRxOid || link.opticalTxOid || link.opticalOltRxOid;
+    if (hasOpticalOids) {
+      const profile = await getSnmpProfile(link.snmpProfileId);
+      if (profile) {
+        opticalSignal = await getOpticalSignal(
+          link.snmpRouterIp,
+          profile,
+          link.opticalRxOid,
+          link.opticalTxOid,
+          link.opticalOltRxOid
+        );
+        if (opticalSignal) {
+          console.log(`[Monitor] ${link.name} - Sinal óptico: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
+        }
+      }
+    }
+  }
+
   return {
     latency: pingResult.latency,
     packetLoss: pingResult.packetLoss,
@@ -1123,6 +1183,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     memoryUsage,
     status,
     failureReason,
+    opticalSignal,
   };
 }
 
@@ -1382,6 +1443,13 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       memoryUsage: safeMemoryUsage,
       errorRate: 0,
       status: collectedMetrics.status,
+      // Dados de sinal óptico
+      opticalRxPower: collectedMetrics.opticalSignal?.rxPower ?? null,
+      opticalTxPower: collectedMetrics.opticalSignal?.txPower ?? null,
+      opticalOltRxPower: collectedMetrics.opticalSignal?.oltRxPower ?? null,
+      opticalStatus: collectedMetrics.opticalSignal 
+        ? getOpticalStatus(collectedMetrics.opticalSignal.rxPower, link.opticalRxBaseline, link.opticalDeltaThreshold ?? 3)
+        : null,
     });
 
     console.log(
