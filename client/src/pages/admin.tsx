@@ -651,6 +651,14 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
+    // Campos de monitoramento óptico
+    opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
+    opticalRxOid: (link as any)?.opticalRxOid || "",
+    opticalTxOid: (link as any)?.opticalTxOid || "",
+    opticalOltRxOid: (link as any)?.opticalOltRxOid || "",
+    opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
+    opticalTxBaseline: (link as any)?.opticalTxBaseline || "",
+    opticalDeltaThreshold: (link as any)?.opticalDeltaThreshold ?? 3,
   });
 
   // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador
@@ -1869,12 +1877,106 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         </div>
       </div>
+
+      <div className="border-t pt-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-medium">Monitoramento de Sinal Óptico</h4>
+          <Switch
+            checked={formData.opticalMonitoringEnabled}
+            onCheckedChange={(checked) => setFormData({ ...formData, opticalMonitoringEnabled: checked })}
+            data-testid="switch-optical-monitoring"
+          />
+        </div>
+        
+        {formData.opticalMonitoringEnabled && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="opticalRxOid">OID RX (ONU) - Potência Recebida</Label>
+                <Input
+                  id="opticalRxOid"
+                  value={formData.opticalRxOid}
+                  onChange={(e) => setFormData({ ...formData, opticalRxOid: e.target.value })}
+                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4"
+                  data-testid="input-optical-rx-oid"
+                />
+                <p className="text-xs text-muted-foreground">OID para leitura da potência RX na ONU (downstream)</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opticalTxOid">OID TX (ONU) - Potência Transmitida</Label>
+                <Input
+                  id="opticalTxOid"
+                  value={formData.opticalTxOid}
+                  onChange={(e) => setFormData({ ...formData, opticalTxOid: e.target.value })}
+                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5"
+                  data-testid="input-optical-tx-oid"
+                />
+                <p className="text-xs text-muted-foreground">OID para leitura da potência TX na ONU (upstream)</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="opticalOltRxOid">OID RX (OLT) - Potência no PON</Label>
+                <Input
+                  id="opticalOltRxOid"
+                  value={formData.opticalOltRxOid}
+                  onChange={(e) => setFormData({ ...formData, opticalOltRxOid: e.target.value })}
+                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.6"
+                  data-testid="input-optical-olt-rx-oid"
+                />
+                <p className="text-xs text-muted-foreground">Potência RX vista na OLT (opcional)</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opticalRxBaseline">Baseline RX (dBm)</Label>
+                <Input
+                  id="opticalRxBaseline"
+                  type="number"
+                  step="0.01"
+                  value={formData.opticalRxBaseline}
+                  onChange={(e) => setFormData({ ...formData, opticalRxBaseline: e.target.value })}
+                  placeholder="-18.5"
+                  data-testid="input-optical-rx-baseline"
+                />
+                <p className="text-xs text-muted-foreground">Valor de referência para detecção de degradação</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="opticalDeltaThreshold">Delta Máximo (dB)</Label>
+                <Input
+                  id="opticalDeltaThreshold"
+                  type="number"
+                  step="0.5"
+                  value={formData.opticalDeltaThreshold}
+                  onChange={(e) => setFormData({ ...formData, opticalDeltaThreshold: parseFloat(e.target.value) || 3 })}
+                  placeholder="3"
+                  data-testid="input-optical-delta-threshold"
+                />
+                <p className="text-xs text-muted-foreground">Variação máxima antes de alertar (padrão: 3dB)</p>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-muted/50 rounded-md">
+              <p className="text-xs text-muted-foreground">
+                <strong>Thresholds de sinal:</strong> RX ≥ -25dBm = Normal | -28dBm a -25dBm = Atenção | &lt; -28dBm = Crítico
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
       
       <DialogFooter>
         <Button variant="outline" onClick={onClose} data-testid="button-cancel">
           Cancelar
         </Button>
-        <Button onClick={() => onSave(formData)} data-testid="button-save-link">
+        <Button onClick={() => {
+          // Converte campos de string para números antes de salvar
+          const processedData = {
+            ...formData,
+            opticalRxBaseline: formData.opticalRxBaseline ? parseFloat(formData.opticalRxBaseline) : null,
+            opticalTxBaseline: formData.opticalTxBaseline ? parseFloat(formData.opticalTxBaseline) : null,
+          };
+          onSave(processedData);
+        }} data-testid="button-save-link">
           {link ? "Atualizar" : "Criar"} Link
         </Button>
       </DialogFooter>
