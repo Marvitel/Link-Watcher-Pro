@@ -12,6 +12,7 @@ import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart, PacketLossChart } from "@/components/bandwidth-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
+import { OpticalSignalSection } from "@/components/optical-signal-section";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -31,6 +32,7 @@ import {
   MapPin,
   Network,
   Percent,
+  Radio,
   RefreshCw,
   Server,
   Ticket,
@@ -413,6 +415,10 @@ export default function LinkDetail() {
           </TabsTrigger>
           <TabsTrigger value="sla" data-testid="tab-sla">
             SLA
+          </TabsTrigger>
+          <TabsTrigger value="optical" data-testid="tab-optical">
+            <Radio className="w-4 h-4 mr-1" />
+            Sinal Óptico
           </TabsTrigger>
         </TabsList>
 
@@ -835,6 +841,10 @@ export default function LinkDetail() {
 
         <TabsContent value="sla">
           <SLAIndicators indicators={slaIndicators || []} />
+        </TabsContent>
+
+        <TabsContent value="optical" className="space-y-4">
+          <OpticalSignalSection link={link} metrics={metrics || []} />
         </TabsContent>
       </Tabs>
     </div>
