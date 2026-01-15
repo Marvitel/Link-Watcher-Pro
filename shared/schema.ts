@@ -132,6 +132,12 @@ export const links = pgTable("links", {
   originalIfName: varchar("original_if_name", { length: 100 }),
   // Inverter direção de banda (download ↔ upload) para interfaces de concentrador
   invertBandwidth: boolean("invert_bandwidth").notNull().default(false),
+  // Monitoramento de Sinal Óptico
+  opticalMonitoringEnabled: boolean("optical_monitoring_enabled").notNull().default(false),
+  opticalRxBaseline: real("optical_rx_baseline"), // Sinal de referência após instalação/reparo (ex: -18 dBm)
+  opticalTxBaseline: real("optical_tx_baseline"), // Sinal TX de referência
+  splitterId: integer("splitter_id"), // ID do splitter para correlação de eventos
+  opticalDeltaThreshold: real("optical_delta_threshold").default(3), // Variação máxima em dB antes de alertar
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -243,6 +249,41 @@ export const hostMibConfigs = pgTable("host_mib_configs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Configurações globais de thresholds ópticos
+export const opticalSettings = pgTable("optical_settings", {
+  id: serial("id").primaryKey(),
+  // Thresholds de potência RX (em dBm) - valores negativos
+  rxNormalMin: real("rx_normal_min").notNull().default(-25), // -15 a -25 = Normal
+  rxWarningMin: real("rx_warning_min").notNull().default(-28), // -25.1 a -27.9 = Atenção
+  rxCriticalMin: real("rx_critical_min").notNull().default(-30), // < -28 = Crítico
+  // Thresholds de potência TX (em dBm)
+  txNormalMin: real("tx_normal_min").notNull().default(0),
+  txWarningMin: real("tx_warning_min").notNull().default(-2),
+  txCriticalMin: real("tx_critical_min").notNull().default(-5),
+  // Delta de variação para alertar (em dB)
+  deltaThreshold: real("delta_threshold").notNull().default(3),
+  // Período de comparação para delta (em horas)
+  deltaComparisonPeriod: integer("delta_comparison_period").notNull().default(24),
+  // Mínimo de clientes para evento massivo
+  massiveEventThreshold: integer("massive_event_threshold").notNull().default(3),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Splitters para correlação de eventos massivos
+export const splitters = pgTable("splitters", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").notNull(),
+  oltId: integer("olt_id"), // OLT associada
+  name: text("name").notNull(),
+  location: text("location"),
+  splitterType: varchar("splitter_type", { length: 20 }).notNull().default("1:8"), // 1:8, 1:16, 1:32, 1:64
+  parentSplitterId: integer("parent_splitter_id"), // Para cascata de splitters
+  cableId: varchar("cable_id", { length: 50 }), // Identificador do cabo alimentador
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const metrics = pgTable("metrics", {
   id: serial("id").primaryKey(),
   linkId: integer("link_id").notNull(),
@@ -256,6 +297,11 @@ export const metrics = pgTable("metrics", {
   memoryUsage: real("memory_usage").notNull(),
   errorRate: real("error_rate").notNull().default(0),
   status: varchar("status", { length: 20 }).notNull().default("operational"),
+  // Métricas de Sinal Óptico (em dBm)
+  opticalRxPower: real("optical_rx_power"), // Potência RX na ONU (downstream)
+  opticalTxPower: real("optical_tx_power"), // Potência TX na ONU
+  opticalOltRxPower: real("optical_olt_rx_power"), // Potência RX na OLT (upstream do cliente)
+  opticalStatus: varchar("optical_status", { length: 20 }), // normal, warning, critical
 });
 
 export const metricsHourly = pgTable("metrics_hourly", {
@@ -486,6 +532,8 @@ export const insertOltSchema = createInsertSchema(olts).omit({ id: true, created
 export const insertSnmpConcentratorSchema = createInsertSchema(snmpConcentrators).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupSchema = createInsertSchema(linkGroups).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupMemberSchema = createInsertSchema(linkGroupMembers).omit({ id: true, createdAt: true });
+export const insertOpticalSettingsSchema = createInsertSchema(opticalSettings).omit({ id: true, updatedAt: true });
+export const insertSplitterSchema = createInsertSchema(splitters).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -512,6 +560,8 @@ export type InsertOlt = z.infer<typeof insertOltSchema>;
 export type InsertSnmpConcentrator = z.infer<typeof insertSnmpConcentratorSchema>;
 export type InsertLinkGroup = z.infer<typeof insertLinkGroupSchema>;
 export type InsertLinkGroupMember = z.infer<typeof insertLinkGroupMemberSchema>;
+export type InsertOpticalSettings = z.infer<typeof insertOpticalSettingsSchema>;
+export type InsertSplitter = z.infer<typeof insertSplitterSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -538,6 +588,8 @@ export type Olt = typeof olts.$inferSelect;
 export type SnmpConcentrator = typeof snmpConcentrators.$inferSelect;
 export type LinkGroup = typeof linkGroups.$inferSelect;
 export type LinkGroupMember = typeof linkGroupMembers.$inferSelect;
+export type OpticalSettings = typeof opticalSettings.$inferSelect;
+export type Splitter = typeof splitters.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {
