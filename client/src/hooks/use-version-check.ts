@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 const VERSION_CHECK_INTERVAL = 60000; // Verificar a cada 1 minuto
 const VERSION_STORAGE_KEY = "link_monitor_app_version";
@@ -8,6 +9,20 @@ interface VersionResponse {
   version: string;
   timestamp: number;
   message: string;
+}
+
+// Função para limpar todo o cache e forçar reload limpo
+function performCleanReload(newVersion: string) {
+  console.log(`[Version] Limpando cache e recarregando para versão ${newVersion}`);
+  
+  // 1. Limpar cache do React Query
+  queryClient.clear();
+  
+  // 2. Salvar nova versão no localStorage
+  localStorage.setItem(VERSION_STORAGE_KEY, newVersion);
+  
+  // 3. Forçar reload completo (bypass browser cache)
+  window.location.reload();
 }
 
 export function useVersionCheck() {
@@ -41,10 +56,8 @@ export function useVersionCheck() {
         
         // Se a versão armazenada for diferente da do servidor, atualizar silenciosamente
         if (storedVersion && storedVersion !== serverVersion) {
-          console.log(`[Version] Nova versão detectada: ${storedVersion} → ${serverVersion}`);
-          localStorage.setItem(VERSION_STORAGE_KEY, serverVersion);
-          // Recarregar automaticamente na primeira detecção
-          window.location.reload();
+          console.log(`[Version] Nova versão detectada na inicialização: ${storedVersion} → ${serverVersion}`);
+          performCleanReload(serverVersion);
           return;
         }
         return;
@@ -57,15 +70,14 @@ export function useVersionCheck() {
 
         toast({
           title: "Nova versão disponível",
-          description: "O sistema foi atualizado. A página será recarregada em 10 segundos.",
-          duration: 10000,
+          description: "O sistema foi atualizado. A página será recarregada em 5 segundos.",
+          duration: 5000,
         });
 
-        // Auto-reload após 10 segundos
+        // Auto-reload após 5 segundos (reduzido de 10s)
         setTimeout(() => {
-          localStorage.setItem(VERSION_STORAGE_KEY, serverVersion);
-          window.location.reload();
-        }, 10000);
+          performCleanReload(serverVersion);
+        }, 5000);
       }
     } catch (error) {
       // Silenciosamente ignorar erros de rede
