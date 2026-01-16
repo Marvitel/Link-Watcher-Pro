@@ -1,0 +1,57 @@
+jan 16 15:43:06 link-monitor npm[490802]: Ping failed for 100.80.16.13: Command failed: ping -c 5 -W 2 100.80.16.13 2>&1
+jan 16 15:43:06 link-monitor npm[490802]: [SNMP Fallback] 191.52.248.242: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.2.1.25.2.3.1.5.65536, memUsedOid: 1.3.6.1.2.1.25.2.3.1.6.65536
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - Coletando CPU/Mem via SNMP: 191.52.248.242, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.2.1.25.2.3.1.5.65536","memoryUsedOid":"1.3.6.1.2.1.25.2.3.1.6.65536","memoryIsPercentage":false}
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - Resultado CPU/Mem: cpu=30, mem=14.23187255859375
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - Óptico: coletando via OLT OTL-DTC-CARMOPOLIS (datacom) slot=1 port=1 onu=2
+jan 16 15:43:06 link-monitor npm[490802]: [SNMP Optical] Índice calculado para datacom: slot=1, port=1, onuId=2 -> index=16777728
+jan 16 15:43:06 link-monitor npm[490802]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16777728, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16777728
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - Óptico OK: RX=0dBm TX=0dBm OLT_RX=nulldBm
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7 - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG150853A0...
+jan 16 15:43:06 link-monitor npm[490802]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial TPLG150853A0...
+jan 16 15:43:06 link-monitor npm[490802]: [OLT Zabbix Optical] ONU TPLG150853A0 encontrada: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] Link 6 - Splitter atualizado: - porta - dist N/A
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7: Offline detected, consulting OLT for diagnosis...
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7: OLT diagnosis result: " | OLT: Rompimento de Fibra"
+jan 16 15:43:06 link-monitor npm[490802]: [Monitor] RP Paty - 50M - LEBQ29F7: lat=0.0ms, loss=100.0%, status=offline
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.2.1.25.2.3.1.5.65536, memUsedOid: 1.3.6.1.2.1.25.2.3.1.6.65536
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.2.1.25.2.3.1.5.65536","memoryUsedOid":"1.3.6.1.2.1.25.2.3.1.6.65536","memoryIsPercentage":false}
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Resultado CPU/Mem: cpu=56, mem=32.614037298387096
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Óptico: coletando via OLT OLT-DTC-HSP (datacom) slot=1 port=4 onu=9
+jan 16 15:43:08 link-monitor npm[490802]: [SNMP Optical] Índice calculado para datacom: slot=1, port=4, onuId=9 -> index=16779523
+jan 16 15:43:08 link-monitor npm[490802]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16779523, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16779523
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Óptico OK: RX=-21dBm TX=2dBm OLT_RX=nulldBm
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG2D03CEC8...
+jan 16 15:43:08 link-monitor npm[490802]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial TPLG2D03CEC8...
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Central de Atendimento - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.2.1.25.2.3.1.5.65536, memUsedOid: 1.3.6.1.2.1.25.2.3.1.6.65536
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Central de Atendimento - Coletando CPU/Mem via SNMP: 191.52.248.227, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.2.1.25.2.3.1.5.65536","memoryUsedOid":"1.3.6.1.2.1.25.2.3.1.6.65536","memoryIsPercentage":false}
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Central de Atendimento - Resultado CPU/Mem: cpu=35, mem=51.039021809895836
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] IP BGP DEDICADO 3G IPv4 - vendorId: 3, vendor: Cisco (IOS), cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memOid: null, memTotalOid: 1.3.6.1.4.1.9.9.48.1.1.1.5.1, memUsedOid: 1.3.6.1.4.1.9.9.48.1.1.1.6.1
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] IP BGP DEDICADO 3G IPv4 - Coletando CPU/Mem via SNMP: 191.52.255.253, cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.4.1.9.9.48.1.1.1.5.1","memoryUsedOid":"1.3.6.1.4.1.9.9.48.1.1.1.6.1","memoryIsPercentage":false}
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] IP BGP DEDICADO 3G IPv4 - Resultado CPU/Mem: cpu=17, mem=46.74227987255567
+jan 16 15:43:08 link-monitor npm[490802]: [OLT Zabbix Optical] ONU TPLG2D03CEC8 encontrada: RX=-21.55dBm TX=2.30dBm OLT_RX=-26.38dBm
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M - Óptico Zabbix: OLT_RX=-26.38dBm
+jan 16 15:43:08 link-monitor npm[490802]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - vendorId: 3, vendor: Cisco (IOS), cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memOid: null, memTotalOid: 1.3.6.1.4.1.9.9.48.1.1.1.5.1, memUsedOid: 1.3.6.1.4.1.9.9.48.1.1.1.6.1
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Coletando CPU/Mem via SNMP: 191.52.255.254, cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.4.1.9.9.48.1.1.1.5.1","memoryUsedOid":"1.3.6.1.4.1.9.9.48.1.1.1.6.1","memoryIsPercentage":false}
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Resultado CPU/Mem: cpu=9, mem=0
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Óptico: coletando via OLT OLT-DTC-MARVITEL (datacom) slot=1 port=7 onu=3
+jan 16 15:43:08 link-monitor npm[490802]: [SNMP Optical] Índice calculado para datacom: slot=1, port=7, onuId=3 -> index=16777990
+jan 16 15:43:08 link-monitor npm[490802]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16777990, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16777990
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor]  IP BGP DEDICADO 3G IPv6 - vendorId: 3, vendor: Cisco (IOS), cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memOid: null, memTotalOid: 1.3.6.1.4.1.9.9.48.1.1.1.5.1, memUsedOid: 1.3.6.1.4.1.9.9.48.1.1.1.6.1
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor]  IP BGP DEDICADO 3G IPv6 - Coletando CPU/Mem via SNMP: 191.52.255.253, cpuOid: 1.3.6.1.4.1.9.2.1.57.0, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.4.1.9.9.48.1.1.1.5.1","memoryUsedOid":"1.3.6.1.4.1.9.9.48.1.1.1.6.1","memoryIsPercentage":false}
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Link 13 - Splitter atualizado: Splitter MVT 428 porta 1 dist 7
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor]  IP BGP DEDICADO 3G IPv6 - Resultado CPU/Mem: cpu=17, mem=46.74227987255567
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG84925560...
+jan 16 15:43:08 link-monitor npm[490802]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial TPLG84925560...
+jan 16 15:43:08 link-monitor npm[490802]: [OLT Zabbix Optical] ONU TPLG84925560 encontrada: RX=-19.83dBm TX=2.47dBm OLT_RX=-40.00dBm
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M - Óptico Zabbix: OLT_RX=-40.00dBm
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Central de Atendimento: lat=2.0ms, loss=0.0%, status=operational
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Link 15 - Splitter atualizado: - porta - dist 6
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] IP BGP DEDICADO 3G IPv4: lat=0.7ms, loss=0.0%, status=operational
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP MAIS QUERIDO - 50M: lat=2.1ms, loss=0.0%, status=operational
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor]  IP BGP DEDICADO 3G IPv6: lat=0.6ms, loss=0.0%, status=operational
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] RP COELHO - 50M: lat=1.4ms, loss=0.0%, status=operational
+jan 16 15:43:08 link-monitor npm[490802]: [Monitor] Collection complete: 15 ok, 0 failed, 8443ms elapsed
+jan 16 15:43:09 link-monitor npm[490802]: 3:43:09 PM [express] GET /api/links/16 304 in 13ms :: {"id":16,"clientId":4,"identifier":"AJUMVTGS4Q292R","name":"RP TANCREDO - 100M","location":"Aracaju/SE","address":"Avenida Francisco Porto, 1086 - Salgado Filho, Aracaju/SE","ipBlock":"/29","totalIps":8,"usableIps":6,"

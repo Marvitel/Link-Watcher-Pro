@@ -21,24 +21,44 @@ async function updateLinkZabbixSplitterData(
       return; // Não atualizar se não há dados de splitter
     }
     
-    // Normalizar distância: converter para metros e remover unidade
+    // Normalizar distância: converter para metros, remover unidade, tratar N/A como null
     let distancia = zabbixMetrics.distancia;
     if (distancia) {
-      const kmMatch = distancia.match(/^(\d+(?:[.,]\d+)?)\s*km$/i);
-      if (kmMatch) {
-        // Converter km para metros
-        const km = parseFloat(kmMatch[1].replace(",", "."));
-        distancia = Math.round(km * 1000).toString();
+      // Tratar N/A, n/a, N/D, -, vazio como null
+      if (/^(n\/?a|n\/?d|-|null|undefined|sem dados?)$/i.test(distancia.trim())) {
+        distancia = null;
       } else {
-        // Remove unidades comuns se presentes (m, metros)
-        distancia = distancia.replace(/\s*(m|metros?)$/i, "").trim();
+        const kmMatch = distancia.match(/^(\d+(?:[.,]\d+)?)\s*km$/i);
+        if (kmMatch) {
+          // Converter km para metros
+          const km = parseFloat(kmMatch[1].replace(",", "."));
+          distancia = Math.round(km * 1000).toString();
+        } else {
+          // Remove unidades comuns se presentes (m, metros)
+          distancia = distancia.replace(/\s*(m|metros?)$/i, "").trim();
+          // Verificar se é numérico após limpeza
+          if (!/^\d+(?:[.,]\d+)?$/.test(distancia)) {
+            distancia = null;
+          }
+        }
       }
     }
     
+    // Normalizar splitter e porta: tratar vazios, "-", N/A como null
+    const normalizeSplitterField = (val: string | null | undefined): string | null => {
+      if (!val) return null;
+      const trimmed = val.trim();
+      if (!trimmed || /^(-|n\/?a|n\/?d|null|undefined|sem dados?)$/i.test(trimmed)) return null;
+      return trimmed;
+    };
+    
+    const splitterName = normalizeSplitterField(zabbixMetrics.splitter);
+    const splitterPort = normalizeSplitterField(zabbixMetrics.portaSplitter);
+    
     const updateData: Record<string, unknown> = {
       zabbixLastSync: new Date(),
-      zabbixSplitterName: zabbixMetrics.splitter || null,
-      zabbixSplitterPort: zabbixMetrics.portaSplitter || null,
+      zabbixSplitterName: splitterName,
+      zabbixSplitterPort: splitterPort,
       zabbixOnuDistance: distancia || null,
     };
     
@@ -46,7 +66,7 @@ async function updateLinkZabbixSplitterData(
       .set(updateData)
       .where(eq(links.id, linkId));
       
-    console.log(`[Monitor] Link ${linkId} - Splitter atualizado: ${zabbixMetrics.splitter || '-'} porta ${zabbixMetrics.portaSplitter || '-'} dist ${distancia || '-'}`);
+    console.log(`[Monitor] Link ${linkId} - Splitter atualizado: ${splitterName || '(vazio)'} porta ${splitterPort || '(vazio)'} dist ${distancia || '(vazio)'}`);
       
   } catch (error) {
     console.error(`[Monitor] Erro ao atualizar dados de splitter do link ${linkId}:`, error);
