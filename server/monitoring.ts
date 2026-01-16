@@ -1162,7 +1162,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     const parsedOnuId = hasOnuId ? parseInt(link.onuId!, 10) : NaN;
     
     if (!hasSlotPort || !hasOnuId || isNaN(parsedOnuId) || parsedOnuId < 0) {
-      // Dados da ONU incompletos ou inválidos - silenciosamente ignora
+      console.log(`[Monitor] ${link.name} - Óptico: falta ONU params (slot=${link.slotOlt}, port=${link.portOlt}, onuId=${link.onuId})`);
     } else {
       // Buscar OLT com vendor e perfil SNMP
       const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
@@ -1188,6 +1188,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               onuId: parsedOnuId,
             };
             
+            console.log(`[Monitor] ${link.name} - Óptico: coletando via OLT ${olt[0].name} (${oltVendorSlug}) slot=${onuParams.slot} port=${onuParams.port} onu=${onuParams.onuId}`);
+            
             opticalSignal = await getOpticalSignal(
               olt[0].ipAddress,
               oltProfile,
@@ -1197,8 +1199,20 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               txOid,
               oltRxOid
             );
+            
+            if (opticalSignal) {
+              console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
+            } else {
+              console.log(`[Monitor] ${link.name} - Óptico: sem resposta SNMP`);
+            }
+          } else {
+            console.log(`[Monitor] ${link.name} - Óptico: perfil SNMP ${olt[0].snmpProfileId} não encontrado`);
           }
+        } else {
+          console.log(`[Monitor] ${link.name} - Óptico: vendor '${oltVendorSlug}' não encontrado em equipmentVendors`);
         }
+      } else if (olt.length > 0) {
+        console.log(`[Monitor] ${link.name} - Óptico: OLT ${olt[0].name} sem vendor ou perfil SNMP`);
       }
     }
   }
