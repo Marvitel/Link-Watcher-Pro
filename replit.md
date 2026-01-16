@@ -51,8 +51,9 @@ Features per-link optical signal monitoring with centralized OID configuration p
   - **Fiberhome**: `{ponId}.{onuId}` where ponId = `slot * 16 + port`
   - **Nokia**: `{ponPortId}.{onuId}` where ponPortId = `(slot * 256) + port + 1`
   - **Datacom**: `(slot * 16777216) + (onuId * 256) + (port - 1)` - ATENÇÃO: port e onuId invertidos! Port usa base 0 no índice.
-- **Datacom OIDs (enterprise 3709)**: RX=`1.3.6.1.4.1.3709.3.6.2.1.1.22`, TX=`1.3.6.1.4.1.3709.3.6.2.1.1.21`
+- **Datacom OIDs (enterprise 3709)**: RX=`1.3.6.1.4.1.3709.3.6.2.1.1.22`, TX=`1.3.6.1.4.1.3709.3.6.2.1.1.21`. Note: OLT RX (RSSI) não está disponível via SNMP no Datacom, apenas via CLI/SSH ou banco Zabbix.
 - **SNMP Collection Flow**: Link → OLT → Vendor Slug → equipmentVendors (OIDs + index formula) → SNMP Profile → Query OLT IP with full OID (base + index).
+- **Zabbix MySQL Fallback**: Quando SNMP não retorna OLT RX (ex: Datacom RSSI), o sistema consulta automaticamente uma OLT configurada com `connectionType=mysql` (banco Zabbix) para obter métricas complementares. A OLT Zabbix é tratada como uma "segunda OLT" que fornece dados via banco de dados MySQL (`db_django_olts`). Query busca na tabela `ftth_onu` + `ftth_onuhistory` por serial.
 - **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
 - **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form allows baseline/delta configuration.
 - **Correlation**: `splitters` table groups ONUs for mass event detection.

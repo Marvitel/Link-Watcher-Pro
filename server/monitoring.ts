@@ -4,7 +4,7 @@ import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, type OltAlarm } from "./olt";
+import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
 const execAsync = promisify(exec);
@@ -1221,12 +1221,83 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null || opticalSignal.oltRxPower !== null;
                 if (hasValues) {
                   console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
+                  
+                  // Fallback para Zabbix: se OLT RX não veio via SNMP e temos serial, consultar Zabbix
+                  if (opticalSignal.oltRxPower === null && link.onuSearchString) {
+                    console.log(`[Monitor] ${link.name} - Óptico: OLT_RX vazio, tentando fallback Zabbix...`);
+                    const zabbixOlt = await db.select().from(olts)
+                      .where(eq(olts.connectionType, "mysql"))
+                      .limit(1);
+                    
+                    if (zabbixOlt.length > 0) {
+                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                      if (zabbixMetrics) {
+                        // Complementar com dados do Zabbix
+                        if (zabbixMetrics.oltRxPower !== null) {
+                          opticalSignal.oltRxPower = zabbixMetrics.oltRxPower;
+                          console.log(`[Monitor] ${link.name} - Óptico Zabbix: OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
+                        }
+                        // Se SNMP não retornou RX/TX, usar os do Zabbix
+                        if (opticalSignal.rxPower === null && zabbixMetrics.rxPower !== null) {
+                          opticalSignal.rxPower = zabbixMetrics.rxPower;
+                        }
+                        if (opticalSignal.txPower === null && zabbixMetrics.txPower !== null) {
+                          opticalSignal.txPower = zabbixMetrics.txPower;
+                        }
+                      }
+                    }
+                  }
                 } else {
                   console.log(`[Monitor] ${link.name} - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para ${oltVendorSlug}.`);
-                  opticalSignal = null; // Não salvar métricas vazias
+                  
+                  // Fallback completo para Zabbix se SNMP não retornou nada
+                  if (link.onuSearchString) {
+                    console.log(`[Monitor] ${link.name} - Óptico: tentando fallback completo Zabbix...`);
+                    const zabbixOlt = await db.select().from(olts)
+                      .where(eq(olts.connectionType, "mysql"))
+                      .limit(1);
+                    
+                    if (zabbixOlt.length > 0) {
+                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                      if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
+                        opticalSignal = {
+                          rxPower: zabbixMetrics.rxPower,
+                          txPower: zabbixMetrics.txPower,
+                          oltRxPower: zabbixMetrics.oltRxPower,
+                        };
+                        console.log(`[Monitor] ${link.name} - Óptico Zabbix OK: RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
+                      } else {
+                        opticalSignal = null;
+                      }
+                    } else {
+                      opticalSignal = null;
+                    }
+                  } else {
+                    opticalSignal = null;
+                  }
                 }
               } else {
                 console.log(`[Monitor] ${link.name} - Óptico: sem resposta SNMP da OLT ${olt[0].ipAddress}`);
+                
+                // Fallback para Zabbix se SNMP falhou
+                if (link.onuSearchString) {
+                  console.log(`[Monitor] ${link.name} - Óptico: tentando fallback Zabbix após falha SNMP...`);
+                  const zabbixOlt = await db.select().from(olts)
+                    .where(eq(olts.connectionType, "mysql"))
+                    .limit(1);
+                  
+                  if (zabbixOlt.length > 0) {
+                    const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                    if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
+                      opticalSignal = {
+                        rxPower: zabbixMetrics.rxPower,
+                        txPower: zabbixMetrics.txPower,
+                        oltRxPower: zabbixMetrics.oltRxPower,
+                      };
+                      console.log(`[Monitor] ${link.name} - Óptico Zabbix OK (fallback): RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
+                    }
+                  }
+                }
               }
             } else {
               console.log(`[Monitor] ${link.name} - Óptico: perfil SNMP ${olt[0].snmpProfileId} não encontrado`);

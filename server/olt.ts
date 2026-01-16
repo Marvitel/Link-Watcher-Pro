@@ -25,6 +25,17 @@ interface ZabbixOnuResult {
   "ULT.VERIFICACAO": string;
 }
 
+// Interface para métricas ópticas do Zabbix
+export interface ZabbixOpticalMetrics {
+  rxPower: number | null;      // ONURX - RX na ONU
+  txPower: number | null;      // ONUTX - TX na ONU
+  oltRxPower: number | null;   // OLTRX - RX na OLT (RSSI)
+  splitter: string | null;
+  portaSplitter: string | null;
+  distancia: string | null;
+  status: string | null;
+}
+
 export interface OltAlarm {
   timestamp: string;
   severity: string;
@@ -414,6 +425,85 @@ async function queryZabbixMySQL(olt: Olt, serial: string): Promise<OltDiagnosis>
       diagnosis: "Erro de conexão",
       rawOutput: errorMsg,
     };
+  }
+}
+
+// Consulta ao banco de dados MySQL Zabbix para buscar APENAS métricas ópticas por serial
+// Esta função é usada como fallback quando SNMP não retorna valores (ex: RSSI do Datacom)
+export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promise<ZabbixOpticalMetrics | null> {
+  console.log(`[OLT Zabbix Optical] Consultando MySQL ${olt.ipAddress}:${olt.port} por serial ${serial}...`);
+  
+  try {
+    const connection = await mysql.createConnection({
+      host: olt.ipAddress,
+      port: olt.port,
+      user: olt.username,
+      password: olt.password,
+      database: olt.database || "db_django_olts",
+      connectTimeout: 10000, // Timeout menor para consultas de métricas
+    });
+
+    // Query simplificada apenas para métricas ópticas
+    const query = `
+      SELECT 
+        fo.serial AS SN,
+        fo.splitter AS SPLITTER,
+        fo.porta_splitter AS PORTA_SPLITTER,
+        h.onurx AS ONURX,
+        h.onutx AS ONUTX,
+        h.oltrx AS OLTRX,
+        fo.distance AS DISTANCIA,
+        fo.status AS STATUS
+      FROM ftth_onu AS fo
+      LEFT JOIN (
+        SELECT foh.onu_fk_id, onurx, onutx, oltrx
+        FROM ftth_onuhistory AS foh
+        INNER JOIN (
+          SELECT onu_fk_id, MAX(timestamp) AS max_timestamp
+          FROM ftth_onuhistory
+          GROUP BY onu_fk_id
+        ) AS foh_max ON foh.onu_fk_id = foh_max.onu_fk_id AND foh.timestamp = foh_max.max_timestamp
+      ) AS h ON fo.id = h.onu_fk_id 
+      WHERE fo.serial = ?
+      LIMIT 1
+    `;
+
+    const [rows] = await connection.execute(query, [serial]);
+    await connection.end();
+
+    const results = rows as Array<{
+      SN: string;
+      SPLITTER: string | null;
+      PORTA_SPLITTER: string | null;
+      ONURX: number | null;
+      ONUTX: number | null;
+      OLTRX: number | null;
+      DISTANCIA: string | null;
+      STATUS: string;
+    }>;
+    
+    if (results.length === 0) {
+      console.log(`[OLT Zabbix Optical] ONU ${serial} não encontrada no banco`);
+      return null;
+    }
+
+    const onu = results[0];
+    console.log(`[OLT Zabbix Optical] ONU ${serial} encontrada: RX=${onu.ONURX}dBm TX=${onu.ONUTX}dBm OLT_RX=${onu.OLTRX}dBm`);
+
+    return {
+      rxPower: onu.ONURX,
+      txPower: onu.ONUTX,
+      oltRxPower: onu.OLTRX,
+      splitter: onu.SPLITTER,
+      portaSplitter: onu.PORTA_SPLITTER,
+      distancia: onu.DISTANCIA,
+      status: onu.STATUS,
+    };
+
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[OLT Zabbix Optical] Erro ao consultar MySQL: ${errorMsg}`);
+    return null;
   }
 }
 
