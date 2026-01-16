@@ -1156,16 +1156,34 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   // Coleta de sinal óptico (se habilitado e configurado)
   let opticalSignal: OpticalSignalData | null = null;
   if (link.opticalMonitoringEnabled && link.snmpProfileId && link.snmpRouterIp) {
-    const hasOpticalOids = link.opticalRxOid || link.opticalTxOid || link.opticalOltRxOid;
+    // Prioridade: OIDs do link > OIDs do fabricante > hardcoded por slug
+    let rxOid = link.opticalRxOid;
+    let txOid = link.opticalTxOid;
+    let oltRxOid = link.opticalOltRxOid;
+    
+    // Se não tiver OIDs no link, buscar do fabricante
+    if (!rxOid && !txOid && !oltRxOid && link.equipmentVendorId) {
+      const vendor = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, link.equipmentVendorId)).limit(1);
+      if (vendor.length > 0) {
+        rxOid = vendor[0].opticalRxOid || null;
+        txOid = vendor[0].opticalTxOid || null;
+        oltRxOid = vendor[0].opticalOltRxOid || null;
+        if (rxOid || txOid || oltRxOid) {
+          console.log(`[Monitor] ${link.name} - Usando OIDs ópticos do fabricante ${vendor[0].name}`);
+        }
+      }
+    }
+    
+    const hasOpticalOids = rxOid || txOid || oltRxOid;
     if (hasOpticalOids) {
       const profile = await getSnmpProfile(link.snmpProfileId);
       if (profile) {
         opticalSignal = await getOpticalSignal(
           link.snmpRouterIp,
           profile,
-          link.opticalRxOid,
-          link.opticalTxOid,
-          link.opticalOltRxOid
+          rxOid,
+          txOid,
+          oltRxOid
         );
         if (opticalSignal) {
           console.log(`[Monitor] ${link.name} - Sinal óptico: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);

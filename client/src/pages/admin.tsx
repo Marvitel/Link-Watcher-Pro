@@ -860,7 +860,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     }
   };
 
-  const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null }>>({
+  const { data: equipmentVendors } = useQuery<Array<{ id: number; name: string; slug: string; cpuOid: string | null; memoryOid: string | null; opticalRxOid: string | null; opticalTxOid: string | null; opticalOltRxOid: string | null }>>({
     queryKey: ["/api/equipment-vendors"],
   });
 
@@ -1890,28 +1890,49 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         
         {formData.opticalMonitoringEnabled && (
           <div className="space-y-4">
+            {formData.equipmentVendorId && equipmentVendors?.find(v => v.id === formData.equipmentVendorId) && (
+              (() => {
+                const vendor = equipmentVendors.find(v => v.id === formData.equipmentVendorId);
+                const hasVendorOids = vendor && (vendor.opticalRxOid || vendor.opticalTxOid || vendor.opticalOltRxOid);
+                if (hasVendorOids) {
+                  return (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        <strong>OIDs do fabricante {vendor?.name}:</strong> Se os campos abaixo estiverem vazios, os OIDs padrão do fabricante serão usados automaticamente.
+                      </p>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono">
+                        {vendor?.opticalRxOid && <div>RX: {vendor.opticalRxOid}</div>}
+                        {vendor?.opticalTxOid && <div>TX: {vendor.opticalTxOid}</div>}
+                        {vendor?.opticalOltRxOid && <div>OLT RX: {vendor.opticalOltRxOid}</div>}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="opticalRxOid">OID RX (ONU) - Potência Recebida</Label>
+                <Label htmlFor="opticalRxOid">OID RX (ONU) - Potência Recebida (sobrescreve fabricante)</Label>
                 <Input
                   id="opticalRxOid"
                   value={formData.opticalRxOid}
                   onChange={(e) => setFormData({ ...formData, opticalRxOid: e.target.value })}
-                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4"
+                  placeholder="Deixe vazio para usar o do fabricante"
                   data-testid="input-optical-rx-oid"
                 />
-                <p className="text-xs text-muted-foreground">OID para leitura da potência RX na ONU (downstream)</p>
+                <p className="text-xs text-muted-foreground">Apenas preencha para sobrescrever o OID do fabricante</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="opticalTxOid">OID TX (ONU) - Potência Transmitida</Label>
+                <Label htmlFor="opticalTxOid">OID TX (ONU) - Potência Transmitida (sobrescreve fabricante)</Label>
                 <Input
                   id="opticalTxOid"
                   value={formData.opticalTxOid}
                   onChange={(e) => setFormData({ ...formData, opticalTxOid: e.target.value })}
-                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5"
+                  placeholder="Deixe vazio para usar o do fabricante"
                   data-testid="input-optical-tx-oid"
                 />
-                <p className="text-xs text-muted-foreground">OID para leitura da potência TX na ONU (upstream)</p>
+                <p className="text-xs text-muted-foreground">Apenas preencha para sobrescrever o OID do fabricante</p>
               </div>
             </div>
             
@@ -7420,6 +7441,9 @@ interface EquipmentVendor {
   memoryTotalOid: string | null;
   memoryUsedOid: string | null;
   memoryIsPercentage: boolean;
+  opticalRxOid: string | null;
+  opticalTxOid: string | null;
+  opticalOltRxOid: string | null;
   description: string | null;
   isBuiltIn: boolean;
   isActive: boolean;
@@ -7447,6 +7471,9 @@ function EquipmentVendorsTab() {
     memoryTotalOid: "",
     memoryUsedOid: "",
     memoryIsPercentage: true,
+    opticalRxOid: "",
+    opticalTxOid: "",
+    opticalOltRxOid: "",
     description: "",
     isActive: true,
   });
@@ -7460,6 +7487,9 @@ function EquipmentVendorsTab() {
       memoryTotalOid: "",
       memoryUsedOid: "",
       memoryIsPercentage: true,
+      opticalRxOid: "",
+      opticalTxOid: "",
+      opticalOltRxOid: "",
       description: "",
       isActive: true,
     });
@@ -7476,6 +7506,9 @@ function EquipmentVendorsTab() {
       memoryTotalOid: vendor.memoryTotalOid || "",
       memoryUsedOid: vendor.memoryUsedOid || "",
       memoryIsPercentage: vendor.memoryIsPercentage,
+      opticalRxOid: vendor.opticalRxOid || "",
+      opticalTxOid: vendor.opticalTxOid || "",
+      opticalOltRxOid: vendor.opticalOltRxOid || "",
       description: vendor.description || "",
       isActive: vendor.isActive,
     });
@@ -7642,6 +7675,46 @@ function EquipmentVendorsTab() {
                 />
                 <Label>Memoria ja retorna percentual</Label>
               </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-3">OIDs de Sinal Optico (Padrao)</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Estes OIDs serao usados como padrao para todos os links deste fabricante
+                </p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>OID RX ONU (Downstream)</Label>
+                    <Input
+                      value={formData.opticalRxOid}
+                      onChange={(e) => setFormData({ ...formData, opticalRxOid: e.target.value })}
+                      placeholder="Ex: 1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-optical-rx-oid"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>OID TX ONU (Upstream)</Label>
+                    <Input
+                      value={formData.opticalTxOid}
+                      onChange={(e) => setFormData({ ...formData, opticalTxOid: e.target.value })}
+                      placeholder="Ex: 1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-optical-tx-oid"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>OID RX OLT (Upstream do cliente)</Label>
+                    <Input
+                      value={formData.opticalOltRxOid}
+                      onChange={(e) => setFormData({ ...formData, opticalOltRxOid: e.target.value })}
+                      placeholder="OID para leitura na OLT (opcional)"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-optical-olt-rx-oid"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <Switch
                   checked={formData.isActive}
@@ -7695,7 +7768,10 @@ function EquipmentVendorsTab() {
                     <div className="text-xs text-muted-foreground mt-2 space-y-1 font-mono">
                       {vendor.cpuOid && <div>CPU: {vendor.cpuOid}</div>}
                       {vendor.memoryOid && <div>Mem: {vendor.memoryOid}</div>}
-                      {!vendor.cpuOid && !vendor.memoryOid && (
+                      {vendor.opticalRxOid && <div>RX Optico: {vendor.opticalRxOid}</div>}
+                      {vendor.opticalTxOid && <div>TX Optico: {vendor.opticalTxOid}</div>}
+                      {vendor.opticalOltRxOid && <div>OLT RX: {vendor.opticalOltRxOid}</div>}
+                      {!vendor.cpuOid && !vendor.memoryOid && !vendor.opticalRxOid && !vendor.opticalTxOid && (
                         <div className="text-amber-600">Nenhum OID configurado</div>
                       )}
                     </div>

@@ -213,7 +213,7 @@ export const snmpProfiles = pgTable("snmp_profiles", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Equipment vendors with pre-configured SNMP OIDs for CPU/Memory
+// Equipment vendors with pre-configured SNMP OIDs for CPU/Memory/Optical
 export const equipmentVendors = pgTable("equipment_vendors", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -223,6 +223,10 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   memoryTotalOid: varchar("memory_total_oid", { length: 255 }),
   memoryUsedOid: varchar("memory_used_oid", { length: 255 }),
   memoryIsPercentage: boolean("memory_is_percentage").notNull().default(true),
+  // OIDs padrão para monitoramento de sinal óptico deste fabricante
+  opticalRxOid: varchar("optical_rx_oid", { length: 255 }),
+  opticalTxOid: varchar("optical_tx_oid", { length: 255 }),
+  opticalOltRxOid: varchar("optical_olt_rx_oid", { length: 255 }),
   description: text("description"),
   isBuiltIn: boolean("is_built_in").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
