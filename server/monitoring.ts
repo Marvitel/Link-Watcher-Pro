@@ -1159,74 +1159,44 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     // Verificar se temos os dados da ONU (slot, port, onuId)
     const hasSlotPort = link.slotOlt !== null && link.portOlt !== null;
     const hasOnuId = link.onuId !== null && link.onuId !== '';
+    const parsedOnuId = hasOnuId ? parseInt(link.onuId!, 10) : NaN;
     
-    if (!hasSlotPort || !hasOnuId) {
-      console.log(`[Monitor] ${link.name} - Sinal óptico desabilitado: falta slot/port/onuId (slot=${link.slotOlt}, port=${link.portOlt}, onuId=${link.onuId})`);
+    if (!hasSlotPort || !hasOnuId || isNaN(parsedOnuId) || parsedOnuId < 0) {
+      // Dados da ONU incompletos ou inválidos - silenciosamente ignora
     } else {
-      // Validar onuId como número
-      const parsedOnuId = parseInt(link.onuId!, 10);
-      if (isNaN(parsedOnuId) || parsedOnuId < 0) {
-        console.log(`[Monitor] ${link.name} - onuId inválido: '${link.onuId}' (deve ser numérico)`);
-      } else {
-        // Buscar OLT e seu vendor
-        const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
+      // Buscar OLT com vendor e perfil SNMP
+      const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
+      
+      if (olt.length > 0 && olt[0].snmpProfileId && olt[0].vendor) {
+        const oltVendorSlug = olt[0].vendor;
         
-        if (olt.length > 0 && olt[0].snmpProfileId) {
-          // Usar o vendor da OLT para buscar OIDs E calcular índice (mesmo fabricante)
-          const oltVendorSlug = olt[0].vendor || '';
+        // Buscar OIDs do fabricante da OLT (pelo slug)
+        const vendorBySlug = await db.select().from(equipmentVendors)
+          .where(eq(equipmentVendors.slug, oltVendorSlug))
+          .limit(1);
+        
+        if (vendorBySlug.length > 0) {
+          const rxOid = vendorBySlug[0].opticalRxOid || null;
+          const txOid = vendorBySlug[0].opticalTxOid || null;
+          const oltRxOid = vendorBySlug[0].opticalOltRxOid || null;
           
-          if (!oltVendorSlug) {
-            console.log(`[Monitor] ${link.name} - OLT ${olt[0].name} sem vendor configurado`);
-          } else {
-            // Buscar OIDs do fabricante da OLT (pelo slug do vendor)
-            let rxOid: string | null = null;
-            let txOid: string | null = null;
-            let oltRxOid: string | null = null;
+          const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
+          if (oltProfile) {
+            const onuParams = {
+              slot: link.slotOlt!,
+              port: link.portOlt!,
+              onuId: parsedOnuId,
+            };
             
-            const vendorBySlug = await db.select().from(equipmentVendors)
-              .where(eq(equipmentVendors.slug, oltVendorSlug))
-              .limit(1);
-            
-            if (vendorBySlug.length > 0) {
-              rxOid = vendorBySlug[0].opticalRxOid || null;
-              txOid = vendorBySlug[0].opticalTxOid || null;
-              oltRxOid = vendorBySlug[0].opticalOltRxOid || null;
-              if (rxOid || txOid || oltRxOid) {
-                console.log(`[Monitor] ${link.name} - Usando OIDs ópticos do fabricante ${vendorBySlug[0].name} (OLT)`);
-              } else {
-                console.log(`[Monitor] ${link.name} - Fabricante ${vendorBySlug[0].name} sem OIDs ópticos configurados`);
-              }
-            } else {
-              console.log(`[Monitor] ${link.name} - Fabricante com slug '${oltVendorSlug}' não encontrado em equipmentVendors`);
-            }
-            
-            if (rxOid || txOid || oltRxOid) {
-              const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
-              if (oltProfile) {
-                // Preparar parâmetros da ONU (validados)
-                const onuParams = {
-                  slot: link.slotOlt!,
-                  port: link.portOlt!,
-                  onuId: parsedOnuId,
-                };
-                
-                // Usar IP da OLT e vendor da OLT para calcular índice e consultar
-                opticalSignal = await getOpticalSignal(
-                  olt[0].ipAddress,
-                  oltProfile,
-                  oltVendorSlug,
-                  onuParams,
-                  rxOid,
-                  txOid,
-                  oltRxOid
-                );
-                if (opticalSignal) {
-                  console.log(`[Monitor] ${link.name} - Sinal óptico via OLT ${olt[0].name}: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
-                }
-              } else {
-                console.log(`[Monitor] ${link.name} - OLT ${olt[0].name} sem perfil SNMP configurado`);
-              }
-            }
+            opticalSignal = await getOpticalSignal(
+              olt[0].ipAddress,
+              oltProfile,
+              oltVendorSlug,
+              onuParams,
+              rxOid,
+              txOid,
+              oltRxOid
+            );
           }
         }
       }
