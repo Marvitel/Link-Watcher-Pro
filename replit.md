@@ -41,7 +41,14 @@ Supports grouping links for combined monitoring, with different profiles:
 Member roles (`primary`, `backup`, `ipv4`, `ipv6`, `member`) define behavior within groups.
 
 ### Optical Signal Monitoring
-Features per-link optical signal monitoring with fields like `opticalMonitoringEnabled`, `opticalRxOid`, `opticalTxOid`, `opticalRxBaseline`, `opticalDeltaThreshold`. SNMP collection (`server/snmp.ts`) supports various ONU/OLT vendors. Values are automatically converted to standard dBm. Thresholds for Normal, Warning, and Critical states are defined, and degradation detection triggers alerts based on delta from baseline. A "Sinal Óptico" tab in the link details page provides visual meters and historical graphs. Correlation by `splitters` table enables detection of mass events.
+Features per-link optical signal monitoring with hierarchical OID configuration:
+- **Equipment Vendor OIDs (Default)**: `equipmentVendors` table stores default `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each manufacturer - configure once, applies to all links.
+- **Link OIDs (Override)**: Links can optionally override vendor defaults with custom OIDs for edge cases (special ONU models, custom equipment).
+- **OID Resolution Priority**: Link-specific OIDs → Vendor defaults → Hardcoded by vendor slug.
+- **SNMP Collection**: `server/snmp.ts` supports Huawei MA5800/MA5608T, ZTE C320/C300, Fiberhome AN5516, Nokia ISAM with automatic dBm conversion.
+- **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
+- **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Vendor form includes optical OID fields; link form shows vendor defaults and allows override.
+- **Correlation**: `splitters` table groups ONUs for mass event detection.
 
 ### Sistema de Auditoria
 A `audit_logs` table stores all system audit events. The `server/audit.ts` helper function `logAuditEvent` records events, automatically masking sensitive data. Events include authentication, CRUD operations on links, clients, and users. Security features include automatic masking of sensitive data (e.g., passwords), IP address capture, and User Agent logging. An interface allows filtering, pagination, and viewing details of audit logs.
