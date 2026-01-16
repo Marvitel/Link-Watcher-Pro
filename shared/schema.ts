@@ -137,6 +137,11 @@ export const links = pgTable("links", {
   opticalRxBaseline: real("optical_rx_baseline"), // Sinal de referência após instalação/reparo (ex: -18 dBm)
   opticalTxBaseline: real("optical_tx_baseline"), // Sinal TX de referência
   splitterId: integer("splitter_id"), // ID do splitter para correlação de eventos
+  // Dados de splitter vindos do Zabbix (auto-preenchidos)
+  zabbixSplitterName: varchar("zabbix_splitter_name", { length: 100 }), // Nome do splitter do Zabbix
+  zabbixSplitterPort: varchar("zabbix_splitter_port", { length: 20 }), // Porta do splitter do Zabbix
+  zabbixOnuDistance: varchar("zabbix_onu_distance", { length: 20 }), // Distância da ONU (metros)
+  zabbixLastSync: timestamp("zabbix_last_sync"), // Última sincronização com Zabbix
   opticalDeltaThreshold: real("optical_delta_threshold").default(3), // Variação máxima em dB antes de alertar
   // OIDs para coleta SNMP de sinal óptico (variam por fabricante)
   opticalRxOid: varchar("optical_rx_oid", { length: 255 }), // OID para potência RX na ONU
