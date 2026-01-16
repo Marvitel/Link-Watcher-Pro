@@ -651,11 +651,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
-    // Campos de monitoramento óptico
+    // Campos de monitoramento óptico (OIDs vêm do fabricante)
     opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
-    opticalRxOid: (link as any)?.opticalRxOid || "",
-    opticalTxOid: (link as any)?.opticalTxOid || "",
-    opticalOltRxOid: (link as any)?.opticalOltRxOid || "",
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
     opticalTxBaseline: (link as any)?.opticalTxBaseline || "",
     opticalDeltaThreshold: (link as any)?.opticalDeltaThreshold ?? 3,
@@ -1894,60 +1891,30 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               (() => {
                 const vendor = equipmentVendors.find(v => v.id === formData.equipmentVendorId);
                 const hasVendorOids = vendor && (vendor.opticalRxOid || vendor.opticalTxOid || vendor.opticalOltRxOid);
-                if (hasVendorOids) {
-                  return (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
-                      <p className="text-sm text-blue-700 dark:text-blue-300">
-                        <strong>OIDs do fabricante {vendor?.name}:</strong> Se os campos abaixo estiverem vazios, os OIDs padrão do fabricante serão usados automaticamente.
+                return (
+                  <div className={`p-3 rounded-md border ${hasVendorOids ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'}`}>
+                    {hasVendorOids ? (
+                      <>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          <strong>OIDs configurados no fabricante {vendor?.name}</strong>
+                        </p>
+                        <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-mono">
+                          {vendor?.opticalRxOid && <div>RX: {vendor.opticalRxOid}</div>}
+                          {vendor?.opticalTxOid && <div>TX: {vendor.opticalTxOid}</div>}
+                          {vendor?.opticalOltRxOid && <div>OLT RX: {vendor.opticalOltRxOid}</div>}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        O fabricante <strong>{vendor?.name}</strong> não possui OIDs ópticos configurados. Configure-os em Admin → Fabricantes.
                       </p>
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono">
-                        {vendor?.opticalRxOid && <div>RX: {vendor.opticalRxOid}</div>}
-                        {vendor?.opticalTxOid && <div>TX: {vendor.opticalTxOid}</div>}
-                        {vendor?.opticalOltRxOid && <div>OLT RX: {vendor.opticalOltRxOid}</div>}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
+                    )}
+                  </div>
+                );
               })()
             )}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="opticalRxOid">OID RX (ONU) - Potência Recebida (sobrescreve fabricante)</Label>
-                <Input
-                  id="opticalRxOid"
-                  value={formData.opticalRxOid}
-                  onChange={(e) => setFormData({ ...formData, opticalRxOid: e.target.value })}
-                  placeholder="Deixe vazio para usar o do fabricante"
-                  data-testid="input-optical-rx-oid"
-                />
-                <p className="text-xs text-muted-foreground">Apenas preencha para sobrescrever o OID do fabricante</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="opticalTxOid">OID TX (ONU) - Potência Transmitida (sobrescreve fabricante)</Label>
-                <Input
-                  id="opticalTxOid"
-                  value={formData.opticalTxOid}
-                  onChange={(e) => setFormData({ ...formData, opticalTxOid: e.target.value })}
-                  placeholder="Deixe vazio para usar o do fabricante"
-                  data-testid="input-optical-tx-oid"
-                />
-                <p className="text-xs text-muted-foreground">Apenas preencha para sobrescrever o OID do fabricante</p>
-              </div>
-            </div>
             
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="opticalOltRxOid">OID RX (OLT) - Potência no PON</Label>
-                <Input
-                  id="opticalOltRxOid"
-                  value={formData.opticalOltRxOid}
-                  onChange={(e) => setFormData({ ...formData, opticalOltRxOid: e.target.value })}
-                  placeholder="1.3.6.1.4.1.2011.6.128.1.1.2.51.1.6"
-                  data-testid="input-optical-olt-rx-oid"
-                />
-                <p className="text-xs text-muted-foreground">Potência RX vista na OLT (opcional)</p>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="opticalRxBaseline">Baseline RX (dBm)</Label>
                 <Input

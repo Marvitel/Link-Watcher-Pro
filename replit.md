@@ -41,13 +41,12 @@ Supports grouping links for combined monitoring, with different profiles:
 Member roles (`primary`, `backup`, `ipv4`, `ipv6`, `member`) define behavior within groups.
 
 ### Optical Signal Monitoring
-Features per-link optical signal monitoring with hierarchical OID configuration:
-- **Equipment Vendor OIDs (Default)**: `equipmentVendors` table stores default `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each manufacturer - configure once, applies to all links.
-- **Link OIDs (Override)**: Links can optionally override vendor defaults with custom OIDs for edge cases (special ONU models, custom equipment).
-- **OID Resolution Priority**: Link-specific OIDs → Vendor defaults → Hardcoded by vendor slug.
+Features per-link optical signal monitoring with centralized OID configuration per vendor:
+- **Equipment Vendor OIDs**: `equipmentVendors` table stores `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each manufacturer - configure once in Admin → Fabricantes, applies to all links of that vendor.
+- **OID Resolution**: Vendor OIDs → Hardcoded fallback by vendor slug.
 - **SNMP Collection**: `server/snmp.ts` supports Huawei MA5800/MA5608T, ZTE C320/C300, Fiberhome AN5516, Nokia ISAM with automatic dBm conversion.
 - **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
-- **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Vendor form includes optical OID fields; link form shows vendor defaults and allows override.
+- **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form shows vendor OIDs status and allows baseline/delta configuration.
 - **Correlation**: `splitters` table groups ONUs for mass event detection.
 
 ### Sistema de Auditoria
