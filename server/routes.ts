@@ -2785,6 +2785,55 @@ export async function registerRoutes(
     }
   });
 
+  // Teste de conexão SNMP para OLT
+  app.post("/api/olts/:id/test-snmp", requireSuperAdmin, async (req, res) => {
+    try {
+      const olt = await storage.getOlt(parseInt(req.params.id, 10));
+      if (!olt) {
+        return res.status(404).json({ error: "OLT não encontrada" });
+      }
+      
+      if (!olt.snmpProfileId) {
+        return res.json({ 
+          success: false, 
+          error: "OLT não possui perfil SNMP configurado" 
+        });
+      }
+      
+      const snmpProfile = await storage.getSnmpProfile(olt.snmpProfileId);
+      if (!snmpProfile) {
+        return res.json({ 
+          success: false, 
+          error: "Perfil SNMP não encontrado" 
+        });
+      }
+      
+      const { testSnmpConnection } = await import("./snmp");
+      const result = await testSnmpConnection(olt.ipAddress, {
+        id: snmpProfile.id,
+        version: snmpProfile.version,
+        port: snmpProfile.port,
+        community: snmpProfile.community,
+        securityLevel: snmpProfile.securityLevel,
+        authProtocol: snmpProfile.authProtocol,
+        authPassword: snmpProfile.authPassword,
+        privProtocol: snmpProfile.privProtocol,
+        privPassword: snmpProfile.privPassword,
+        username: snmpProfile.username,
+        timeout: snmpProfile.timeout,
+        retries: snmpProfile.retries,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao testar SNMP:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Falha ao testar conexão SNMP" 
+      });
+    }
+  });
+
   app.post("/api/olts/:id/query-alarm", requireAuth, async (req, res) => {
     try {
       const olt = await storage.getOlt(parseInt(req.params.id, 10));

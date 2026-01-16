@@ -63,9 +63,12 @@ function createSession(
   targetIp: string,
   profile: SnmpProfile
 ): snmp.Session {
+  // Normalize version - accepts "1", "v1", "2c", "v2c", "3", "v3"
+  const version = profile.version.replace("v", "").toLowerCase();
+  
   // Determine SNMP version - net-snmp uses numeric constants
   // Version1 = 0, Version2c = 1
-  const snmpVersion = profile.version === "v1" ? 0 : 1;
+  const snmpVersion = version === "1" ? 0 : 1;
   
   const options: any = {
     port: profile.port,
@@ -74,7 +77,7 @@ function createSession(
     version: snmpVersion,
   };
 
-  if (profile.version === "v3") {
+  if (version === "3") {
     let securityLevel = snmp.SecurityLevel.noAuthNoPriv;
     if (profile.securityLevel === "authNoPriv") {
       securityLevel = snmp.SecurityLevel.authNoPriv;
@@ -843,5 +846,95 @@ export async function getOpticalSignal(
     console.error(`[SNMP Optical] Error getting optical signal from ${targetIp}:`, error);
     try { session.close(); } catch {}
     return null;
+  }
+}
+
+// OID para sysDescr (descrição do sistema) - usado para teste de conexão
+const SYS_DESCR_OID = "1.3.6.1.2.1.1.1.0";
+const SYS_NAME_OID = "1.3.6.1.2.1.1.5.0";
+const SYS_UPTIME_OID = "1.3.6.1.2.1.1.3.0";
+
+export interface SnmpTestResult {
+  success: boolean;
+  sysDescr?: string;
+  sysName?: string;
+  uptime?: string;
+  error?: string;
+  responseTime?: number;
+}
+
+/**
+ * Testa conexão SNMP com um equipamento
+ * Consulta sysDescr, sysName e sysUptime para verificar conectividade
+ */
+export async function testSnmpConnection(
+  targetIp: string,
+  profile: SnmpProfile
+): Promise<SnmpTestResult> {
+  const startTime = Date.now();
+  const session = createSession(targetIp, profile);
+  
+  try {
+    return await new Promise<SnmpTestResult>((resolve) => {
+      const oids = [SYS_DESCR_OID, SYS_NAME_OID, SYS_UPTIME_OID];
+      
+      (session as any).get(oids, (error: any, varbinds: any[]) => {
+        const responseTime = Date.now() - startTime;
+        session.close();
+        
+        if (error) {
+          resolve({
+            success: false,
+            error: error.message || "Timeout ou erro de conexão SNMP",
+            responseTime,
+          });
+        } else {
+          const result: SnmpTestResult = {
+            success: true,
+            responseTime,
+          };
+          
+          varbinds.forEach((varbind: any) => {
+            if (isVarbindError(varbind)) {
+              return;
+            }
+            
+            const oid = varbind.oid.toString();
+            let value: string;
+            
+            if (Buffer.isBuffer(varbind.value)) {
+              value = varbind.value.toString("utf-8");
+            } else {
+              value = String(varbind.value);
+            }
+            
+            if (oid === SYS_DESCR_OID) {
+              result.sysDescr = value;
+            } else if (oid === SYS_NAME_OID) {
+              result.sysName = value;
+            } else if (oid === SYS_UPTIME_OID) {
+              // Uptime vem em centésimos de segundo
+              const uptimeTicks = parseInt(value, 10);
+              if (!isNaN(uptimeTicks)) {
+                const seconds = Math.floor(uptimeTicks / 100);
+                const days = Math.floor(seconds / 86400);
+                const hours = Math.floor((seconds % 86400) / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                result.uptime = `${days}d ${hours}h ${minutes}m`;
+              }
+            }
+          });
+          
+          resolve(result);
+        }
+      });
+    });
+  } catch (error) {
+    try { session.close(); } catch {}
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Erro desconhecido",
+      responseTime: Date.now() - startTime,
+    };
   }
 }

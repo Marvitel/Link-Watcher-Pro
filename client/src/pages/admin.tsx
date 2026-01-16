@@ -6530,6 +6530,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
   const [editingOlt, setEditingOlt] = useState<Olt | undefined>(undefined);
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
   const [testingConnection, setTestingConnection] = useState<number | null>(null);
+  const [testingSnmp, setTestingSnmp] = useState<number | null>(null);
 
   const { data: oltsList, isLoading } = useQuery<Olt[]>({
     queryKey: ["/api/olts"],
@@ -6640,6 +6641,31 @@ function OltsTab({ clients }: { clients: Client[] }) {
       toast({ title: "Erro ao testar conexao", variant: "destructive" });
     } finally {
       setTestingConnection(null);
+    }
+  };
+
+  const handleTestSnmp = async (oltId: number) => {
+    setTestingSnmp(oltId);
+    try {
+      const response = await apiRequest("POST", `/api/olts/${oltId}/test-snmp`);
+      const result = await response.json();
+      if (result.success) {
+        const desc = result.sysDescr ? result.sysDescr.substring(0, 80) : "";
+        toast({ 
+          title: "SNMP OK", 
+          description: `${result.sysName || "Equipamento"} - ${result.uptime || ""} (${result.responseTime}ms)${desc ? `\n${desc}` : ""}` 
+        });
+      } else {
+        toast({ 
+          title: "Falha SNMP", 
+          description: result.error || "Sem resposta", 
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      toast({ title: "Erro ao testar SNMP", variant: "destructive" });
+    } finally {
+      setTestingSnmp(null);
     }
   };
 
@@ -6941,12 +6967,27 @@ function OltsTab({ clients }: { clients: Client[] }) {
                       size="sm"
                       onClick={() => handleTestConnection(olt.id)}
                       disabled={testingConnection === olt.id}
+                      title="Testar conexao SSH/Telnet"
                       data-testid={`button-test-olt-${olt.id}`}
                     >
                       {testingConnection === olt.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <RefreshCw className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestSnmp(olt.id)}
+                      disabled={testingSnmp === olt.id || !(olt as any).snmpProfileId}
+                      title={(olt as any).snmpProfileId ? "Testar SNMP" : "SNMP nao configurado"}
+                      data-testid={`button-test-snmp-${olt.id}`}
+                    >
+                      {testingSnmp === olt.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Radio className="w-4 h-4" />
                       )}
                     </Button>
                     <Button
