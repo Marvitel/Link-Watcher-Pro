@@ -118,7 +118,9 @@ function SignalMeter({ value, min = -35, max = -10, thresholds }: {
 }
 
 export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProps) {
-  const latestMetric = metrics[metrics.length - 1];
+  // Métricas são retornadas em ordem descendente (mais recente primeiro)
+  // Então a métrica mais recente está em metrics[0]
+  const latestMetric = metrics[0];
   const currentRxPower = latestMetric?.opticalRxPower;
   const currentTxPower = latestMetric?.opticalTxPower;
   const currentOltRxPower = latestMetric?.opticalOltRxPower;
@@ -132,16 +134,20 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
     ? currentRxPower - baselineRx
     : null;
 
+  // Métricas vêm em ordem descendente (mais recente primeiro)
+  // Para o gráfico, queremos ordem cronológica (mais antigo à esquerda)
+  // Então pegamos os 48 mais recentes e invertemos para ordem cronológica
   const opticalData = metrics
     .filter(m => m.opticalRxPower !== null || m.opticalTxPower !== null)
+    .slice(0, 48) // Pegar os 48 mais recentes (que estão no início do array)
+    .reverse() // Inverter para ordem cronológica (mais antigo primeiro)
     .map(m => ({
       time: format(new Date(m.timestamp), "HH:mm", { locale: ptBR }),
       rx: m.opticalRxPower,
       tx: m.opticalTxPower,
       oltRx: m.opticalOltRxPower,
       baseline: baselineRx,
-    }))
-    .slice(-48);
+    }));
 
   const hasOpticalData = opticalData.length > 0;
   const hasCurrentReading = currentRxPower !== null && currentRxPower !== undefined;
