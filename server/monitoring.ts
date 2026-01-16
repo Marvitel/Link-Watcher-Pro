@@ -1222,15 +1222,17 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 if (hasValues) {
                   console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
                   
-                  // Fallback para Zabbix: se OLT RX não veio via SNMP e temos serial, consultar Zabbix
-                  if (opticalSignal.oltRxPower === null && link.onuSearchString) {
-                    console.log(`[Monitor] ${link.name} - Óptico: OLT_RX vazio, tentando fallback Zabbix...`);
+                  // Fallback para Zabbix: se OLT RX não veio via SNMP e temos serial da ONU, consultar Zabbix
+                  // Usar equipmentSerialNumber (serial da ONU) ao invés de onuSearchString (comando CLI)
+                  const onuSerial = link.equipmentSerialNumber || null;
+                  if (opticalSignal.oltRxPower === null && onuSerial) {
+                    console.log(`[Monitor] ${link.name} - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial ${onuSerial}...`);
                     const zabbixOlt = await db.select().from(olts)
                       .where(eq(olts.connectionType, "mysql"))
                       .limit(1);
                     
                     if (zabbixOlt.length > 0) {
-                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], onuSerial);
                       if (zabbixMetrics) {
                         // Complementar com dados do Zabbix
                         if (zabbixMetrics.oltRxPower !== null) {
@@ -1251,14 +1253,16 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                   console.log(`[Monitor] ${link.name} - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para ${oltVendorSlug}.`);
                   
                   // Fallback completo para Zabbix se SNMP não retornou nada
-                  if (link.onuSearchString) {
-                    console.log(`[Monitor] ${link.name} - Óptico: tentando fallback completo Zabbix...`);
+                  // Usar equipmentSerialNumber (serial da ONU) ao invés de onuSearchString (comando CLI)
+                  const onuSerialFallback = link.equipmentSerialNumber || null;
+                  if (onuSerialFallback) {
+                    console.log(`[Monitor] ${link.name} - Óptico: tentando fallback completo Zabbix por serial ${onuSerialFallback}...`);
                     const zabbixOlt = await db.select().from(olts)
                       .where(eq(olts.connectionType, "mysql"))
                       .limit(1);
                     
                     if (zabbixOlt.length > 0) {
-                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                      const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], onuSerialFallback);
                       if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
                         opticalSignal = {
                           rxPower: zabbixMetrics.rxPower,
@@ -1280,14 +1284,16 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 console.log(`[Monitor] ${link.name} - Óptico: sem resposta SNMP da OLT ${olt[0].ipAddress}`);
                 
                 // Fallback para Zabbix se SNMP falhou
-                if (link.onuSearchString) {
-                  console.log(`[Monitor] ${link.name} - Óptico: tentando fallback Zabbix após falha SNMP...`);
+                // Usar equipmentSerialNumber (serial da ONU) ao invés de onuSearchString (comando CLI)
+                const onuSerialSnmpFail = link.equipmentSerialNumber || null;
+                if (onuSerialSnmpFail) {
+                  console.log(`[Monitor] ${link.name} - Óptico: tentando fallback Zabbix por serial ${onuSerialSnmpFail} após falha SNMP...`);
                   const zabbixOlt = await db.select().from(olts)
                     .where(eq(olts.connectionType, "mysql"))
                     .limit(1);
                   
                   if (zabbixOlt.length > 0) {
-                    const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], link.onuSearchString);
+                    const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], onuSerialSnmpFail);
                     if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
                       opticalSignal = {
                         rxPower: zabbixMetrics.rxPower,
