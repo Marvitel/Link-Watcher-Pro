@@ -1155,43 +1155,63 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
   // Coleta de sinal óptico (se habilitado e configurado)
   let opticalSignal: OpticalSignalData | null = null;
-  if (link.opticalMonitoringEnabled) {
-    // Buscar OIDs do fabricante do equipamento
-    let rxOid: string | null = null;
-    let txOid: string | null = null;
-    let oltRxOid: string | null = null;
+  if (link.opticalMonitoringEnabled && link.oltId) {
+    // Verificar se temos os dados da ONU (slot, port, onuId)
+    const hasOnuParams = link.slotOlt !== null && link.portOlt !== null && link.onuId !== null;
     
-    if (link.equipmentVendorId) {
-      const vendor = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, link.equipmentVendorId)).limit(1);
-      if (vendor.length > 0) {
-        rxOid = vendor[0].opticalRxOid || null;
-        txOid = vendor[0].opticalTxOid || null;
-        oltRxOid = vendor[0].opticalOltRxOid || null;
-        if (rxOid || txOid || oltRxOid) {
-          console.log(`[Monitor] ${link.name} - Usando OIDs ópticos do fabricante ${vendor[0].name}`);
-        }
-      }
-    }
-    
-    // Para coletar sinal óptico, precisamos do perfil SNMP da OLT
-    if (link.oltId && (rxOid || txOid || oltRxOid)) {
+    if (!hasOnuParams) {
+      console.log(`[Monitor] ${link.name} - Sinal óptico desabilitado: falta slot/port/onuId`);
+    } else {
+      // Buscar OLT e seu vendor
       const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
+      
       if (olt.length > 0 && olt[0].snmpProfileId) {
-        const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
-        if (oltProfile) {
-          // Usar IP da OLT para consultar sinal óptico
-          opticalSignal = await getOpticalSignal(
-            olt[0].ipAddress,
-            oltProfile,
-            rxOid,
-            txOid,
-            oltRxOid
-          );
-          if (opticalSignal) {
-            console.log(`[Monitor] ${link.name} - Sinal óptico via OLT ${olt[0].name}: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
+        // Usar o vendor da OLT (campo vendor da tabela olts) para obter o slug
+        const oltVendorSlug = olt[0].vendor || 'generic';
+        
+        // Buscar OIDs do fabricante do link (equipmentVendorId)
+        let rxOid: string | null = null;
+        let txOid: string | null = null;
+        let oltRxOid: string | null = null;
+        
+        if (link.equipmentVendorId) {
+          const vendor = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, link.equipmentVendorId)).limit(1);
+          if (vendor.length > 0) {
+            rxOid = vendor[0].opticalRxOid || null;
+            txOid = vendor[0].opticalTxOid || null;
+            oltRxOid = vendor[0].opticalOltRxOid || null;
+            if (rxOid || txOid || oltRxOid) {
+              console.log(`[Monitor] ${link.name} - Usando OIDs ópticos do fabricante ${vendor[0].name}`);
+            }
           }
-        } else {
-          console.log(`[Monitor] ${link.name} - OLT ${olt[0].name} sem perfil SNMP configurado`);
+        }
+        
+        if (rxOid || txOid || oltRxOid) {
+          const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
+          if (oltProfile) {
+            // Preparar parâmetros da ONU
+            const onuParams = {
+              slot: link.slotOlt!,
+              port: link.portOlt!,
+              onuId: parseInt(link.onuId!, 10) || 1,
+            };
+            
+            // Usar IP da OLT e vendor da OLT para calcular índice e consultar
+            opticalSignal = await getOpticalSignal(
+              olt[0].ipAddress,
+              oltProfile,
+              oltVendorSlug,
+              onuParams,
+              rxOid,
+              txOid,
+              oltRxOid
+            );
+            if (opticalSignal) {
+              console.log(`[Monitor] ${link.name} - Sinal óptico via OLT ${olt[0].name}: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
+            }
+          } else {
+            console.log(`[Monitor] ${link.name} - OLT ${olt[0].name} sem perfil SNMP configurado`);
+          }
         }
       }
     }

@@ -608,25 +608,141 @@ export const OPTICAL_OIDS = {
   },
 };
 
+// Parâmetros da ONU para cálculo do índice SNMP
+export interface OnuParams {
+  slot: number;
+  port: number;
+  onuId: number;
+  shelf?: number; // Alguns fabricantes usam shelf (padrão 0)
+}
+
+/**
+ * Calcula o índice SNMP da ONU baseado no fabricante.
+ * Cada fabricante tem uma fórmula diferente para compor o índice.
+ * 
+ * @param vendorSlug Identificador do fabricante (huawei, zte, fiberhome, nokia, datacom)
+ * @param params Parâmetros da ONU (slot, port, onuId, shelf)
+ * @returns String do índice SNMP ou null se fabricante não suportado
+ */
+export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): string | null {
+  const { slot, port, onuId, shelf = 0 } = params;
+  const normalizedSlug = vendorSlug.toLowerCase().trim();
+  
+  switch (normalizedSlug) {
+    case 'huawei':
+    case 'huawei-ma5800':
+    case 'huawei-ma5608t':
+      // Huawei: índice = (shelf * 8388608) + (slot * 65536) + (port * 256) + onuId
+      // Frame/Shelf padrão = 0, então: (slot * 65536) + (port * 256) + onuId
+      // Fórmula oficial Huawei: hwGponDeviceOntIndex = frameId * 8388608 + slotId * 65536 + portId * 256 + ontId
+      const huaweiIndex = (shelf * 8388608) + (slot * 65536) + (port * 256) + onuId;
+      return huaweiIndex.toString();
+    
+    case 'zte':
+    case 'zte-c320':
+    case 'zte-c300':
+    case 'zte-c600':
+      // ZTE: índice composto = {gponIfIndex}.{onuId}
+      // gponIfIndex = (rack * 33554432) + (shelf * 1048576) + (slot * 32768) + (port * 256) + 1
+      // Simplificado para rack=0, shelf=0: (slot * 32768) + (port * 256) + 1
+      const zteGponIfIndex = (slot * 32768) + (port * 256) + 1;
+      return `${zteGponIfIndex}.${onuId}`;
+    
+    case 'fiberhome':
+    case 'fiberhome-an5516':
+    case 'an5516':
+      // Fiberhome: índice = ponPortIndex.onuId
+      // ponPortIndex pode variar, formato comum: slot*1000000 + port*1000 + 1
+      // Ou formato mais simples: {ponId}.{onuId} onde ponId = slot * 16 + port
+      const fhPonId = slot * 16 + port;
+      return `${fhPonId}.${onuId}`;
+    
+    case 'nokia':
+    case 'nokia-isam':
+    case 'alcatel':
+    case 'alcatel-lucent':
+      // Nokia/Alcatel-Lucent ISAM: índice = ponPortId.onuId
+      // ponPortId = (shelf * 65536) + (slot * 256) + port + 1
+      // Simplificado: (slot * 256) + port + 1
+      const nokiaPonPortId = (slot * 256) + port + 1;
+      return `${nokiaPonPortId}.${onuId}`;
+    
+    case 'datacom':
+    case 'datacom-dm4610':
+    case 'datacom-dm4615':
+      // Datacom: formato {slot}/{port}.{onuId} ou índice numérico
+      // Índice numérico: (slot * 10000) + (port * 100) + onuId
+      const datacomIndex = (slot * 10000) + (port * 100) + onuId;
+      return datacomIndex.toString();
+    
+    case 'parks':
+    case 'parks-fiberlink':
+      // Parks FiberLink: formato slot.port.onuId
+      return `${slot}.${port}.${onuId}`;
+    
+    case 'intelbras':
+    case 'intelbras-olt':
+      // Intelbras: similar ao ZTE
+      const intelbrasIfIndex = (slot * 32768) + (port * 256) + 1;
+      return `${intelbrasIfIndex}.${onuId}`;
+    
+    default:
+      // Formato genérico: slot.port.onuId
+      console.log(`[SNMP] Fabricante '${vendorSlug}' sem fórmula específica, usando formato genérico`);
+      return `${slot}.${port}.${onuId}`;
+  }
+}
+
+/**
+ * Constrói o OID completo concatenando o OID base com o índice da ONU.
+ * 
+ * @param baseOid OID base do fabricante (sem o índice)
+ * @param onuIndex Índice da ONU calculado por calculateOnuSnmpIndex
+ * @returns OID completo para consulta SNMP
+ */
+export function buildOpticalOid(baseOid: string, onuIndex: string): string {
+  // Remove ponto final se existir no OID base
+  const cleanBase = baseOid.endsWith('.') ? baseOid.slice(0, -1) : baseOid;
+  return `${cleanBase}.${onuIndex}`;
+}
+
 /**
  * Coleta dados de sinal óptico via SNMP.
- * @param targetIp IP do equipamento (OLT ou roteador com dados de ONU)
+ * @param targetIp IP do equipamento (OLT)
  * @param profile Perfil SNMP
- * @param rxOid OID personalizado para RX Power (opcional)
- * @param txOid OID personalizado para TX Power (opcional)
- * @param oltRxOid OID para RX Power na OLT (opcional)
+ * @param vendorSlug Slug do fabricante (huawei, zte, fiberhome, etc.)
+ * @param onuParams Parâmetros da ONU (slot, port, onuId) para calcular índice
+ * @param baseRxOid OID base para RX Power (sem índice)
+ * @param baseTxOid OID base para TX Power (sem índice)
+ * @param baseOltRxOid OID base para RX Power na OLT (sem índice)
  * @returns Dados de sinal óptico ou null se falhar
  */
 export async function getOpticalSignal(
   targetIp: string,
   profile: SnmpProfile,
-  rxOid?: string | null,
-  txOid?: string | null,
-  oltRxOid?: string | null
+  vendorSlug: string,
+  onuParams: OnuParams | null,
+  baseRxOid?: string | null,
+  baseTxOid?: string | null,
+  baseOltRxOid?: string | null
 ): Promise<OpticalSignalData | null> {
-  if (!rxOid && !txOid && !oltRxOid) {
+  if (!baseRxOid && !baseTxOid && !baseOltRxOid) {
     return null; // Sem OIDs configurados
   }
+  
+  if (!onuParams || onuParams.slot === undefined || onuParams.port === undefined || onuParams.onuId === undefined) {
+    console.log(`[SNMP Optical] Parâmetros da ONU incompletos (slot/port/onuId), pulando coleta`);
+    return null;
+  }
+  
+  // Calcular índice SNMP da ONU baseado no fabricante
+  const onuIndex = calculateOnuSnmpIndex(vendorSlug, onuParams);
+  if (!onuIndex) {
+    console.log(`[SNMP Optical] Não foi possível calcular índice para fabricante '${vendorSlug}'`);
+    return null;
+  }
+  
+  console.log(`[SNMP Optical] Índice calculado para ${vendorSlug}: slot=${onuParams.slot}, port=${onuParams.port}, onuId=${onuParams.onuId} -> index=${onuIndex}`);
 
   const session = createSession(targetIp, profile);
   
@@ -634,18 +750,24 @@ export async function getOpticalSignal(
     const oidsToQuery: string[] = [];
     const oidMapping: Record<string, keyof OpticalSignalData> = {};
     
-    if (rxOid) {
-      oidsToQuery.push(rxOid);
-      oidMapping[rxOid] = 'rxPower';
+    // Construir OIDs completos com índice da ONU
+    if (baseRxOid) {
+      const fullOid = buildOpticalOid(baseRxOid, onuIndex);
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'rxPower';
     }
-    if (txOid) {
-      oidsToQuery.push(txOid);
-      oidMapping[txOid] = 'txPower';
+    if (baseTxOid) {
+      const fullOid = buildOpticalOid(baseTxOid, onuIndex);
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'txPower';
     }
-    if (oltRxOid) {
-      oidsToQuery.push(oltRxOid);
-      oidMapping[oltRxOid] = 'oltRxPower';
+    if (baseOltRxOid) {
+      const fullOid = buildOpticalOid(baseOltRxOid, onuIndex);
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'oltRxPower';
     }
+    
+    console.log(`[SNMP Optical] Consultando OIDs: ${oidsToQuery.join(', ')}`);
 
     return new Promise((resolve) => {
       let completed = false;
@@ -664,7 +786,14 @@ export async function getOpticalSignal(
           clearTimeout(timeoutId);
           try { session.close(); } catch {}
           
-          if (error || !varbinds || varbinds.length === 0) {
+          if (error) {
+            console.log(`[SNMP Optical] Erro na consulta: ${error.message || error}`);
+            resolve(null);
+            return;
+          }
+          
+          if (!varbinds || varbinds.length === 0) {
+            console.log(`[SNMP Optical] Nenhum resultado retornado`);
             resolve(null);
             return;
           }
