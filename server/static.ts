@@ -2,11 +2,21 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { fileURLToPath } from "url";
 
-// ESM compatibility
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Diretório base calculado uma vez na inicialização
+// Em produção: esbuild define __dirname no bundle CJS
+// Em desenvolvimento: usa process.cwd() ou import.meta.url
+let _dirname: string;
+
+// Verifica se estamos em ambiente CJS com __dirname definido pelo esbuild
+declare const __dirname: string | undefined;
+
+if (typeof __dirname === 'string' && __dirname) {
+  _dirname = __dirname;
+} else {
+  // Fallback: usar diretório do processo (funciona em dev com tsx)
+  _dirname = process.cwd();
+}
 
 // Versão do build - calculada do conteúdo real dos arquivos
 // Cacheada para ser estável durante toda a vida do servidor
@@ -18,7 +28,7 @@ export function getBuildVersion(): string {
   if (cachedBuildVersion) return cachedBuildVersion;
   
   // Em produção, calcula do hash do index.html
-  const distPath = path.resolve(__dirname, "public");
+  const distPath = path.resolve(_dirname, "public");
   try {
     const indexPath = path.resolve(distPath, "index.html");
     // Usa hash do conteúdo (estável até próximo deploy)
@@ -40,7 +50,7 @@ export function invalidateBuildVersion(): void {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  const distPath = path.resolve(_dirname, "public");
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,

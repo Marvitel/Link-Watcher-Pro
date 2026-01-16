@@ -1,0 +1,64 @@
+rialNumber":"TPLGE7BDA510","latitude":"","longitude":"","lastIfIndexValidation":null,"ifIndexMismatchCount":0,"originalIfName":null,"invertBandwidth":false,"opticalMonitoringEnabled":true,"opticalRxBaseline":-18,"opticalTxBaseline":null,"splitterId":null,"opticalDeltaThreshold":3,"opticalRxOid":null,"opticalTxOid":null,"opticalOltRxOid":null,"createdAt":"2026-01-14T19:20:24.294Z"},"failureInfo":{"reason":null,"reasonLabel":"Operacional","source":null,"lastFailureAt":"2026-01-16T03:01:07.239Z"},"lastFailureInfo":{"reason":"no_response","reasonLabel":"Sem Resposta","source":"monitoring","lastFailureAt":"2026-01-16T03:01:07.239Z"},"activeIncident":null}
+jan 16 14:18:31 link-monitor npm[481537]: 2:18:31 PM [express] GET /api/links/16/metrics 401 in 3ms :: {"error":"Autenticação necessária"}
+jan 16 14:18:32 link-monitor systemd[1]: Stopping link-monitor.service - Link Monitor - Marvitel...
+jan 16 14:18:32 link-monitor sudo[481607]: pam_unix(sudo:session): session closed for user root
+jan 16 14:18:32 link-monitor systemd[1]: link-monitor.service: Killing process 481539 (node) with signal SIGKILL.
+jan 16 14:18:32 link-monitor systemd[1]: link-monitor.service: Deactivated successfully.
+jan 16 14:18:32 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:18:32 link-monitor systemd[1]: link-monitor.service: Consumed 4.647s CPU time.
+jan 16 14:19:18 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:19:19 link-monitor npm[481820]: > rest-express@1.0.0 start
+jan 16 14:19:19 link-monitor npm[481820]: > NODE_ENV=production node dist/index.cjs
+jan 16 14:19:19 link-monitor npm[481833]: node:internal/url:1487
+jan 16 14:19:19 link-monitor npm[481833]:     throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+jan 16 14:19:19 link-monitor npm[481833]:     ^
+jan 16 14:19:19 link-monitor npm[481833]: TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+jan 16 14:19:19 link-monitor npm[481833]:     at fileURLToPath (node:internal/url:1487:11)
+jan 16 14:19:19 link-monitor npm[481833]:     at Object.<anonymous> (/opt/link-monitor/dist/index.cjs:305:15197)
+jan 16 14:19:19 link-monitor npm[481833]:     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+jan 16 14:19:19 link-monitor npm[481833]:     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+jan 16 14:19:19 link-monitor npm[481833]:     at Module.load (node:internal/modules/cjs/loader:1266:32)
+jan 16 14:19:19 link-monitor npm[481833]:     at Module._load (node:internal/modules/cjs/loader:1091:12)
+jan 16 14:19:19 link-monitor npm[481833]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+jan 16 14:19:19 link-monitor npm[481833]:     at node:internal/main/run_main_module:28:49 {
+jan 16 14:19:19 link-monitor npm[481833]:   code: 'ERR_INVALID_ARG_TYPE'
+jan 16 14:19:19 link-monitor npm[481833]: }
+jan 16 14:19:19 link-monitor npm[481833]: Node.js v20.19.6
+jan 16 14:19:19 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 16 14:19:19 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 16 14:19:19 link-monitor systemd[1]: link-monitor.service: Consumed 1.392s CPU time.
+jan 16 14:19:30 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 1.
+jan 16 14:19:30 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:19:30 link-monitor systemd[1]: link-monitor.service: Consumed 1.392s CPU time.
+jan 16 14:19:30 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:19:30 link-monitor npm[481844]: > rest-express@1.0.0 start
+jan 16 14:19:30 link-monitor npm[481844]: > NODE_ENV=production node dist/index.cjs
+jan 16 14:19:31 link-monitor npm[481856]: node:internal/url:1487
+jan 16 14:19:31 link-monitor npm[481856]:     throw new ERR_INVALID_ARG_TYPE('path', ['string', 'URL'], path);
+jan 16 14:19:31 link-monitor npm[481856]:     ^
+jan 16 14:19:31 link-monitor npm[481856]: TypeError [ERR_INVALID_ARG_TYPE]: The "path" argument must be of type string or an instance of URL. Received undefined
+jan 16 14:19:31 link-monitor npm[481856]:     at fileURLToPath (node:internal/url:1487:11)
+jan 16 14:19:31 link-monitor npm[481856]:     at Object.<anonymous> (/opt/link-monitor/dist/index.cjs:305:15197)
+jan 16 14:19:31 link-monitor npm[481856]:     at Module._compile (node:internal/modules/cjs/loader:1521:14)
+jan 16 14:19:31 link-monitor npm[481856]:     at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+jan 16 14:19:31 link-monitor npm[481856]:     at Module.load (node:internal/modules/cjs/loader:1266:32)
+jan 16 14:19:31 link-monitor npm[481856]:     at Module._load (node:internal/modules/cjs/loader:1091:12)
+jan 16 14:19:31 link-monitor npm[481856]:     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+jan 16 14:19:31 link-monitor npm[481856]:     at node:internal/main/run_main_module:28:49 {
+jan 16 14:19:31 link-monitor npm[481856]:   code: 'ERR_INVALID_ARG_TYPE'
+jan 16 14:19:31 link-monitor npm[481856]: }
+jan 16 14:19:31 link-monitor npm[481856]: Node.js v20.19.6
+jan 16 14:19:31 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 16 14:19:31 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 16 14:19:31 link-monitor systemd[1]: link-monitor.service: Consumed 1.156s CPU time.
+jan 16 14:19:33 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:19:33 link-monitor systemd[1]: link-monitor.service: Consumed 1.156s CPU time.
+jan 16 14:19:35 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+jan 16 14:19:36 link-monitor npm[481870]: > rest-express@1.0.0 start
+jan 16 14:19:36 link-monitor npm[481870]: > NODE_ENV=production node dist/index.cjs
+jan 16 14:19:36 link-monitor npm[481884]: [Monitor] Starting real-time monitoring with 30s interval
+jan 16 14:19:36 link-monitor npm[481884]: [Aggregation] Starting aggregation jobs...
+jan 16 14:19:36 link-monitor npm[481884]: [Aggregation] Jobs scheduled - Hourly at :05, Daily+Cleanup at 01:05
+jan 16 14:19:36 link-monitor npm[481884]: [Static] Build version: mkh572bb
+jan 16 14:19:36 link-monitor npm[481884]: 2:19:36 PM [express] serving on port 5000
+jan 16 14:19:36 link-monitor npm[481884]: [Monitor] Starting parallel collection for 15
