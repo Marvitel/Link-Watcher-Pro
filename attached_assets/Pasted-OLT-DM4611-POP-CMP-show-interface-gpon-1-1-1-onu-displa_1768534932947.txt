@@ -1,0 +1,82 @@
+OLT-DM4611-POP-CMP# show interface gpon 1/1/1 onu | display json
+{
+  "data": {
+    "dmos-base:config": {
+      "interface": {
+        "interface-gpon:gpon": [
+          {
+            "chassis-id": 1,
+            "slot-id": 1,
+            "port-id": 1,
+            "onu:onu": [
+              {
+                "id": 0,
+                "onu-status:rssi-value": "-19.63",
+                "onu-status:onu-status": {
+                  "serial-number": "DACM0002524B",
+                  "name": "MPSE-CARMOPOLIS",
+                  "oper-state": "Up",
+                  "primary-status": "Active",
+                  "serial-number-status": "N/A",
+                  "dhcp-status-ipv4-cidr": "0.0.0.0/0",
+                  "dhcp-status-default-gateway": "0.0.0.0",
+                  "software-download-state": "None",
+                  "software-download-progress": -1,
+                  "vendor-id": "DACM",
+                  "eq-id": "DM984-422",
+                  "version": "800.5156.13",
+                  "active-fw": "v4.1.8-6-g3c7f",
+                  "standby-fw": "v4.1.4-0-g8a9d",
+                  "valid-active-fw": "valid",
+                  "comm-active-fw": "committed",
+                  "valid-standby-fw": "valid",
+                  "comm-standby-fw": "not committed",
+                  "rx-optical-pw": "-16.18",
+                  "tx-optical-pw": "Not supported",
+                  "sum-fixed": "0",
+                  "sum-fixed-assured": "0",
+                  "uptime": "6 days, 15:35",
+                  "last-updated": "2026-01-16 03:35:35 UTC+0",
+                  "last-seen-online": "N/A",
+                  "rg-profile-one-shot-prov": "Not provisioned",
+                  "distance": "4"
+                },
+                "show-itf-gpon-onu-gem:gem": [
+                  {
+                    "gem-id": 1,
+                    "gem-ocsid": 289,
+                    "operational-status": "up",
+                    "alloc-id": 256,
+                    "tcont": 1,
+                    "encryption-status": "disabled"
+                  }
+                ]
+              },
+              {
+                "id": 1,
+                "onu-status:rssi-value": "-28.24",
+                "onu-status:onu-status": {
+                  "serial-number": "ITBSF1B17A45",
+                  "name": "SODEXO-CARMOPOLIS===ITBSF1B17A45",
+                  "oper-state": "Up",
+                  "primary-status": "Active",
+                  "serial-number-status": "N/A",
+                  "dhcp-status-ipv4-cidr": "0.0.0.0/0",
+                  "dhcp-status-default-gateway": "0.0.0.0",
+                  "software-download-state": "None",
+                  "software-download-progress": -1,
+                  "vendor-id": "ITBS",
+                  "eq-id": "140PoE",
+                  "version": "PON140PoE_v1.0",
+                  "active-fw": "2.2-240520",
+                  "standby-fw": "2.2-230830",
+                  "valid-active-fw": "valid",
+                  "comm-active-fw": "committed",
+                  "valid-standby-fw": "valid",
+                  "comm-standby-fw": "not committed",
+                  "rx-optical-pw": "-22.08",
+                  "tx-optical-pw": "1.93",
+                  "sum-fixed": "0",
+                  "sum-fixed-assured": "0",
+                  "uptime": "11 days, 11:05",
+Aborted: by user
