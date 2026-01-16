@@ -43,10 +43,12 @@ Member roles (`primary`, `backup`, `ipv4`, `ipv6`, `member`) define behavior wit
 ### Optical Signal Monitoring
 Features per-link optical signal monitoring with centralized OID configuration per vendor:
 - **Equipment Vendor OIDs**: `equipmentVendors` table stores `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each manufacturer - configure once in Admin → Fabricantes, applies to all links of that vendor.
-- **OID Resolution**: Vendor OIDs → Hardcoded fallback by vendor slug.
+- **OID Resolution**: Vendor OIDs only (no per-link override) → Hardcoded fallback by vendor slug.
+- **OLT SNMP Configuration**: OLTs have `snmpProfileId` field to associate with an existing SNMP profile. The monitoring system uses the OLT's IP address and SNMP profile to query optical signal data.
+- **SNMP Collection Flow**: Link → OLT → SNMP Profile → Query OLT IP for optical OIDs from vendor.
 - **SNMP Collection**: `server/snmp.ts` supports Huawei MA5800/MA5608T, ZTE C320/C300, Fiberhome AN5516, Nokia ISAM with automatic dBm conversion.
 - **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
-- **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form shows vendor OIDs status and allows baseline/delta configuration.
+- **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form allows baseline/delta configuration.
 - **Correlation**: `splitters` table groups ONUs for mass event detection.
 
 ### Sistema de Auditoria
