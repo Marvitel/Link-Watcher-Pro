@@ -41,12 +41,17 @@ Supports grouping links for combined monitoring, with different profiles:
 Member roles (`primary`, `backup`, `ipv4`, `ipv6`, `member`) define behavior within groups.
 
 ### Optical Signal Monitoring
-Features per-link optical signal monitoring with centralized OID configuration per vendor:
-- **Equipment Vendor OIDs**: `equipmentVendors` table stores `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each manufacturer - configure once in Admin → Fabricantes, applies to all links of that vendor.
-- **OID Resolution**: Vendor OIDs only (no per-link override) → Hardcoded fallback by vendor slug.
-- **OLT SNMP Configuration**: OLTs have `snmpProfileId` field to associate with an existing SNMP profile. The monitoring system uses the OLT's IP address and SNMP profile to query optical signal data.
-- **SNMP Collection Flow**: Link → OLT → SNMP Profile → Query OLT IP for optical OIDs from vendor.
-- **SNMP Collection**: `server/snmp.ts` supports Huawei MA5800/MA5608T, ZTE C320/C300, Fiberhome AN5516, Nokia ISAM with automatic dBm conversion.
+Features per-link optical signal monitoring with centralized OID configuration per OLT vendor:
+- **OLT Vendor OIDs**: `equipmentVendors` table stores `opticalRxOid`, `opticalTxOid`, `opticalOltRxOid` for each OLT manufacturer. Configure once in Admin → Fabricantes, applies to all OLTs of that vendor.
+- **OLT Configuration**: OLTs have `vendor` (slug) and `snmpProfileId` fields. The vendor slug must match an entry in `equipmentVendors.slug`.
+- **Link ONU Data**: Links store `slotOlt`, `portOlt`, and `onuId` fields identifying the ONU on the OLT.
+- **SNMP Index Calculation**: `server/snmp.ts` contains `calculateOnuSnmpIndex()` function with vendor-specific formulas:
+  - **Huawei**: `(shelf * 8388608) + (slot * 65536) + (port * 256) + onuId`
+  - **ZTE**: `{gponIfIndex}.{onuId}` where gponIfIndex = `(slot * 32768) + (port * 256) + 1`
+  - **Fiberhome**: `{ponId}.{onuId}` where ponId = `slot * 16 + port`
+  - **Nokia**: `{ponPortId}.{onuId}` where ponPortId = `(slot * 256) + port + 1`
+  - **Datacom**: `(slot * 10000) + (port * 100) + onuId`
+- **SNMP Collection Flow**: Link → OLT → Vendor Slug → equipmentVendors (OIDs + index formula) → SNMP Profile → Query OLT IP with full OID (base + index).
 - **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
 - **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form allows baseline/delta configuration.
 - **Correlation**: `splitters` table groups ONUs for mass event detection.
