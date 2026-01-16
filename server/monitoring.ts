@@ -1159,10 +1159,23 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     // Verificar se temos os dados da ONU (slot, port, onuId)
     const hasSlotPort = link.slotOlt !== null && link.portOlt !== null;
     const hasOnuId = link.onuId !== null && link.onuId !== '';
-    const parsedOnuId = hasOnuId ? parseInt(link.onuId!, 10) : NaN;
+    
+    // Parse onuId de forma inteligente - aceita formatos como "14", "1/1/8/14", "slot/1/8/14"
+    let parsedOnuId = NaN;
+    if (hasOnuId) {
+      const onuIdStr = link.onuId!.trim();
+      // Tenta extrair o último número se for um caminho com barras
+      if (onuIdStr.includes('/')) {
+        const parts = onuIdStr.split('/').filter(p => p.trim() !== '');
+        const lastPart = parts[parts.length - 1];
+        parsedOnuId = parseInt(lastPart, 10);
+      } else {
+        parsedOnuId = parseInt(onuIdStr, 10);
+      }
+    }
     
     if (!hasSlotPort || !hasOnuId || isNaN(parsedOnuId) || parsedOnuId < 0) {
-      console.log(`[Monitor] ${link.name} - Óptico: falta ONU params (slot=${link.slotOlt}, port=${link.portOlt}, onuId=${link.onuId})`);
+      console.log(`[Monitor] ${link.name} - Óptico: falta ONU params (slot=${link.slotOlt}, port=${link.portOlt}, onuId=${link.onuId}, parsed=${parsedOnuId})`);
     } else {
       // Buscar OLT com vendor e perfil SNMP
       const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
@@ -1180,33 +1193,44 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           const txOid = vendorBySlug[0].opticalTxOid || null;
           const oltRxOid = vendorBySlug[0].opticalOltRxOid || null;
           
-          const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
-          if (oltProfile) {
-            const onuParams = {
-              slot: link.slotOlt!,
-              port: link.portOlt!,
-              onuId: parsedOnuId,
-            };
-            
-            console.log(`[Monitor] ${link.name} - Óptico: coletando via OLT ${olt[0].name} (${oltVendorSlug}) slot=${onuParams.slot} port=${onuParams.port} onu=${onuParams.onuId}`);
-            
-            opticalSignal = await getOpticalSignal(
-              olt[0].ipAddress,
-              oltProfile,
-              oltVendorSlug,
-              onuParams,
-              rxOid,
-              txOid,
-              oltRxOid
-            );
-            
-            if (opticalSignal) {
-              console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
-            } else {
-              console.log(`[Monitor] ${link.name} - Óptico: sem resposta SNMP`);
-            }
+          // Verificar se pelo menos um OID óptico está configurado
+          if (!rxOid && !txOid && !oltRxOid) {
+            console.log(`[Monitor] ${link.name} - Óptico: OIDs não configurados para fabricante '${oltVendorSlug}' (${vendorBySlug[0].name}). Configure em Admin → Fabricantes.`);
           } else {
-            console.log(`[Monitor] ${link.name} - Óptico: perfil SNMP ${olt[0].snmpProfileId} não encontrado`);
+            const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
+            if (oltProfile) {
+              const onuParams = {
+                slot: link.slotOlt!,
+                port: link.portOlt!,
+                onuId: parsedOnuId,
+              };
+              
+              console.log(`[Monitor] ${link.name} - Óptico: coletando via OLT ${olt[0].name} (${oltVendorSlug}) slot=${onuParams.slot} port=${onuParams.port} onu=${onuParams.onuId}`);
+              
+              opticalSignal = await getOpticalSignal(
+                olt[0].ipAddress,
+                oltProfile,
+                oltVendorSlug,
+                onuParams,
+                rxOid,
+                txOid,
+                oltRxOid
+              );
+              
+              if (opticalSignal) {
+                const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null || opticalSignal.oltRxPower !== null;
+                if (hasValues) {
+                  console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
+                } else {
+                  console.log(`[Monitor] ${link.name} - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para ${oltVendorSlug}.`);
+                  opticalSignal = null; // Não salvar métricas vazias
+                }
+              } else {
+                console.log(`[Monitor] ${link.name} - Óptico: sem resposta SNMP da OLT ${olt[0].ipAddress}`);
+              }
+            } else {
+              console.log(`[Monitor] ${link.name} - Óptico: perfil SNMP ${olt[0].snmpProfileId} não encontrado`);
+            }
           }
         } else {
           console.log(`[Monitor] ${link.name} - Óptico: vendor '${oltVendorSlug}' não encontrado em equipmentVendors`);
