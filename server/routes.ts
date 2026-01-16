@@ -55,12 +55,24 @@ function mapIncidentReasonToEventType(failureReason: string): string {
   return reasonMap[failureReason.toLowerCase()] || "link_down";
 }
 
+// Versão do build - atualizada no deploy
+const BUILD_VERSION = process.env.BUILD_VERSION || Date.now().toString(36);
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   await storage.initializeDefaultData();
   storage.startMetricCollection();
+
+  // Endpoint de versão para verificação de atualizações pelo frontend
+  app.get("/api/version", (_req, res) => {
+    res.json({
+      version: BUILD_VERSION,
+      timestamp: Date.now(),
+      message: "ok",
+    });
+  });
 
   app.post("/api/auth/login", async (req, res) => {
     try {

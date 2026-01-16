@@ -12,6 +12,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientProvider } from "@/lib/client-context";
 import { ClientSelector } from "@/components/client-selector";
+import { useVersionCheck } from "@/hooks/use-version-check";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Links from "@/pages/links";
@@ -45,6 +46,10 @@ function Router() {
 
 function AppContent() {
   const { user, isSuperAdmin, isLoading, logout } = useAuth();
+  
+  // Verificação automática de versão - recarrega quando há atualização
+  useVersionCheck();
+  
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
