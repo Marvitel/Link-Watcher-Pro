@@ -4,10 +4,54 @@ import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm } from "./olt";
+import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
 const execAsync = promisify(exec);
+
+// Função auxiliar para atualizar dados de splitter do Zabbix no link
+async function updateLinkZabbixSplitterData(
+  linkId: number, 
+  zabbixMetrics: ZabbixOpticalMetrics
+): Promise<void> {
+  try {
+    // Só atualiza se houver pelo menos um dado de splitter válido
+    const hasSplitterData = zabbixMetrics.splitter || zabbixMetrics.portaSplitter || zabbixMetrics.distancia;
+    if (!hasSplitterData) {
+      return; // Não atualizar se não há dados de splitter
+    }
+    
+    // Normalizar distância: converter para metros e remover unidade
+    let distancia = zabbixMetrics.distancia;
+    if (distancia) {
+      const kmMatch = distancia.match(/^(\d+(?:[.,]\d+)?)\s*km$/i);
+      if (kmMatch) {
+        // Converter km para metros
+        const km = parseFloat(kmMatch[1].replace(",", "."));
+        distancia = Math.round(km * 1000).toString();
+      } else {
+        // Remove unidades comuns se presentes (m, metros)
+        distancia = distancia.replace(/\s*(m|metros?)$/i, "").trim();
+      }
+    }
+    
+    const updateData: Record<string, unknown> = {
+      zabbixLastSync: new Date(),
+      zabbixSplitterName: zabbixMetrics.splitter || null,
+      zabbixSplitterPort: zabbixMetrics.portaSplitter || null,
+      zabbixOnuDistance: distancia || null,
+    };
+    
+    await db.update(links)
+      .set(updateData)
+      .where(eq(links.id, linkId));
+      
+    console.log(`[Monitor] Link ${linkId} - Splitter atualizado: ${zabbixMetrics.splitter || '-'} porta ${zabbixMetrics.portaSplitter || '-'} dist ${distancia || '-'}`);
+      
+  } catch (error) {
+    console.error(`[Monitor] Erro ao atualizar dados de splitter do link ${linkId}:`, error);
+  }
+}
 
 const PARALLEL_WORKERS = 10;
 const COLLECTION_TIMEOUT_MS = 30000;
@@ -1246,6 +1290,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                         if (opticalSignal.txPower === null && zabbixMetrics.txPower !== null) {
                           opticalSignal.txPower = zabbixMetrics.txPower;
                         }
+                        // Atualizar dados de splitter do Zabbix no link
+                        await updateLinkZabbixSplitterData(link.id, zabbixMetrics);
                       }
                     }
                   }
@@ -1270,6 +1316,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                           oltRxPower: zabbixMetrics.oltRxPower,
                         };
                         console.log(`[Monitor] ${link.name} - Óptico Zabbix OK: RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
+                        // Atualizar dados de splitter do Zabbix no link
+                        await updateLinkZabbixSplitterData(link.id, zabbixMetrics);
                       } else {
                         opticalSignal = null;
                       }
@@ -1301,6 +1349,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                         oltRxPower: zabbixMetrics.oltRxPower,
                       };
                       console.log(`[Monitor] ${link.name} - Óptico Zabbix OK (fallback): RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
+                      // Atualizar dados de splitter do Zabbix no link
+                      await updateLinkZabbixSplitterData(link.id, zabbixMetrics);
                     }
                   }
                 }
