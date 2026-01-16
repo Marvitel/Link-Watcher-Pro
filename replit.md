@@ -50,7 +50,8 @@ Features per-link optical signal monitoring with centralized OID configuration p
   - **ZTE**: `{gponIfIndex}.{onuId}` where gponIfIndex = `(slot * 32768) + (port * 256) + 1`
   - **Fiberhome**: `{ponId}.{onuId}` where ponId = `slot * 16 + port`
   - **Nokia**: `{ponPortId}.{onuId}` where ponPortId = `(slot * 256) + port + 1`
-  - **Datacom**: `(slot * 10000) + (port * 100) + onuId`
+  - **Datacom**: `(slot * 16777216) + (onuId * 256) + (port - 1)` - ATENÇÃO: port e onuId invertidos! Port usa base 0 no índice.
+- **Datacom OIDs (enterprise 3709)**: RX=`1.3.6.1.4.1.3709.3.6.2.1.1.22`, TX=`1.3.6.1.4.1.3709.3.6.2.1.1.21`
 - **SNMP Collection Flow**: Link → OLT → Vendor Slug → equipmentVendors (OIDs + index formula) → SNMP Profile → Query OLT IP with full OID (base + index).
 - **Thresholds**: Normal (≥-25 dBm), Warning (-28 to -25 dBm), Critical (<-28 dBm). Delta detection alerts when variation from baseline exceeds `opticalDeltaThreshold` (default 3dB).
 - **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form allows baseline/delta configuration.
