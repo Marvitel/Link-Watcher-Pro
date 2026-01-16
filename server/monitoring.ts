@@ -9,57 +9,61 @@ import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileT
 
 const execAsync = promisify(exec);
 
+// Função auxiliar para normalizar campo de splitter (tratar vazios, "-", N/A como null)
+function normalizeSplitterField(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+  if (!trimmed || /^(-|n\/?a|n\/?d|null|undefined|sem dados?)$/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+// Função auxiliar para normalizar distância: converter para metros, remover unidade, tratar N/A como null
+function normalizeDistance(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+  
+  // Tratar N/A, n/a, N/D, -, vazio como null
+  if (/^(n\/?a|n\/?d|-|null|undefined|sem dados?)$/i.test(trimmed)) {
+    return null;
+  }
+  
+  const kmMatch = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*km$/i);
+  if (kmMatch) {
+    // Converter km para metros
+    const km = parseFloat(kmMatch[1].replace(",", "."));
+    return Math.round(km * 1000).toString();
+  }
+  
+  // Remove unidades comuns se presentes (m, metros)
+  const cleaned = trimmed.replace(/\s*(m|metros?)$/i, "").trim();
+  // Verificar se é numérico após limpeza
+  if (!/^\d+(?:[.,]\d+)?$/.test(cleaned)) {
+    return null;
+  }
+  return cleaned;
+}
+
 // Função auxiliar para atualizar dados de splitter do Zabbix no link
 async function updateLinkZabbixSplitterData(
   linkId: number, 
   zabbixMetrics: ZabbixOpticalMetrics
 ): Promise<void> {
   try {
-    // Só atualiza se houver pelo menos um dado de splitter válido
-    const hasSplitterData = zabbixMetrics.splitter || zabbixMetrics.portaSplitter || zabbixMetrics.distancia;
-    if (!hasSplitterData) {
-      return; // Não atualizar se não há dados de splitter
-    }
-    
-    // Normalizar distância: converter para metros, remover unidade, tratar N/A como null
-    let distancia = zabbixMetrics.distancia;
-    if (distancia) {
-      // Tratar N/A, n/a, N/D, -, vazio como null
-      if (/^(n\/?a|n\/?d|-|null|undefined|sem dados?)$/i.test(distancia.trim())) {
-        distancia = null;
-      } else {
-        const kmMatch = distancia.match(/^(\d+(?:[.,]\d+)?)\s*km$/i);
-        if (kmMatch) {
-          // Converter km para metros
-          const km = parseFloat(kmMatch[1].replace(",", "."));
-          distancia = Math.round(km * 1000).toString();
-        } else {
-          // Remove unidades comuns se presentes (m, metros)
-          distancia = distancia.replace(/\s*(m|metros?)$/i, "").trim();
-          // Verificar se é numérico após limpeza
-          if (!/^\d+(?:[.,]\d+)?$/.test(distancia)) {
-            distancia = null;
-          }
-        }
-      }
-    }
-    
-    // Normalizar splitter e porta: tratar vazios, "-", N/A como null
-    const normalizeSplitterField = (val: string | null | undefined): string | null => {
-      if (!val) return null;
-      const trimmed = val.trim();
-      if (!trimmed || /^(-|n\/?a|n\/?d|null|undefined|sem dados?)$/i.test(trimmed)) return null;
-      return trimmed;
-    };
-    
+    // PRIMEIRO normalizar todos os campos
     const splitterName = normalizeSplitterField(zabbixMetrics.splitter);
     const splitterPort = normalizeSplitterField(zabbixMetrics.portaSplitter);
+    const distancia = normalizeDistance(zabbixMetrics.distancia);
+    
+    // DEPOIS verificar se há pelo menos um dado válido
+    if (!splitterName && !splitterPort && !distancia) {
+      return; // Não atualizar se não há dados de splitter válidos
+    }
     
     const updateData: Record<string, unknown> = {
       zabbixLastSync: new Date(),
       zabbixSplitterName: splitterName,
       zabbixSplitterPort: splitterPort,
-      zabbixOnuDistance: distancia || null,
+      zabbixOnuDistance: distancia,
     };
     
     await db.update(links)
