@@ -55,8 +55,8 @@ function mapIncidentReasonToEventType(failureReason: string): string {
   return reasonMap[failureReason.toLowerCase()] || "link_down";
 }
 
-// Versão do build - atualizada no deploy
-const BUILD_VERSION = process.env.BUILD_VERSION || Date.now().toString(36);
+// Importa função de versão do build (calculada do hash real do index.html)
+import { getBuildVersion } from "./static";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -66,9 +66,14 @@ export async function registerRoutes(
   storage.startMetricCollection();
 
   // Endpoint de versão para verificação de atualizações pelo frontend
+  // IMPORTANTE: Headers anti-cache para garantir que proxies/CDN não cacheiem
   app.get("/api/version", (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
     res.json({
-      version: BUILD_VERSION,
+      version: getBuildVersion(),
       timestamp: Date.now(),
       message: "ok",
     });

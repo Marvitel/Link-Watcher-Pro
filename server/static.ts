@@ -1,24 +1,42 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
 
-// Gera uma versão única baseada no timestamp do build
-// Isso é lido uma vez quando o servidor inicia
-let buildVersion: string | null = null;
+// ESM compatibility
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-function getBuildVersion(distPath: string): string {
-  if (buildVersion) return buildVersion;
+// Versão do build - calculada do conteúdo real dos arquivos
+// Cacheada para ser estável durante toda a vida do servidor
+let cachedBuildVersion: string | null = null;
+
+// Exportada para uso em /api/version
+export function getBuildVersion(): string {
+  // Retorna versão cacheada se já calculada (estável durante sessão do servidor)
+  if (cachedBuildVersion) return cachedBuildVersion;
   
-  // Tenta ler a versão do package.json ou usar o timestamp do index.html
+  // Em produção, calcula do hash do index.html
+  const distPath = path.resolve(__dirname, "public");
   try {
     const indexPath = path.resolve(distPath, "index.html");
-    const stats = fs.statSync(indexPath);
-    buildVersion = stats.mtime.getTime().toString(36);
+    // Usa hash do conteúdo (estável até próximo deploy)
+    const content = fs.readFileSync(indexPath, 'utf-8');
+    cachedBuildVersion = crypto.createHash('md5').update(content).digest('hex').substring(0, 8);
   } catch {
-    buildVersion = Date.now().toString(36);
+    // Em desenvolvimento ou se arquivo não existe, usa timestamp do start do servidor
+    // Isso é estável durante a sessão, mas muda quando o servidor reinicia
+    cachedBuildVersion = Date.now().toString(36);
   }
   
-  return buildVersion;
+  console.log(`[Version] Build version: ${cachedBuildVersion}`);
+  return cachedBuildVersion;
+}
+
+// Força recálculo da versão (útil para hot-reload em dev)
+export function invalidateBuildVersion(): void {
+  cachedBuildVersion = null;
 }
 
 export function serveStatic(app: Express) {
@@ -29,7 +47,7 @@ export function serveStatic(app: Express) {
     );
   }
 
-  const version = getBuildVersion(distPath);
+  const version = getBuildVersion();
   console.log(`[Static] Build version: ${version}`);
 
   // Servir assets estáticos com cache apropriado
