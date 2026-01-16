@@ -1155,14 +1155,13 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
   // Coleta de sinal óptico (se habilitado e configurado)
   let opticalSignal: OpticalSignalData | null = null;
-  if (link.opticalMonitoringEnabled && link.snmpProfileId && link.snmpRouterIp) {
-    // Prioridade: OIDs do link > OIDs do fabricante > hardcoded por slug
-    let rxOid = link.opticalRxOid;
-    let txOid = link.opticalTxOid;
-    let oltRxOid = link.opticalOltRxOid;
+  if (link.opticalMonitoringEnabled) {
+    // Buscar OIDs do fabricante do equipamento
+    let rxOid: string | null = null;
+    let txOid: string | null = null;
+    let oltRxOid: string | null = null;
     
-    // Se não tiver OIDs no link, buscar do fabricante
-    if (!rxOid && !txOid && !oltRxOid && link.equipmentVendorId) {
+    if (link.equipmentVendorId) {
       const vendor = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, link.equipmentVendorId)).limit(1);
       if (vendor.length > 0) {
         rxOid = vendor[0].opticalRxOid || null;
@@ -1174,19 +1173,25 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
     }
     
-    const hasOpticalOids = rxOid || txOid || oltRxOid;
-    if (hasOpticalOids) {
-      const profile = await getSnmpProfile(link.snmpProfileId);
-      if (profile) {
-        opticalSignal = await getOpticalSignal(
-          link.snmpRouterIp,
-          profile,
-          rxOid,
-          txOid,
-          oltRxOid
-        );
-        if (opticalSignal) {
-          console.log(`[Monitor] ${link.name} - Sinal óptico: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
+    // Para coletar sinal óptico, precisamos do perfil SNMP da OLT
+    if (link.oltId && (rxOid || txOid || oltRxOid)) {
+      const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
+      if (olt.length > 0 && olt[0].snmpProfileId) {
+        const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
+        if (oltProfile) {
+          // Usar IP da OLT para consultar sinal óptico
+          opticalSignal = await getOpticalSignal(
+            olt[0].ipAddress,
+            oltProfile,
+            rxOid,
+            txOid,
+            oltRxOid
+          );
+          if (opticalSignal) {
+            console.log(`[Monitor] ${link.name} - Sinal óptico via OLT ${olt[0].name}: RX=${opticalSignal.rxPower}dBm, TX=${opticalSignal.txPower}dBm`);
+          }
+        } else {
+          console.log(`[Monitor] ${link.name} - OLT ${olt[0].name} sem perfil SNMP configurado`);
         }
       }
     }

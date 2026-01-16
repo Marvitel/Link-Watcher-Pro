@@ -6555,6 +6555,11 @@ function OltsTab({ clients }: { clients: Client[] }) {
     queryKey: ["/api/olts"],
   });
 
+  // Buscar perfis SNMP globais (de todos os clientes) para associar à OLT
+  const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
+    queryKey: ["/api/snmp-profiles"],
+  });
+
   const [formData, setFormData] = useState({
     name: "",
     ipAddress: "",
@@ -6567,11 +6572,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
     database: "",
     searchOnuCommand: "",
     diagnosisKeyTemplate: "",
-    snmpCommunity: "",
-    snmpVersion: "2c",
-    snmpPort: 161,
-    snmpTimeout: 5000,
-    snmpRetries: 1,
+    snmpProfileId: null as number | null,
     isActive: true,
     voalleId: null as number | null,
   });
@@ -6589,11 +6590,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       database: "",
       searchOnuCommand: "",
       diagnosisKeyTemplate: "",
-      snmpCommunity: "",
-      snmpVersion: "2c",
-      snmpPort: 161,
-      snmpTimeout: 5000,
-      snmpRetries: 1,
+      snmpProfileId: null,
       isActive: true,
       voalleId: null,
     });
@@ -6614,11 +6611,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       database: olt.database || "",
       searchOnuCommand: (olt as any).searchOnuCommand || "",
       diagnosisKeyTemplate: (olt as any).diagnosisKeyTemplate || "",
-      snmpCommunity: (olt as any).snmpCommunity || "",
-      snmpVersion: (olt as any).snmpVersion || "2c",
-      snmpPort: (olt as any).snmpPort || 161,
-      snmpTimeout: (olt as any).snmpTimeout || 5000,
-      snmpRetries: (olt as any).snmpRetries || 1,
+      snmpProfileId: (olt as any).snmpProfileId || null,
       isActive: olt.isActive,
       voalleId: (olt as any).voalleId || null,
     });
@@ -6868,76 +6861,37 @@ function OltsTab({ clients }: { clients: Client[] }) {
               <div className="border-t pt-4 mt-4">
                 <h4 className="font-medium mb-2">Configuracoes SNMP (Sinal Optico)</h4>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Configure o acesso SNMP para coleta de sinal optico das ONUs conectadas a esta OLT
+                  Selecione um perfil SNMP para coleta de sinal optico das ONUs conectadas a esta OLT
                 </p>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="olt-snmp-community">Community SNMP</Label>
-                      <Input
-                        id="olt-snmp-community"
-                        value={formData.snmpCommunity}
-                        onChange={(e) => setFormData({ ...formData, snmpCommunity: e.target.value })}
-                        placeholder="Ex: public"
-                        data-testid="input-olt-snmp-community"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="olt-snmp-version">Versao SNMP</Label>
-                      <Select
-                        value={formData.snmpVersion}
-                        onValueChange={(v) => setFormData({ ...formData, snmpVersion: v })}
-                      >
-                        <SelectTrigger data-testid="select-olt-snmp-version">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">SNMPv1</SelectItem>
-                          <SelectItem value="2c">SNMPv2c</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="olt-snmp-port">Porta SNMP</Label>
-                      <Input
-                        id="olt-snmp-port"
-                        type="number"
-                        value={formData.snmpPort}
-                        onChange={(e) => setFormData({ ...formData, snmpPort: parseInt(e.target.value, 10) || 161 })}
-                        data-testid="input-olt-snmp-port"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="olt-snmp-timeout">Timeout (ms)</Label>
-                      <Input
-                        id="olt-snmp-timeout"
-                        type="number"
-                        value={formData.snmpTimeout}
-                        onChange={(e) => setFormData({ ...formData, snmpTimeout: parseInt(e.target.value, 10) || 5000 })}
-                        data-testid="input-olt-snmp-timeout"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="olt-snmp-retries">Tentativas</Label>
-                      <Input
-                        id="olt-snmp-retries"
-                        type="number"
-                        value={formData.snmpRetries}
-                        onChange={(e) => setFormData({ ...formData, snmpRetries: parseInt(e.target.value, 10) || 1 })}
-                        data-testid="input-olt-snmp-retries"
-                      />
-                    </div>
-                  </div>
-                  {!formData.snmpCommunity && (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm text-amber-700 dark:text-amber-300">
-                        Sem community SNMP configurada, a coleta de sinal optico nao funcionara para links desta OLT.
-                      </p>
-                    </div>
-                  )}
+                <div className="space-y-2">
+                  <Label htmlFor="olt-snmp-profile">Perfil SNMP</Label>
+                  <Select
+                    value={formData.snmpProfileId?.toString() || ""}
+                    onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v ? parseInt(v, 10) : null })}
+                  >
+                    <SelectTrigger data-testid="select-olt-snmp-profile">
+                      <SelectValue placeholder="Selecione um perfil SNMP..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {allSnmpProfiles?.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id.toString()}>
+                          {profile.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Perfis SNMP sao cadastrados por cliente em Admin → Clientes → Perfis SNMP
+                  </p>
                 </div>
+                {!formData.snmpProfileId && (
+                  <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Sem perfil SNMP configurado, a coleta de sinal optico nao funcionara para links desta OLT.
+                    </p>
+                  </div>
+                )}
               </div>
               
               <div className="flex items-center justify-between">

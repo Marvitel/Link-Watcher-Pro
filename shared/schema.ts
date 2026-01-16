@@ -512,12 +512,8 @@ export const olts = pgTable("olts", {
   // Templates para busca e diagnóstico de ONU - variáveis: {serial}, {slot}, {port}, {onuId}
   searchOnuCommand: text("search_onu_command"), // Ex: "sh onu serial {serial}" ou "show interface gpon onu | include {serial}"
   diagnosisKeyTemplate: text("diagnosis_key_template"), // Ex: "1/{slot}/{port}/{onuId}" ou "{serial}"
-  // Configurações SNMP para coleta de sinal óptico
-  snmpCommunity: varchar("snmp_community", { length: 100 }), // Community SNMP (ex: "public")
-  snmpVersion: varchar("snmp_version", { length: 10 }).default("2c"), // Versão: 1, 2c, 3
-  snmpPort: integer("snmp_port").default(161), // Porta SNMP
-  snmpTimeout: integer("snmp_timeout").default(5000), // Timeout em ms
-  snmpRetries: integer("snmp_retries").default(1), // Número de tentativas
+  // Perfil SNMP para coleta de sinal óptico (usa cadastro global de perfis)
+  snmpProfileId: integer("snmp_profile_id"), // Referência ao perfil SNMP para coleta óptica
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
