@@ -348,10 +348,21 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Radio className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Monitoramento Óptico Não Configurado</p>
-              <p className="text-sm mt-2">
-                Configure os OIDs de sinal óptico no perfil SNMP do link para visualizar os dados.
-              </p>
+              {link.opticalMonitoringEnabled && link.oltId ? (
+                <>
+                  <p className="text-lg font-medium">Aguardando Coleta de Sinal Óptico</p>
+                  <p className="text-sm mt-2">
+                    O monitoramento está configurado. Os dados aparecerão assim que a primeira coleta for realizada.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium">Monitoramento Óptico Não Configurado</p>
+                  <p className="text-sm mt-2">
+                    Habilite o monitoramento óptico e selecione uma OLT no cadastro do link.
+                  </p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

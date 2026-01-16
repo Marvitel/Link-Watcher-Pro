@@ -1887,32 +1887,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         
         {formData.opticalMonitoringEnabled && (
           <div className="space-y-4">
-            {formData.equipmentVendorId && equipmentVendors?.find(v => v.id === formData.equipmentVendorId) && (
-              (() => {
-                const vendor = equipmentVendors.find(v => v.id === formData.equipmentVendorId);
-                const hasVendorOids = vendor && (vendor.opticalRxOid || vendor.opticalTxOid || vendor.opticalOltRxOid);
-                return (
-                  <div className={`p-3 rounded-md border ${hasVendorOids ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'}`}>
-                    {hasVendorOids ? (
-                      <>
-                        <p className="text-sm text-green-700 dark:text-green-300">
-                          <strong>OIDs configurados no fabricante {vendor?.name}</strong>
-                        </p>
-                        <div className="text-xs text-green-600 dark:text-green-400 mt-1 font-mono">
-                          {vendor?.opticalRxOid && <div>RX: {vendor.opticalRxOid}</div>}
-                          {vendor?.opticalTxOid && <div>TX: {vendor.opticalTxOid}</div>}
-                          {vendor?.opticalOltRxOid && <div>OLT RX: {vendor.opticalOltRxOid}</div>}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-sm text-amber-700 dark:text-amber-300">
-                        O fabricante <strong>{vendor?.name}</strong> não possui OIDs ópticos configurados. Configure-os em Admin → Fabricantes.
-                      </p>
-                    )}
-                  </div>
-                );
-              })()
-            )}
+            <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Os OIDs de sinal óptico são obtidos automaticamente do fabricante da OLT associada ao link.
+                Configure slot, porta e ID da ONU, e selecione a OLT na aba "Diagnóstico ONU".
+              </p>
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -6866,14 +6846,14 @@ function OltsTab({ clients }: { clients: Client[] }) {
                 <div className="space-y-2">
                   <Label htmlFor="olt-snmp-profile">Perfil SNMP</Label>
                   <Select
-                    value={formData.snmpProfileId?.toString() || ""}
-                    onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v ? parseInt(v, 10) : null })}
+                    value={formData.snmpProfileId?.toString() || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v && v !== "none" ? parseInt(v, 10) : null })}
                   >
                     <SelectTrigger data-testid="select-olt-snmp-profile">
                       <SelectValue placeholder="Selecione um perfil SNMP..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {allSnmpProfiles?.map((profile) => (
                         <SelectItem key={profile.id} value={profile.id.toString()}>
                           {profile.name}
