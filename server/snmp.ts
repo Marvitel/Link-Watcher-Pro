@@ -673,9 +673,10 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     case 'datacom':
     case 'datacom-dm4610':
     case 'datacom-dm4615':
-      // Datacom: formato {slot}/{port}.{onuId} ou índice numérico
-      // Índice numérico: (slot * 10000) + (port * 100) + onuId
-      const datacomIndex = (slot * 10000) + (port * 100) + onuId;
+      // Datacom DM4610/DM4615: fórmula confirmada via snmpwalk
+      // Índice = (slot * 16777216) + (port * 256) + onuId
+      // Onde slot=1 (fixo para DM4610), port=porta PON (1-16), onuId=ID da ONU
+      const datacomIndex = (slot * 16777216) + (port * 256) + onuId;
       return datacomIndex.toString();
     
     case 'parks':
