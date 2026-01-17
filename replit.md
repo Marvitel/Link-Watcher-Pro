@@ -95,3 +95,25 @@ A `audit_logs` table stores all system audit events. The `server/audit.ts` helpe
 ### Fonts
 - **Inter**: Primary UI font (Google Fonts).
 - **JetBrains Mono**: Monospace font for data display.
+
+## Technical Documentation
+
+For detailed system documentation, see:
+- **[docs/SYSTEM_INVENTORY.md](docs/SYSTEM_INVENTORY.md)**: Complete inventory of features, APIs, pages, and database entities
+- **[docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md)**: Visual architecture diagrams, data flows, and refactoring roadmap
+
+### Key Statistics (Jan 2026)
+- **Links Monitorados**: ~1.500
+- **Produção**: linkmonitor.marvitel.com.br
+- **Ciclo de Coleta**: 30 segundos
+- **Polling Frontend**: 5 segundos
+- **Retenção de Dados**: 6 meses
+
+### Files Requiring Refactoring (by priority)
+| File | Lines | Priority |
+|------|-------|----------|
+| `client/src/pages/admin.tsx` | ~15k | CRITICAL |
+| `server/routes.ts` | ~3k | HIGH |
+| `server/storage.ts` | ~2k | MEDIUM |
+| `server/monitoring.ts` | ~1.7k | MEDIUM |
+| `server/olt.ts` | ~1.6k | MEDIUM |
