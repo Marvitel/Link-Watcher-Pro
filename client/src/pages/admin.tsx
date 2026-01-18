@@ -633,6 +633,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
     snmpInterfaceName: link?.snmpInterfaceName || "",
     snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
+    snmpInterfaceAlias: (link as any)?.snmpInterfaceAlias || "",
     monitoredIp: link?.monitoredIp || "",
     latencyThreshold: link?.latencyThreshold || 80,
     packetLossThreshold: link?.packetLossThreshold || 2,
@@ -923,6 +924,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         snmpInterfaceIndex: iface.ifIndex,
         snmpInterfaceName: iface.ifName,
         snmpInterfaceDescr: iface.ifDescr,
+        snmpInterfaceAlias: iface.ifAlias || "",
       });
     }
   };

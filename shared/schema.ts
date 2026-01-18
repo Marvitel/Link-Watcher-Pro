@@ -102,6 +102,7 @@ export const links = pgTable("links", {
   snmpInterfaceIndex: integer("snmp_interface_index"),
   snmpInterfaceName: varchar("snmp_interface_name", { length: 100 }),
   snmpInterfaceDescr: text("snmp_interface_descr"),
+  snmpInterfaceAlias: varchar("snmp_interface_alias", { length: 255 }), // IF-MIB::ifAlias - para interfaces dinâmicas Cisco PPPoE
   snmpRouterIp: varchar("snmp_router_ip", { length: 45 }),
   monitoredIp: varchar("monitored_ip", { length: 45 }),
   equipmentVendorId: integer("equipment_vendor_id"),

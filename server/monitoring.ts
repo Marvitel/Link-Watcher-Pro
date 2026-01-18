@@ -1019,7 +1019,8 @@ async function handleIfIndexAutoDiscovery(
     link.snmpRouterIp,
     snmpProfileForSearch,
     searchName,
-    link.snmpInterfaceDescr
+    link.snmpInterfaceDescr,
+    link.snmpInterfaceAlias || undefined
   );
   
   if (searchResult.found && searchResult.ifIndex !== null) {
@@ -1034,6 +1035,7 @@ async function handleIfIndexAutoDiscovery(
         snmpInterfaceIndex: newIfIndex,
         snmpInterfaceName: searchResult.ifName || link.snmpInterfaceName,
         snmpInterfaceDescr: searchResult.ifDescr || link.snmpInterfaceDescr,
+        snmpInterfaceAlias: searchResult.ifAlias || link.snmpInterfaceAlias,
         originalIfName: link.originalIfName || link.snmpInterfaceName,
         ifIndexMismatchCount: 0,
         lastIfIndexValidation: now,
