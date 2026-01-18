@@ -4,6 +4,7 @@ export interface SnmpInterface {
   ifIndex: number;
   ifName: string;
   ifDescr: string;
+  ifAlias: string;
   ifSpeed: number;
   ifOperStatus: string;
   ifAdminStatus: string;
@@ -38,6 +39,7 @@ const IF_TABLE_OIDS = {
 const IF_X_TABLE_OIDS = {
   ifName: "1.3.6.1.2.1.31.1.1.1.1",
   ifHighSpeed: "1.3.6.1.2.1.31.1.1.1.15",
+  ifAlias: "1.3.6.1.2.1.31.1.1.1.18",
 };
 
 const OPER_STATUS_MAP: Record<number, string> = {
@@ -340,12 +342,15 @@ export async function discoverInterfaces(
     const ifAdminStatusMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifAdminStatus, MAX_INTERFACES);
     const ifOperStatusMap = await getBulkColumn(targetIp, discoveryProfile, IF_TABLE_OIDS.ifOperStatus, MAX_INTERFACES);
     
-    // Optional extended tables
+    // Optional extended tables (IF-MIB extensions)
     let ifNameMap = new Map<number, string | number>();
     let ifHighSpeedMap = new Map<number, string | number>();
+    let ifAliasMap = new Map<number, string | number>();
     try {
       ifNameMap = await getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifName, MAX_INTERFACES);
       ifHighSpeedMap = await getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifHighSpeed, MAX_INTERFACES);
+      ifAliasMap = await getBulkColumn(targetIp, discoveryProfile, IF_X_TABLE_OIDS.ifAlias, MAX_INTERFACES);
+      console.log(`[SNMP Discovery] Fetched ifAlias for ${ifAliasMap.size} interfaces`);
     } catch {
       console.log(`[SNMP Discovery] IF-MIB extended tables not available`);
     }
@@ -357,6 +362,7 @@ export async function discoverInterfaces(
     for (const [ifIndex] of Array.from(ifIndexMap.entries())) {
       const ifDescr = String(ifDescrMap.get(ifIndex) || "");
       const ifName = String(ifNameMap.get(ifIndex) || ifDescr);
+      const ifAlias = String(ifAliasMap.get(ifIndex) || "");
       
       let ifSpeed = Number(ifSpeedMap.get(ifIndex) || 0);
       const ifHighSpeed = Number(ifHighSpeedMap.get(ifIndex) || 0);
@@ -371,6 +377,7 @@ export async function discoverInterfaces(
         ifIndex,
         ifName,
         ifDescr,
+        ifAlias,
         ifSpeed,
         ifOperStatus: OPER_STATUS_MAP[operStatusNum] || "unknown",
         ifAdminStatus: ADMIN_STATUS_MAP[adminStatusNum] || "testing",
@@ -402,7 +409,8 @@ export interface InterfaceSearchResult {
   ifIndex: number | null;
   ifName: string | null;
   ifDescr: string | null;
-  matchType: "exact_name" | "exact_descr" | "partial_name" | "partial_descr" | "not_found";
+  ifAlias: string | null;
+  matchType: "exact_name" | "exact_descr" | "exact_alias" | "partial_name" | "partial_descr" | "partial_alias" | "not_found";
   candidates?: SnmpInterface[];
 }
 
@@ -410,16 +418,17 @@ export async function findInterfaceByName(
   targetIp: string,
   profile: SnmpProfile,
   searchName: string,
-  searchDescr?: string | null
+  searchDescr?: string | null,
+  searchAlias?: string | null
 ): Promise<InterfaceSearchResult> {
-  console.log(`[SNMP Interface Search] Searching for interface "${searchName}" on ${targetIp}`);
+  console.log(`[SNMP Interface Search] Searching for interface "${searchName}" (alias: "${searchAlias || 'none'}") on ${targetIp}`);
   
   try {
     const interfaces = await discoverInterfaces(targetIp, profile);
     
     if (interfaces.length === 0) {
       console.log(`[SNMP Interface Search] No interfaces discovered on ${targetIp}`);
-      return { found: false, ifIndex: null, ifName: null, ifDescr: null, matchType: "not_found" };
+      return { found: false, ifIndex: null, ifName: null, ifDescr: null, ifAlias: null, matchType: "not_found" };
     }
     
     // 1. Try exact match on ifName
@@ -433,11 +442,30 @@ export async function findInterfaceByName(
         ifIndex: exactNameMatch.ifIndex,
         ifName: exactNameMatch.ifName,
         ifDescr: exactNameMatch.ifDescr,
+        ifAlias: exactNameMatch.ifAlias,
         matchType: "exact_name",
       };
     }
     
-    // 2. Try exact match on ifDescr
+    // 2. Try exact match on ifAlias (useful for Cisco PPPoE interfaces with description)
+    if (searchAlias) {
+      const exactAliasMatch = interfaces.find(
+        (iface) => iface.ifAlias && iface.ifAlias.toLowerCase() === searchAlias.toLowerCase()
+      );
+      if (exactAliasMatch) {
+        console.log(`[SNMP Interface Search] Exact ifAlias match found: ifIndex ${exactAliasMatch.ifIndex} (alias: ${exactAliasMatch.ifAlias})`);
+        return {
+          found: true,
+          ifIndex: exactAliasMatch.ifIndex,
+          ifName: exactAliasMatch.ifName,
+          ifDescr: exactAliasMatch.ifDescr,
+          ifAlias: exactAliasMatch.ifAlias,
+          matchType: "exact_alias",
+        };
+      }
+    }
+    
+    // 3. Try exact match on ifDescr
     if (searchDescr) {
       const exactDescrMatch = interfaces.find(
         (iface) => iface.ifDescr.toLowerCase() === searchDescr.toLowerCase()
@@ -449,12 +477,13 @@ export async function findInterfaceByName(
           ifIndex: exactDescrMatch.ifIndex,
           ifName: exactDescrMatch.ifName,
           ifDescr: exactDescrMatch.ifDescr,
+          ifAlias: exactDescrMatch.ifAlias,
           matchType: "exact_descr",
         };
       }
     }
     
-    // 3. Try partial match on ifName (contains search string)
+    // 4. Try partial match on ifName (contains search string)
     const partialNameMatches = interfaces.filter(
       (iface) => iface.ifName.toLowerCase().includes(searchName.toLowerCase()) ||
                  searchName.toLowerCase().includes(iface.ifName.toLowerCase())
@@ -466,11 +495,33 @@ export async function findInterfaceByName(
         ifIndex: partialNameMatches[0].ifIndex,
         ifName: partialNameMatches[0].ifName,
         ifDescr: partialNameMatches[0].ifDescr,
+        ifAlias: partialNameMatches[0].ifAlias,
         matchType: "partial_name",
       };
     }
     
-    // 4. Try partial match on ifDescr
+    // 5. Try partial match on ifAlias (Cisco PPPoE with description containing username)
+    if (searchAlias) {
+      const partialAliasMatches = interfaces.filter(
+        (iface) => iface.ifAlias && (
+          iface.ifAlias.toLowerCase().includes(searchAlias.toLowerCase()) ||
+          searchAlias.toLowerCase().includes(iface.ifAlias.toLowerCase())
+        )
+      );
+      if (partialAliasMatches.length === 1) {
+        console.log(`[SNMP Interface Search] Partial ifAlias match found: ifIndex ${partialAliasMatches[0].ifIndex} (alias: ${partialAliasMatches[0].ifAlias})`);
+        return {
+          found: true,
+          ifIndex: partialAliasMatches[0].ifIndex,
+          ifName: partialAliasMatches[0].ifName,
+          ifDescr: partialAliasMatches[0].ifDescr,
+          ifAlias: partialAliasMatches[0].ifAlias,
+          matchType: "partial_alias",
+        };
+      }
+    }
+    
+    // 6. Try partial match on ifDescr
     if (searchDescr) {
       const partialDescrMatches = interfaces.filter(
         (iface) => iface.ifDescr.toLowerCase().includes(searchDescr.toLowerCase()) ||
@@ -483,12 +534,13 @@ export async function findInterfaceByName(
           ifIndex: partialDescrMatches[0].ifIndex,
           ifName: partialDescrMatches[0].ifName,
           ifDescr: partialDescrMatches[0].ifDescr,
+          ifAlias: partialDescrMatches[0].ifAlias,
           matchType: "partial_descr",
         };
       }
     }
     
-    // 5. No unique match found - return candidates for manual selection
+    // 7. No unique match found - return candidates for manual selection
     const candidates = partialNameMatches.length > 0 ? partialNameMatches : interfaces.slice(0, 10);
     console.log(`[SNMP Interface Search] No unique match found, returning ${candidates.length} candidates`);
     
@@ -497,12 +549,13 @@ export async function findInterfaceByName(
       ifIndex: null,
       ifName: null,
       ifDescr: null,
+      ifAlias: null,
       matchType: "not_found",
       candidates,
     };
   } catch (error) {
     console.error(`[SNMP Interface Search] Error searching for interface on ${targetIp}:`, error);
-    return { found: false, ifIndex: null, ifName: null, ifDescr: null, matchType: "not_found" };
+    return { found: false, ifIndex: null, ifName: null, ifDescr: null, ifAlias: null, matchType: "not_found" };
   }
 }
 

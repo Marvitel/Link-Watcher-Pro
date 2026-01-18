@@ -72,6 +72,7 @@ interface SnmpInterface {
   ifIndex: number;
   ifName: string;
   ifDescr: string;
+  ifAlias: string;
   ifSpeed: number;
   ifOperStatus: string;
   ifAdminStatus: string;
@@ -1429,7 +1430,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             <Label>Selecionar Interface Descoberta ({discoveredInterfaces.length} encontradas)</Label>
             <div className="flex gap-2">
               <Input
-                placeholder="Buscar por nome, índice ou descrição..."
+                placeholder="Buscar por nome, índice, descrição ou alias..."
                 value={interfaceSearchTerm}
                 onChange={(e) => setInterfaceSearchTerm(e.target.value)}
                 className="flex-1"
@@ -1461,7 +1462,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     return (
                       iface.ifIndex.toString().includes(search) ||
                       (iface.ifName || "").toLowerCase().includes(search) ||
-                      (iface.ifDescr || "").toLowerCase().includes(search)
+                      (iface.ifDescr || "").toLowerCase().includes(search) ||
+                      (iface.ifAlias || "").toLowerCase().includes(search)
                     );
                   })
                   .map((iface) => (
@@ -1475,9 +1477,14 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                       </Badge>
                       <span className="font-mono text-sm">{iface.ifIndex}</span>
                       <span>{iface.ifName || iface.ifDescr}</span>
+                      {iface.ifAlias && iface.ifAlias !== iface.ifName && (
+                        <span className="text-muted-foreground text-xs italic">
+                          ({iface.ifAlias})
+                        </span>
+                      )}
                       {iface.ifSpeed > 0 && (
                         <span className="text-muted-foreground text-xs">
-                          ({formatSpeed(iface.ifSpeed)})
+                          [{formatSpeed(iface.ifSpeed)}]
                         </span>
                       )}
                     </div>
