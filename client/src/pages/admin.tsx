@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -64,7 +65,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration } from "@shared/schema";
+import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck } from "@shared/schema";
 import { Database, Globe, Plug, Server, Layers } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 
@@ -3591,6 +3592,12 @@ export default function Admin() {
     enabled: isSuperAdmin,
   });
 
+  const { data: blacklistChecks } = useQuery<BlacklistCheck[]>({
+    queryKey: ["/api/blacklist/cached"],
+    enabled: isSuperAdmin,
+    refetchInterval: 60000,
+  });
+
   const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
     queryKey: ["/api/snmp-profiles"],
     enabled: isSuperAdmin,
@@ -3967,6 +3974,9 @@ export default function Admin() {
             <div className="space-y-4">
               {filteredLinks?.map((link) => {
                 const clientName = clients?.find(c => c.id === link.clientId)?.name;
+                const blacklistCheck = blacklistChecks?.find(bc => bc.linkId === link.id);
+                const isBlacklisted = blacklistCheck?.isListed;
+                const listedOnCount = Array.isArray(blacklistCheck?.listedOn) ? (blacklistCheck.listedOn as Array<unknown>).length : 0;
                 return (
                   <Card key={link.id} data-testid={`card-admin-link-${link.id}`}>
                     <CardContent className="py-4">
@@ -3984,6 +3994,38 @@ export default function Admin() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {isBlacklisted && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="destructive" className="gap-1" data-testid={`badge-blacklist-${link.id}`}>
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Blacklist ({listedOnCount})
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>IP listado em {listedOnCount} blacklist(s)</p>
+                                {blacklistCheck?.lastCheckedAt && (
+                                  <p className="text-xs opacity-70">Verificado em {new Date(blacklistCheck.lastCheckedAt).toLocaleString("pt-BR")}</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {blacklistCheck && !isBlacklisted && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 text-green-600 border-green-600" data-testid={`badge-blacklist-ok-${link.id}`}>
+                                  <CheckCircle className="w-3 h-3" />
+                                  Limpo
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>IP não está em nenhuma blacklist</p>
+                                {blacklistCheck?.lastCheckedAt && (
+                                  <p className="text-xs opacity-70">Verificado em {new Date(blacklistCheck.lastCheckedAt).toLocaleString("pt-BR")}</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                           <Badge variant={link.status === "operational" ? "default" : "destructive"}>
                             {link.status === "operational" ? "Operacional" : link.status}
                           </Badge>
