@@ -729,7 +729,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     setFormData(prev => ({
       ...prev,
       voalleContractTagId: tag.id,
-      name: prev.name || tag.serviceTag || tag.description || "",
+      name: prev.name || tag.description || tag.serviceTag || "",
       identifier: prev.identifier || tag.serviceTag || "",
       monitoredIp: prev.monitoredIp || tag.ip || "",
       bandwidth: tag.bandwidth || prev.bandwidth,
@@ -749,7 +749,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
     // Mensagem de feedback
     const messages: string[] = [];
-    if (tag.serviceTag || tag.description) messages.push(`Etiqueta: ${tag.serviceTag || tag.description}`);
+    if (tag.description || tag.serviceTag) messages.push(`Etiqueta: ${tag.description || tag.serviceTag}`);
     if (matchedOltId) messages.push(`OLT encontrada`);
     if (matchedConcentratorId) messages.push(`Concentrador encontrado`);
     if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
@@ -817,7 +817,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       // FORÇAR atualização de TODOS os campos (sobrescrever valores existentes)
       setFormData(prev => ({
         ...prev,
-        name: tag.serviceTag || tag.description || prev.name,
+        name: tag.description || tag.serviceTag || prev.name,
         identifier: tag.serviceTag || prev.identifier,
         monitoredIp: tag.ip || prev.monitoredIp,
         bandwidth: tag.bandwidth || prev.bandwidth,
@@ -837,7 +837,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
       // Mensagem de feedback detalhada
       const updates: string[] = [];
-      if (tag.serviceTag || tag.description) updates.push(`Nome: ${tag.serviceTag || tag.description}`);
+      if (tag.description || tag.serviceTag) updates.push(`Nome: ${tag.description || tag.serviceTag}`);
       if (tag.ip) updates.push(`IP: ${tag.ip}`);
       if (matchedOltId) updates.push(`OLT: encontrada`);
       else if (tag.oltId) updates.push(`OLT Voalle #${tag.oltId}: não mapeada`);
