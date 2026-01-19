@@ -330,21 +330,16 @@ export async function startBlacklistAutoCheck(
           const listedIpsForLink: string[] = [];
           const allRblsForLink = new Set<string>();
           let linkCheckedCount = 0;
+          let notMonitoredForLink = 0;
           
           for (const ip of ipsToCheck) {
             const monitor = allMonitors.find((m: any) => m.target === ip);
             
             if (!monitor) {
               notMonitoredCount++;
-              await storage.upsertBlacklistCheck({
-                linkId: link.id,
-                ip,
-                isListed: false,
-                listedOn: [],
-                reportId: null,
-                reportUrl: null,
-                lastCheckedAt: new Date(),
-              });
+              notMonitoredForLink++;
+              // NÃO atualizar isListed para IPs não monitorados - manter estado anterior
+              // Isso evita resolver eventos quando o monitor foi removido do HetrixTools
               continue;
             }
 
@@ -398,9 +393,11 @@ export async function startBlacklistAutoCheck(
               });
               console.log(`[BlacklistAutoCheck] Link ${link.id} status updated to degraded`);
             }
-          } else if (linkCheckedCount > 0 && listedIpsForLink.length === 0) {
-            // Nenhum IP listado - resolver eventos e restaurar status se necessário
+          } else if (linkCheckedCount > 0 && listedIpsForLink.length === 0 && notMonitoredForLink === 0) {
+            // Nenhum IP listado E todos os IPs foram verificados (nenhum não-monitorado)
+            // Só resolver eventos quando temos certeza que todos os IPs foram verificados
             await storage.resolveBlacklistEvents(link.id);
+            console.log(`[BlacklistAutoCheck] Link ${link.id}: All ${linkCheckedCount} IPs verified clean, resolving events`);
             
             if (link.status === 'degraded' && link.failureSource === 'blacklist') {
               await storage.updateLinkStatus(link.id, { 
@@ -410,6 +407,9 @@ export async function startBlacklistAutoCheck(
               });
               console.log(`[BlacklistAutoCheck] Link ${link.id} status restored to operational`);
             }
+          } else if (linkCheckedCount > 0 && listedIpsForLink.length === 0 && notMonitoredForLink > 0) {
+            // Alguns IPs não estão sendo monitorados - não resolver eventos automaticamente
+            console.log(`[BlacklistAutoCheck] Link ${link.id}: ${linkCheckedCount} IPs clean but ${notMonitoredForLink} not monitored - keeping events open`);
           }
         } catch (err) {
           console.error(`[BlacklistAutoCheck] Failed to check link ${link.id}:`, err);
@@ -444,7 +444,7 @@ export function stopBlacklistAutoCheck(): void {
 }
 
 export async function checkBlacklistForLink(
-  link: { id: number; clientId: number; name: string; status?: string; ipBlock?: string | null; ipAddress?: string | null },
+  link: { id: number; clientId: number; name: string; status?: string; failureSource?: string | null; ipBlock?: string | null; ipAddress?: string | null },
   storage: {
     getExternalIntegrations: () => Promise<any[]>;
     upsertBlacklistCheck: (check: any) => Promise<any>;
@@ -577,19 +577,16 @@ export async function checkBlacklistForLink(
       });
       console.log(`[BlacklistCheck] Link ${link.id} status updated to degraded (blacklist)`);
     }
-  } else if (listed === 0 && checked > 0) {
-    // Verificar se o link estava em degraded por causa de blacklist
-    const previousChecks = await storage.getBlacklistCheck(link.id);
-    const wasListed = previousChecks.some((c: any) => c.isListed);
-    
-    if (!wasListed && storage.resolveBlacklistEvents) {
-      // Resolver eventos de blacklist anteriores
+  } else if (listed === 0 && checked > 0 && notMonitored === 0) {
+    // Nenhum IP listado E todos os IPs foram verificados (nenhum não-monitorado)
+    // Só resolver eventos quando temos certeza que todos os IPs foram verificados
+    if (storage.resolveBlacklistEvents) {
       await storage.resolveBlacklistEvents(link.id);
+      console.log(`[BlacklistCheck] Link ${link.id}: All ${checked} IPs verified clean, resolving events`);
     }
     
     // Se o link estava degraded por blacklist, restaurar para operational
-    if (storage.updateLinkStatus && link.status === 'degraded') {
-      // Só restaurar se o failureSource era blacklist
+    if (storage.updateLinkStatus && link.status === 'degraded' && link.failureSource === 'blacklist') {
       await storage.updateLinkStatus(link.id, { 
         status: 'operational',
         failureReason: null,
@@ -597,6 +594,9 @@ export async function checkBlacklistForLink(
       });
       console.log(`[BlacklistCheck] Link ${link.id} status restored to operational`);
     }
+  } else if (listed === 0 && checked > 0 && notMonitored > 0) {
+    // Alguns IPs não estão sendo monitorados - não resolver eventos automaticamente
+    console.log(`[BlacklistCheck] Link ${link.id}: ${checked} IPs clean but ${notMonitored} not monitored - keeping events open`);
   }
   
   return { checked, listed, notMonitored };
