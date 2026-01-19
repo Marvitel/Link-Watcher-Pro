@@ -2409,26 +2409,38 @@ export async function registerRoutes(
       }
 
       // Build response items
-      const items = paginatedLinks.map(link => ({
-        id: link.id,
-        name: link.name,
-        identifier: link.identifier,
-        location: link.location,
-        ipBlock: link.ipBlock,
-        bandwidth: link.bandwidth,
-        status: link.status,
-        currentDownload: link.currentDownload,
-        currentUpload: link.currentUpload,
-        latency: link.latency,
-        packetLoss: link.packetLoss,
-        uptime: link.uptime,
-        lastUpdated: link.lastUpdated,
-        monitoringEnabled: link.monitoringEnabled,
-        clientId: link.clientId,
-        clientName: clientMap.get(link.clientId) || 'Desconhecido',
-        activeEvent: activeEventsByLink.get(link.id) || null,
-        openIncident: openIncidentsByLink.get(link.id) || null,
-      }));
+      // Note: The monitoring system stores data with default inversion (concentrator perspective).
+      // When invertBandwidth=true, it means the link is configured to NOT invert (customer perspective),
+      // so we need to swap the values back to show correct customer-facing download/upload.
+      const items = paginatedLinks.map(link => {
+        // By default (invertBandwidth=false), values in DB are already from concentrator perspective
+        // (download = data leaving customer = upload for customer, upload = data entering customer = download for customer)
+        // When invertBandwidth=true, values should be displayed as stored (no swap needed)
+        // When invertBandwidth=false (default), we need to swap to show customer perspective
+        const displayDownload = link.invertBandwidth ? link.currentDownload : link.currentUpload;
+        const displayUpload = link.invertBandwidth ? link.currentUpload : link.currentDownload;
+        
+        return {
+          id: link.id,
+          name: link.name,
+          identifier: link.identifier,
+          location: link.location,
+          ipBlock: link.ipBlock,
+          bandwidth: link.bandwidth,
+          status: link.status,
+          currentDownload: displayDownload,
+          currentUpload: displayUpload,
+          latency: link.latency,
+          packetLoss: link.packetLoss,
+          uptime: link.uptime,
+          lastUpdated: link.lastUpdated,
+          monitoringEnabled: link.monitoringEnabled,
+          clientId: link.clientId,
+          clientName: clientMap.get(link.clientId) || 'Desconhecido',
+          activeEvent: activeEventsByLink.get(link.id) || null,
+          openIncident: openIncidentsByLink.get(link.id) || null,
+        };
+      });
 
       res.json({
         items,
