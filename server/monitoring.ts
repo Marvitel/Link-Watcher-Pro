@@ -3,7 +3,7 @@ import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, not, like } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
@@ -1552,7 +1552,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       }
     }
     
-    // Auto-resolve all unresolved events when link is operational with normal metrics
+    // Auto-resolve unresolved events when link is operational with normal metrics
+    // EXCEPT blacklist events - those are managed by hetrixtools.ts
     const latencyThresholdForResolve = link.latencyThreshold || 80;
     const packetLossThresholdForResolve = link.packetLossThreshold || 2;
     const isFullyNormal = newStatus === "operational" && 
@@ -1563,10 +1564,14 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       const resolvedCount = await db
         .update(events)
         .set({ resolved: true, resolvedAt: new Date() })
-        .where(and(eq(events.linkId, link.id), eq(events.resolved, false)))
+        .where(and(
+          eq(events.linkId, link.id), 
+          eq(events.resolved, false),
+          not(like(events.title, '%blacklist%'))  // NÃO resolver eventos de blacklist automaticamente
+        ))
         .returning();
       if (resolvedCount.length > 0) {
-        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedCount.length} events (link fully normal)`);
+        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedCount.length} events (link fully normal, excluding blacklist)`);
       }
     }
     
@@ -1625,6 +1630,10 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     // Determine final failureReason and failureSource
     let finalFailureReason: string | null = null;
     let finalFailureSource: string | null = null;
+    let finalStatus = collectedMetrics.status;
+    
+    // Check if link is currently degraded due to blacklist - preserve this status
+    const isBlacklistDegraded = link.status === 'degraded' && link.failureSource === 'blacklist';
     
     if (collectedMetrics.status === 'offline') {
       if (hasOltDiagnosisFromCache && cached.failureReason) {
@@ -1642,8 +1651,14 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       // For degraded status, use monitoring-derived reason (e.g., packet_loss)
       finalFailureReason = collectedMetrics.failureReason;
       finalFailureSource = collectedMetrics.failureReason ? 'monitoring' : null;
+    } else if (collectedMetrics.status === 'operational' && isBlacklistDegraded) {
+      // PRESERVE blacklist degraded status - don't override with operational
+      // Blacklist status is managed by hetrixtools.ts, not by monitoring
+      finalStatus = 'degraded';
+      finalFailureReason = link.failureReason;
+      finalFailureSource = 'blacklist';
     }
-    // For operational status, both remain null (no failure)
+    // For operational status (without blacklist), both remain null (no failure)
     
     // Build update object
     const updateData: Record<string, any> = {
@@ -1653,10 +1668,10 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       packetLoss: safePacketLoss,
       cpuUsage: safeCpuUsage,
       memoryUsage: safeMemoryUsage,
-      status: collectedMetrics.status,
+      status: finalStatus,  // Use finalStatus to preserve blacklist degraded state
       failureReason: finalFailureReason,
       failureSource: finalFailureSource,
-      lastFailureAt: collectedMetrics.status === 'offline' ? new Date() : link.lastFailureAt,
+      lastFailureAt: finalStatus === 'offline' ? new Date() : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
     };
