@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,7 +13,7 @@ import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientProvider } from "@/lib/client-context";
 import { ClientSelector } from "@/components/client-selector";
-import { useVersionCheck } from "@/hooks/use-version-check";
+import { useVersionCheck, getRestoredRoute, isKioskMode } from "@/hooks/use-version-check";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Links from "@/pages/links";
@@ -46,9 +47,27 @@ function Router() {
 
 function AppContent() {
   const { user, isSuperAdmin, isLoading, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  const kioskMode = isKioskMode();
   
   // Verificação automática de versão - recarrega quando há atualização
   useVersionCheck();
+  
+  // Restaurar rota após reload (versão ou kiosk)
+  useEffect(() => {
+    const savedRoute = getRestoredRoute();
+    if (savedRoute && user) {
+      // Extrair apenas o pathname (sem query params de ?kiosk=true se necessário)
+      const pathname = savedRoute.split("?")[0];
+      const currentPath = window.location.pathname;
+      
+      // Só redirecionar se a rota for diferente da atual
+      if (pathname !== currentPath && pathname !== "/") {
+        console.log(`[App] Restaurando rota: ${pathname}`);
+        setLocation(pathname);
+      }
+    }
+  }, [user, setLocation]);
   
   const sidebarStyle = {
     "--sidebar-width": "16rem",
