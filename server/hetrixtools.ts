@@ -248,12 +248,13 @@ export async function createHetrixToolsAdapter(
   return new HetrixToolsAdapter(integration);
 }
 
-// Intervalo de 12 horas em milissegundos
-const BLACKLIST_CHECK_INTERVAL = 12 * 60 * 60 * 1000;
+// Intervalo padrão de 12 horas em milissegundos
+const DEFAULT_CHECK_INTERVAL_HOURS = 12;
 
 let blacklistCheckTimer: ReturnType<typeof setInterval> | null = null;
 let isCheckRunning = false;
 let isInitialized = false;
+let currentIntervalHours = DEFAULT_CHECK_INTERVAL_HOURS;
 
 export async function startBlacklistAutoCheck(
   storage: {
@@ -271,6 +272,13 @@ export async function startBlacklistAutoCheck(
     return;
   }
   isInitialized = true;
+  
+  // Buscar intervalo configurado na integração HetrixTools
+  const integrations = await storage.getExternalIntegrations();
+  const hetrixIntegration = integrations.find(
+    (i: any) => i.provider === "hetrixtools" && i.isActive
+  );
+  currentIntervalHours = hetrixIntegration?.checkIntervalHours || DEFAULT_CHECK_INTERVAL_HOURS;
 
   const runCheck = async () => {
     // Mutex: evitar runs concorrentes
@@ -419,10 +427,11 @@ export async function startBlacklistAutoCheck(
   // Executar imediatamente na inicialização (após 30 segundos)
   setTimeout(runCheck, 30000);
 
-  // Agendar execução a cada 12 horas usando setInterval (mais robusto)
-  blacklistCheckTimer = setInterval(runCheck, BLACKLIST_CHECK_INTERVAL);
+  // Agendar execução usando o intervalo configurado
+  const intervalMs = currentIntervalHours * 60 * 60 * 1000;
+  blacklistCheckTimer = setInterval(runCheck, intervalMs);
 
-  console.log("[BlacklistAutoCheck] Scheduled blacklist verification every 12 hours");
+  console.log(`[BlacklistAutoCheck] Scheduled blacklist verification every ${currentIntervalHours} hours`);
 }
 
 export function stopBlacklistAutoCheck(): void {

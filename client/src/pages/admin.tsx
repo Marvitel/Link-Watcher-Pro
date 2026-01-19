@@ -2618,6 +2618,7 @@ function HetrixToolsIntegration() {
     provider: "hetrixtools",
     isActive: true,
     apiKey: "",
+    checkIntervalHours: 12,
   });
 
   useEffect(() => {
@@ -2627,6 +2628,7 @@ function HetrixToolsIntegration() {
         provider: "hetrixtools",
         isActive: hetrixIntegration.isActive,
         apiKey: "",
+        checkIntervalHours: hetrixIntegration.checkIntervalHours || 12,
       });
     }
   }, [hetrixIntegration]);
@@ -2690,6 +2692,7 @@ function HetrixToolsIntegration() {
       const updateData: Partial<typeof formData> = {
         name: formData.name,
         isActive: formData.isActive,
+        checkIntervalHours: formData.checkIntervalHours,
       };
       if (formData.apiKey) {
         updateData.apiKey = formData.apiKey;
@@ -2748,6 +2751,31 @@ function HetrixToolsIntegration() {
             </div>
             <p className="text-xs text-muted-foreground">
               Obtenha sua API Key em: <a href="https://hetrixtools.com/dashboard/account/api/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">hetrixtools.com/dashboard/account/api</a>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="hetrix-interval">Intervalo de Verificação Automática</Label>
+            <Select
+              value={String(formData.checkIntervalHours)}
+              onValueChange={(value) => setFormData({ ...formData, checkIntervalHours: parseInt(value) })}
+            >
+              <SelectTrigger id="hetrix-interval" data-testid="select-hetrix-interval">
+                <SelectValue placeholder="Selecione o intervalo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 hora</SelectItem>
+                <SelectItem value="2">2 horas</SelectItem>
+                <SelectItem value="4">4 horas</SelectItem>
+                <SelectItem value="6">6 horas</SelectItem>
+                <SelectItem value="12">12 horas</SelectItem>
+                <SelectItem value="24">24 horas</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Frequência da verificação automática de blacklist para todos os links
             </p>
           </div>
         </div>

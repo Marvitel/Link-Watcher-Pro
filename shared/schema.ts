@@ -908,6 +908,7 @@ export const externalIntegrations = pgTable("external_integrations", {
   isActive: boolean("is_active").notNull().default(true),
   apiKey: text("api_key"),
   apiUrl: text("api_url"),
+  checkIntervalHours: integer("check_interval_hours").notNull().default(12), // Intervalo de verificação automática em horas
   lastTestedAt: timestamp("last_tested_at"),
   lastTestStatus: varchar("last_test_status", { length: 20 }),
   lastTestError: text("last_test_error"),
