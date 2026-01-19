@@ -386,10 +386,14 @@ export function stopBlacklistAutoCheck(): void {
 }
 
 export async function checkBlacklistForLink(
-  link: { id: number; ipBlock?: string | null; ipAddress?: string | null },
+  link: { id: number; clientId: number; name: string; status?: string; ipBlock?: string | null; ipAddress?: string | null },
   storage: {
     getExternalIntegrations: () => Promise<any[]>;
     upsertBlacklistCheck: (check: any) => Promise<any>;
+    getBlacklistCheck: (linkId: number) => Promise<any[]>;
+    updateLinkStatus?: (id: number, data: any) => Promise<void>;
+    createBlacklistEvent?: (linkId: number, clientId: number, linkName: string, listedIps: string[], rbls: string[]) => Promise<void>;
+    resolveBlacklistEvents?: (linkId: number) => Promise<void>;
   }
 ): Promise<{ checked: number; listed: number; notMonitored: number }> {
   const ipsToCheck: string[] = [];
@@ -474,5 +478,68 @@ export async function checkBlacklistForLink(
   }
 
   console.log(`[BlacklistCheck] Link ${link.id}: ${checked} checked, ${listed} listed, ${notMonitored} not monitored`);
+  
+  // Buscar resultados atualizados para criar evento/atualizar status
+  if (listed > 0) {
+    // Coletar IPs listados e RBLs para o evento
+    const listedIps: string[] = [];
+    const allRbls = new Set<string>();
+    
+    for (const ip of ipsToCheck) {
+      const result = results.get(ip);
+      if (result?.isListed && result.listedOn?.length > 0) {
+        listedIps.push(ip);
+        for (const rbl of result.listedOn) {
+          if (typeof rbl === 'string') {
+            allRbls.add(rbl);
+          } else if (rbl?.rbl) {
+            allRbls.add(rbl.rbl);
+          }
+        }
+      }
+    }
+    
+    // Criar evento de blacklist
+    if (storage.createBlacklistEvent && listedIps.length > 0) {
+      await storage.createBlacklistEvent(
+        link.id,
+        link.clientId,
+        link.name,
+        listedIps,
+        Array.from(allRbls)
+      );
+    }
+    
+    // Atualizar status do link para degraded (se não estiver já offline)
+    if (storage.updateLinkStatus && link.status !== 'offline' && link.status !== 'maintenance') {
+      await storage.updateLinkStatus(link.id, { 
+        status: 'degraded',
+        failureReason: `IP(s) em blacklist: ${listedIps.join(', ')}`,
+        failureSource: 'blacklist'
+      });
+      console.log(`[BlacklistCheck] Link ${link.id} status updated to degraded (blacklist)`);
+    }
+  } else if (listed === 0 && checked > 0) {
+    // Verificar se o link estava em degraded por causa de blacklist
+    const previousChecks = await storage.getBlacklistCheck(link.id);
+    const wasListed = previousChecks.some((c: any) => c.isListed);
+    
+    if (!wasListed && storage.resolveBlacklistEvents) {
+      // Resolver eventos de blacklist anteriores
+      await storage.resolveBlacklistEvents(link.id);
+    }
+    
+    // Se o link estava degraded por blacklist, restaurar para operational
+    if (storage.updateLinkStatus && link.status === 'degraded') {
+      // Só restaurar se o failureSource era blacklist
+      await storage.updateLinkStatus(link.id, { 
+        status: 'operational',
+        failureReason: null,
+        failureSource: null
+      });
+      console.log(`[BlacklistCheck] Link ${link.id} status restored to operational`);
+    }
+  }
+  
   return { checked, listed, notMonitored };
 }

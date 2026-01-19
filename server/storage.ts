@@ -97,7 +97,7 @@ import {
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
 import { startAggregationJobs } from "./aggregation";
-import { eq, desc, gte, lte, and, lt, isNull, sql, or } from "drizzle-orm";
+import { eq, desc, gte, lte, and, lt, isNull, sql, or, like } from "drizzle-orm";
 import crypto from "crypto";
 
 function hashPassword(password: string): string {
@@ -2395,6 +2395,50 @@ export class DatabaseStorage {
 
   async deleteBlacklistCheck(linkId: number): Promise<void> {
     await db.delete(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
+  }
+
+  async createBlacklistEvent(linkId: number, clientId: number, linkName: string, listedIps: string[], rbls: string[]): Promise<void> {
+    const unresolvedEvents = await db.select().from(events)
+      .where(and(
+        eq(events.linkId, linkId),
+        eq(events.resolved, false),
+        like(events.title, '%blacklist%')
+      ));
+    
+    if (unresolvedEvents.length > 0) {
+      console.log(`[BlacklistEvent] Link ${linkId} already has unresolved blacklist event, skipping...`);
+      return;
+    }
+    
+    const ipList = listedIps.slice(0, 3).join(', ') + (listedIps.length > 3 ? ` e mais ${listedIps.length - 3}` : '');
+    const rblList = rbls.slice(0, 3).join(', ') + (rbls.length > 3 ? ` e mais ${rbls.length - 3}` : '');
+    
+    await db.insert(events).values({
+      linkId,
+      clientId,
+      type: "warning",
+      title: `IP em blacklist - ${linkName}`,
+      description: `${listedIps.length} IP(s) encontrado(s) em blacklist: ${ipList}. RBLs: ${rblList}`,
+      timestamp: new Date(),
+      resolved: false,
+    });
+    
+    console.log(`[BlacklistEvent] Created blacklist event for link ${linkId}`);
+  }
+
+  async resolveBlacklistEvents(linkId: number): Promise<void> {
+    const result = await db.update(events)
+      .set({ 
+        resolved: true, 
+        resolvedAt: new Date() 
+      })
+      .where(and(
+        eq(events.linkId, linkId),
+        eq(events.resolved, false),
+        like(events.title, '%blacklist%')
+      ));
+    
+    console.log(`[BlacklistEvent] Resolved blacklist events for link ${linkId}`);
   }
 }
 
