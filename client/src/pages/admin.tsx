@@ -64,7 +64,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping } from "@shared/schema";
+import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration } from "@shared/schema";
 import { Database, Globe, Plug, Server, Layers } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 
@@ -2601,6 +2601,185 @@ function VoalleIntegration({ clients }: { clients: Client[] }) {
   );
 }
 
+function HetrixToolsIntegration() {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  const { data: integrations, refetch } = useQuery<ExternalIntegration[]>({
+    queryKey: ["/api/external-integrations"],
+  });
+
+  const hetrixIntegration = integrations?.find(i => i.provider === "hetrixtools");
+
+  const [formData, setFormData] = useState({
+    name: "HetrixTools",
+    provider: "hetrixtools",
+    isActive: true,
+    apiKey: "",
+  });
+
+  useEffect(() => {
+    if (hetrixIntegration) {
+      setFormData({
+        name: hetrixIntegration.name,
+        provider: "hetrixtools",
+        isActive: hetrixIntegration.isActive,
+        apiKey: "",
+      });
+    }
+  }, [hetrixIntegration]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest("POST", "/api/external-integrations", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração HetrixTools criada com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar integração", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<typeof formData> }) => {
+      return await apiRequest("PATCH", `/api/external-integrations/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração HetrixTools atualizada" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar integração", variant: "destructive" });
+    },
+  });
+
+  const testConnection = async () => {
+    if (!hetrixIntegration) return;
+    setTesting(true);
+    try {
+      const response = await apiRequest("POST", `/api/external-integrations/${hetrixIntegration.id}/test`);
+      const result = await response.json() as { success: boolean; error?: string };
+      if (result.success) {
+        toast({ title: "Conexão com HetrixTools bem-sucedida!" });
+      } else {
+        toast({ title: "Falha na conexão", description: result.error, variant: "destructive" });
+      }
+      refetch();
+    } catch (error) {
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (hetrixIntegration) {
+      const updateData: Partial<typeof formData> = {
+        name: formData.name,
+        isActive: formData.isActive,
+      };
+      if (formData.apiKey) {
+        updateData.apiKey = formData.apiKey;
+      }
+      updateMutation.mutate({ id: hetrixIntegration.id, data: updateData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="w-5 h-5" />
+          HetrixTools - Verificação de Blacklist
+        </CardTitle>
+        <CardDescription>
+          Integração com HetrixTools para verificação de IPs em blacklists (RBLs)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="hetrix-name">Nome da Integração</Label>
+            <Input
+              id="hetrix-name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="HetrixTools"
+              data-testid="input-hetrix-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="hetrix-apikey">API Key</Label>
+            <div className="relative">
+              <Input
+                id="hetrix-apikey"
+                type={showApiKey ? "text" : "password"}
+                value={formData.apiKey}
+                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                placeholder={hetrixIntegration?.apiKey ? "••••••••••••••••" : "Cole sua API Key aqui"}
+                data-testid="input-hetrix-apikey"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Obtenha sua API Key em: <a href="https://hetrixtools.com/dashboard/account/api/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">hetrixtools.com/dashboard/account/api</a>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="hetrix-active"
+            checked={formData.isActive}
+            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+          />
+          <Label htmlFor="hetrix-active">Integração Ativa</Label>
+        </div>
+
+        {hetrixIntegration && (
+          <div className="text-sm text-muted-foreground space-y-1">
+            {hetrixIntegration.lastTestedAt && (
+              <p>
+                Último teste: {new Date(hetrixIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                <Badge variant={hetrixIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
+                  {hetrixIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
+                </Badge>
+              </p>
+            )}
+            {hetrixIntegration.lastTestError && (
+              <p className="text-destructive">Erro: {hetrixIntegration.lastTestError}</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+            {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar"}
+          </Button>
+          {hetrixIntegration && (
+            <Button variant="outline" onClick={testConnection} disabled={testing}>
+              {testing ? "Testando..." : "Testar Conexão"}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const ERP_PROVIDERS = [
   { value: "voalle", label: "Voalle" },
   { value: "ixc", label: "IXC Soft" },
@@ -4186,6 +4365,7 @@ export default function Admin() {
             </p>
           </div>
 
+          <HetrixToolsIntegration />
           <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
         </TabsContent>
