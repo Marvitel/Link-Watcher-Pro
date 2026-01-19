@@ -129,16 +129,37 @@ export class HetrixToolsAdapter {
   }
 
   async getBlacklistMonitors(filters?: { target?: string; type?: string }): Promise<HetrixBlacklistMonitor[]> {
-    let endpoint = "/blacklist-monitors?per_page=200";
-    if (filters?.target) {
-      endpoint += `&target=${encodeURIComponent(filters.target)}&exact_target=true`;
-    }
-    if (filters?.type) {
-      endpoint += `&type=${filters.type}`;
+    const allMonitors: HetrixBlacklistMonitor[] = [];
+    let page = 1;
+    const perPage = 200;
+    
+    while (true) {
+      let endpoint = `/blacklist-monitors?per_page=${perPage}&page=${page}`;
+      if (filters?.target) {
+        endpoint += `&target=${encodeURIComponent(filters.target)}&exact_target=true`;
+      }
+      if (filters?.type) {
+        endpoint += `&type=${filters.type}`;
+      }
+      
+      const response = await this.request<HetrixApiResponse<HetrixBlacklistMonitor>>("GET", endpoint);
+      const monitors = response.monitors || [];
+      allMonitors.push(...monitors);
+      
+      console.log(`[HetrixTools] Page ${page}: fetched ${monitors.length} monitors (total: ${allMonitors.length})`);
+      
+      if (monitors.length < perPage) {
+        break;
+      }
+      page++;
+      
+      if (page > 50) {
+        console.warn("[HetrixTools] Reached max pages limit (50)");
+        break;
+      }
     }
     
-    const response = await this.request<HetrixApiResponse<HetrixBlacklistMonitor>>("GET", endpoint);
-    return response.monitors || [];
+    return allMonitors;
   }
 
   async getBlacklistReport(identifier: string): Promise<HetrixBlacklistReport | null> {
@@ -192,10 +213,12 @@ export class HetrixToolsAdapter {
     const results = new Map();
     
     const monitors = await this.getBlacklistMonitors({ type: "ipv4" });
+    console.log(`[HetrixTools] Total monitors fetched: ${monitors.length}`);
     
     for (const ip of ips) {
       const monitor = monitors.find(m => m.target === ip);
       if (monitor) {
+        console.log(`[HetrixTools] IP ${ip}: found monitor, listed on ${monitor.listed?.length || 0} blacklists`);
         results.set(ip, {
           isListed: monitor.listed && monitor.listed.length > 0,
           listedOn: monitor.listed || [],
@@ -203,6 +226,7 @@ export class HetrixToolsAdapter {
           reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
         });
       } else {
+        console.log(`[HetrixTools] IP ${ip}: no monitor found`);
         results.set(ip, {
           isListed: false,
           listedOn: [],
