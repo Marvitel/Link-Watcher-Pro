@@ -642,6 +642,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     slotOlt?: number;
     portOlt?: number;
     equipmentSerialNumber?: string;
+    ipBlock?: string;
   }>> {
     const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
@@ -661,6 +662,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             portOlt: number | null;
             equipmentSerialNumber: string | null;
             ipAuthentication?: { id: number; ip: string } | null;
+            validLanIp?: string | null;
+            validLanIpClass?: string | null;
             authenticationConcentrator?: { id: number; title: string } | null;
             authenticationAccessPoint?: { id: number; title: string } | null;
             // Connection address fields (directly on authentication object)
@@ -729,6 +732,14 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
               : undefined;
             const location = (conn.city || conn.state) ? `${conn.city || ''}/${conn.state || ''}` : undefined;
             
+            // Build IP block from validLanIp and validLanIpClass (e.g., "192.168.1.0/24")
+            let ipBlock: string | undefined;
+            if (conn.validLanIp && conn.validLanIpClass) {
+              ipBlock = `${conn.validLanIp}/${conn.validLanIpClass}`;
+            } else if (conn.validLanIp) {
+              ipBlock = conn.validLanIp;
+            }
+
             return {
               id: conn.contractServiceTag!.id,
               serviceTag: conn.contractServiceTag!.serviceTag,
@@ -736,6 +747,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
               active: conn.active,
               contractNumber: conn.contract?.contract_number,
               ip: conn.ipAuthentication?.ip,
+              ipBlock: ipBlock,
               bandwidth: conn.serviceProduct?.title ? extractBandwidth(conn.serviceProduct.title) : undefined,
               address: fullAddress,
               location: location,
