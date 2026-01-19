@@ -726,6 +726,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       }
     }
 
+    // Extrair máscara do ipBlock do Voalle (ex: "192.168.1.0/29" → "/29")
+    let extractedIpBlock: string | undefined;
+    if (tag.ipBlock) {
+      const maskMatch = tag.ipBlock.match(/\/(\d+)$/);
+      if (maskMatch) {
+        extractedIpBlock = `/${maskMatch[1]}`;
+      }
+    }
+
     // Preencher automaticamente os campos disponíveis
     setFormData(prev => ({
       ...prev,
@@ -733,7 +742,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       name: prev.name || tag.description || tag.serviceTag || "",
       identifier: prev.identifier || tag.serviceTag || "",
       monitoredIp: prev.monitoredIp || tag.ip || "",
-      ipBlock: tag.ipBlock || prev.ipBlock,
+      ipBlock: extractedIpBlock || prev.ipBlock,
       bandwidth: tag.bandwidth || prev.bandwidth,
       address: prev.address || tag.address || "",
       location: prev.location || tag.location || "",
@@ -817,13 +826,22 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         }
       }
 
+      // Extrair máscara do ipBlock do Voalle (ex: "192.168.1.0/29" → "/29")
+      let extractedIpBlock = formData.ipBlock;
+      if (tag.ipBlock) {
+        const maskMatch = tag.ipBlock.match(/\/(\d+)$/);
+        if (maskMatch) {
+          extractedIpBlock = `/${maskMatch[1]}`;
+        }
+      }
+
       // FORÇAR atualização de TODOS os campos (sobrescrever valores existentes)
       setFormData(prev => ({
         ...prev,
         name: tag.description || tag.serviceTag || prev.name,
         identifier: tag.serviceTag || prev.identifier,
         monitoredIp: tag.ip || prev.monitoredIp,
-        ipBlock: tag.ipBlock || prev.ipBlock,
+        ipBlock: extractedIpBlock,
         bandwidth: tag.bandwidth || prev.bandwidth,
         address: tag.address || prev.address,
         location: tag.location || prev.location,

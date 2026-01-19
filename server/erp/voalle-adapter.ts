@@ -736,8 +736,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             let ipBlock: string | undefined;
             if (conn.validLanIp && conn.validLanIpClass) {
               ipBlock = `${conn.validLanIp}/${conn.validLanIpClass}`;
+              console.log(`[VoalleAdapter] IP Block: ${ipBlock} (validLanIp: ${conn.validLanIp}, validLanIpClass: ${conn.validLanIpClass})`);
             } else if (conn.validLanIp) {
               ipBlock = conn.validLanIp;
+              console.log(`[VoalleAdapter] IP Block (sem classe): ${ipBlock}`);
             }
 
             return {
