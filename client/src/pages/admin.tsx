@@ -675,6 +675,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     description?: string;
     contractNumber?: string;
     ip?: string;
+    ipBlock?: string;
     bandwidth?: number;
     address?: string;
     location?: string;
@@ -732,6 +733,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       name: prev.name || tag.description || tag.serviceTag || "",
       identifier: prev.identifier || tag.serviceTag || "",
       monitoredIp: prev.monitoredIp || tag.ip || "",
+      ipBlock: tag.ipBlock || prev.ipBlock,
       bandwidth: tag.bandwidth || prev.bandwidth,
       address: prev.address || tag.address || "",
       location: prev.location || tag.location || "",
@@ -750,6 +752,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     // Mensagem de feedback
     const messages: string[] = [];
     if (tag.description || tag.serviceTag) messages.push(`Etiqueta: ${tag.description || tag.serviceTag}`);
+    if (tag.ipBlock) messages.push(`Bloco IP: ${tag.ipBlock}`);
     if (matchedOltId) messages.push(`OLT encontrada`);
     if (matchedConcentratorId) messages.push(`Concentrador encontrado`);
     if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
@@ -820,6 +823,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         name: tag.description || tag.serviceTag || prev.name,
         identifier: tag.serviceTag || prev.identifier,
         monitoredIp: tag.ip || prev.monitoredIp,
+        ipBlock: tag.ipBlock || prev.ipBlock,
         bandwidth: tag.bandwidth || prev.bandwidth,
         address: tag.address || prev.address,
         location: tag.location || prev.location,
