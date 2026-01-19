@@ -199,9 +199,9 @@ export default function LinkDetail() {
   });
 
   // Buscar status de blacklist do link (endpoint específico por linkId para melhor performance)
-  const { data: blacklistCheck, isLoading: blacklistLoading, refetch: refetchBlacklist } = useQuery<BlacklistCheck | null>({
+  const { data: blacklistChecks, isLoading: blacklistLoading, refetch: refetchBlacklist } = useQuery<BlacklistCheck[]>({
     queryKey: ["/api/blacklist/cached", linkId],
-    queryFn: async (): Promise<BlacklistCheck | null> => {
+    queryFn: async (): Promise<BlacklistCheck[]> => {
       const token = getAuthToken();
       const headers: Record<string, string> = {};
       if (token) {
@@ -211,8 +211,9 @@ export default function LinkDetail() {
         credentials: "include",
         headers,
       });
-      if (!res.ok) return null;
-      return res.json();
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data ? [data] : []);
     },
     enabled: !isNaN(linkId),
     refetchInterval: 60000,
@@ -228,14 +229,14 @@ export default function LinkDetail() {
     },
     onSuccess: (data) => {
       refetchBlacklist();
-      if (data.isListed) {
+      if (data.listed > 0) {
         toast({ 
-          title: "IP encontrado em blacklist", 
-          description: `Listado em ${(data.listedOn as Array<unknown>)?.length || 0} lista(s)`,
+          title: "IPs encontrados em blacklist", 
+          description: `${data.listed} de ${data.totalIps} IP(s) em blacklist`,
           variant: "destructive" 
         });
       } else {
-        toast({ title: "IP limpo", description: "Não encontrado em nenhuma blacklist" });
+        toast({ title: "Todos IPs limpos", description: `${data.totalIps} IP(s) verificado(s)` });
       }
     },
     onError: () => {
@@ -479,9 +480,9 @@ export default function LinkDetail() {
           <TabsTrigger value="blacklist" data-testid="tab-blacklist" className="gap-1">
             <Shield className="w-4 h-4" />
             Blacklist
-            {blacklistCheck?.isListed && (
+            {blacklistChecks && blacklistChecks.some(c => c.isListed) && (
               <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
-                {Array.isArray(blacklistCheck.listedOn) ? blacklistCheck.listedOn.length : 0}
+                {blacklistChecks.filter(c => c.isListed).length}
               </Badge>
             )}
           </TabsTrigger>
@@ -921,7 +922,7 @@ export default function LinkDetail() {
                   Verificação de Blacklist
                 </CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Verifica se o IP do link está listado em blacklists de spam/RBL
+                  Verifica se os IPs do bloco estão listados em blacklists de spam/RBL
                 </p>
               </div>
               <Button 
@@ -947,89 +948,140 @@ export default function LinkDetail() {
                 <div className="space-y-3">
                   <Skeleton className="h-16 w-full" />
                 </div>
-              ) : blacklistCheck ? (
+              ) : blacklistChecks && blacklistChecks.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4 p-4 rounded-lg border">
-                    {blacklistCheck.isListed ? (
+                  {(() => {
+                    const listedChecks = blacklistChecks.filter(c => c.isListed);
+                    const hasAnyListed = listedChecks.length > 0;
+                    const totalRbls = listedChecks.reduce((acc, c) => 
+                      acc + (Array.isArray(c.listedOn) ? c.listedOn.length : 0), 0
+                    );
+                    const lastCheck = blacklistChecks.reduce((latest, c) => {
+                      const cDate = c.lastCheckedAt ? new Date(c.lastCheckedAt) : null;
+                      return cDate && (!latest || cDate > latest) ? cDate : latest;
+                    }, null as Date | null);
+                    
+                    return (
                       <>
-                        <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-                          <AlertTriangle className="w-6 h-6 text-destructive" />
+                        <div className="flex items-center gap-4 p-4 rounded-lg border">
+                          {hasAnyListed ? (
+                            <>
+                              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                                <AlertTriangle className="w-6 h-6 text-destructive" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-destructive">IPs em Blacklist</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {listedChecks.length} de {blacklistChecks.length} IP(s) encontrado(s) em {totalRbls} lista(s)
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                                <CheckCircle className="w-6 h-6 text-green-500" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-green-600">Todos os IPs Limpos</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {blacklistChecks.length} IP(s) verificado(s), nenhum em blacklist
+                                </p>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div>
-                          <p className="font-medium text-destructive">IP em Blacklist</p>
-                          <p className="text-sm text-muted-foreground">
-                            Encontrado em {Array.isArray(blacklistCheck.listedOn) ? blacklistCheck.listedOn.length : 0} lista(s)
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                          <CheckCircle className="w-6 h-6 text-green-500" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-green-600">IP Limpo</p>
-                          <p className="text-sm text-muted-foreground">
-                            Não encontrado em nenhuma blacklist
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">IP Verificado</p>
-                      <p className="font-mono font-medium">{blacklistCheck.ip}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Última Verificação</p>
-                      <p className="font-medium">
-                        {blacklistCheck.lastCheckedAt 
-                          ? format(new Date(blacklistCheck.lastCheckedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                          : "Nunca verificado"
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  {blacklistCheck.isListed && Array.isArray(blacklistCheck.listedOn) && blacklistCheck.listedOn.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Listas onde o IP foi encontrado:</p>
-                      <div className="space-y-2">
-                        {(blacklistCheck.listedOn as Array<{ rbl: string; delist?: string }>).map((item, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 rounded border bg-destructive/5">
-                            <span className="font-mono text-sm">{item.rbl}</span>
-                            {item.delist && (
-                              <a 
-                                href={item.delist} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                              >
-                                Solicitar remoção
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-muted-foreground">Bloco de IPs</p>
+                            <p className="font-mono font-medium">{link?.ipBlock || blacklistChecks[0]?.ip}</p>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                          <div>
+                            <p className="text-muted-foreground">Última Verificação</p>
+                            <p className="font-medium">
+                              {lastCheck
+                                ? format(lastCheck, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                                : "Nunca verificado"
+                              }
+                            </p>
+                          </div>
+                        </div>
 
-                  {blacklistCheck.reportUrl && (
-                    <div className="pt-2">
-                      <a 
-                        href={blacklistCheck.reportUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary hover:underline flex items-center gap-1"
-                      >
-                        Ver relatório completo no HetrixTools
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
-                  )}
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">IPs do Bloco ({blacklistChecks.length}):</p>
+                          <div className="grid gap-2">
+                            {blacklistChecks.map((check) => (
+                              <div 
+                                key={check.ip} 
+                                className={`flex items-center justify-between p-3 rounded border ${
+                                  check.isListed ? 'bg-destructive/5 border-destructive/30' : 'bg-green-500/5 border-green-500/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  {check.isListed ? (
+                                    <AlertTriangle className="w-4 h-4 text-destructive" />
+                                  ) : (
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                  )}
+                                  <span className="font-mono text-sm">{check.ip}</span>
+                                  {check.isListed && Array.isArray(check.listedOn) && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      {check.listedOn.length} lista(s)
+                                    </Badge>
+                                  )}
+                                  {!check.reportId && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Sem monitor
+                                    </Badge>
+                                  )}
+                                </div>
+                                {check.reportUrl && (
+                                  <a 
+                                    href={check.reportUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                                  >
+                                    Relatório
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {hasAnyListed && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Listas onde IPs foram encontrados:</p>
+                            <div className="space-y-2">
+                              {listedChecks.flatMap((check) => 
+                                (check.listedOn as Array<{ rbl: string; delist?: string }> || []).map((item, idx) => (
+                                  <div key={`${check.ip}-${idx}`} className="flex items-center justify-between p-2 rounded border bg-destructive/5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs text-muted-foreground">{check.ip}</span>
+                                      <span className="font-mono text-sm">{item.rbl}</span>
+                                    </div>
+                                    {item.delist && (
+                                      <a 
+                                        href={item.delist} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                                      >
+                                        Solicitar remoção
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

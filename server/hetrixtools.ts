@@ -13,21 +13,21 @@ export function expandCidrToIps(cidr: string): string[] {
   const [, baseIp, prefixStr] = cidrMatch;
   const prefix = parseInt(prefixStr, 10);
   
-  if (prefix < 24) {
-    console.log(`[CIDR] Block /${prefix} too large, limiting to first 256 IPs`);
+  const hostBits = 32 - prefix;
+  const totalHosts = Math.pow(2, hostBits);
+  const maxHosts = Math.min(totalHosts, 256);
+  
+  if (totalHosts > 256) {
+    console.log(`[CIDR] Block /${prefix} has ${totalHosts} IPs, limiting to first 256`);
   }
   
-  const effectivePrefix = Math.max(prefix, 24);
-  const hostBits = 32 - effectivePrefix;
-  const numHosts = Math.pow(2, hostBits);
-  
   const parts = baseIp.split('.').map(Number);
-  const baseNum = (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
-  const networkMask = ~((1 << hostBits) - 1) >>> 0;
+  const baseNum = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+  const networkMask = (~((1 << hostBits) - 1)) >>> 0;
   const networkBase = (baseNum & networkMask) >>> 0;
   
   const ips: string[] = [];
-  for (let i = 0; i < numHosts; i++) {
+  for (let i = 0; i < maxHosts; i++) {
     const ipNum = (networkBase + i) >>> 0;
     const ip = [
       (ipNum >>> 24) & 0xff,
@@ -268,11 +268,10 @@ export async function startBlacklistAutoCheck(
 
       const adapter = new HetrixToolsAdapter(hetrixIntegration);
       const links = await storage.getLinks();
-      const linksWithIp = links.filter((link: any) => link.ipAddress);
+      const linksWithIp = links.filter((link: any) => link.ipBlock || link.ipAddress);
       
-      console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP addresses`);
+      console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP/blocks`);
 
-      // Obter todos os monitores de uma vez para eficiência
       const allMonitors = await adapter.getBlacklistMonitors({ type: "ipv4" });
       let checkedCount = 0;
       let listedCount = 0;
@@ -280,51 +279,63 @@ export async function startBlacklistAutoCheck(
 
       for (const link of linksWithIp) {
         try {
-          const monitor = allMonitors.find((m: any) => m.target === link.ipAddress);
+          const ipsToCheck: string[] = [];
           
-          if (!monitor) {
-            // Registrar que o IP não está sendo monitorado pelo HetrixTools
-            // Isso evita blind spots e permite ao usuário saber quais IPs não têm monitor
-            notMonitoredCount++;
-            await storage.upsertBlacklistCheck({
+          if (link.ipBlock) {
+            const expandedIps = expandCidrToIps(link.ipBlock);
+            ipsToCheck.push(...expandedIps);
+          }
+          
+          if (link.ipAddress && !ipsToCheck.includes(link.ipAddress)) {
+            ipsToCheck.push(link.ipAddress);
+          }
+          
+          if (ipsToCheck.length === 0) continue;
+          
+          for (const ip of ipsToCheck) {
+            const monitor = allMonitors.find((m: any) => m.target === ip);
+            
+            if (!monitor) {
+              notMonitoredCount++;
+              await storage.upsertBlacklistCheck({
+                linkId: link.id,
+                ip,
+                isListed: false,
+                listedOn: [],
+                reportId: null,
+                reportUrl: null,
+                lastCheckedAt: new Date(),
+              });
+              continue;
+            }
+
+            const lastCheckedAt = monitor.last_check 
+              ? new Date(monitor.last_check * 1000) 
+              : new Date();
+
+            const checkResult = {
               linkId: link.id,
-              ip: link.ipAddress,
-              isListed: false,
-              listedOn: [],
-              reportId: null,
-              reportUrl: null,
-              lastCheckedAt: new Date(),
-            });
-            continue;
+              ip,
+              isListed: monitor.listed && monitor.listed.length > 0,
+              listedOn: monitor.listed || [],
+              reportId: monitor.report_id,
+              reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
+              lastCheckedAt,
+            };
+
+            if (checkResult.isListed) {
+              listedCount++;
+            }
+
+            await storage.upsertBlacklistCheck(checkResult);
+            checkedCount++;
           }
-
-          // Usar o timestamp do monitor (last_check) para alinhamento com a API
-          const lastCheckedAt = monitor.last_check 
-            ? new Date(monitor.last_check * 1000) 
-            : new Date();
-
-          const checkResult = {
-            linkId: link.id,
-            ip: link.ipAddress,
-            isListed: monitor.listed && monitor.listed.length > 0,
-            listedOn: monitor.listed || [],
-            reportId: monitor.report_id,
-            reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
-            lastCheckedAt,
-          };
-
-          if (checkResult.isListed) {
-            listedCount++;
-          }
-
-          await storage.upsertBlacklistCheck(checkResult);
-          checkedCount++;
         } catch (err) {
           console.error(`[BlacklistAutoCheck] Failed to check link ${link.id}:`, err);
         }
       }
 
-      console.log(`[BlacklistAutoCheck] Completed: ${checkedCount} checked, ${listedCount} listed, ${notMonitoredCount} not monitored`);
+      console.log(`[BlacklistAutoCheck] Completed: ${checkedCount} IPs checked, ${listedCount} listed, ${notMonitoredCount} not monitored`);
     } catch (error) {
       console.error("[BlacklistAutoCheck] Error during scheduled check:", error);
     } finally {
