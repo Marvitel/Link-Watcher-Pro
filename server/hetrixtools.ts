@@ -260,6 +260,9 @@ export async function startBlacklistAutoCheck(
     getExternalIntegrations: () => Promise<any[]>;
     getLinks: () => Promise<any[]>;
     upsertBlacklistCheck: (check: any) => Promise<any>;
+    updateLinkStatus: (id: number, data: any) => Promise<void>;
+    createBlacklistEvent: (linkId: number, clientId: number, linkName: string, listedIps: string[], rbls: string[]) => Promise<void>;
+    resolveBlacklistEvents: (linkId: number) => Promise<void>;
   }
 ): Promise<void> {
   // Evitar múltiplas inicializações (hot reload, múltiplas instâncias)
@@ -316,6 +319,10 @@ export async function startBlacklistAutoCheck(
           
           if (ipsToCheck.length === 0) continue;
           
+          const listedIpsForLink: string[] = [];
+          const allRblsForLink = new Set<string>();
+          let linkCheckedCount = 0;
+          
           for (const ip of ipsToCheck) {
             const monitor = allMonitors.find((m: any) => m.target === ip);
             
@@ -337,22 +344,64 @@ export async function startBlacklistAutoCheck(
               ? new Date(monitor.last_check * 1000) 
               : new Date();
 
+            const isListed = monitor.listed && monitor.listed.length > 0;
             const checkResult = {
               linkId: link.id,
               ip,
-              isListed: monitor.listed && monitor.listed.length > 0,
+              isListed,
               listedOn: monitor.listed || [],
               reportId: monitor.report_id,
               reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
               lastCheckedAt,
             };
 
-            if (checkResult.isListed) {
+            if (isListed) {
               listedCount++;
+              listedIpsForLink.push(ip);
+              for (const rbl of (monitor.listed || [])) {
+                if (typeof rbl === 'string') {
+                  allRblsForLink.add(rbl);
+                } else if (rbl?.rbl) {
+                  allRblsForLink.add(rbl.rbl);
+                }
+              }
             }
 
             await storage.upsertBlacklistCheck(checkResult);
             checkedCount++;
+            linkCheckedCount++;
+          }
+          
+          // Criar evento e atualizar status se há IPs listados
+          if (listedIpsForLink.length > 0) {
+            await storage.createBlacklistEvent(
+              link.id,
+              link.clientId,
+              link.name,
+              listedIpsForLink,
+              Array.from(allRblsForLink)
+            );
+            
+            if (link.status !== 'offline' && link.status !== 'maintenance') {
+              await storage.updateLinkStatus(link.id, { 
+                status: 'degraded',
+                failureReason: `IP(s) em blacklist: ${listedIpsForLink.join(', ')}`,
+                failureSource: 'blacklist'
+              });
+              console.log(`[BlacklistAutoCheck] Link ${link.id} status updated to degraded`);
+            }
+          } else if (linkCheckedCount > 0 && listedIpsForLink.length === 0) {
+            // Nenhum IP listado - resolver eventos e restaurar status se necessário
+            await storage.resolveBlacklistEvents(link.id);
+            
+            if (link.status === 'degraded' && link.failureSource === 'blacklist') {
+              await storage.updateLinkStatus(link.id, { 
+                status: 'operational',
+                failureReason: null,
+                failureSource: null
+              });
+              console.log(`[BlacklistAutoCheck] Link ${link.id} status restored to operational`);
+            }
           }
         } catch (err) {
           console.error(`[BlacklistAutoCheck] Failed to check link ${link.id}:`, err);

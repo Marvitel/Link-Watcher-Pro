@@ -4341,6 +4341,10 @@ export async function registerRoutes(
     getExternalIntegrations: () => storage.getExternalIntegrations(),
     getLinks: () => storage.getLinks(),
     upsertBlacklistCheck: (check) => storage.upsertBlacklistCheck(check),
+    updateLinkStatus: (id, data) => storage.updateLinkStatus(id, data),
+    createBlacklistEvent: (linkId, clientId, linkName, listedIps, rbls) => 
+      storage.createBlacklistEvent(linkId, clientId, linkName, listedIps, rbls),
+    resolveBlacklistEvents: (linkId) => storage.resolveBlacklistEvents(linkId),
   });
 
   return httpServer;
