@@ -282,7 +282,7 @@ export async function startBlacklistAutoCheck(
 
       const integrations = await storage.getExternalIntegrations();
       const hetrixIntegration = integrations.find(
-        (i: any) => i.type === "hetrixtools" && i.isActive && i.apiKey
+        (i: any) => i.provider === "hetrixtools" && i.isActive && i.apiKey
       );
 
       if (!hetrixIntegration) {
@@ -413,11 +413,11 @@ export async function checkBlacklistForLink(
   const integrations = await storage.getExternalIntegrations();
   console.log(`[BlacklistCheck] Found ${integrations.length} integrations`);
   for (const i of integrations) {
-    console.log(`[BlacklistCheck] Integration: type=${i.type}, isActive=${i.isActive}, hasApiKey=${!!i.apiKey}`);
+    console.log(`[BlacklistCheck] Integration: provider=${i.provider}, isActive=${i.isActive}, hasApiKey=${!!i.apiKey}`);
   }
   
   const hetrixIntegration = integrations.find(
-    (i: any) => i.type === "hetrixtools" && i.isActive && i.apiKey
+    (i: any) => i.provider === "hetrixtools" && i.isActive && i.apiKey
   );
 
   if (!hetrixIntegration) {
