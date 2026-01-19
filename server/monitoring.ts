@@ -1552,26 +1552,62 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       }
     }
     
-    // Auto-resolve unresolved events when link is operational with normal metrics
-    // EXCEPT blacklist events - those are managed by hetrixtools.ts
+    // Auto-resolve events based on current metrics
+    // Each type of event is resolved only when its specific condition returns to normal
     const latencyThresholdForResolve = link.latencyThreshold || 80;
     const packetLossThresholdForResolve = link.packetLossThreshold || 2;
-    const isFullyNormal = newStatus === "operational" && 
-                          safeLatency <= latencyThresholdForResolve && 
-                          safePacketLoss <= packetLossThresholdForResolve;
     
-    if (isFullyNormal) {
-      const resolvedCount = await db
+    // Resolve latency events only when latency is back to normal
+    if (safeLatency <= latencyThresholdForResolve) {
+      const resolvedLatency = await db
         .update(events)
         .set({ resolved: true, resolvedAt: new Date() })
         .where(and(
           eq(events.linkId, link.id), 
           eq(events.resolved, false),
-          not(like(events.title, '%blacklist%'))  // NÃO resolver eventos de blacklist automaticamente
+          like(events.title, '%Latência elevada%')
         ))
         .returning();
-      if (resolvedCount.length > 0) {
-        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedCount.length} events (link fully normal, excluding blacklist)`);
+      if (resolvedLatency.length > 0) {
+        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedLatency.length} latency events (latency normal: ${safeLatency.toFixed(1)}ms)`);
+      }
+    }
+    
+    // Resolve packet loss events only when packet loss is back to normal
+    if (safePacketLoss <= packetLossThresholdForResolve) {
+      const resolvedPacketLoss = await db
+        .update(events)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(
+          eq(events.linkId, link.id), 
+          eq(events.resolved, false),
+          like(events.title, '%Perda de pacotes%')
+        ))
+        .returning();
+      if (resolvedPacketLoss.length > 0) {
+        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedPacketLoss.length} packet loss events (loss normal: ${safePacketLoss.toFixed(1)}%)`);
+      }
+    }
+    
+    // Resolve offline/degraded status events only when link is fully operational
+    const isFullyNormal = newStatus === "operational" && 
+                          safeLatency <= latencyThresholdForResolve && 
+                          safePacketLoss <= packetLossThresholdForResolve;
+    
+    if (isFullyNormal) {
+      const resolvedStatus = await db
+        .update(events)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(
+          eq(events.linkId, link.id), 
+          eq(events.resolved, false),
+          not(like(events.title, '%blacklist%')),      // Blacklist: gerenciado por hetrixtools.ts
+          not(like(events.title, '%Latência elevada%')), // Já resolvido acima
+          not(like(events.title, '%Perda de pacotes%'))  // Já resolvido acima
+        ))
+        .returning();
+      if (resolvedStatus.length > 0) {
+        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedStatus.length} status events (link fully normal)`);
       }
     }
     
