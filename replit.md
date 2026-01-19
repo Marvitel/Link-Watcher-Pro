@@ -33,6 +33,9 @@ Authentication is localStorage-based, managed by a React context (`client/src/li
 - **Real-time Simulation**: The server simulates network metrics every 5 seconds.
 - **Data Cleanup**: Old metrics data is automatically cleaned up, retaining 6 months of history.
 - **Bandwidth Direction Inversion**: The system automatically inverts download ↔ upload directions by default for concentrator interface monitoring. This behavior can be disabled per link with `invertBandwidth=true`.
+- **Versioning & Auto-reload**: The `/api/version` endpoint returns a hash of the frontend build. The `use-version-check` hook polls this endpoint every 30s; when version changes, the page reloads automatically after clearing cache.
+- **Route Persistence**: Before reload, the current route (pathname + query params) is saved to localStorage (`link_monitor_restore_route`) and restored after page load.
+- **Kiosk Mode**: Add `?kiosk=true` to any URL for 24/7 display screens. Features: silent auto-reload every 6h, no version update toast notifications, route persistence with query params preserved, session persistence via localStorage token.
 
 ### Link Groups (Grupos de Links)
 Supports grouping links for combined monitoring, with different profiles:
