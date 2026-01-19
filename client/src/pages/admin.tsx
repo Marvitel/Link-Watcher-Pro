@@ -1253,10 +1253,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             value={formData.ipBlock}
             onValueChange={(value) => {
               const ipInfo: Record<string, { total: number; usable: number }> = {
+                "/32": { total: 1, usable: 1 },
+                "/31": { total: 2, usable: 2 },
                 "/30": { total: 4, usable: 2 },
                 "/29": { total: 8, usable: 6 },
                 "/28": { total: 16, usable: 14 },
                 "/27": { total: 32, usable: 30 },
+                "/26": { total: 64, usable: 62 },
+                "/25": { total: 128, usable: 126 },
+                "/24": { total: 256, usable: 254 },
               };
               const info = ipInfo[value] || { total: 8, usable: 6 };
               setFormData({ ...formData, ipBlock: value, totalIps: info.total, usableIps: info.usable });
@@ -1266,10 +1271,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="/32">/32 (1 IP)</SelectItem>
+              <SelectItem value="/31">/31 (2 IPs)</SelectItem>
               <SelectItem value="/30">/30 (4 IPs)</SelectItem>
               <SelectItem value="/29">/29 (8 IPs)</SelectItem>
               <SelectItem value="/28">/28 (16 IPs)</SelectItem>
               <SelectItem value="/27">/27 (32 IPs)</SelectItem>
+              <SelectItem value="/26">/26 (64 IPs)</SelectItem>
+              <SelectItem value="/25">/25 (128 IPs)</SelectItem>
+              <SelectItem value="/24">/24 (256 IPs)</SelectItem>
             </SelectContent>
           </Select>
         </div>
