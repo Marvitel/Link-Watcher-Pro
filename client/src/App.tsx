@@ -53,11 +53,14 @@ function AppContent() {
   // Verificação automática de versão - recarrega quando há atualização
   useVersionCheck();
   
-  // Restaurar rota após reload (versão ou kiosk)
+  // Restaurar rota após reload (versão ou kiosk) e invalidar cache
   useEffect(() => {
     const savedRoute = getRestoredRoute();
     if (savedRoute && user) {
       const currentFullPath = window.location.pathname + window.location.search;
+      
+      // Invalidar todas as queries para garantir dados frescos após reload
+      queryClient.invalidateQueries();
       
       // Restaurar rota completa (com query params) se for diferente da atual
       // Preserva ?kiosk=true e outros parâmetros importantes
