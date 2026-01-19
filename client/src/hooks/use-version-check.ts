@@ -87,13 +87,21 @@ export function useVersionCheck() {
       // Em modo kiosk, verificar se é hora do reload periódico (6h)
       if (kioskMode && shouldKioskReload()) {
         console.log(`[Kiosk] Reload periódico após ${KIOSK_RELOAD_INTERVAL / 3600000}h`);
-        // Buscar versão atual antes do reload
-        const response = await fetch("/api/version", { cache: "no-store" });
-        if (response.ok) {
-          const data: VersionResponse = await response.json();
-          performCleanReload(data.version);
-        } else {
-          performCleanReload(currentVersionRef.current || "kiosk-reload");
+        // Buscar versão atual antes do reload para manter consistência
+        try {
+          const response = await fetch("/api/version", { cache: "no-store" });
+          if (response.ok) {
+            const data: VersionResponse = await response.json();
+            performCleanReload(data.version);
+          } else {
+            // Fallback: usar versão atual ou timestamp
+            const fallbackVersion = currentVersionRef.current || Date.now().toString(36);
+            performCleanReload(fallbackVersion);
+          }
+        } catch {
+          // Em caso de erro de rede, ainda fazer reload com versão de fallback
+          const fallbackVersion = currentVersionRef.current || Date.now().toString(36);
+          performCleanReload(fallbackVersion);
         }
         return;
       }

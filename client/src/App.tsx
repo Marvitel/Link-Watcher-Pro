@@ -57,14 +57,21 @@ function AppContent() {
   useEffect(() => {
     const savedRoute = getRestoredRoute();
     if (savedRoute && user) {
-      // Extrair apenas o pathname (sem query params de ?kiosk=true se necessário)
-      const pathname = savedRoute.split("?")[0];
-      const currentPath = window.location.pathname;
+      const currentFullPath = window.location.pathname + window.location.search;
       
-      // Só redirecionar se a rota for diferente da atual
-      if (pathname !== currentPath && pathname !== "/") {
-        console.log(`[App] Restaurando rota: ${pathname}`);
-        setLocation(pathname);
+      // Restaurar rota completa (com query params) se for diferente da atual
+      // Preserva ?kiosk=true e outros parâmetros importantes
+      if (savedRoute !== currentFullPath) {
+        console.log(`[App] Restaurando rota: ${savedRoute}`);
+        // Usar window.location para preservar query params (wouter não suporta bem query strings)
+        const [pathname, search] = savedRoute.split("?");
+        if (search) {
+          // Se tem query params, usar navegação direta do browser
+          window.history.replaceState(null, "", savedRoute);
+          setLocation(pathname);
+        } else if (pathname !== window.location.pathname) {
+          setLocation(pathname);
+        }
       }
     }
   }, [user, setLocation]);
