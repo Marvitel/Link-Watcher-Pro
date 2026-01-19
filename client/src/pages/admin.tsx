@@ -4627,7 +4627,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
     name: "",
     email: "",
     password: "",
-    role: "operator" as "admin" | "manager" | "operator",
+    role: "operator" as "admin" | "manager" | "operator" | "viewer" | "dashboard",
     isActive: true,
     isSuperAdmin: false,
   });
@@ -4762,7 +4762,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
       name: user.name,
       email: user.email,
       password: "",
-      role: user.role as "admin" | "manager" | "operator",
+      role: user.role as "admin" | "manager" | "operator" | "viewer" | "dashboard",
       isActive: user.isActive,
       isSuperAdmin: user.isSuperAdmin || false,
     });
@@ -5165,7 +5165,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                       <Label>Função</Label>
                       <Select
                         value={userFormData.role}
-                        onValueChange={(val) => setUserFormData({ ...userFormData, role: val as "admin" | "manager" | "operator" })}
+                        onValueChange={(val) => setUserFormData({ ...userFormData, role: val as "admin" | "manager" | "operator" | "viewer" | "dashboard" })}
                       >
                         <SelectTrigger data-testid="select-user-role">
                           <SelectValue />
@@ -5174,8 +5174,15 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                           <SelectItem value="admin">Administrador</SelectItem>
                           <SelectItem value="manager">Gerente</SelectItem>
                           <SelectItem value="operator">Operador</SelectItem>
+                          <SelectItem value="viewer">Visualizador</SelectItem>
+                          <SelectItem value="dashboard">Dashboard (Kiosk)</SelectItem>
                         </SelectContent>
                       </Select>
+                      {userFormData.role === "dashboard" && (
+                        <p className="text-xs text-muted-foreground">
+                          Usuário para telas de monitoramento 24/7. Use ?kiosk=true na URL para ativar modo kiosk.
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
@@ -5234,7 +5241,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant={user.isActive ? "default" : "secondary"}>
-                          {user.role === "admin" ? "Admin" : user.role === "manager" ? "Gerente" : "Operador"}
+                          {user.role === "admin" ? "Admin" : user.role === "manager" ? "Gerente" : user.role === "viewer" ? "Visualizador" : user.role === "dashboard" ? "Dashboard" : "Operador"}
                         </Badge>
                         <Button size="icon" variant="ghost" onClick={() => handleEditUser(user)} data-testid={`button-edit-user-${user.id}`}>
                           <Pencil className="w-4 h-4" />
