@@ -31,7 +31,7 @@ import {
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
-import { HetrixToolsAdapter, startBlacklistAutoCheck } from "./hetrixtools";
+import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 
 declare global {
   namespace Express {
@@ -915,6 +915,10 @@ export async function registerRoutes(
         actor: user!,
         current: link as unknown as Record<string, unknown>,
         request: req,
+      });
+      
+      checkBlacklistForLink(link, storage).catch((err) => {
+        console.error(`[BlacklistCheck] Error checking new link ${link.id}:`, err);
       });
       
       res.status(201).json(link);
