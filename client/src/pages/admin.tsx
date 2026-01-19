@@ -2676,6 +2676,15 @@ function HetrixToolsIntegration() {
   };
 
   const handleSave = () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Nome é obrigatório", variant: "destructive" });
+      return;
+    }
+    if (!hetrixIntegration && !formData.apiKey.trim()) {
+      toast({ title: "API Key é obrigatória para nova integração", variant: "destructive" });
+      return;
+    }
+    
     if (hetrixIntegration) {
       const updateData: Partial<typeof formData> = {
         name: formData.name,
@@ -2689,6 +2698,8 @@ function HetrixToolsIntegration() {
       createMutation.mutate(formData);
     }
   };
+  
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Card>
@@ -2715,21 +2726,21 @@ function HetrixToolsIntegration() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="hetrix-apikey">API Key</Label>
-            <div className="relative">
+            <div className="flex gap-2">
               <Input
                 id="hetrix-apikey"
                 type={showApiKey ? "text" : "password"}
                 value={formData.apiKey}
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                placeholder={hetrixIntegration?.apiKey ? "••••••••••••••••" : "Cole sua API Key aqui"}
+                placeholder={(hetrixIntegration as unknown as { hasApiKey?: boolean })?.hasApiKey ? "••••••••••••••••" : "Cole sua API Key aqui"}
                 data-testid="input-hetrix-apikey"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute right-0 top-0 h-full"
                 onClick={() => setShowApiKey(!showApiKey)}
+                data-testid="button-toggle-apikey"
               >
                 {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </Button>
@@ -2745,6 +2756,7 @@ function HetrixToolsIntegration() {
             id="hetrix-active"
             checked={formData.isActive}
             onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+            data-testid="switch-hetrix-active"
           />
           <Label htmlFor="hetrix-active">Integração Ativa</Label>
         </div>
@@ -2766,11 +2778,11 @@ function HetrixToolsIntegration() {
         )}
 
         <div className="flex gap-2">
-          <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
-            {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar"}
+          <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-hetrix">
+            {isSaving ? "Salvando..." : "Salvar"}
           </Button>
           {hetrixIntegration && (
-            <Button variant="outline" onClick={testConnection} disabled={testing}>
+            <Button variant="outline" onClick={testConnection} disabled={testing} data-testid="button-test-hetrix">
               {testing ? "Testando..." : "Testar Conexão"}
             </Button>
           )}

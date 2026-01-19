@@ -4137,7 +4137,11 @@ export async function registerRoutes(
   app.get("/api/external-integrations", requireSuperAdmin, async (req, res) => {
     try {
       const integrations = await storage.getExternalIntegrations();
-      res.json(integrations);
+      const sanitized = integrations.map(({ apiKey, ...rest }) => ({
+        ...rest,
+        hasApiKey: !!apiKey,
+      }));
+      res.json(sanitized);
     } catch (error) {
       console.error("[External Integrations] Error fetching:", error);
       res.status(500).json({ error: "Erro ao buscar integrações" });
@@ -4151,7 +4155,8 @@ export async function registerRoutes(
       if (!integration) {
         return res.status(404).json({ error: "Integração não encontrada" });
       }
-      res.json(integration);
+      const { apiKey, ...rest } = integration;
+      res.json({ ...rest, hasApiKey: !!apiKey });
     } catch (error) {
       console.error("[External Integrations] Error fetching:", error);
       res.status(500).json({ error: "Erro ao buscar integração" });
@@ -4165,7 +4170,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Dados inválidos", details: parsed.error });
       }
       const integration = await storage.createExternalIntegration(parsed.data);
-      res.status(201).json(integration);
+      const { apiKey, ...rest } = integration;
+      res.status(201).json({ ...rest, hasApiKey: !!apiKey });
     } catch (error) {
       console.error("[External Integrations] Error creating:", error);
       res.status(500).json({ error: "Erro ao criar integração" });
@@ -4181,7 +4187,11 @@ export async function registerRoutes(
       }
       await storage.updateExternalIntegration(id, req.body);
       const updated = await storage.getExternalIntegration(id);
-      res.json(updated);
+      if (!updated) {
+        return res.status(500).json({ error: "Erro ao recuperar integração atualizada" });
+      }
+      const { apiKey, ...rest } = updated;
+      res.json({ ...rest, hasApiKey: !!apiKey });
     } catch (error) {
       console.error("[External Integrations] Error updating:", error);
       res.status(500).json({ error: "Erro ao atualizar integração" });
