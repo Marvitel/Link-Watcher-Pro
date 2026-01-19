@@ -625,6 +625,15 @@ export class DatabaseStorage {
     return unresolvedEvents;
   }
 
+  async resolveAllEventsForLink(linkId: number): Promise<number> {
+    const result = await db
+      .update(events)
+      .set({ resolved: true, resolvedAt: new Date() })
+      .where(and(eq(events.linkId, linkId), eq(events.resolved, false)))
+      .returning();
+    return result.length;
+  }
+
   async getLatestUnresolvedLinkEvent(linkId: number, eventType?: string): Promise<Event | null> {
     const conditions = [
       eq(events.linkId, linkId),

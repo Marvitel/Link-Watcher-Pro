@@ -3,7 +3,7 @@ import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
@@ -1549,6 +1549,24 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           timestamp: new Date(),
           resolved: eventConfig.resolved,
         });
+      }
+    }
+    
+    // Auto-resolve all unresolved events when link is operational with normal metrics
+    const latencyThresholdForResolve = link.latencyThreshold || 80;
+    const packetLossThresholdForResolve = link.packetLossThreshold || 2;
+    const isFullyNormal = newStatus === "operational" && 
+                          safeLatency <= latencyThresholdForResolve && 
+                          safePacketLoss <= packetLossThresholdForResolve;
+    
+    if (isFullyNormal) {
+      const resolvedCount = await db
+        .update(events)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(eq(events.linkId, link.id), eq(events.resolved, false)))
+        .returning();
+      if (resolvedCount.length > 0) {
+        console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedCount.length} events (link fully normal)`);
       }
     }
     
