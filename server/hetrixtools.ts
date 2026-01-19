@@ -411,6 +411,11 @@ export async function checkBlacklistForLink(
   console.log(`[BlacklistCheck] Checking ${ipsToCheck.length} IPs for link ${link.id}`);
 
   const integrations = await storage.getExternalIntegrations();
+  console.log(`[BlacklistCheck] Found ${integrations.length} integrations`);
+  for (const i of integrations) {
+    console.log(`[BlacklistCheck] Integration: type=${i.type}, isActive=${i.isActive}, hasApiKey=${!!i.apiKey}`);
+  }
+  
   const hetrixIntegration = integrations.find(
     (i: any) => i.type === "hetrixtools" && i.isActive && i.apiKey
   );
