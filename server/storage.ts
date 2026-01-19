@@ -31,6 +31,8 @@ import {
   radiusGroupMappings,
   linkGroups,
   linkGroupMembers,
+  externalIntegrations,
+  blacklistChecks,
   type Client,
   type User,
   type Link,
@@ -87,6 +89,10 @@ import {
   type DashboardStats,
   type LinkStatusDetail,
   type AuthUser,
+  type ExternalIntegration,
+  type InsertExternalIntegration,
+  type BlacklistCheck,
+  type InsertBlacklistCheck,
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
@@ -2304,6 +2310,78 @@ export class DatabaseStorage {
 
   async deleteRadiusGroupMapping(id: number): Promise<void> {
     await db.delete(radiusGroupMappings).where(eq(radiusGroupMappings.id, id));
+  }
+
+  // ========== External Integrations (HetrixTools, etc.) ==========
+  
+  async getExternalIntegrations(): Promise<ExternalIntegration[]> {
+    return db.select().from(externalIntegrations).orderBy(externalIntegrations.name);
+  }
+
+  async getExternalIntegration(id: number): Promise<ExternalIntegration | undefined> {
+    const [result] = await db.select().from(externalIntegrations).where(eq(externalIntegrations.id, id));
+    return result;
+  }
+
+  async getExternalIntegrationByProvider(provider: string): Promise<ExternalIntegration | undefined> {
+    const [result] = await db.select().from(externalIntegrations)
+      .where(and(eq(externalIntegrations.provider, provider), eq(externalIntegrations.isActive, true)));
+    return result;
+  }
+
+  async createExternalIntegration(data: InsertExternalIntegration): Promise<ExternalIntegration> {
+    const [result] = await db.insert(externalIntegrations).values(data).returning();
+    return result;
+  }
+
+  async updateExternalIntegration(id: number, data: Partial<InsertExternalIntegration>): Promise<void> {
+    await db.update(externalIntegrations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(externalIntegrations.id, id));
+  }
+
+  async deleteExternalIntegration(id: number): Promise<void> {
+    await db.delete(externalIntegrations).where(eq(externalIntegrations.id, id));
+  }
+
+  // ========== Blacklist Checks ==========
+
+  async getBlacklistCheck(linkId: number): Promise<BlacklistCheck | undefined> {
+    const [result] = await db.select().from(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
+    return result;
+  }
+
+  async getBlacklistCheckByIp(ip: string): Promise<BlacklistCheck | undefined> {
+    const [result] = await db.select().from(blacklistChecks).where(eq(blacklistChecks.ip, ip));
+    return result;
+  }
+
+  async getBlacklistChecks(): Promise<BlacklistCheck[]> {
+    return db.select().from(blacklistChecks).orderBy(desc(blacklistChecks.lastCheckedAt));
+  }
+
+  async getListedBlacklistChecks(): Promise<BlacklistCheck[]> {
+    return db.select().from(blacklistChecks)
+      .where(eq(blacklistChecks.isListed, true))
+      .orderBy(desc(blacklistChecks.lastCheckedAt));
+  }
+
+  async upsertBlacklistCheck(data: InsertBlacklistCheck): Promise<BlacklistCheck> {
+    const existing = await this.getBlacklistCheck(data.linkId);
+    if (existing) {
+      await db.update(blacklistChecks)
+        .set({ ...data, lastCheckedAt: new Date() })
+        .where(eq(blacklistChecks.linkId, data.linkId));
+      const [updated] = await db.select().from(blacklistChecks).where(eq(blacklistChecks.linkId, data.linkId));
+      return updated;
+    } else {
+      const [result] = await db.insert(blacklistChecks).values(data).returning();
+      return result;
+    }
+  }
+
+  async deleteBlacklistCheck(linkId: number): Promise<void> {
+    await db.delete(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
   }
 }
 

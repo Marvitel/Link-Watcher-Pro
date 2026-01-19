@@ -27,9 +27,11 @@ import {
   insertClientErpMappingSchema,
   insertLinkGroupSchema,
   insertLinkGroupMemberSchema,
+  insertExternalIntegrationSchema,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
+import { HetrixToolsAdapter } from "./hetrixtools";
 
 declare global {
   namespace Express {
@@ -4127,6 +4129,195 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[RADIUS] Error deleting group mapping:", error);
       res.status(500).json({ error: "Erro ao excluir mapeamento" });
+    }
+  });
+
+  // ========== External Integrations (HetrixTools, etc.) ==========
+
+  app.get("/api/external-integrations", requireSuperAdmin, async (req, res) => {
+    try {
+      const integrations = await storage.getExternalIntegrations();
+      res.json(integrations);
+    } catch (error) {
+      console.error("[External Integrations] Error fetching:", error);
+      res.status(500).json({ error: "Erro ao buscar integrações" });
+    }
+  });
+
+  app.get("/api/external-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getExternalIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração não encontrada" });
+      }
+      res.json(integration);
+    } catch (error) {
+      console.error("[External Integrations] Error fetching:", error);
+      res.status(500).json({ error: "Erro ao buscar integração" });
+    }
+  });
+
+  app.post("/api/external-integrations", requireSuperAdmin, async (req, res) => {
+    try {
+      const parsed = insertExternalIntegrationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dados inválidos", details: parsed.error });
+      }
+      const integration = await storage.createExternalIntegration(parsed.data);
+      res.status(201).json(integration);
+    } catch (error) {
+      console.error("[External Integrations] Error creating:", error);
+      res.status(500).json({ error: "Erro ao criar integração" });
+    }
+  });
+
+  app.patch("/api/external-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getExternalIntegration(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Integração não encontrada" });
+      }
+      await storage.updateExternalIntegration(id, req.body);
+      const updated = await storage.getExternalIntegration(id);
+      res.json(updated);
+    } catch (error) {
+      console.error("[External Integrations] Error updating:", error);
+      res.status(500).json({ error: "Erro ao atualizar integração" });
+    }
+  });
+
+  app.delete("/api/external-integrations/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getExternalIntegration(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Integração não encontrada" });
+      }
+      await storage.deleteExternalIntegration(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[External Integrations] Error deleting:", error);
+      res.status(500).json({ error: "Erro ao excluir integração" });
+    }
+  });
+
+  app.post("/api/external-integrations/:id/test", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const integration = await storage.getExternalIntegration(id);
+      if (!integration) {
+        return res.status(404).json({ error: "Integração não encontrada" });
+      }
+
+      if (integration.provider === "hetrixtools") {
+        const adapter = new HetrixToolsAdapter(integration);
+        const result = await adapter.testConnection();
+        
+        await storage.updateExternalIntegration(id, {
+          lastTestedAt: new Date(),
+          lastTestStatus: result.success ? "success" : "error",
+          lastTestError: result.error || null,
+        });
+
+        res.json(result);
+      } else {
+        res.status(400).json({ error: "Provider não suportado para teste" });
+      }
+    } catch (error) {
+      console.error("[External Integrations] Error testing:", error);
+      res.status(500).json({ error: "Erro ao testar integração" });
+    }
+  });
+
+  // ========== Blacklist Check API ==========
+
+  app.get("/api/blacklist/check/:ip", requireAuth, async (req, res) => {
+    try {
+      const { ip } = req.params;
+      
+      const integration = await storage.getExternalIntegrationByProvider("hetrixtools");
+      if (!integration || !integration.apiKey) {
+        return res.status(400).json({ error: "HetrixTools não configurado" });
+      }
+
+      const adapter = new HetrixToolsAdapter(integration);
+      const result = await adapter.checkIpBlacklist(ip);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("[Blacklist] Error checking IP:", error);
+      res.status(500).json({ error: "Erro ao verificar blacklist" });
+    }
+  });
+
+  app.get("/api/blacklist/link/:linkId", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const link = await storage.getLink(linkId);
+      
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      // Check client access
+      if (req.user && !req.user.isSuperAdmin && req.user.clientId !== link.clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      // Get IP from link's ipBlock (first IP of the block)
+      let ip = link.monitoredIp;
+      if (link.ipBlock && link.ipBlock.includes("/")) {
+        ip = link.ipBlock.split("/")[0];
+      }
+
+      if (!ip) {
+        return res.status(400).json({ error: "Link não possui IP configurado" });
+      }
+
+      const integration = await storage.getExternalIntegrationByProvider("hetrixtools");
+      if (!integration || !integration.apiKey) {
+        return res.status(400).json({ error: "HetrixTools não configurado" });
+      }
+
+      const adapter = new HetrixToolsAdapter(integration);
+      const result = await adapter.checkIpBlacklist(ip);
+      
+      // Cache the result
+      await storage.upsertBlacklistCheck({
+        linkId,
+        ip,
+        isListed: result.isListed,
+        listedOn: result.listedOn,
+        reportId: result.reportId,
+        reportUrl: result.reportUrl,
+      });
+
+      res.json({ ...result, ip });
+    } catch (error) {
+      console.error("[Blacklist] Error checking link:", error);
+      res.status(500).json({ error: "Erro ao verificar blacklist do link" });
+    }
+  });
+
+  app.get("/api/blacklist/cached", requireAuth, async (req, res) => {
+    try {
+      const checks = await storage.getBlacklistChecks();
+      res.json(checks);
+    } catch (error) {
+      console.error("[Blacklist] Error fetching cached checks:", error);
+      res.status(500).json({ error: "Erro ao buscar verificações" });
+    }
+  });
+
+  app.get("/api/blacklist/listed", requireAuth, async (req, res) => {
+    try {
+      const checks = await storage.getListedBlacklistChecks();
+      res.json(checks);
+    } catch (error) {
+      console.error("[Blacklist] Error fetching listed IPs:", error);
+      res.status(500).json({ error: "Erro ao buscar IPs listados" });
     }
   });
 
