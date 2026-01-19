@@ -2346,9 +2346,10 @@ export class DatabaseStorage {
 
   // ========== Blacklist Checks ==========
 
-  async getBlacklistCheck(linkId: number): Promise<BlacklistCheck | undefined> {
-    const [result] = await db.select().from(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
-    return result;
+  async getBlacklistCheck(linkId: number): Promise<BlacklistCheck[]> {
+    return db.select().from(blacklistChecks)
+      .where(eq(blacklistChecks.linkId, linkId))
+      .orderBy(blacklistChecks.ip);
   }
 
   async getBlacklistCheckByIp(ip: string): Promise<BlacklistCheck | undefined> {
@@ -2367,12 +2368,24 @@ export class DatabaseStorage {
   }
 
   async upsertBlacklistCheck(data: InsertBlacklistCheck): Promise<BlacklistCheck> {
-    const existing = await this.getBlacklistCheck(data.linkId);
+    const [existing] = await db.select().from(blacklistChecks)
+      .where(and(
+        eq(blacklistChecks.linkId, data.linkId),
+        eq(blacklistChecks.ip, data.ip)
+      ));
+    
     if (existing) {
       await db.update(blacklistChecks)
         .set({ ...data, lastCheckedAt: new Date() })
-        .where(eq(blacklistChecks.linkId, data.linkId));
-      const [updated] = await db.select().from(blacklistChecks).where(eq(blacklistChecks.linkId, data.linkId));
+        .where(and(
+          eq(blacklistChecks.linkId, data.linkId),
+          eq(blacklistChecks.ip, data.ip)
+        ));
+      const [updated] = await db.select().from(blacklistChecks)
+        .where(and(
+          eq(blacklistChecks.linkId, data.linkId),
+          eq(blacklistChecks.ip, data.ip)
+        ));
       return updated;
     } else {
       const [result] = await db.insert(blacklistChecks).values(data).returning();

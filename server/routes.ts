@@ -4275,40 +4275,26 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link não encontrado" });
       }
 
-      // Check client access
       if (req.user && !req.user.isSuperAdmin && req.user.clientId !== link.clientId) {
         return res.status(403).json({ error: "Acesso negado" });
       }
 
-      // Get IP from link's ipBlock (first IP of the block)
-      let ip = link.monitoredIp;
-      if (link.ipBlock && link.ipBlock.includes("/")) {
-        ip = link.ipBlock.split("/")[0];
-      }
-
-      if (!ip) {
-        return res.status(400).json({ error: "Link não possui IP configurado" });
-      }
-
-      const integration = await storage.getExternalIntegrationByProvider("hetrixtools");
-      if (!integration || !integration.apiKey) {
-        return res.status(400).json({ error: "HetrixTools não configurado" });
-      }
-
-      const adapter = new HetrixToolsAdapter(integration);
-      const result = await adapter.checkIpBlacklist(ip);
+      const result = await checkBlacklistForLink(link, storage);
       
-      // Cache the result
-      await storage.upsertBlacklistCheck({
+      const checks = await storage.getBlacklistCheck(linkId);
+      const listedChecks = checks.filter(c => c.isListed);
+      
+      res.json({
         linkId,
-        ip,
-        isListed: result.isListed,
-        listedOn: result.listedOn,
-        reportId: result.reportId,
-        reportUrl: result.reportUrl,
+        ipBlock: link.ipBlock,
+        totalIps: checks.length,
+        checked: result.checked,
+        listed: result.listed,
+        notMonitored: result.notMonitored,
+        checks,
+        isListed: listedChecks.length > 0,
+        listedOn: listedChecks.flatMap(c => (c.listedOn as any[]) || []),
       });
-
-      res.json({ ...result, ip });
     } catch (error) {
       console.error("[Blacklist] Error checking link:", error);
       res.status(500).json({ error: "Erro ao verificar blacklist do link" });
