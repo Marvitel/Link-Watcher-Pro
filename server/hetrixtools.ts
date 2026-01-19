@@ -182,3 +182,129 @@ export async function createHetrixToolsAdapter(
   }
   return new HetrixToolsAdapter(integration);
 }
+
+// Intervalo de 12 horas em milissegundos
+const BLACKLIST_CHECK_INTERVAL = 12 * 60 * 60 * 1000;
+
+let blacklistCheckTimer: ReturnType<typeof setInterval> | null = null;
+let isCheckRunning = false;
+let isInitialized = false;
+
+export async function startBlacklistAutoCheck(
+  storage: {
+    getExternalIntegrations: () => Promise<any[]>;
+    getLinks: () => Promise<any[]>;
+    upsertBlacklistCheck: (check: any) => Promise<any>;
+  }
+): Promise<void> {
+  // Evitar múltiplas inicializações (hot reload, múltiplas instâncias)
+  if (isInitialized) {
+    console.log("[BlacklistAutoCheck] Already initialized, skipping...");
+    return;
+  }
+  isInitialized = true;
+
+  const runCheck = async () => {
+    // Mutex: evitar runs concorrentes
+    if (isCheckRunning) {
+      console.log("[BlacklistAutoCheck] Previous check still running, skipping this cycle...");
+      return;
+    }
+    
+    isCheckRunning = true;
+    try {
+      console.log("[BlacklistAutoCheck] Starting scheduled blacklist verification...");
+
+      const integrations = await storage.getExternalIntegrations();
+      const hetrixIntegration = integrations.find(
+        (i: any) => i.type === "hetrixtools" && i.isActive && i.apiKey
+      );
+
+      if (!hetrixIntegration) {
+        console.log("[BlacklistAutoCheck] HetrixTools integration not configured or inactive, skipping...");
+        return;
+      }
+
+      const adapter = new HetrixToolsAdapter(hetrixIntegration);
+      const links = await storage.getLinks();
+      const linksWithIp = links.filter((link: any) => link.ipAddress);
+      
+      console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP addresses`);
+
+      // Obter todos os monitores de uma vez para eficiência
+      const allMonitors = await adapter.getBlacklistMonitors({ type: "ipv4" });
+      let checkedCount = 0;
+      let listedCount = 0;
+      let notMonitoredCount = 0;
+
+      for (const link of linksWithIp) {
+        try {
+          const monitor = allMonitors.find((m: any) => m.target === link.ipAddress);
+          
+          if (!monitor) {
+            // Registrar que o IP não está sendo monitorado pelo HetrixTools
+            // Isso evita blind spots e permite ao usuário saber quais IPs não têm monitor
+            notMonitoredCount++;
+            await storage.upsertBlacklistCheck({
+              linkId: link.id,
+              ip: link.ipAddress,
+              isListed: false,
+              listedOn: [],
+              reportId: null,
+              reportUrl: null,
+              lastCheckedAt: new Date(),
+            });
+            continue;
+          }
+
+          // Usar o timestamp do monitor (last_check) para alinhamento com a API
+          const lastCheckedAt = monitor.last_check 
+            ? new Date(monitor.last_check * 1000) 
+            : new Date();
+
+          const checkResult = {
+            linkId: link.id,
+            ip: link.ipAddress,
+            isListed: monitor.listed && monitor.listed.length > 0,
+            listedOn: monitor.listed || [],
+            reportId: monitor.report_id,
+            reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
+            lastCheckedAt,
+          };
+
+          if (checkResult.isListed) {
+            listedCount++;
+          }
+
+          await storage.upsertBlacklistCheck(checkResult);
+          checkedCount++;
+        } catch (err) {
+          console.error(`[BlacklistAutoCheck] Failed to check link ${link.id}:`, err);
+        }
+      }
+
+      console.log(`[BlacklistAutoCheck] Completed: ${checkedCount} checked, ${listedCount} listed, ${notMonitoredCount} not monitored`);
+    } catch (error) {
+      console.error("[BlacklistAutoCheck] Error during scheduled check:", error);
+    } finally {
+      isCheckRunning = false;
+    }
+  };
+
+  // Executar imediatamente na inicialização (após 30 segundos)
+  setTimeout(runCheck, 30000);
+
+  // Agendar execução a cada 12 horas usando setInterval (mais robusto)
+  blacklistCheckTimer = setInterval(runCheck, BLACKLIST_CHECK_INTERVAL);
+
+  console.log("[BlacklistAutoCheck] Scheduled blacklist verification every 12 hours");
+}
+
+export function stopBlacklistAutoCheck(): void {
+  if (blacklistCheckTimer) {
+    clearInterval(blacklistCheckTimer);
+    blacklistCheckTimer = null;
+    isInitialized = false;
+    console.log("[BlacklistAutoCheck] Stopped scheduled blacklist verification");
+  }
+}

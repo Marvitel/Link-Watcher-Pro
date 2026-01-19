@@ -31,7 +31,7 @@ import {
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
-import { HetrixToolsAdapter } from "./hetrixtools";
+import { HetrixToolsAdapter, startBlacklistAutoCheck } from "./hetrixtools";
 
 declare global {
   namespace Express {
@@ -4321,6 +4321,21 @@ export async function registerRoutes(
     }
   });
 
+  // Endpoint específico para buscar blacklist por linkId (mais performático)
+  app.get("/api/blacklist/cached/:linkId", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId);
+      if (isNaN(linkId)) {
+        return res.status(400).json({ error: "ID de link inválido" });
+      }
+      const check = await storage.getBlacklistCheck(linkId);
+      res.json(check);
+    } catch (error) {
+      console.error("[Blacklist] Error fetching cached check:", error);
+      res.status(500).json({ error: "Erro ao buscar verificação" });
+    }
+  });
+
   app.get("/api/blacklist/listed", requireAuth, async (req, res) => {
     try {
       const checks = await storage.getListedBlacklistChecks();
@@ -4329,6 +4344,13 @@ export async function registerRoutes(
       console.error("[Blacklist] Error fetching listed IPs:", error);
       res.status(500).json({ error: "Erro ao buscar IPs listados" });
     }
+  });
+
+  // Iniciar verificação automática de blacklist a cada 12 horas
+  startBlacklistAutoCheck({
+    getExternalIntegrations: () => storage.getExternalIntegrations(),
+    getLinks: () => storage.getLinks(),
+    upsertBlacklistCheck: (check) => storage.upsertBlacklistCheck(check),
   });
 
   return httpServer;

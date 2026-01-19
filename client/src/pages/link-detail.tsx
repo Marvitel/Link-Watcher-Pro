@@ -198,22 +198,21 @@ export default function LinkDetail() {
     staleTime: 60000, // Cache por 1 minuto
   });
 
-  // Buscar status de blacklist do link
+  // Buscar status de blacklist do link (endpoint específico por linkId para melhor performance)
   const { data: blacklistCheck, isLoading: blacklistLoading, refetch: refetchBlacklist } = useQuery<BlacklistCheck | null>({
-    queryKey: ["/api/blacklist/link", linkId, "cached"],
+    queryKey: ["/api/blacklist/cached", linkId],
     queryFn: async (): Promise<BlacklistCheck | null> => {
       const token = getAuthToken();
       const headers: Record<string, string> = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch(`/api/blacklist/cached`, {
+      const res = await fetch(`/api/blacklist/cached/${linkId}`, {
         credentials: "include",
         headers,
       });
       if (!res.ok) return null;
-      const checks = await res.json() as BlacklistCheck[];
-      return checks.find(c => c.linkId === linkId) || null;
+      return res.json();
     },
     enabled: !isNaN(linkId),
     refetchInterval: 60000,
