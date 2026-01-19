@@ -1,4 +1,45 @@
-import { ExternalIntegration, BlacklistCheck } from "@shared/schema";
+import { ExternalIntegration, BlacklistCheck, Link } from "@shared/schema";
+
+export function expandCidrToIps(cidr: string): string[] {
+  const cidrMatch = cidr.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
+  
+  if (!cidrMatch) {
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(cidr)) {
+      return [cidr];
+    }
+    return [];
+  }
+
+  const [, baseIp, prefixStr] = cidrMatch;
+  const prefix = parseInt(prefixStr, 10);
+  
+  if (prefix < 24) {
+    console.log(`[CIDR] Block /${prefix} too large, limiting to first 256 IPs`);
+  }
+  
+  const effectivePrefix = Math.max(prefix, 24);
+  const hostBits = 32 - effectivePrefix;
+  const numHosts = Math.pow(2, hostBits);
+  
+  const parts = baseIp.split('.').map(Number);
+  const baseNum = (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
+  const networkMask = ~((1 << hostBits) - 1) >>> 0;
+  const networkBase = (baseNum & networkMask) >>> 0;
+  
+  const ips: string[] = [];
+  for (let i = 0; i < numHosts; i++) {
+    const ipNum = (networkBase + i) >>> 0;
+    const ip = [
+      (ipNum >>> 24) & 0xff,
+      (ipNum >>> 16) & 0xff,
+      (ipNum >>> 8) & 0xff,
+      ipNum & 0xff,
+    ].join('.');
+    ips.push(ip);
+  }
+  
+  return ips;
+}
 
 interface HetrixBlacklistMonitor {
   id: string;
@@ -307,4 +348,91 @@ export function stopBlacklistAutoCheck(): void {
     isInitialized = false;
     console.log("[BlacklistAutoCheck] Stopped scheduled blacklist verification");
   }
+}
+
+export async function checkBlacklistForLink(
+  link: { id: number; ipBlock?: string | null; ipAddress?: string | null },
+  storage: {
+    getExternalIntegrations: () => Promise<any[]>;
+    upsertBlacklistCheck: (check: any) => Promise<any>;
+  }
+): Promise<{ checked: number; listed: number; notMonitored: number }> {
+  const ipsToCheck: string[] = [];
+  
+  if (link.ipBlock) {
+    const expandedIps = expandCidrToIps(link.ipBlock);
+    ipsToCheck.push(...expandedIps);
+  }
+  
+  if (link.ipAddress && !ipsToCheck.includes(link.ipAddress)) {
+    ipsToCheck.push(link.ipAddress);
+  }
+  
+  if (ipsToCheck.length === 0) {
+    console.log(`[BlacklistCheck] Link ${link.id} has no IPs to check`);
+    return { checked: 0, listed: 0, notMonitored: 0 };
+  }
+
+  console.log(`[BlacklistCheck] Checking ${ipsToCheck.length} IPs for link ${link.id}`);
+
+  const integrations = await storage.getExternalIntegrations();
+  const hetrixIntegration = integrations.find(
+    (i: any) => i.type === "hetrixtools" && i.isActive && i.apiKey
+  );
+
+  if (!hetrixIntegration) {
+    console.log("[BlacklistCheck] HetrixTools integration not configured or inactive");
+    for (const ip of ipsToCheck) {
+      await storage.upsertBlacklistCheck({
+        linkId: link.id,
+        ip,
+        isListed: false,
+        listedOn: [],
+        reportId: null,
+        reportUrl: null,
+        lastCheckedAt: new Date(),
+      });
+    }
+    return { checked: 0, listed: 0, notMonitored: ipsToCheck.length };
+  }
+
+  const adapter = new HetrixToolsAdapter(hetrixIntegration);
+  const results = await adapter.checkMultipleIps(ipsToCheck);
+
+  let checked = 0;
+  let listed = 0;
+  let notMonitored = 0;
+
+  for (const ip of ipsToCheck) {
+    const result = results.get(ip);
+    
+    if (!result || !result.reportId) {
+      notMonitored++;
+      await storage.upsertBlacklistCheck({
+        linkId: link.id,
+        ip,
+        isListed: false,
+        listedOn: [],
+        reportId: null,
+        reportUrl: null,
+        lastCheckedAt: new Date(),
+      });
+    } else {
+      checked++;
+      if (result.isListed) listed++;
+      
+      await storage.upsertBlacklistCheck({
+        linkId: link.id,
+        ip,
+        isListed: result.isListed,
+        listedOn: result.listedOn,
+        reportId: result.reportId,
+        reportUrl: result.reportUrl,
+        lastCheckedAt: new Date(),
+      });
+    }
+  }
+
+  console.log(`[BlacklistCheck] Link ${link.id}: ${checked} checked, ${listed} listed, ${notMonitored} not monitored`);
+  return { checked, listed, notMonitored };
 }
