@@ -4936,6 +4936,27 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                       data-testid="input-superadmin-password"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Função</Label>
+                    <Select
+                      value={userFormData.role}
+                      onValueChange={(val) => setUserFormData({ ...userFormData, role: val as "admin" | "manager" | "operator" | "viewer" | "dashboard" })}
+                    >
+                      <SelectTrigger data-testid="select-superadmin-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="dashboard">Dashboard (Kiosk)</SelectItem>
+                        <SelectItem value="viewer">Visualizador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {userFormData.role === "dashboard" && (
+                      <p className="text-xs text-muted-foreground">
+                        Usuário para telas de monitoramento 24/7. Use ?kiosk=true na URL para ativar modo kiosk.
+                      </p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={userFormData.isActive}
