@@ -147,15 +147,39 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     down: "border-l-red-500",
   };
 
-  const statusBadges: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    operational: { label: "Online", variant: "default" },
-    degraded: { label: "Degradado", variant: "secondary" },
-    offline: { label: "Offline", variant: "destructive" },
-    down: { label: "Offline", variant: "destructive" },
-  };
+  const statusInfo = item.status === "operational" 
+    ? { label: "Online", className: "bg-green-500 text-white" }
+    : item.status === "degraded"
+    ? { label: "Degradado", className: "bg-yellow-500 text-white" }
+    : item.status === "offline" || item.status === "down"
+    ? { label: "Offline", className: "bg-red-500 text-white" }
+    : { label: item.status, className: "" };
 
-  const statusInfo = statusBadges[item.status] || { label: item.status, variant: "outline" as const };
   const borderColor = statusColors[item.status] || "border-l-gray-400";
+
+  // Extrai o motivo da falha do evento ativo
+  const getFailureReason = () => {
+    if (!item.activeEvent) return null;
+    const desc = item.activeEvent.description?.toLowerCase() || "";
+    
+    // Mapeia palavras-chave para causas legíveis
+    if (desc.includes("rompimento") || desc.includes("fibra")) return "Rompimento de Fibra";
+    if (desc.includes("energia") || desc.includes("power")) return "Queda de Energia";
+    if (desc.includes("perda de pacotes") || desc.includes("packet loss")) return "Perda de Pacotes";
+    if (desc.includes("atenuação") || desc.includes("sinal") || desc.includes("optical")) return "Sinal Atenuado";
+    if (desc.includes("saturação") || desc.includes("banda") || desc.includes("bandwidth")) return "Saturação de Banda";
+    if (desc.includes("latência") || desc.includes("latency")) return "Alta Latência";
+    if (desc.includes("timeout") || desc.includes("sem resposta")) return "Timeout/Sem Resposta";
+    if (desc.includes("degradação") || desc.includes("degraded")) return "Degradação de Desempenho";
+    
+    // Se não encontrar padrão, retorna parte da descrição
+    if (item.activeEvent.description && item.activeEvent.description.length > 0) {
+      return item.activeEvent.description.length > 50 
+        ? item.activeEvent.description.substring(0, 47) + "..."
+        : item.activeEvent.description;
+    }
+    return item.activeEvent.type === 'offline' ? 'Link Offline' : 'Problema Detectado';
+  };
 
   // Cor da latência baseada em thresholds
   const getLatencyColor = (lat: number) => {
@@ -196,7 +220,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
               {item.ipBlock} • {item.location}
             </p>
           </div>
-          <Badge variant={statusInfo.variant} className="shrink-0">
+          <Badge className={`shrink-0 ${statusInfo.className}`}>
             {statusInfo.label}
           </Badge>
         </div>
@@ -247,20 +271,24 @@ function SuperAdminLinkCard({ item, onViewClient }: {
           </span>
         </div>
 
-        {/* Alertas e Tickets */}
+        {/* Motivo da Falha e Tickets */}
         {(item.activeEvent || item.openIncident) && (
-          <div className="flex flex-wrap gap-1 pt-1 border-t border-border">
+          <div className="pt-2 border-t border-border space-y-1.5">
             {item.activeEvent && (
-              <Badge variant="destructive" className="text-xs gap-1">
-                <Bell className="w-3 h-3" />
-                {item.activeEvent.type === 'offline' ? 'Offline' : item.activeEvent.type === 'degraded' ? 'Degradado' : item.activeEvent.type}
-              </Badge>
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
+                <span className="text-xs text-destructive font-medium" title={item.activeEvent.description}>
+                  {getFailureReason()}
+                </span>
+              </div>
             )}
             {item.openIncident && (
-              <Badge variant="outline" className="text-xs gap-1">
-                <Ticket className="w-3 h-3" />
-                {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Ticket className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">
+                  {item.openIncident.voalleProtocolId ? `Ticket #${item.openIncident.voalleProtocolId}` : 'Incidente Aberto'}
+                </span>
+              </div>
             )}
           </div>
         )}
