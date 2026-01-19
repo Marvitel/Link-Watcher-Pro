@@ -854,3 +854,57 @@ export const radiusGroupMappings = pgTable("radius_group_mappings", {
 export const insertRadiusGroupMappingSchema = createInsertSchema(radiusGroupMappings).omit({ id: true, createdAt: true, updatedAt: true });
 export type RadiusGroupMapping = typeof radiusGroupMappings.$inferSelect;
 export type InsertRadiusGroupMapping = z.infer<typeof insertRadiusGroupMappingSchema>;
+
+// ============ Super Admin Link Dashboard Types ============
+export interface LinkDashboardItem {
+  id: number;
+  name: string;
+  identifier: string;
+  location: string;
+  ipBlock: string;
+  bandwidth: number;
+  status: string;
+  currentDownload: number;
+  currentUpload: number;
+  latency: number;
+  packetLoss: number;
+  uptime: number;
+  lastUpdated: string | Date;
+  monitoringEnabled: boolean;
+  // Client info
+  clientId: number;
+  clientName: string;
+  // Active event (if any)
+  activeEvent?: {
+    id: number;
+    type: string;
+    description: string;
+    severity: string;
+    createdAt: string | Date;
+  } | null;
+  // Open incident/ticket (if any)
+  openIncident?: {
+    id: number;
+    title: string;
+    voalleProtocolId?: number | null;
+    createdAt: string | Date;
+  } | null;
+}
+
+export interface LinkDashboardSummary {
+  totalLinks: number;
+  onlineLinks: number;
+  degradedLinks: number;
+  offlineLinks: number;
+  activeAlerts: number;
+  openIncidents: number;
+}
+
+export interface LinkDashboardResponse {
+  items: LinkDashboardItem[];
+  summary: LinkDashboardSummary;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalItems: number;
+}

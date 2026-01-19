@@ -11,7 +11,7 @@ import { LinkGroupCard } from "@/components/link-group-card";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
-import { Component, ErrorInfo, ReactNode, useState, useMemo } from "react";
+import { Component, ErrorInfo, ReactNode, useState, useMemo, useEffect } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -24,8 +24,21 @@ import {
   LayoutGrid,
   List,
   Layers,
+  Search,
+  Wifi,
+  WifiOff,
+  Download,
+  Upload,
+  Bell,
+  Ticket,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator } from "@shared/schema";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator, LinkDashboardResponse, LinkDashboardItem } from "@shared/schema";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -110,6 +123,379 @@ function ClientsOverview({ clients, setSelectedClient }: {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// Formata bytes para unidade legível
+function formatBandwidth(mbps: number): string {
+  if (mbps >= 1000) {
+    return `${(mbps / 1000).toFixed(2)} Gbps`;
+  }
+  return `${mbps.toFixed(1)} Mbps`;
+}
+
+// Card de link individual para o dashboard do Super Admin
+function SuperAdminLinkCard({ item, onViewClient }: { 
+  item: LinkDashboardItem; 
+  onViewClient: (clientId: number, clientName: string) => void;
+}) {
+  const statusColors: Record<string, string> = {
+    operational: "border-l-green-500",
+    degraded: "border-l-yellow-500",
+    offline: "border-l-red-500",
+    down: "border-l-red-500",
+  };
+
+  const statusBadges: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    operational: { label: "Online", variant: "default" },
+    degraded: { label: "Degradado", variant: "secondary" },
+    offline: { label: "Offline", variant: "destructive" },
+    down: { label: "Offline", variant: "destructive" },
+  };
+
+  const statusInfo = statusBadges[item.status] || { label: item.status, variant: "outline" as const };
+  const borderColor = statusColors[item.status] || "border-l-gray-400";
+
+  // Cor da latência baseada em thresholds
+  const getLatencyColor = (lat: number) => {
+    if (lat <= 50) return "text-green-600 dark:text-green-400";
+    if (lat <= 80) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  // Cor da perda baseada em thresholds
+  const getLossColor = (loss: number) => {
+    if (loss <= 1) return "text-green-600 dark:text-green-400";
+    if (loss <= 2) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  return (
+    <Card 
+      className={`border-l-4 ${borderColor} hover-elevate transition-all`}
+      data-testid={`card-link-${item.id}`}
+    >
+      <CardContent className="p-4 space-y-3">
+        {/* Header: Cliente e Status */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <button
+              onClick={() => onViewClient(item.clientId, item.clientName)}
+              className="text-xs font-medium text-primary hover:underline truncate block"
+              data-testid={`button-view-client-${item.clientId}`}
+            >
+              {item.clientName}
+            </button>
+            <Link href={`/link/${item.id}`}>
+              <h3 className="font-semibold text-sm truncate hover:text-primary cursor-pointer" title={item.name}>
+                {item.name}
+              </h3>
+            </Link>
+            <p className="text-xs text-muted-foreground truncate" title={item.ipBlock}>
+              {item.ipBlock} • {item.location}
+            </p>
+          </div>
+          <Badge variant={statusInfo.variant} className="shrink-0">
+            {statusInfo.label}
+          </Badge>
+        </div>
+
+        {/* Métricas de Tráfego */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-1">
+            <Download className="w-3 h-3 text-blue-500" />
+            <span className="text-muted-foreground">DL:</span>
+            <span className="font-mono font-medium">{formatBandwidth(item.currentDownload)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Upload className="w-3 h-3 text-green-500" />
+            <span className="text-muted-foreground">UL:</span>
+            <span className="font-mono font-medium">{formatBandwidth(item.currentUpload)}</span>
+          </div>
+        </div>
+
+        {/* Latência e Perda */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span className="text-muted-foreground">Lat:</span>
+            <span className={`font-mono font-medium ${getLatencyColor(item.latency)}`}>
+              {item.latency.toFixed(1)}ms
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Activity className="w-3 h-3" />
+            <span className="text-muted-foreground">Perda:</span>
+            <span className={`font-mono font-medium ${getLossColor(item.packetLoss)}`}>
+              {item.packetLoss.toFixed(1)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Uptime/SLA */}
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1">
+            <Gauge className="w-3 h-3" />
+            <span className="text-muted-foreground">SLA:</span>
+            <span className={`font-mono font-medium ${item.uptime >= 99 ? 'text-green-600 dark:text-green-400' : item.uptime >= 95 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+              {item.uptime.toFixed(2)}%
+            </span>
+          </div>
+          <span className="text-muted-foreground">
+            {item.bandwidth} Mbps
+          </span>
+        </div>
+
+        {/* Alertas e Tickets */}
+        {(item.activeEvent || item.openIncident) && (
+          <div className="flex flex-wrap gap-1 pt-1 border-t border-border">
+            {item.activeEvent && (
+              <Badge variant="destructive" className="text-xs gap-1">
+                <Bell className="w-3 h-3" />
+                {item.activeEvent.type === 'offline' ? 'Offline' : item.activeEvent.type === 'degraded' ? 'Degradado' : item.activeEvent.type}
+              </Badge>
+            )}
+            {item.openIncident && (
+              <Badge variant="outline" className="text-xs gap-1">
+                <Ticket className="w-3 h-3" />
+                {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
+              </Badge>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Dashboard completo de links para Super Admin
+function SuperAdminLinkDashboard({ 
+  clients, 
+  setSelectedClient 
+}: { 
+  clients: Client[];
+  setSelectedClient: (id: number, name: string) => void;
+}) {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  // Debounce search with useEffect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Build query URL with filters
+  const queryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", page.toString());
+    params.set("pageSize", pageSize.toString());
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (clientFilter !== "all") params.set("clientId", clientFilter);
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    return `/api/super-admin/link-dashboard?${params.toString()}`;
+  }, [page, statusFilter, clientFilter, debouncedSearch]);
+
+  const { data, isLoading, isFetching, isError, refetch } = useQuery<LinkDashboardResponse>({
+    queryKey: [queryUrl],
+    refetchInterval: 10000,
+    staleTime: 5000,
+    retry: 3,
+  });
+
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  const handleClientChange = (value: string) => {
+    setClientFilter(value);
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por link, cliente, IP..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            data-testid="input-search-links"
+          />
+        </div>
+
+        <Tabs value={statusFilter} onValueChange={handleStatusChange}>
+          <TabsList>
+            <TabsTrigger value="all" data-testid="tab-status-all">
+              Todos
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.totalLinks})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="operational" data-testid="tab-status-online">
+              <Wifi className="w-3 h-3 mr-1" />
+              Online
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.onlineLinks})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="degraded" data-testid="tab-status-degraded">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              Degradado
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.degradedLinks})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="offline" data-testid="tab-status-offline">
+              <WifiOff className="w-3 h-3 mr-1" />
+              Offline
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.offlineLinks})</span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <Select value={clientFilter} onValueChange={handleClientChange}>
+          <SelectTrigger className="w-[200px]" data-testid="select-client-filter">
+            <SelectValue placeholder="Filtrar por cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os clientes</SelectItem>
+            {clients.map((client) => (
+              <SelectItem key={client.id} value={client.id.toString()}>
+                {client.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {isFetching && !isLoading && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <RefreshCw className="w-3 h-3 animate-spin" />
+            Atualizando...
+          </div>
+        )}
+      </div>
+
+      {/* Contadores Resumidos */}
+      {data?.summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <Card className="p-3">
+            <div className="text-2xl font-bold">{data.summary.totalLinks}</div>
+            <div className="text-xs text-muted-foreground">Total de Links</div>
+          </Card>
+          <Card className="p-3 border-l-4 border-l-green-500">
+            <div className="text-2xl font-bold text-green-600">{data.summary.onlineLinks}</div>
+            <div className="text-xs text-muted-foreground">Online</div>
+          </Card>
+          <Card className="p-3 border-l-4 border-l-yellow-500">
+            <div className="text-2xl font-bold text-yellow-600">{data.summary.degradedLinks}</div>
+            <div className="text-xs text-muted-foreground">Degradados</div>
+          </Card>
+          <Card className="p-3 border-l-4 border-l-red-500">
+            <div className="text-2xl font-bold text-red-600">{data.summary.offlineLinks}</div>
+            <div className="text-xs text-muted-foreground">Offline</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-2xl font-bold text-orange-600">{data.summary.activeAlerts}</div>
+            <div className="text-xs text-muted-foreground">Alertas Ativos</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-2xl font-bold text-purple-600">{data.summary.openIncidents}</div>
+            <div className="text-xs text-muted-foreground">Incidentes Abertos</div>
+          </Card>
+        </div>
+      )}
+
+      {/* Grid de Cards */}
+      {isError ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+            <div className="text-lg font-medium mb-2">Erro ao carregar dados</div>
+            <div className="text-sm text-muted-foreground mb-4">
+              Não foi possível carregar os links. Verifique sua conexão e tente novamente.
+            </div>
+            <Button onClick={() => refetch()} data-testid="button-retry-load">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <Skeleton key={i} className="h-48 w-full" />
+          ))}
+        </div>
+      ) : data?.items && data.items.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {data.items.map((item) => (
+              <SuperAdminLinkCard 
+                key={item.id} 
+                item={item} 
+                onViewClient={setSelectedClient}
+              />
+            ))}
+          </div>
+
+          {/* Paginação */}
+          {data.totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, data.totalItems)} de {data.totalItems} links
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Anterior
+                </Button>
+                <span className="text-sm">
+                  Página {page} de {data.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(data.totalPages, p + 1))}
+                  disabled={page === data.totalPages}
+                  data-testid="button-next-page"
+                >
+                  Próxima
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            {debouncedSearch || statusFilter !== "all" || clientFilter !== "all" 
+              ? "Nenhum link encontrado com os filtros aplicados."
+              : "Nenhum link cadastrado."}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -242,67 +628,36 @@ function DashboardContent() {
           <div>
             <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
             <p className="text-muted-foreground">
-              Visao geral de todos os clientes - Selecione um cliente para ver detalhes
+              Monitoramento em tempo real de todos os links - Clique em um cliente para ver detalhes
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Total de Clientes"
-            value={clients?.length || 0}
-            icon={Building2}
-            trend={{ value: 0, direction: "neutral" }}
-            subtitle="clientes ativos"
-            testId="metric-total-clients"
+        {clientsLoading ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <Skeleton key={i} className="h-48 w-full" />
+              ))}
+            </div>
+          </div>
+        ) : clients && clients.length > 0 ? (
+          <SuperAdminLinkDashboard 
+            clients={clients} 
+            setSelectedClient={setSelectedClient} 
           />
-          <MetricCard
-            title="Links Operacionais"
-            value={`${stats?.operationalLinks || 0}/${stats?.totalLinks || 0}`}
-            icon={Activity}
-            trend={{ value: 0, direction: "neutral" }}
-            subtitle="todos os clientes"
-            testId="metric-all-links"
-          />
-          <MetricCard
-            title="Disponibilidade Geral"
-            value={(stats?.averageUptime || 0).toFixed(2)}
-            unit="%"
-            icon={Gauge}
-            trend={{ value: 0.5, direction: "up", isGood: true }}
-            subtitle="media de todos"
-            testId="metric-all-uptime"
-          />
-          <MetricCard
-            title="Alertas Ativos"
-            value={stats?.activeAlerts || 0}
-            icon={AlertTriangle}
-            trend={{ value: 0, direction: "neutral" }}
-            subtitle="alertas pendentes"
-            testId="metric-all-alerts"
-          />
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Clientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {clientsLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
-                ))}
-              </div>
-            ) : clients && clients.length > 0 ? (
-              <ClientsOverview clients={clients} setSelectedClient={setSelectedClient} />
-            ) : (
-              <p className="text-center text-muted-foreground py-8">
-                Nenhum cliente cadastrado. Acesse Administracao para adicionar clientes.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              Nenhum cliente cadastrado. Acesse Administração para adicionar clientes.
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

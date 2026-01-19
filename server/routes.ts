@@ -2317,6 +2317,133 @@ export async function registerRoutes(
     }
   });
 
+  // Super Admin Link Dashboard - aggregated view of all links with events and incidents
+  app.get("/api/super-admin/link-dashboard", requireSuperAdmin, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 100);
+      const status = req.query.status as string | undefined; // 'operational', 'degraded', 'offline', 'all'
+      const clientId = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
+      const search = (req.query.search as string)?.toLowerCase().trim() || undefined;
+
+      // Get all clients for name lookup
+      const allClients = await storage.getClients();
+      const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+      // Get all links
+      let allLinks = await storage.getLinks();
+
+      // Apply filters
+      if (clientId) {
+        allLinks = allLinks.filter(l => l.clientId === clientId);
+      }
+      if (status && status !== 'all') {
+        if (status === 'offline') {
+          allLinks = allLinks.filter(l => l.status === 'offline' || l.status === 'down');
+        } else {
+          allLinks = allLinks.filter(l => l.status === status);
+        }
+      }
+      if (search) {
+        allLinks = allLinks.filter(l => 
+          l.name.toLowerCase().includes(search) ||
+          l.identifier.toLowerCase().includes(search) ||
+          l.ipBlock.toLowerCase().includes(search) ||
+          l.location.toLowerCase().includes(search) ||
+          (clientMap.get(l.clientId) || '').toLowerCase().includes(search)
+        );
+      }
+
+      // Calculate summary before pagination
+      const summary = {
+        totalLinks: allLinks.length,
+        onlineLinks: allLinks.filter(l => l.status === 'operational').length,
+        degradedLinks: allLinks.filter(l => l.status === 'degraded').length,
+        offlineLinks: allLinks.filter(l => l.status === 'offline' || l.status === 'down').length,
+        activeAlerts: 0,
+        openIncidents: 0,
+      };
+
+      // Sort by status priority (offline first, then degraded, then operational)
+      const statusPriority: Record<string, number> = { offline: 0, down: 0, degraded: 1, operational: 2 };
+      allLinks.sort((a, b) => (statusPriority[a.status] ?? 2) - (statusPriority[b.status] ?? 2));
+
+      // Paginate
+      const totalItems = allLinks.length;
+      const totalPages = Math.ceil(totalItems / pageSize);
+      const paginatedLinks = allLinks.slice((page - 1) * pageSize, page * pageSize);
+
+      // Get active events for paginated links (batch query)
+      const linkIds = paginatedLinks.map(l => l.id);
+      const activeEventsByLink = new Map<number, any>();
+      const openIncidentsByLink = new Map<number, any>();
+
+      // Fetch unresolved events for these specific links only
+      // Get events for all links to find active ones - query all unresolved events directly
+      const allUnresolvedEvents = await storage.getUnresolvedEventsByLinkIds(linkIds);
+      for (const event of allUnresolvedEvents) {
+        if (!activeEventsByLink.has(event.linkId)) {
+          activeEventsByLink.set(event.linkId, {
+            id: event.id,
+            type: event.type,
+            description: event.description,
+            severity: event.type === 'offline' ? 'critical' : event.type === 'degraded' ? 'warning' : 'info',
+            createdAt: event.timestamp,
+          });
+          summary.activeAlerts++;
+        }
+      }
+
+      // Fetch open incidents for these links
+      const openIncidents = await storage.getOpenIncidents();
+      for (const incident of openIncidents) {
+        if (incident.linkId && linkIds.includes(incident.linkId)) {
+          openIncidentsByLink.set(incident.linkId, {
+            id: incident.id,
+            title: incident.description || `Incidente #${incident.id}`,
+            voalleProtocolId: incident.erpTicketId ? parseInt(incident.erpTicketId) : null,
+            createdAt: incident.openedAt,
+          });
+          summary.openIncidents++;
+        }
+      }
+
+      // Build response items
+      const items = paginatedLinks.map(link => ({
+        id: link.id,
+        name: link.name,
+        identifier: link.identifier,
+        location: link.location,
+        ipBlock: link.ipBlock,
+        bandwidth: link.bandwidth,
+        status: link.status,
+        currentDownload: link.currentDownload,
+        currentUpload: link.currentUpload,
+        latency: link.latency,
+        packetLoss: link.packetLoss,
+        uptime: link.uptime,
+        lastUpdated: link.lastUpdated,
+        monitoringEnabled: link.monitoringEnabled,
+        clientId: link.clientId,
+        clientName: clientMap.get(link.clientId) || 'Desconhecido',
+        activeEvent: activeEventsByLink.get(link.id) || null,
+        openIncident: openIncidentsByLink.get(link.id) || null,
+      }));
+
+      res.json({
+        items,
+        summary,
+        page,
+        pageSize,
+        totalPages,
+        totalItems,
+      });
+    } catch (error) {
+      console.error("[Link Dashboard] Error:", error);
+      res.status(500).json({ error: "Failed to fetch link dashboard" });
+    }
+  });
+
   app.get("/api/clients/:clientId/groups", requireClientAccess, async (req, res) => {
     try {
       const clientId = parseInt(req.params.clientId, 10);

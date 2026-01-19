@@ -611,6 +611,20 @@ export class DatabaseStorage {
     return result.length;
   }
 
+  async getUnresolvedEventsByLinkIds(linkIds: number[]): Promise<Event[]> {
+    if (linkIds.length === 0) return [];
+    
+    const linkIdsCondition = sql`${events.linkId} IN (${sql.join(linkIds.map(id => sql`${id}`), sql`, `)})`;
+    
+    const unresolvedEvents = await db
+      .select()
+      .from(events)
+      .where(and(linkIdsCondition, eq(events.resolved, false)))
+      .orderBy(desc(events.timestamp));
+    
+    return unresolvedEvents;
+  }
+
   async getLatestUnresolvedLinkEvent(linkId: number, eventType?: string): Promise<Event | null> {
     const conditions = [
       eq(events.linkId, linkId),
