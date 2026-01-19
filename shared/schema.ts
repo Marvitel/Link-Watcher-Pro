@@ -900,6 +900,41 @@ export interface LinkDashboardSummary {
   openIncidents: number;
 }
 
+// External Service Integrations (HetrixTools, etc.)
+export const externalIntegrations = pgTable("external_integrations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(), // hetrixtools, etc.
+  isActive: boolean("is_active").notNull().default(true),
+  apiKey: text("api_key"),
+  apiUrl: text("api_url"),
+  lastTestedAt: timestamp("last_tested_at"),
+  lastTestStatus: varchar("last_test_status", { length: 20 }),
+  lastTestError: text("last_test_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Blacklist check results cache
+export const blacklistChecks = pgTable("blacklist_checks", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  ip: varchar("ip", { length: 45 }).notNull(),
+  isListed: boolean("is_listed").notNull().default(false),
+  listedOn: jsonb("listed_on").default([]), // Array of {rbl, delist}
+  lastCheckedAt: timestamp("last_checked_at").notNull().defaultNow(),
+  reportId: varchar("report_id", { length: 50 }),
+  reportUrl: text("report_url"),
+});
+
+export const insertExternalIntegrationSchema = createInsertSchema(externalIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBlacklistCheckSchema = createInsertSchema(blacklistChecks).omit({ id: true });
+
+export type InsertExternalIntegration = z.infer<typeof insertExternalIntegrationSchema>;
+export type InsertBlacklistCheck = z.infer<typeof insertBlacklistCheckSchema>;
+export type ExternalIntegration = typeof externalIntegrations.$inferSelect;
+export type BlacklistCheck = typeof blacklistChecks.$inferSelect;
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;
