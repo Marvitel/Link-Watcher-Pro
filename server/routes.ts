@@ -4407,7 +4407,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/health/detailed", async (_req, res) => {
+  app.get("/api/health/detailed", requireSuperAdmin, async (_req, res) => {
     try {
       const { getServerStatus, getMetricsSummary } = await import("./metrics");
       const serverStatus = getServerStatus();
