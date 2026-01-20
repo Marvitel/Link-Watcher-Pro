@@ -78,7 +78,7 @@ A `audit_logs` table stores all system audit events. The `server/audit.ts` helpe
 
 ### Third-Party Integrations
 - **Wanguard (Andrisoft)**: Integrated for DDoS detection and mitigation data. Uses a REST API with HTTP Basic Auth. Configuration is per-client, stored in `clientSettings`. DDoS events are created in both `ddos_events` table AND `events` table for unified visibility.
-- **HetrixTools**: IP/CIDR blacklist monitoring integration. Configurable auto-check interval (1-24h). Results stored in `blacklistChecks` table with index on (link_id, is_listed) for performance. Links with blacklisted IPs automatically show as "degraded" status - this is synchronized during each monitoring cycle by checking `blacklistChecks` table, ensuring blacklist status is never overwritten by ICMP monitoring.
+- **HetrixTools**: IP/CIDR blacklist monitoring integration. Configurable auto-check interval (1-24h). Results stored in `blacklistChecks` table with index on (link_id, is_listed) for performance. Links with blacklisted IPs automatically show as "degraded" status - synchronized using a **blacklistCache** Map loaded once per monitoring cycle (`loadBlacklistCache()`), ensuring O(1) lookup and preventing N+1 query problems. Blacklist status is never overwritten by ICMP monitoring.
 - **Voalle ERP**: Dual API architecture for ticket/incident management and contract tag retrieval.
   - **API Para Terceiros**: Primary API for authentication, clients, and requests, using OAuth2 password grant.
   - **API Portal**: Used for contract tags (`serviceTag`) and requires `voalleCustomerId` and `cnpj` for authentication.
@@ -107,7 +107,7 @@ For detailed system documentation, see:
 - **[docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md)**: Visual architecture diagrams, data flows, and refactoring roadmap
 
 ### Key Statistics (Jan 2026)
-- **Links Monitorados**: ~1.500
+- **Links Monitorados**: ~20 (em produção)
 - **Produção**: linkmonitor.marvitel.com.br
 - **Ciclo de Coleta**: 30 segundos
 - **Polling Frontend**: 5 segundos

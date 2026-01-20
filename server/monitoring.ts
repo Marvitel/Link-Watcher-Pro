@@ -9,6 +9,36 @@ import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileT
 
 const execAsync = promisify(exec);
 
+// Cache de IPs em blacklist por linkId - carregado uma vez por ciclo de monitoramento
+let blacklistCache: Map<number, { ip: string; isListed: boolean }[]> = new Map();
+
+// Função para carregar cache de blacklist (chamada uma vez por ciclo)
+async function loadBlacklistCache(): Promise<void> {
+  try {
+    const allBlacklistChecks = await db.select({
+      linkId: blacklistChecks.linkId,
+      ip: blacklistChecks.ip,
+      isListed: blacklistChecks.isListed
+    })
+    .from(blacklistChecks)
+    .where(eq(blacklistChecks.isListed, true));
+    
+    blacklistCache = new Map();
+    for (const check of allBlacklistChecks) {
+      if (!blacklistCache.has(check.linkId)) {
+        blacklistCache.set(check.linkId, []);
+      }
+      blacklistCache.get(check.linkId)!.push({ ip: check.ip, isListed: check.isListed });
+    }
+    if (blacklistCache.size > 0) {
+      console.log(`[Monitor] Blacklist cache loaded: ${blacklistCache.size} links with blacklisted IPs`);
+    }
+  } catch (error) {
+    console.error('[Monitor] Error loading blacklist cache:', error);
+    blacklistCache = new Map();
+  }
+}
+
 // Função auxiliar para normalizar campo de splitter (tratar vazios, "-", N/A como null)
 function normalizeSplitterField(val: string | null | undefined): string | null {
   if (!val) return null;
@@ -1770,15 +1800,10 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     let finalFailureSource: string | null = null;
     let finalStatus = collectedMetrics.status;
     
-    // Check if link has IPs currently listed in blacklist (from blacklistChecks table)
-    // This ensures blacklist status is applied even if it wasn't set before
-    const listedBlacklistChecks = await db.select()
-      .from(blacklistChecks)
-      .where(and(
-        eq(blacklistChecks.linkId, link.id),
-        eq(blacklistChecks.isListed, true)
-      ));
-    const hasBlacklistedIps = listedBlacklistChecks.length > 0;
+    // Check if link has IPs currently listed in blacklist (from cached data)
+    // This uses the cache loaded once per monitoring cycle for performance
+    const cachedBlacklistIps = blacklistCache.get(link.id) || [];
+    const hasBlacklistedIps = cachedBlacklistIps.length > 0;
     
     // Check if link is currently degraded due to blacklist - preserve this status
     const isBlacklistDegraded = link.status === 'degraded' && link.failureSource === 'blacklist';
@@ -1804,7 +1829,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       // This ensures links with blacklisted IPs always show as degraded
       finalStatus = 'degraded';
       if (hasBlacklistedIps) {
-        const listedIps = listedBlacklistChecks.map(c => c.ip).join(', ');
+        const listedIps = cachedBlacklistIps.map(c => c.ip).join(', ');
         finalFailureReason = `IP(s) em blacklist: ${listedIps}`;
       } else {
         finalFailureReason = link.failureReason;
@@ -1870,6 +1895,9 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
 
 export async function collectAllLinksMetrics(): Promise<void> {
   try {
+    // Load blacklist cache once per cycle (instead of querying per link)
+    await loadBlacklistCache();
+    
     const allLinks = await db.select().from(links);
     const enabledLinks = allLinks.filter(l => l.monitoringEnabled);
     
