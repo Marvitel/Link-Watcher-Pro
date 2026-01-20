@@ -500,8 +500,10 @@ export async function pingHost(ipAddress: string, count: number = 5): Promise<Pi
   }
 
   try {
-    const { stdout } = await execAsync(`ping -c ${count} -W 2 ${ipAddress} 2>&1`, {
-      timeout: 15000,
+    // Increased timeout from 2s to 3s to reduce false positives
+    // Using -i 0.3 for faster ping interval (300ms between pings)
+    const { stdout } = await execAsync(`ping -c ${count} -W 3 -i 0.3 ${ipAddress} 2>&1`, {
+      timeout: 20000,
     });
 
     if (stdout.includes("Operation not permitted") || stdout.includes("missing cap_net_raw")) {
@@ -515,6 +517,11 @@ export async function pingHost(ipAddress: string, count: number = 5): Promise<Pi
 
     const latency = latencyMatch ? parseFloat(latencyMatch[1]) : 0;
     const packetLoss = lossMatch ? parseFloat(lossMatch[1]) : 100;
+    
+    // Log when packet loss is detected for debugging false positives
+    if (packetLoss > 0 && packetLoss < 100) {
+      console.log(`[Ping] ${ipAddress}: ${packetLoss}% loss detected (${count - Math.round(count * packetLoss / 100)}/${count} packets received)`);
+    }
 
     return {
       latency,

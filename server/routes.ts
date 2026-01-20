@@ -4570,6 +4570,10 @@ export async function registerRoutes(
           ipBlock: l.ipBlock,
           address: l.address,
           snmpInterfaceName: l.snmpInterfaceName,
+          monitoredIp: l.monitoredIp,
+          snmpRouterIp: l.snmpRouterIp,
+          failureReason: l.failureReason,
+          failureSource: l.failureSource,
         })),
       });
     } catch (error) {
