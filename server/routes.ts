@@ -4666,6 +4666,7 @@ export async function registerRoutes(
           failureReason: link.failureReason,
           failureSource: link.failureSource,
           lastFailureAt: link.lastFailureAt,
+          monitoringEnabled: link.monitoringEnabled,
         },
         stats24h: {
           totalSamples: Number(statsRow.total_samples || 0),
