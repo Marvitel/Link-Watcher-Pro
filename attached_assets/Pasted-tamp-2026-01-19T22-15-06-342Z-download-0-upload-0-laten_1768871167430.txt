@@ -1,0 +1,25 @@
+tamp":"2026-01-19T22:15:06.342Z","download":0,"upload":0,"latency":0.494,"packetLoss":0,"cpuUsage":24,"memoryUsage":32.283268,"errorRate":0,"status":"operational","opticalRxPower":null,"opticalTxPower":null,"opticalOltRxPower":null,"opticalStatus":null}]
+jan 19 22:05:40 link-monitor npm[1080599]: [Monitor] Link 20 - Splitter atualizado: (vazio) porta (vazio) dist 5
+jan 19 22:05:40 link-monitor npm[1080599]: [HetrixTools] Page 6: fetched 200 monitors (total: 1200)
+jan 19 22:05:40 link-monitor npm[1080599]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=7&type=ipv4
+jan 19 22:05:40 link-monitor npm[1080599]: [Monitor] RP LARANJEIRAS - 50M: lat=3.3ms, loss=0.0%, status=operational
+jan 19 22:05:40 link-monitor npm[1080599]: [HetrixTools] Page 7: fetched 200 monitors (total: 1400)
+jan 19 22:05:40 link-monitor npm[1080599]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=8&type=ipv4
+jan 19 22:05:41 link-monitor npm[1080599]: [HetrixTools] Page 8: fetched 200 monitors (total: 1600)
+jan 19 22:05:41 link-monitor npm[1080599]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=9&type=ipv4
+jan 19 22:05:41 link-monitor npm[1080599]: [HetrixTools] Page 9: fetched 200 monitors (total: 1800)
+jan 19 22:05:41 link-monitor npm[1080599]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=10&type=ipv4
+jan 19 22:05:41 link-monitor npm[1080599]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+jan 19 22:05:41 link-monitor npm[1080599]: [Blacklist] Error checking link: Error: HetrixTools API error: 429 Too Many Requests
+jan 19 22:05:41 link-monitor npm[1080599]:     at ha.request (/opt/link-monitor/dist/index.cjs:305:16320)
+jan 19 22:05:41 link-monitor npm[1080599]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 19 22:05:41 link-monitor npm[1080599]:     at async ha.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:305:16876)
+jan 19 22:05:41 link-monitor npm[1080599]:     at async ha.checkMultipleIps (/opt/link-monitor/dist/index.cjs:305:17867)
+jan 19 22:05:41 link-monitor npm[1080599]:     at async Ed (/opt/link-monitor/dist/index.cjs:305:22113)
+jan 19 22:05:41 link-monitor npm[1080599]:     at async /opt/link-monitor/dist/index.cjs:309:17869
+jan 19 22:05:41 link-monitor npm[1080599]: 10:05:41 PM [express] GET /api/blacklist/link/24 500 in 2540ms :: {"error":"Erro ao verificar blacklist do link"}
+jan 19 22:05:42 link-monitor npm[1080599]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 19 22:05:42 link-monitor npm[1080599]: [Monitor] RP MARANHAO - 50M - Sem OIDs para CPU/Mem. vendorId: null, customCpu: , customMem:
+jan 19 22:05:42 link-monitor npm[1080599]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 19 22:05:42 link-monitor npm[1080599]: [Monitor] RP MARANHAO - 50M - Óptico: coletando via OLT OLT-DTC-MARVITEL (datacom) slot=1 port=5 onu=3
+jan 19 22:05:42 link-monitor npm[1080599]: [SNMP Optical] Índice calculado para datacom: slot=1, port=5, onuId=3 -> index=16777988
