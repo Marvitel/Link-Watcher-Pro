@@ -212,21 +212,33 @@ export class HetrixToolsAdapter {
   }>> {
     const results = new Map();
     
-    const monitors = await this.getBlacklistMonitors({ type: "ipv4" });
-    console.log(`[HetrixTools] Total monitors fetched: ${monitors.length}`);
+    // Buscar cada IP individualmente em vez de todos os monitores
+    // Isso usa 1 requisição por IP em vez de N páginas de 200
+    console.log(`[HetrixTools] Checking ${ips.length} specific IPs`);
     
     for (const ip of ips) {
-      const monitor = monitors.find(m => m.target === ip);
-      if (monitor) {
-        console.log(`[HetrixTools] IP ${ip}: found monitor, listed on ${monitor.listed?.length || 0} blacklists`);
-        results.set(ip, {
-          isListed: monitor.listed && monitor.listed.length > 0,
-          listedOn: monitor.listed || [],
-          reportId: monitor.report_id,
-          reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
-        });
-      } else {
-        console.log(`[HetrixTools] IP ${ip}: no monitor found`);
+      try {
+        // Buscar monitor específico para este IP
+        const monitors = await this.getBlacklistMonitors({ target: ip, type: "ipv4" });
+        const monitor = monitors[0];
+        
+        if (monitor) {
+          console.log(`[HetrixTools] IP ${ip}: found monitor, listed on ${monitor.listed?.length || 0} blacklists`);
+          results.set(ip, {
+            isListed: monitor.listed && monitor.listed.length > 0,
+            listedOn: monitor.listed || [],
+            reportId: monitor.report_id,
+            reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
+          });
+        } else {
+          console.log(`[HetrixTools] IP ${ip}: no monitor found`);
+          results.set(ip, {
+            isListed: false,
+            listedOn: [],
+          });
+        }
+      } catch (err) {
+        console.error(`[HetrixTools] Error checking IP ${ip}:`, err);
         results.set(ip, {
           isListed: false,
           listedOn: [],
@@ -307,7 +319,6 @@ export async function startBlacklistAutoCheck(
       
       console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP/blocks`);
 
-      const allMonitors = await adapter.getBlacklistMonitors({ type: "ipv4" });
       let checkedCount = 0;
       let listedCount = 0;
       let notMonitoredCount = 0;
@@ -332,47 +343,53 @@ export async function startBlacklistAutoCheck(
           let linkCheckedCount = 0;
           let notMonitoredForLink = 0;
           
+          // Buscar cada IP individualmente (1 requisição por IP)
           for (const ip of ipsToCheck) {
-            const monitor = allMonitors.find((m: any) => m.target === ip);
-            
-            if (!monitor) {
-              notMonitoredCount++;
-              notMonitoredForLink++;
-              // NÃO atualizar isListed para IPs não monitorados - manter estado anterior
-              // Isso evita resolver eventos quando o monitor foi removido do HetrixTools
-              continue;
-            }
+            try {
+              const monitors = await adapter.getBlacklistMonitors({ target: ip, type: "ipv4" });
+              const monitor = monitors[0];
+              
+              if (!monitor) {
+                notMonitoredCount++;
+                notMonitoredForLink++;
+                continue;
+              }
 
-            const lastCheckedAt = monitor.last_check 
-              ? new Date(monitor.last_check * 1000) 
-              : new Date();
+              const lastCheckedAt = monitor.last_check 
+                ? new Date(monitor.last_check * 1000) 
+                : new Date();
 
-            const isListed = monitor.listed && monitor.listed.length > 0;
-            const checkResult = {
-              linkId: link.id,
-              ip,
-              isListed,
-              listedOn: monitor.listed || [],
-              reportId: monitor.report_id,
-              reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
-              lastCheckedAt,
-            };
+              const isListed = monitor.listed && monitor.listed.length > 0;
+              const checkResult = {
+                linkId: link.id,
+                ip,
+                isListed,
+                listedOn: monitor.listed || [],
+                reportId: monitor.report_id,
+                reportUrl: `https://hetrixtools.com/report/blacklist/${monitor.report_id}`,
+                lastCheckedAt,
+              };
 
-            if (isListed) {
-              listedCount++;
-              listedIpsForLink.push(ip);
-              for (const rbl of (monitor.listed || [])) {
-                if (typeof rbl === 'string') {
-                  allRblsForLink.add(rbl);
-                } else if (rbl?.rbl) {
-                  allRblsForLink.add(rbl.rbl);
+              if (isListed) {
+                listedCount++;
+                listedIpsForLink.push(ip);
+                for (const rbl of (monitor.listed || [])) {
+                  if (typeof rbl === 'string') {
+                    allRblsForLink.add(rbl);
+                  } else if (rbl?.rbl) {
+                    allRblsForLink.add(rbl.rbl);
+                  }
                 }
               }
-            }
 
-            await storage.upsertBlacklistCheck(checkResult);
-            checkedCount++;
-            linkCheckedCount++;
+              await storage.upsertBlacklistCheck(checkResult);
+              checkedCount++;
+              linkCheckedCount++;
+            } catch (err) {
+              console.error(`[BlacklistAutoCheck] Error checking IP ${ip}:`, err);
+              notMonitoredCount++;
+              notMonitoredForLink++;
+            }
           }
           
           // Criar evento e atualizar status se há IPs listados
