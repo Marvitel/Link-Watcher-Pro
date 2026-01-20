@@ -711,11 +711,27 @@ export class DatabaseStorage {
       targetIp: data.targetIp,
       decoder: data.decoder,
     }).returning();
+    
+    // Criar evento de alerta na tabela events para aparecer no painel de eventos
+    const link = await this.getLink(data.linkId);
+    const linkName = link?.name || `Link ${data.linkId}`;
+    const bandwidthStr = data.peakBandwidth ? `${data.peakBandwidth.toFixed(1)} Mbps` : 'N/A';
+    
+    await db.insert(events).values({
+      linkId: data.linkId,
+      clientId: data.clientId,
+      type: "critical",
+      title: `Ataque DDoS detectado - ${linkName}`,
+      description: `Tipo: ${data.attackType}. IP alvo: ${data.targetIp || 'N/A'}. Pico de banda: ${bandwidthStr}. Sensor: ${data.wanguardSensor || 'N/A'}`,
+      timestamp: data.startTime || new Date(),
+      resolved: false,
+    });
+    
     return event;
   }
 
   async updateDDoSEvent(id: number, data: Partial<InsertDDoSEvent & { startTime?: Date }>): Promise<DDoSEvent | null> {
-    const [event] = await db.update(ddosEvents)
+    const [ddosEvent] = await db.update(ddosEvents)
       .set({
         linkId: data.linkId,
         clientId: data.clientId,
@@ -733,7 +749,22 @@ export class DatabaseStorage {
       })
       .where(eq(ddosEvents.id, id))
       .returning();
-    return event || null;
+    
+    // Se o ataque foi resolvido (mitigado/finalizado), resolver o evento correspondente
+    if (ddosEvent && data.mitigationStatus && ['resolved', 'mitigated'].includes(data.mitigationStatus)) {
+      const link = await this.getLink(ddosEvent.linkId);
+      const linkName = link?.name || `Link ${ddosEvent.linkId}`;
+      
+      await db.update(events)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(
+          eq(events.linkId, ddosEvent.linkId),
+          eq(events.resolved, false),
+          like(events.title, `%Ataque DDoS detectado - ${linkName}%`)
+        ));
+    }
+    
+    return ddosEvent || null;
   }
 
   async deleteDDoSEventsWithoutWanguardId(clientId: number): Promise<number> {

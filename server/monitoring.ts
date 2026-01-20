@@ -1652,6 +1652,108 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       // Reset packet loss state when link is down to avoid false alerts when it comes back
       resetLinkState(link.id);
     }
+    
+    // ========== EVENTO DE SINAL ÓPTICO DEGRADADO ==========
+    // Verificar se o sinal óptico está abaixo do limite e criar evento
+    if (collectedMetrics.opticalSignal?.rxPower !== null && collectedMetrics.opticalSignal?.rxPower !== undefined) {
+      const opticalStatus = getOpticalStatus(
+        collectedMetrics.opticalSignal.rxPower, 
+        link.opticalRxBaseline, 
+        link.opticalDeltaThreshold ?? 3
+      );
+      
+      // Buscar último evento de sinal óptico para detectar mudança
+      const activeOpticalEvent = await db.select().from(events)
+        .where(and(
+          eq(events.linkId, link.id),
+          eq(events.resolved, false),
+          like(events.title, '%Sinal óptico%')
+        ))
+        .limit(1);
+      const hasActiveOpticalEvent = activeOpticalEvent.length > 0;
+      
+      // Criar evento de sinal crítico/warning se não há evento ativo
+      if ((opticalStatus === 'critical' || opticalStatus === 'warning') && !hasActiveOpticalEvent) {
+        const eventType = opticalStatus === 'critical' ? 'critical' : 'warning';
+        const statusLabel = opticalStatus === 'critical' ? 'Crítico' : 'Degradado';
+        await db.insert(events).values({
+          linkId: link.id,
+          clientId: link.clientId,
+          type: eventType,
+          title: `Sinal óptico ${statusLabel.toLowerCase()} em ${link.name}`,
+          description: `Potência RX: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm (limite normal: ≥${OPTICAL_THRESHOLDS.rxNormalMin} dBm)`,
+          timestamp: new Date(),
+          resolved: false,
+        });
+        console.log(`[Monitor] ${link.name}: Created optical signal ${opticalStatus} event`);
+      }
+      
+      // Resolver eventos de sinal óptico se voltou ao normal
+      if (opticalStatus === 'normal') {
+        const resolvedOptical = await db
+          .update(events)
+          .set({ resolved: true, resolvedAt: new Date() })
+          .where(and(
+            eq(events.linkId, link.id),
+            eq(events.resolved, false),
+            like(events.title, '%Sinal óptico%')
+          ))
+          .returning();
+        if (resolvedOptical.length > 0) {
+          console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedOptical.length} optical signal events (signal normal: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm)`);
+        }
+      }
+    }
+    
+    // ========== EVENTO DE CONGESTIONAMENTO DE BANDA ==========
+    // Verificar se o uso de banda está acima de 90% da capacidade contratada
+    const bandwidthCapacity = link.bandwidth || 0; // Mbps
+    if (bandwidthCapacity > 0) {
+      const downloadUsagePercent = (safeDownload / bandwidthCapacity) * 100;
+      const uploadUsagePercent = (safeUpload / bandwidthCapacity) * 100;
+      const maxUsagePercent = Math.max(downloadUsagePercent, uploadUsagePercent);
+      const congestionThreshold = 90; // 90% padrão
+      
+      // Buscar evento de congestionamento ativo
+      const activeCongestionEvent = await db.select().from(events)
+        .where(and(
+          eq(events.linkId, link.id),
+          eq(events.resolved, false),
+          like(events.title, '%congestionado%')
+        ))
+        .limit(1);
+      
+      const hasCongestionEvent = activeCongestionEvent.length > 0;
+      
+      if (maxUsagePercent >= congestionThreshold && !hasCongestionEvent) {
+        // Criar evento de congestionamento
+        const direction = downloadUsagePercent > uploadUsagePercent ? 'Download' : 'Upload';
+        await db.insert(events).values({
+          linkId: link.id,
+          clientId: link.clientId,
+          type: "warning",
+          title: `Link congestionado - ${link.name}`,
+          description: `${direction} em ${maxUsagePercent.toFixed(1)}% da capacidade (${bandwidthCapacity} Mbps). Limite: ${congestionThreshold}%`,
+          timestamp: new Date(),
+          resolved: false,
+        });
+        console.log(`[Monitor] ${link.name}: Created congestion event (${maxUsagePercent.toFixed(1)}% usage)`);
+      } else if (maxUsagePercent < congestionThreshold - 10 && hasCongestionEvent) {
+        // Resolver evento de congestionamento se uso caiu abaixo de 80% (10% abaixo do limite para evitar flapping)
+        const resolvedCongestion = await db
+          .update(events)
+          .set({ resolved: true, resolvedAt: new Date() })
+          .where(and(
+            eq(events.linkId, link.id),
+            eq(events.resolved, false),
+            like(events.title, '%congestionado%')
+          ))
+          .returning();
+        if (resolvedCongestion.length > 0) {
+          console.log(`[Monitor] ${link.name}: Auto-resolved congestion event (usage now ${maxUsagePercent.toFixed(1)}%)`);
+        }
+      }
+    }
 
     // Determine failure source based on whether we have OLT diagnosis
     const cached = oltDiagnosisCache.get(link.id);
