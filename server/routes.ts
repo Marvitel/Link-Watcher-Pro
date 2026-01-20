@@ -948,9 +948,10 @@ export async function registerRoutes(
       const newIpBlock = updatedLink?.ipBlock?.trim() || '';
       
       if (oldIpBlock !== newIpBlock) {
-        // IP block changed - delete old blacklist checks
+        // IP block changed - delete old blacklist checks and resolve blacklist events
         await db.delete(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
-        console.log(`[Link] IP block changed for link ${linkId}: "${oldIpBlock}" -> "${newIpBlock}", cleared blacklist checks`);
+        await storage.resolveBlacklistEvents(linkId);
+        console.log(`[Link] IP block changed for link ${linkId}: "${oldIpBlock}" -> "${newIpBlock}", cleared blacklist checks and resolved events`);
         
         // If link was degraded due to blacklist, reset to operational
         if (updatedLink?.status === 'degraded' && updatedLink?.failureSource === 'blacklist') {
