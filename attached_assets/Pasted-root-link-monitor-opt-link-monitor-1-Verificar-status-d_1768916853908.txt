@@ -1,0 +1,23 @@
+root@link-monitor:/opt/link-monitor# # 1. Verificar status do link
+psql $DATABASE_URL -c "SELECT id, name, monitoring_enabled FROM links WHERE id = 24;"
+
+# 2. Reativar se estiver desabilitado
+psql $DATABASE_URL -c "UPDATE links SET monitoring_enabled = true WHERE id = 24;"
+
+# 3. Reiniciar serviço
+sudo systemctl restart link-monitor
+
+# 4. Verificar logs para confirmar
+journalctl -u link-monitor -f | grep -E "PRIMAVERA|Skipping"
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "root" does not exist
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "root" does not exist
+jan 20 10:46:53 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.2.1.25.2.3.1.5.65536, memUsedOid: 1.3.6.1.2.1.25.2.3.1.6.65536
+jan 20 10:46:53 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.2.1.25.2.3.1.5.65536","memoryUsedOid":"1.3.6.1.2.1.25.2.3.1.6.65536","memoryIsPercentage":false}
+jan 20 10:46:53 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - Resultado CPU/Mem: cpu=50, mem=32.23286290322581
+jan 20 10:46:53 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB: Creating event with description: "O link voltou ao desempenho normal. Latência: 0.6ms, Perda de pacotes: 0.0%"
+jan 20 10:46:54 link-monitor npm[1188841]: [Monitor] Error collecting PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB: error: value too long for type character varying(50)
+jan 20 10:47:23 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - vendorId: 2, vendor: Mikrotik (RouterOS), cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memOid: null, memTotalOid: 1.3.6.1.2.1.25.2.3.1.5.65536, memUsedOid: 1.3.6.1.2.1.25.2.3.1.6.65536
+jan 20 10:47:23 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.2.1.25.3.3.1.2.1, memConfig: {"memoryOid":null,"memoryTotalOid":"1.3.6.1.2.1.25.2.3.1.5.65536","memoryUsedOid":"1.3.6.1.2.1.25.2.3.1.6.65536","memoryIsPercentage":false}
+jan 20 10:47:24 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB - Resultado CPU/Mem: cpu=52, mem=32.261214717741936
+jan 20 10:47:24 link-monitor npm[1188841]: [Monitor] PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB: Creating event with description: "O link voltou ao desempenho normal. Latência: 1.0ms, Perda de pacotes: 0.0%"
+jan 20 10:47:24 link-monitor npm[1188841]: [Monitor] Error collecting PRIMAVERA - LINK DEDICADO IP MARVITEL 500MB: error: value too long for type character varying(50)
