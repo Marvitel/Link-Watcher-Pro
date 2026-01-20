@@ -28,9 +28,13 @@ import {
   insertLinkGroupSchema,
   insertLinkGroupMemberSchema,
   insertExternalIntegrationSchema,
+  links,
+  blacklistChecks,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 
 declare global {
@@ -938,6 +942,33 @@ export async function registerRoutes(
       const previousLink = await storage.getLink(linkId);
       await storage.updateLink(linkId, req.body);
       const updatedLink = await storage.getLink(linkId);
+      
+      // Check if IP block was changed or removed - clear blacklist checks
+      const oldIpBlock = previousLink?.ipBlock?.trim() || '';
+      const newIpBlock = updatedLink?.ipBlock?.trim() || '';
+      
+      if (oldIpBlock !== newIpBlock) {
+        // IP block changed - delete old blacklist checks
+        await db.delete(blacklistChecks).where(eq(blacklistChecks.linkId, linkId));
+        console.log(`[Link] IP block changed for link ${linkId}: "${oldIpBlock}" -> "${newIpBlock}", cleared blacklist checks`);
+        
+        // If link was degraded due to blacklist, reset to operational
+        if (updatedLink?.status === 'degraded' && updatedLink?.failureSource === 'blacklist') {
+          await db.update(links).set({
+            status: 'operational',
+            failureReason: null,
+            failureSource: null
+          }).where(eq(links.id, linkId));
+          console.log(`[Link] Reset link ${linkId} status from blacklist-degraded to operational`);
+        }
+        
+        // If new IP block is not empty, trigger blacklist check for new IPs
+        if (newIpBlock && updatedLink) {
+          checkBlacklistForLink(updatedLink, storage).catch((err) => {
+            console.error(`[BlacklistCheck] Error checking updated link ${linkId}:`, err);
+          });
+        }
+      }
       
       await logAuditEvent({
         clientId: previousLink?.clientId,
