@@ -34,7 +34,7 @@ import {
   type UserRole,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 
 declare global {
@@ -4377,6 +4377,218 @@ export async function registerRoutes(
     createBlacklistEvent: (linkId, clientId, linkName, listedIps, rbls) => 
       storage.createBlacklistEvent(linkId, clientId, linkName, listedIps, rbls),
     resolveBlacklistEvents: (linkId) => storage.resolveBlacklistEvents(linkId),
+  });
+
+  // ========== Diagnostics & Health Check API ==========
+
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const dbStart = Date.now();
+      await db.execute(sql`SELECT 1`);
+      const dbLatency = Date.now() - dbStart;
+
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        database: {
+          status: "connected",
+          latencyMs: dbLatency,
+        },
+      });
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        database: {
+          status: "disconnected",
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
+      });
+    }
+  });
+
+  app.get("/api/health/detailed", async (_req, res) => {
+    try {
+      const { getServerStatus, getMetricsSummary } = await import("./metrics");
+      const serverStatus = getServerStatus();
+      const metricsSummary = getMetricsSummary();
+
+      const dbStart = Date.now();
+      await db.execute(sql`SELECT 1`);
+      const dbLatency = Date.now() - dbStart;
+
+      const linksCount = await db.execute(sql`SELECT COUNT(*) as count FROM links`);
+      const hostsCount = await db.execute(sql`SELECT COUNT(*) as count FROM hosts`);
+      const eventsCount = await db.execute(sql`SELECT COUNT(*) as count FROM events WHERE resolved = false`);
+      const metricsCount = await db.execute(sql`SELECT COUNT(*) as count FROM metrics WHERE timestamp > NOW() - INTERVAL '1 hour'`);
+
+      const hetrixIntegration = await storage.getExternalIntegrationByProvider("hetrixtools");
+      const wanguardSettings = await storage.getClientSettings(1);
+
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        server: serverStatus,
+        metrics: metricsSummary,
+        database: {
+          status: "connected",
+          latencyMs: dbLatency,
+          counts: {
+            links: Number((linksCount as any).rows?.[0]?.count || 0),
+            hosts: Number((hostsCount as any).rows?.[0]?.count || 0),
+            unresolvedEvents: Number((eventsCount as any).rows?.[0]?.count || 0),
+            metricsLastHour: Number((metricsCount as any).rows?.[0]?.count || 0),
+          },
+        },
+        integrations: {
+          hetrixtools: {
+            configured: !!hetrixIntegration?.apiKey,
+            enabled: hetrixIntegration?.isActive || false,
+          },
+          wanguard: {
+            configured: !!wanguardSettings?.wanguardApiEndpoint,
+            enabled: !!wanguardSettings?.wanguardApiEndpoint,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("[Health] Detailed check failed:", error);
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  app.get("/api/admin/diagnostics", requireSuperAdmin, async (req, res) => {
+    try {
+      const { getServerStatus, getMetricsSummary, getMetrics } = await import("./metrics");
+      const serverStatus = getServerStatus();
+      const metricsSummary = getMetricsSummary();
+      const fullMetrics = getMetrics();
+
+      const dbStart = Date.now();
+      await db.execute(sql`SELECT 1`);
+      const dbLatency = Date.now() - dbStart;
+
+      const allLinks = await storage.getLinks();
+      const allHosts = await storage.getHosts();
+      const allClients = await storage.getClients();
+
+      const unresolvedEvents = await db.execute(sql`
+        SELECT e.*, l.name as link_name, c.name as client_name
+        FROM events e
+        LEFT JOIN links l ON e.link_id = l.id
+        LEFT JOIN clients c ON e.client_id = c.id
+        WHERE e.resolved = false
+        ORDER BY e.timestamp DESC
+        LIMIT 50
+      `);
+
+      const recentMetrics = await db.execute(sql`
+        SELECT link_id, COUNT(*) as count, 
+               AVG(latency) as avg_latency,
+               AVG(packet_loss) as avg_packet_loss,
+               MAX(timestamp) as last_metric
+        FROM metrics 
+        WHERE timestamp > NOW() - INTERVAL '1 hour'
+        GROUP BY link_id
+      `);
+
+      const lastCollectionTimes = await db.execute(sql`
+        SELECT link_id, MAX(timestamp) as last_collection
+        FROM metrics
+        GROUP BY link_id
+      `);
+
+      const linkStatusSummary = allLinks.reduce((acc, link) => {
+        const status = link.status || "unknown";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const blacklistChecks = await storage.getBlacklistChecks();
+      const listedIps = blacklistChecks.filter(c => c.isListed);
+
+      const hetrixIntegration = await storage.getExternalIntegrationByProvider("hetrixtools");
+
+      const externalIntegrations = await storage.getExternalIntegrations();
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        server: serverStatus,
+        metrics: {
+          summary: metricsSummary,
+          counters: fullMetrics.counters,
+          currentLoad: fullMetrics.currentLoad,
+          errors: fullMetrics.errors,
+        },
+        database: {
+          latencyMs: dbLatency,
+          status: "connected",
+        },
+        monitoring: {
+          totalLinks: allLinks.length,
+          totalHosts: allHosts.length,
+          totalClients: allClients.length,
+          linksByStatus: linkStatusSummary,
+          unresolvedEventsCount: (unresolvedEvents as any).rows?.length || 0,
+          unresolvedEvents: (unresolvedEvents as any).rows || [],
+          recentMetricsByLink: (recentMetrics as any).rows || [],
+          lastCollectionByLink: (lastCollectionTimes as any).rows || [],
+        },
+        blacklist: {
+          totalChecks: blacklistChecks.length,
+          listedCount: listedIps.length,
+          listedIps: listedIps.map(c => ({
+            linkId: c.linkId,
+            ip: c.ip,
+            listedOn: c.listedOn,
+            lastCheckedAt: c.lastCheckedAt,
+          })),
+        },
+        integrations: {
+          hetrixtools: {
+            configured: !!hetrixIntegration?.apiKey,
+            enabled: hetrixIntegration?.isActive || false,
+            autoCheckInterval: hetrixIntegration?.checkIntervalHours || 12,
+          },
+          all: externalIntegrations.map(i => ({
+            id: i.id,
+            provider: i.provider,
+            name: i.name,
+            isActive: i.isActive,
+            hasApiKey: !!i.apiKey,
+          })),
+        },
+        links: allLinks.map(l => ({
+          id: l.id,
+          name: l.name,
+          clientId: l.clientId,
+          status: l.status,
+          ipBlock: l.ipBlock,
+          address: l.address,
+          snmpInterfaceName: l.snmpInterfaceName,
+        })),
+      });
+    } catch (error) {
+      console.error("[Diagnostics] Error:", error);
+      res.status(500).json({ 
+        error: "Erro ao gerar diagnóstico",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  app.post("/api/admin/diagnostics/reset-metrics", requireSuperAdmin, async (_req, res) => {
+    try {
+      const { resetMetrics } = await import("./metrics");
+      resetMetrics();
+      res.json({ success: true, message: "Métricas resetadas com sucesso" });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao resetar métricas" });
+    }
   });
 
   return httpServer;

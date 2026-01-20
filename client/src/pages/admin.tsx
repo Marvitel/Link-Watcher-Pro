@@ -3941,6 +3941,10 @@ export default function Admin() {
             <ClipboardList className="w-4 h-4" />
             Auditoria
           </TabsTrigger>
+          <TabsTrigger value="diagnostics" className="gap-2" data-testid="tab-diagnostics">
+            <Activity className="w-4 h-4" />
+            Diagnóstico
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -4478,6 +4482,10 @@ export default function Admin() {
         
         <TabsContent value="audit" className="space-y-4">
           <AuditLogsTab />
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-4">
+          <DiagnosticsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -8908,6 +8916,422 @@ function DatabaseConfigTab() {
           <p className="pt-2 border-t">
             Um banco vazio sera inicializado automaticamente com as tabelas necessarias.
             Para migrar dados, utilize ferramentas de backup/restore do PostgreSQL (pg_dump/pg_restore).
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface DiagnosticsData {
+  timestamp: string;
+  server: {
+    uptime: number;
+    uptimeFormatted: string;
+    memory: {
+      total: number;
+      used: number;
+      free: number;
+      usagePercent: number;
+      heapUsed: number;
+      heapTotal: number;
+      rss: number;
+    };
+    cpu: {
+      cores: number;
+      model: string;
+      loadAvg: number[];
+      usagePercent: number;
+    };
+    process: {
+      pid: number;
+      nodeVersion: string;
+      platform: string;
+      arch: string;
+    };
+  };
+  metrics: {
+    summary: {
+      startTime: string;
+      uptimeSeconds: number;
+      counters: Record<string, {
+        total: number;
+        success: number;
+        errors: number;
+        lastExecutionMs: number;
+        avgExecutionMs: number;
+      }>;
+      currentLoad: {
+        activeMonitoringTasks: number;
+        pendingDbWrites: number;
+        queuedAlerts: number;
+      };
+      errorCount: number;
+      recentErrors: Array<{ timestamp: string; type: string; message: string; count: number }>;
+    };
+  };
+  database: {
+    latencyMs: number;
+    status: string;
+  };
+  monitoring: {
+    totalLinks: number;
+    totalHosts: number;
+    totalClients: number;
+    linksByStatus: Record<string, number>;
+    unresolvedEventsCount: number;
+    unresolvedEvents: Array<any>;
+    recentMetricsByLink: Array<any>;
+    lastCollectionByLink: Array<any>;
+  };
+  blacklist: {
+    totalChecks: number;
+    listedCount: number;
+    listedIps: Array<{ linkId: number; ip: string; listedOn: any; lastCheckedAt: string }>;
+  };
+  integrations: {
+    hetrixtools: { configured: boolean; enabled: boolean; autoCheckInterval: number };
+    all: Array<{ id: number; provider: string; name: string; isActive: boolean; hasApiKey: boolean }>;
+  };
+  links: Array<{ id: number; name: string; clientId: number; status: string; ipBlock: string; address: string; snmpInterfaceName: string | null }>;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+function DiagnosticsTab() {
+  const { toast } = useToast();
+  const [isResetting, setIsResetting] = useState(false);
+
+  const { data: diagnostics, isLoading, error, refetch } = useQuery<DiagnosticsData>({
+    queryKey: ["/api/admin/diagnostics"],
+    refetchInterval: 10000,
+  });
+
+  const handleResetMetrics = async () => {
+    setIsResetting(true);
+    try {
+      await apiRequest("POST", "/api/admin/diagnostics/reset-metrics");
+      toast({ title: "Metricas resetadas com sucesso" });
+      refetch();
+    } catch (err) {
+      toast({ title: "Erro ao resetar metricas", variant: "destructive" });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (error || !diagnostics) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-destructive">
+          <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+          <p>Erro ao carregar diagnosticos</p>
+          <Button variant="outline" onClick={() => refetch()} className="mt-4">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const counters = diagnostics.metrics?.summary?.counters || {};
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-lg font-medium">Diagnostico do Sistema</h2>
+          <p className="text-sm text-muted-foreground">
+            Monitoramento em tempo real do servidor e metricas de execucao
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => refetch()} data-testid="button-refresh-diagnostics">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+          <Button variant="outline" onClick={handleResetMetrics} disabled={isResetting} data-testid="button-reset-metrics">
+            {isResetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+            Resetar Metricas
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Uptime</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{diagnostics.server?.uptimeFormatted || "N/A"}</p>
+            <p className="text-xs text-muted-foreground">PID: {diagnostics.server?.process?.pid}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Memoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{diagnostics.server?.memory?.usagePercent || 0}%</p>
+            <p className="text-xs text-muted-foreground">
+              {formatBytes(diagnostics.server?.memory?.used || 0)} / {formatBytes(diagnostics.server?.memory?.total || 0)}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">CPU</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{diagnostics.server?.cpu?.usagePercent || 0}%</p>
+            <p className="text-xs text-muted-foreground">{diagnostics.server?.cpu?.cores || 0} cores</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Database</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{diagnostics.database?.latencyMs || 0}ms</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${diagnostics.database?.status === "connected" ? "bg-green-500" : "bg-red-500"}`} />
+              {diagnostics.database?.status === "connected" ? "Conectado" : "Desconectado"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Contadores de Operacoes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(counters).map(([name, counter]) => (
+                <div key={name} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                  <div>
+                    <p className="font-medium text-sm">{name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sucesso: {counter.success} | Erros: {counter.errors}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-sm">{counter.total}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {counter.avgExecutionMs > 0 ? `~${Math.round(counter.avgExecutionMs)}ms` : "-"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {Object.keys(counters).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma operacao registrada ainda
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Network className="w-4 h-4" />
+              Status do Monitoramento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-3 rounded bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{diagnostics.monitoring?.totalLinks || 0}</p>
+                  <p className="text-xs text-muted-foreground">Links</p>
+                </div>
+                <div className="p-3 rounded bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{diagnostics.monitoring?.totalHosts || 0}</p>
+                  <p className="text-xs text-muted-foreground">Hosts</p>
+                </div>
+                <div className="p-3 rounded bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{diagnostics.monitoring?.totalClients || 0}</p>
+                  <p className="text-xs text-muted-foreground">Clientes</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Links por Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(diagnostics.monitoring?.linksByStatus || {}).map(([status, count]) => (
+                    <Badge
+                      key={status}
+                      variant={status === "online" ? "default" : status === "offline" ? "destructive" : "secondary"}
+                    >
+                      {status}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Eventos nao resolvidos</span>
+                  <Badge variant={diagnostics.monitoring?.unresolvedEventsCount > 0 ? "destructive" : "secondary"}>
+                    {diagnostics.monitoring?.unresolvedEventsCount || 0}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Integracoes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {diagnostics.integrations?.all?.map((integration) => (
+                <div key={integration.id} className="flex items-center justify-between p-2 rounded bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${integration.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                    <span className="font-medium text-sm">{integration.name || integration.provider}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {integration.hasApiKey ? (
+                      <Badge variant="outline" className="text-xs">API Key</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Sem Key</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {(!diagnostics.integrations?.all || diagnostics.integrations.all.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhuma integracao configurada
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Blacklist
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 rounded bg-muted/50 text-center">
+                  <p className="text-2xl font-bold">{diagnostics.blacklist?.totalChecks || 0}</p>
+                  <p className="text-xs text-muted-foreground">Verificacoes</p>
+                </div>
+                <div className="p-3 rounded bg-muted/50 text-center">
+                  <p className={`text-2xl font-bold ${diagnostics.blacklist?.listedCount > 0 ? "text-destructive" : ""}`}>
+                    {diagnostics.blacklist?.listedCount || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">IPs Listados</p>
+                </div>
+              </div>
+
+              {diagnostics.blacklist?.listedIps && diagnostics.blacklist.listedIps.length > 0 && (
+                <div className="pt-2 border-t">
+                  <p className="text-sm font-medium mb-2 text-destructive">IPs em Blacklist:</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {diagnostics.blacklist.listedIps.map((item, idx) => (
+                      <div key={idx} className="text-xs font-mono p-1 rounded bg-destructive/10">
+                        {item.ip}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Server className="w-4 h-4" />
+            Informacoes do Servidor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Node.js</p>
+              <p className="font-mono">{diagnostics.server?.process?.nodeVersion || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Plataforma</p>
+              <p className="font-mono">{diagnostics.server?.process?.platform || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Arquitetura</p>
+              <p className="font-mono">{diagnostics.server?.process?.arch || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">CPU Model</p>
+              <p className="font-mono text-xs truncate">{diagnostics.server?.cpu?.model || "N/A"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Heap Usado</p>
+              <p className="font-mono">{formatBytes(diagnostics.server?.memory?.heapUsed || 0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Heap Total</p>
+              <p className="font-mono">{formatBytes(diagnostics.server?.memory?.heapTotal || 0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">RSS</p>
+              <p className="font-mono">{formatBytes(diagnostics.server?.memory?.rss || 0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Load Average</p>
+              <p className="font-mono">{diagnostics.server?.cpu?.loadAvg?.map(l => l.toFixed(2)).join(" / ") || "N/A"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Ultima Atualizacao</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleString("pt-BR") : "N/A"}
           </p>
         </CardContent>
       </Card>
