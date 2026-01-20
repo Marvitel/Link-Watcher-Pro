@@ -560,6 +560,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     sectorArea?: string;
     createdAt?: string;
     closedAt?: string;
+    contractServiceTag?: string;
+    connectionId?: number;
   }>> {
     if (!customerId) {
       console.log("[VoalleAdapter] getOpenSolicitations: customerId não fornecido");
@@ -585,6 +587,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             sectorArea?: string;
             beginningData?: string;
             finalData?: string;
+            contractServiceTag?: string;
+            connectionId?: number;
+            authenticationId?: number;
+            serviceTag?: string;
           }>;
           totalRecords?: number;
         };
@@ -593,6 +599,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       if (!result.success || !result.response?.data) {
         console.log("[VoalleAdapter] Resposta sem dados:", result);
         return [];
+      }
+
+      // Log primeiro registro para debug dos campos disponíveis
+      if (result.response.data.length > 0) {
+        console.log("[VoalleAdapter] Campos disponíveis na solicitação:", Object.keys(result.response.data[0]));
       }
 
       // Mapear resposta bruta para formato normalizado
@@ -606,6 +617,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         sectorArea: raw.sectorArea,
         createdAt: raw.beginningData,
         closedAt: raw.finalData,
+        contractServiceTag: raw.contractServiceTag || raw.serviceTag,
+        connectionId: raw.connectionId || raw.authenticationId,
       }));
 
       console.log(`[VoalleAdapter] Encontradas ${solicitations.length} solicitações`);

@@ -2000,10 +2000,41 @@ export async function registerRoutes(
       }
 
       // Buscar solicitações em aberto usando o adapter
-      const solicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined);
+      const allSolicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined);
+
+      // Filtrar solicitações pelo serviceTag do link, se configurado
+      let solicitations = allSolicitations;
+      let filterApplied = false;
+      
+      if (link.voalleContractTagServiceTag) {
+        const linkServiceTag = link.voalleContractTagServiceTag.toLowerCase().trim();
+        
+        // Filtrar por serviceTag ou connectionId
+        solicitations = allSolicitations.filter((s: { contractServiceTag?: string; connectionId?: number; subject?: string }) => {
+          // Match por serviceTag
+          if (s.contractServiceTag) {
+            return s.contractServiceTag.toLowerCase().trim() === linkServiceTag;
+          }
+          // Match por connectionId se o link tiver voalleConnectionId
+          if (link.voalleConnectionId && s.connectionId) {
+            return s.connectionId === link.voalleConnectionId;
+          }
+          // Match por texto no título (fallback: busca pelo serviceTag no título)
+          if (s.subject) {
+            return s.subject.toLowerCase().includes(linkServiceTag);
+          }
+          return false;
+        });
+        
+        filterApplied = true;
+        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag})`);
+      }
 
       res.json({ 
         solicitations,
+        allSolicitations: filterApplied ? allSolicitations : undefined,
+        filterApplied,
+        filterCriteria: link.voalleContractTagServiceTag || null,
         clientName: client.name,
         voalleCustomerId 
       });
