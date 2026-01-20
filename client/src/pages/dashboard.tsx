@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/metric-card";
 import { LinkCard } from "@/components/link-card";
+import { BandwidthChart } from "@/components/bandwidth-chart";
 import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
@@ -532,8 +533,30 @@ function SuperAdminLinkDashboard({
 
 type ViewMode = "cards" | "compact" | "table";
 
-// Card compacto para visualização resumida
-function CompactLinkCard({ link }: { link: LinkType }) {
+// Card compacto para visualização resumida com métricas em tempo real
+function CompactLinkCardWithMetrics({ link }: { link: LinkType }) {
+  const { data: metrics } = useQuery<Metric[]>({
+    queryKey: [`/api/links/${link.id}/metrics`],
+    refetchInterval: 5000,
+    staleTime: 0,
+  });
+
+  const metricsHistory = metrics ? [...metrics]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((m) => ({
+      timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
+      download: m.download,
+      upload: m.upload,
+      status: m.status,
+    })) : [];
+
+  return <CompactLinkCard link={link} metricsHistory={metricsHistory} />;
+}
+
+function CompactLinkCard({ link, metricsHistory = [] }: { 
+  link: LinkType; 
+  metricsHistory?: Array<{ timestamp: string; download: number; upload: number; status?: string }>;
+}) {
   const statusColors: Record<string, string> = {
     operational: "border-l-green-500",
     degraded: "border-l-yellow-500",
@@ -561,8 +584,17 @@ function CompactLinkCard({ link }: { link: LinkType }) {
     return "text-red-600 dark:text-red-400";
   };
 
-  const formatBw = (mbps: number | null | undefined): string => {
-    if (!mbps) return "0 Mbps";
+  // Inversão de banda (padrão para concentradores)
+  const rawDownload = link.currentDownload ?? 0;
+  const rawUpload = link.currentUpload ?? 0;
+  const keepOriginal = (link as any)?.invertBandwidth ?? false;
+  const currentDownload = keepOriginal ? rawDownload : rawUpload;
+  const currentUpload = keepOriginal ? rawUpload : rawDownload;
+  const latency = link.latency ?? 0;
+  const packetLoss = link.packetLoss ?? 0;
+  const uptime = link.uptime ?? 0;
+
+  const formatBw = (mbps: number): string => {
     if (mbps >= 1000) return `${(mbps / 1000).toFixed(1)} Gbps`;
     return `${mbps.toFixed(0)} Mbps`;
   };
@@ -570,62 +602,84 @@ function CompactLinkCard({ link }: { link: LinkType }) {
   return (
     <Link href={`/link/${link.id}`}>
       <Card 
-        className={`border-l-4 ${borderColor} hover-elevate cursor-pointer transition-all`}
+        className={`border-l-4 ${borderColor} hover-elevate cursor-pointer transition-all h-full`}
         data-testid={`card-compact-link-${link.id}`}
       >
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {link.status === "operational" ? (
-                <Wifi className="h-4 w-4 text-green-500 shrink-0" />
-              ) : link.status === "degraded" ? (
-                <Wifi className="h-4 w-4 text-yellow-500 shrink-0" />
-              ) : (
-                <WifiOff className="h-4 w-4 text-red-500 shrink-0" />
-              )}
-              <span className="font-medium text-sm truncate" title={link.name}>
-                {link.name}
-              </span>
+        <CardContent className="p-3 space-y-2">
+          {/* Header: Nome e Status */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                {link.status === "operational" ? (
+                  <Wifi className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                ) : link.status === "degraded" ? (
+                  <Wifi className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                ) : (
+                  <WifiOff className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                )}
+                <span className="font-medium text-sm truncate" title={link.name}>
+                  {link.name}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground truncate mt-0.5" title={link.location || ""}>
+                {link.location || "Sem localização"}
+              </p>
             </div>
-            <Badge variant="outline" className={`text-xs shrink-0 ${statusInfo.className}`}>
+            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusInfo.className}`}>
               {statusInfo.label}
             </Badge>
           </div>
+
+          {/* Mini Gráfico de Banda */}
+          {metricsHistory.length > 0 && (
+            <div className="h-12 -mx-1">
+              <BandwidthChart data={metricsHistory} height={48} invertBandwidth={(link as any).invertBandwidth} />
+            </div>
+          )}
           
-          <div className="grid grid-cols-4 gap-2 text-xs">
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Latência</span>
-              <span className={`font-medium ${getLatencyColor(link.latency || 0)}`}>
-                {(link.latency || 0).toFixed(1)}ms
-              </span>
+          {/* Banda Atual */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1.5 bg-blue-500/5 rounded px-2 py-1">
+              <Download className="h-3 w-3 text-blue-500" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">Download</p>
+                <p className="text-xs font-mono font-medium truncate">{formatBw(currentDownload)}</p>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Perda</span>
-              <span className={`font-medium ${getLossColor(link.packetLoss || 0)}`}>
-                {(link.packetLoss || 0).toFixed(1)}%
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground flex items-center gap-1">
-                <Download className="h-3 w-3" />
-              </span>
-              <span className="font-medium">{formatBw(link.currentDownload)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground flex items-center gap-1">
-                <Upload className="h-3 w-3" />
-              </span>
-              <span className="font-medium">{formatBw(link.currentUpload)}</span>
+            <div className="flex items-center gap-1.5 bg-green-500/5 rounded px-2 py-1">
+              <Upload className="h-3 w-3 text-green-500" />
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">Upload</p>
+                <p className="text-xs font-mono font-medium truncate">{formatBw(currentUpload)}</p>
+              </div>
             </div>
           </div>
-          
-          <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
-            <span className="truncate" title={link.ipBlock || ""}>
-              {link.ipBlock || "Sem IP"}
-            </span>
-            <span className="flex items-center gap-1 shrink-0">
-              <Zap className="h-3 w-3" />
-              {link.uptime?.toFixed(2) || 0}%
+
+          {/* Métricas: Latência, Perda, Uptime */}
+          <div className="grid grid-cols-3 gap-1 text-center pt-1 border-t">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Latência</p>
+              <p className={`text-xs font-mono font-medium ${getLatencyColor(latency)}`}>
+                {latency.toFixed(0)}ms
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Perda</p>
+              <p className={`text-xs font-mono font-medium ${getLossColor(packetLoss)}`}>
+                {packetLoss.toFixed(2)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Uptime</p>
+              <p className="text-xs font-mono font-medium">{uptime.toFixed(2)}%</p>
+            </div>
+          </div>
+
+          {/* Footer: IP */}
+          <div className="flex items-center justify-between pt-1 border-t text-[10px] text-muted-foreground">
+            <span className="font-medium">IP:</span>
+            <span className="font-mono truncate ml-1" title={link.ipBlock || ""}>
+              {link.ipBlock || "N/A"}
             </span>
           </div>
         </CardContent>
@@ -951,9 +1005,9 @@ function DashboardContent() {
             viewMode === "table" ? (
               <LinksTable links={linksArray} metricsMap={metricsMap} pageSize={10} />
             ) : viewMode === "compact" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {linksArray.map((link) => (
-                  <CompactLinkCard key={link.id} link={link} />
+                  <CompactLinkCardWithMetrics key={link.id} link={link} />
                 ))}
               </div>
             ) : (
