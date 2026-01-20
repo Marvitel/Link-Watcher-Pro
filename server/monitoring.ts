@@ -1907,6 +1907,12 @@ export async function collectAllLinksMetrics(): Promise<void> {
     
     const allLinks = await db.select().from(links);
     const enabledLinks = allLinks.filter(l => l.monitoringEnabled);
+    const disabledLinks = allLinks.filter(l => !l.monitoringEnabled);
+    
+    // Log links with monitoring disabled for diagnostics
+    if (disabledLinks.length > 0) {
+      console.log(`[Monitor] Skipping ${disabledLinks.length} links with monitoring disabled: ${disabledLinks.map(l => `${l.id}:${l.name}`).join(', ')}`);
+    }
     
     if (enabledLinks.length === 0) return;
     
