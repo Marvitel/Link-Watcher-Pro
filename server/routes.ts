@@ -4581,6 +4581,111 @@ export async function registerRoutes(
     }
   });
 
+  // Diagnóstico específico de um link
+  app.get("/api/admin/diagnostics/link/:linkId", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      if (isNaN(linkId)) {
+        return res.status(400).json({ error: "ID de link inválido" });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      // Buscar métricas recentes (últimas 24 horas)
+      const recentMetrics = await db.execute(sql`
+        SELECT 
+          timestamp,
+          latency,
+          packet_loss,
+          download,
+          upload,
+          status
+        FROM metrics
+        WHERE link_id = ${linkId}
+          AND timestamp > NOW() - INTERVAL '24 hours'
+        ORDER BY timestamp DESC
+        LIMIT 100
+      `);
+
+      // Buscar eventos do link
+      const events = await db.execute(sql`
+        SELECT id, type, title, description, timestamp, resolved, resolved_at
+        FROM events
+        WHERE link_id = ${linkId}
+        ORDER BY timestamp DESC
+        LIMIT 20
+      `);
+
+      // Buscar verificações de blacklist
+      const blacklistChecks = await db.execute(sql`
+        SELECT ip, is_listed, listed_on, last_checked_at
+        FROM blacklist_checks
+        WHERE link_id = ${linkId}
+        ORDER BY last_checked_at DESC
+        LIMIT 20
+      `);
+
+      // Calcular estatísticas das últimas 24h
+      const stats = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_samples,
+          AVG(latency) as avg_latency,
+          MAX(latency) as max_latency,
+          MIN(latency) as min_latency,
+          AVG(packet_loss) as avg_packet_loss,
+          MAX(packet_loss) as max_packet_loss,
+          AVG(download) as avg_download,
+          AVG(upload) as avg_upload
+        FROM metrics
+        WHERE link_id = ${linkId}
+          AND timestamp > NOW() - INTERVAL '24 hours'
+      `);
+
+      const statsRow = (stats as any).rows?.[0] || {};
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        link: {
+          id: link.id,
+          name: link.name,
+          clientId: link.clientId,
+          status: link.status,
+          ipBlock: link.ipBlock,
+          monitoredIp: link.monitoredIp,
+          snmpRouterIp: link.snmpRouterIp,
+          snmpInterfaceName: link.snmpInterfaceName,
+          latencyThreshold: link.latencyThreshold,
+          packetLossThreshold: link.packetLossThreshold,
+          failureReason: link.failureReason,
+          failureSource: link.failureSource,
+          lastFailureAt: link.lastFailureAt,
+        },
+        stats24h: {
+          totalSamples: Number(statsRow.total_samples || 0),
+          avgLatency: parseFloat(statsRow.avg_latency || 0).toFixed(2),
+          maxLatency: parseFloat(statsRow.max_latency || 0).toFixed(2),
+          minLatency: parseFloat(statsRow.min_latency || 0).toFixed(2),
+          avgPacketLoss: parseFloat(statsRow.avg_packet_loss || 0).toFixed(2),
+          maxPacketLoss: parseFloat(statsRow.max_packet_loss || 0).toFixed(2),
+          avgDownload: formatBytes(Number(statsRow.avg_download || 0)),
+          avgUpload: formatBytes(Number(statsRow.avg_upload || 0)),
+        },
+        recentMetrics: (recentMetrics as any).rows?.slice(0, 20) || [],
+        events: (events as any).rows || [],
+        blacklistChecks: (blacklistChecks as any).rows || [],
+      });
+    } catch (error) {
+      console.error("[Diagnostics] Link error:", error);
+      res.status(500).json({ 
+        error: "Erro ao gerar diagnóstico do link",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
   app.post("/api/admin/diagnostics/reset-metrics", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { resetMetrics } = await import("./metrics");
