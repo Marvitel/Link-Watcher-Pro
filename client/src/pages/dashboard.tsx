@@ -33,6 +33,8 @@ import {
   Ticket,
   ChevronLeft,
   ChevronRight,
+  SquareStack,
+  Zap,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -528,7 +530,109 @@ function SuperAdminLinkDashboard({
   );
 }
 
-type ViewMode = "cards" | "table";
+type ViewMode = "cards" | "compact" | "table";
+
+// Card compacto para visualização resumida
+function CompactLinkCard({ link }: { link: LinkType }) {
+  const statusColors: Record<string, string> = {
+    operational: "border-l-green-500",
+    degraded: "border-l-yellow-500",
+    offline: "border-l-red-500",
+    down: "border-l-red-500",
+  };
+
+  const statusInfo = link.status === "operational" 
+    ? { label: "Online", className: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20" }
+    : link.status === "degraded"
+    ? { label: "Degradado", className: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" }
+    : { label: "Offline", className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20" };
+
+  const borderColor = statusColors[link.status] || "border-l-gray-400";
+
+  const getLatencyColor = (lat: number) => {
+    if (lat <= 50) return "text-green-600 dark:text-green-400";
+    if (lat <= 80) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  const getLossColor = (loss: number) => {
+    if (loss <= 1) return "text-green-600 dark:text-green-400";
+    if (loss <= 2) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  };
+
+  const formatBw = (mbps: number | null | undefined): string => {
+    if (!mbps) return "0 Mbps";
+    if (mbps >= 1000) return `${(mbps / 1000).toFixed(1)} Gbps`;
+    return `${mbps.toFixed(0)} Mbps`;
+  };
+
+  return (
+    <Link href={`/link/${link.id}`}>
+      <Card 
+        className={`border-l-4 ${borderColor} hover-elevate cursor-pointer transition-all`}
+        data-testid={`card-compact-link-${link.id}`}
+      >
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {link.status === "operational" ? (
+                <Wifi className="h-4 w-4 text-green-500 shrink-0" />
+              ) : link.status === "degraded" ? (
+                <Wifi className="h-4 w-4 text-yellow-500 shrink-0" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-red-500 shrink-0" />
+              )}
+              <span className="font-medium text-sm truncate" title={link.name}>
+                {link.name}
+              </span>
+            </div>
+            <Badge variant="outline" className={`text-xs shrink-0 ${statusInfo.className}`}>
+              {statusInfo.label}
+            </Badge>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Latência</span>
+              <span className={`font-medium ${getLatencyColor(link.latency || 0)}`}>
+                {(link.latency || 0).toFixed(1)}ms
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Perda</span>
+              <span className={`font-medium ${getLossColor(link.packetLoss || 0)}`}>
+                {(link.packetLoss || 0).toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <Download className="h-3 w-3" />
+              </span>
+              <span className="font-medium">{formatBw(link.currentDownload)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <Upload className="h-3 w-3" />
+              </span>
+              <span className="font-medium">{formatBw(link.currentUpload)}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+            <span className="truncate" title={link.ipBlock || ""}>
+              {link.ipBlock || "Sem IP"}
+            </span>
+            <span className="flex items-center gap-1 shrink-0">
+              <Zap className="h-3 w-3" />
+              {link.uptime?.toFixed(2) || 0}%
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
 
 function DashboardContent() {
   const { isSuperAdmin } = useAuth();
@@ -536,7 +640,7 @@ function DashboardContent() {
   
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = sessionStorage.getItem("link_monitor_view_mode");
-    return (saved === "table" || saved === "cards") ? saved : "cards";
+    return (saved === "table" || saved === "cards" || saved === "compact") ? saved : "cards";
   });
 
   const handleViewModeChange = (mode: ViewMode) => {
@@ -791,15 +895,27 @@ function DashboardContent() {
                 size="sm"
                 className="rounded-r-none"
                 onClick={() => handleViewModeChange("cards")}
+                title="Gráficos"
                 data-testid="button-view-cards"
               >
                 <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "compact" ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-x"
+                onClick={() => handleViewModeChange("compact")}
+                title="Cards Compactos"
+                data-testid="button-view-compact"
+              >
+                <SquareStack className="h-4 w-4" />
               </Button>
               <Button
                 variant={viewMode === "table" ? "default" : "ghost"}
                 size="sm"
                 className="rounded-l-none"
                 onClick={() => handleViewModeChange("table")}
+                title="Lista"
                 data-testid="button-view-table"
               >
                 <List className="h-4 w-4" />
@@ -834,6 +950,12 @@ function DashboardContent() {
           ) : linksArray.length > 0 ? (
             viewMode === "table" ? (
               <LinksTable links={linksArray} metricsMap={metricsMap} pageSize={10} />
+            ) : viewMode === "compact" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {linksArray.map((link) => (
+                  <CompactLinkCard key={link.id} link={link} />
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {linksArray.map((link) => (
