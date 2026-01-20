@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState, blacklistChecks } from "@shared/schema";
 import { eq, and, not, like } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
@@ -1770,6 +1770,16 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     let finalFailureSource: string | null = null;
     let finalStatus = collectedMetrics.status;
     
+    // Check if link has IPs currently listed in blacklist (from blacklistChecks table)
+    // This ensures blacklist status is applied even if it wasn't set before
+    const listedBlacklistChecks = await db.select()
+      .from(blacklistChecks)
+      .where(and(
+        eq(blacklistChecks.linkId, link.id),
+        eq(blacklistChecks.isListed, true)
+      ));
+    const hasBlacklistedIps = listedBlacklistChecks.length > 0;
+    
     // Check if link is currently degraded due to blacklist - preserve this status
     const isBlacklistDegraded = link.status === 'degraded' && link.failureSource === 'blacklist';
     
@@ -1789,11 +1799,16 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       // For degraded status, use monitoring-derived reason (e.g., packet_loss)
       finalFailureReason = collectedMetrics.failureReason;
       finalFailureSource = collectedMetrics.failureReason ? 'monitoring' : null;
-    } else if (collectedMetrics.status === 'operational' && isBlacklistDegraded) {
-      // PRESERVE blacklist degraded status - don't override with operational
-      // Blacklist status is managed by hetrixtools.ts, not by monitoring
+    } else if (collectedMetrics.status === 'operational' && (isBlacklistDegraded || hasBlacklistedIps)) {
+      // FORCE/PRESERVE blacklist degraded status - don't override with operational
+      // This ensures links with blacklisted IPs always show as degraded
       finalStatus = 'degraded';
-      finalFailureReason = link.failureReason;
+      if (hasBlacklistedIps) {
+        const listedIps = listedBlacklistChecks.map(c => c.ip).join(', ');
+        finalFailureReason = `IP(s) em blacklist: ${listedIps}`;
+      } else {
+        finalFailureReason = link.failureReason;
+      }
       finalFailureSource = 'blacklist';
     }
     // For operational status (without blacklist), both remain null (no failure)
