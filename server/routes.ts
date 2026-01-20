@@ -6,7 +6,7 @@ import { VoalleService } from "./voalle";
 import { getErpAdapter, configureErpAdapter, clearErpAdapter } from "./erp";
 import { discoverInterfaces, type SnmpInterface } from "./snmp";
 import { queryOltAlarm, testOltConnection } from "./olt";
-import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken } from "./middleware/auth";
+import { requireAuth, requireSuperAdmin, requireClientAccess, requirePermission, signToken, requireDiagnosticsAccess } from "./middleware/auth";
 import { encrypt, decrypt, isEncrypted } from "./crypto";
 import { logAuditEvent } from "./audit";
 import pg from "pg";
@@ -4407,7 +4407,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/health/detailed", requireSuperAdmin, async (_req, res) => {
+  app.get("/api/health/detailed", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { getServerStatus, getMetricsSummary } = await import("./metrics");
       const serverStatus = getServerStatus();
@@ -4461,7 +4461,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/diagnostics", requireSuperAdmin, async (req, res) => {
+  app.get("/api/admin/diagnostics", requireDiagnosticsAccess, async (req, res) => {
     try {
       const { getServerStatus, getMetricsSummary, getMetrics } = await import("./metrics");
       const serverStatus = getServerStatus();
@@ -4581,7 +4581,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/admin/diagnostics/reset-metrics", requireSuperAdmin, async (_req, res) => {
+  app.post("/api/admin/diagnostics/reset-metrics", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { resetMetrics } = await import("./metrics");
       resetMetrics();

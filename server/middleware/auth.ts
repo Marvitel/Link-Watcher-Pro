@@ -117,3 +117,22 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   }
   next();
 }
+
+export function requireDiagnosticsAccess(req: Request, res: Response, next: NextFunction) {
+  const diagnosticsToken = process.env.DIAGNOSTICS_TOKEN;
+  const providedToken = req.headers["x-diagnostics-token"] as string | undefined;
+  
+  if (diagnosticsToken && providedToken === diagnosticsToken) {
+    return next();
+  }
+  
+  const user = getUserFromRequest(req);
+  if (!user) {
+    return res.status(401).json({ error: "Autenticação necessária. Use X-Diagnostics-Token ou faça login como Super Admin." });
+  }
+  if (!user.isSuperAdmin) {
+    return res.status(403).json({ error: "Acesso restrito a super administradores" });
+  }
+  req.user = user;
+  next();
+}
