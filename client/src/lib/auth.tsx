@@ -138,15 +138,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Verificar se é admin antes de limpar os dados
+    const currentUser = user;
+    const isAdmin = currentUser?.isSuperAdmin;
+    
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);
     setUser(null);
+    
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch (e) {
       // Ignore logout errors
     }
-  }, []);
+    
+    // Redirecionar admin para página de login admin
+    if (isAdmin) {
+      window.location.href = "/admin/login";
+    }
+  }, [user]);
 
   const value: AuthContextType = {
     user,
