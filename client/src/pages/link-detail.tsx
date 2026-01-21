@@ -615,48 +615,14 @@ export default function LinkDetail() {
             </CardHeader>
             <CardContent>
               {chartMode === "unified" ? (
-                <>
-                  <UnifiedMetricsChart 
-                    data={unifiedData} 
-                    height={350} 
-                    invertBandwidth={(link as any)?.invertBandwidth}
-                    showLegend={true}
-                    latencyThreshold={80}
-                    packetLossThreshold={2}
-                  />
-                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                    <div className="flex flex-wrap items-center gap-4 text-xs">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-1 rounded-full bg-[hsl(210,85%,55%)]" />
-                        Download
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-1 rounded-full bg-[hsl(280,70%,60%)]" />
-                        Upload
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-4 border-t border-dashed border-amber-500" />
-                        Latência
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-1 rounded-full bg-red-500" />
-                        Perda de Pacotes
-                      </span>
-                      <span className="border-l pl-3 flex items-center gap-1.5">
-                        <span className="w-3 h-2 rounded-sm bg-green-500" />
-                        Online
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-2 rounded-sm bg-yellow-500" />
-                        Degradado
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-2 rounded-sm bg-red-500" />
-                        Offline
-                      </span>
-                    </div>
-                  </div>
-                </>
+                <UnifiedMetricsChart 
+                  data={unifiedData} 
+                  height={350} 
+                  invertBandwidth={(link as any)?.invertBandwidth}
+                  showLegend={true}
+                  latencyThreshold={80}
+                  packetLossThreshold={2}
+                />
               ) : (
                 <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
               )}
