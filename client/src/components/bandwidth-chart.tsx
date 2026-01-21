@@ -497,6 +497,14 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
   );
 }
 
+// Tipo exportado para controle de visibilidade das séries
+export interface ChartSeriesVisibility {
+  download: boolean;
+  upload: boolean;
+  latency: boolean;
+  packetLoss: boolean;
+}
+
 // Gráfico unificado com banda, latência, perda e barras de disponibilidade
 interface UnifiedMetricsChartProps {
   data: Array<{
@@ -509,30 +517,19 @@ interface UnifiedMetricsChartProps {
   }>;
   height?: number;
   invertBandwidth?: boolean;
-  showLegend?: boolean;
   latencyThreshold?: number;
   packetLossThreshold?: number;
+  visibleSeries?: ChartSeriesVisibility;
 }
 
 export function UnifiedMetricsChart({
   data,
   height = 300,
   invertBandwidth = false,
-  showLegend = true,
   latencyThreshold = 80,
   packetLossThreshold = 2,
+  visibleSeries = { download: true, upload: true, latency: true, packetLoss: true },
 }: UnifiedMetricsChartProps) {
-  // Estado para controlar visibilidade das séries
-  const [visibleSeries, setVisibleSeries] = useState({
-    download: true,
-    upload: true,
-    latency: true,
-    packetLoss: true,
-  });
-
-  const toggleSeries = (series: keyof typeof visibleSeries) => {
-    setVisibleSeries((prev: typeof visibleSeries) => ({ ...prev, [series]: !prev[series] }));
-  };
 
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
@@ -606,10 +603,9 @@ export function UnifiedMetricsChart({
     return `${value.toFixed(0)}M`;
   };
 
-  // Altura do gráfico principal (desconta barra de disponibilidade e legenda)
-  const legendHeight = showLegend ? 32 : 0;
+  // Altura do gráfico principal (desconta barra de disponibilidade)
   const availabilityBarHeight = 8;
-  const mainChartHeight = height - availabilityBarHeight - legendHeight - 4;
+  const mainChartHeight = height - availabilityBarHeight - 4;
 
   return (
     <div className="w-full flex flex-col">
@@ -762,55 +758,6 @@ export function UnifiedMetricsChart({
         </div>
       </div>
       
-      {/* Legenda clicável */}
-      {showLegend && (
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-2 text-xs flex-shrink-0" style={{ minHeight: legendHeight }}>
-          <button
-            onClick={() => toggleSeries("download")}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.download ? "opacity-40" : ""}`}
-            data-testid="legend-download"
-          >
-            <span className="w-3 h-0.5 bg-[hsl(210,85%,55%)]" />
-            <span>Download</span>
-          </button>
-          <button
-            onClick={() => toggleSeries("upload")}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.upload ? "opacity-40" : ""}`}
-            data-testid="legend-upload"
-          >
-            <span className="w-3 h-0.5 bg-[hsl(280,70%,60%)]" />
-            <span>Upload</span>
-          </button>
-          <button
-            onClick={() => toggleSeries("latency")}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.latency ? "opacity-40" : ""}`}
-            data-testid="legend-latency"
-          >
-            <span className="w-3 h-0.5 border-t-2 border-dashed border-[hsl(38,92%,50%)]" />
-            <span>Latência</span>
-          </button>
-          <button
-            onClick={() => toggleSeries("packetLoss")}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.packetLoss ? "opacity-40" : ""}`}
-            data-testid="legend-packet-loss"
-          >
-            <span className="w-3 h-0.5 bg-[hsl(0,84%,60%)]" />
-            <span>Perda de Pacotes</span>
-          </button>
-          <div className="flex items-center gap-1.5 px-2 py-1">
-            <span className="w-3 h-2 rounded-sm bg-green-500" />
-            <span>Online</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2 py-1">
-            <span className="w-3 h-2 rounded-sm bg-yellow-500" />
-            <span>Degradado</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2 py-1">
-            <span className="w-3 h-2 rounded-sm bg-red-500" />
-            <span>Offline</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

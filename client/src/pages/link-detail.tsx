@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { MetricCard } from "@/components/metric-card";
-import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart } from "@/components/bandwidth-chart";
+import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart, ChartSeriesVisibility } from "@/components/bandwidth-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
@@ -120,6 +120,16 @@ export default function LinkDetail() {
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [chartMode, setChartMode] = useState<"unified" | "separate">("unified"); // Modo de gráfico
+  const [visibleSeries, setVisibleSeries] = useState<ChartSeriesVisibility>({
+    download: true,
+    upload: true,
+    latency: true,
+    packetLoss: true,
+  });
+  
+  const toggleSeries = (series: keyof ChartSeriesVisibility) => {
+    setVisibleSeries(prev => ({ ...prev, [series]: !prev[series] }));
+  };
   const [oltDiagnosisResult, setOltDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
   const queryClient = useQueryClient();
 
@@ -615,14 +625,62 @@ export default function LinkDetail() {
             </CardHeader>
             <CardContent>
               {chartMode === "unified" ? (
-                <UnifiedMetricsChart 
-                  data={unifiedData} 
-                  height={350} 
-                  invertBandwidth={(link as any)?.invertBandwidth}
-                  showLegend={true}
-                  latencyThreshold={80}
-                  packetLossThreshold={2}
-                />
+                <>
+                  <UnifiedMetricsChart 
+                    data={unifiedData} 
+                    height={320} 
+                    invertBandwidth={(link as any)?.invertBandwidth}
+                    latencyThreshold={80}
+                    packetLossThreshold={2}
+                    visibleSeries={visibleSeries}
+                  />
+                  <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-xs">
+                    <button
+                      onClick={() => toggleSeries("download")}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity ${!visibleSeries.download ? "opacity-40" : ""}`}
+                      data-testid="legend-download"
+                    >
+                      <span className="w-3 h-0.5 bg-[hsl(210,85%,55%)]" />
+                      <span>Download</span>
+                    </button>
+                    <button
+                      onClick={() => toggleSeries("upload")}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity ${!visibleSeries.upload ? "opacity-40" : ""}`}
+                      data-testid="legend-upload"
+                    >
+                      <span className="w-3 h-0.5 bg-[hsl(280,70%,60%)]" />
+                      <span>Upload</span>
+                    </button>
+                    <button
+                      onClick={() => toggleSeries("latency")}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity ${!visibleSeries.latency ? "opacity-40" : ""}`}
+                      data-testid="legend-latency"
+                    >
+                      <span className="w-4 border-t-2 border-dashed border-amber-500" />
+                      <span>Latência</span>
+                    </button>
+                    <button
+                      onClick={() => toggleSeries("packetLoss")}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity ${!visibleSeries.packetLoss ? "opacity-40" : ""}`}
+                      data-testid="legend-packet-loss"
+                    >
+                      <span className="w-3 h-0.5 bg-red-500" />
+                      <span>Perda de Pacotes</span>
+                    </button>
+                    <span className="border-l pl-3 flex items-center gap-1.5">
+                      <span className="w-3 h-2 rounded-sm bg-green-500" />
+                      <span>Online</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-2 rounded-sm bg-yellow-500" />
+                      <span>Degradado</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-2 rounded-sm bg-red-500" />
+                      <span>Offline</span>
+                    </span>
+                  </div>
+                </>
               ) : (
                 <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
               )}
