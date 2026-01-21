@@ -527,17 +527,6 @@ export function UnifiedMetricsChart({
     try {
       const filtered = data.filter((item) => item && item.timestamp);
       
-      // Calcular max de banda para normalizar eixo Y
-      let maxBandwidth = 0;
-      filtered.forEach(item => {
-        const dl = item.download ?? 0;
-        const ul = item.upload ?? 0;
-        maxBandwidth = Math.max(maxBandwidth, dl, ul);
-      });
-      
-      // Altura da barra de disponibilidade (5% do máximo de banda)
-      const availabilityHeight = Math.max(maxBandwidth * 0.08, 5);
-      
       return filtered.map((item) => {
         const pointStatus = item.status || "operational";
         const isDown = isDownStatus(pointStatus);
@@ -563,10 +552,10 @@ export function UnifiedMetricsChart({
           upload: ul,
           latency: item.latency ?? 0,
           packetLoss: item.packetLoss ?? 0,
-          // Barras de disponibilidade
-          availabilityOk: !isDown && !isDegraded ? availabilityHeight : 0,
-          availabilityDegraded: isDegraded ? availabilityHeight : 0,
-          availabilityDown: isDown ? availabilityHeight : 0,
+          // Status para barras de disponibilidade (valor fixo para consistência)
+          availabilityOk: !isDown && !isDegraded ? 1 : 0,
+          availabilityDegraded: isDegraded ? 1 : 0,
+          availabilityDown: isDown ? 1 : 0,
           status: pointStatus,
         };
       });
@@ -605,165 +594,163 @@ export function UnifiedMetricsChart({
     return `${value.toFixed(0)}M`;
   };
 
+  // Altura do gráfico principal e da barra de disponibilidade
+  const mainChartHeight = height - 24;
+  const availabilityBarHeight = 20;
+
   return (
-    <div className="w-full" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart 
-          data={chartData} 
-          margin={{ top: 10, right: 50, left: 10, bottom: showLegend ? 30 : 10 }}
-        >
-          <defs>
-            <linearGradient id="gradDownload" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.4} />
-              <stop offset="95%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.05} />
-            </linearGradient>
-            <linearGradient id="gradUpload" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.4} />
-              <stop offset="95%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
-          
-          <XAxis
-            dataKey="time"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            interval="preserveStartEnd"
-          />
-          
-          {/* Eixo Y esquerdo: Banda */}
-          <YAxis
-            yAxisId="bandwidth"
-            orientation="left"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={formatBandwidth}
-            domain={[0, maxBandwidth || "auto"]}
-            width={45}
-          />
-          
-          {/* Eixo Y direito: Latência */}
-          <YAxis
-            yAxisId="latency"
-            orientation="right"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(v) => `${v}ms`}
-            domain={[0, maxLatency || "auto"]}
-            width={45}
-          />
-          
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: "8px",
-              fontSize: "12px",
-              padding: "8px 12px",
-            }}
-            labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
-            formatter={(value: number, name: string) => {
-              if (name === "download") return [`${value.toFixed(1)} Mbps`, "Download"];
-              if (name === "upload") return [`${value.toFixed(1)} Mbps`, "Upload"];
-              if (name === "latency") return [`${value.toFixed(1)} ms`, "Latência"];
-              if (name === "packetLoss") return [`${value.toFixed(2)}%`, "Perda"];
-              return [null, null];
-            }}
-            labelFormatter={(label) => `Horário: ${label}`}
-          />
-          
-          {showLegend && (
-            <Legend 
-              verticalAlign="bottom"
-              height={24}
-              iconType="line"
-              wrapperStyle={{ fontSize: 11 }}
-              formatter={(value) => {
-                const labels: Record<string, string> = {
-                  download: "Download",
-                  upload: "Upload", 
-                  latency: "Latência",
-                  packetLoss: "Perda %",
-                };
-                return labels[value] || value;
-              }}
+    <div className="w-full flex flex-col" style={{ height }}>
+      {/* Gráfico principal */}
+      <div style={{ height: mainChartHeight }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart 
+            data={chartData} 
+            margin={{ top: 10, right: 50, left: 10, bottom: 5 }}
+          >
+            <defs>
+              <linearGradient id="gradDownload" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.05} />
+              </linearGradient>
+              <linearGradient id="gradUpload" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            
+            <XAxis
+              dataKey="time"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              interval="preserveStartEnd"
             />
-          )}
-          
-          {/* Linha de referência para latência SLA */}
-          <ReferenceLine
-            yAxisId="latency"
-            y={latencyThreshold}
-            stroke="hsl(38, 92%, 50%)"
-            strokeDasharray="4 4"
-            strokeOpacity={0.6}
-          />
-          
-          {/* Barras de disponibilidade na base */}
-          <Bar
-            yAxisId="bandwidth"
-            dataKey="availabilityOk"
-            fill="hsl(142, 76%, 45%)"
-            barSize={4}
-            stackId="availability"
-          />
-          <Bar
-            yAxisId="bandwidth"
-            dataKey="availabilityDegraded"
-            fill="hsl(45, 93%, 47%)"
-            barSize={4}
-            stackId="availability"
-          />
-          <Bar
-            yAxisId="bandwidth"
-            dataKey="availabilityDown"
-            fill="hsl(0, 84%, 60%)"
-            barSize={4}
-            stackId="availability"
-          />
-          
-          {/* Áreas de banda */}
-          <Area
-            yAxisId="bandwidth"
-            type="monotone"
-            dataKey="download"
-            stroke="hsl(210, 85%, 55%)"
-            strokeWidth={2}
-            fill="url(#gradDownload)"
-          />
-          <Area
-            yAxisId="bandwidth"
-            type="monotone"
-            dataKey="upload"
-            stroke="hsl(280, 70%, 60%)"
-            strokeWidth={2}
-            fill="url(#gradUpload)"
-          />
-          
-          {/* Linha de latência */}
-          <Line
-            yAxisId="latency"
-            type="monotone"
-            dataKey="latency"
-            stroke="hsl(38, 92%, 50%)"
-            strokeWidth={1.5}
-            dot={false}
-            strokeDasharray="3 3"
-          />
-          
-          {/* Linha de perda de pacotes (escala latência para visibilidade) */}
-          <Line
-            yAxisId="latency"
-            type="monotone"
-            dataKey="packetLoss"
-            stroke="hsl(0, 84%, 60%)"
-            strokeWidth={1}
-            dot={false}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+            
+            {/* Eixo Y esquerdo: Banda */}
+            <YAxis
+              yAxisId="bandwidth"
+              orientation="left"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={formatBandwidth}
+              domain={[0, maxBandwidth || "auto"]}
+              width={45}
+            />
+            
+            {/* Eixo Y direito: Latência */}
+            <YAxis
+              yAxisId="latency"
+              orientation="right"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(v) => `${v}ms`}
+              domain={[0, maxLatency || "auto"]}
+              width={45}
+            />
+            
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: "8px",
+                fontSize: "12px",
+                padding: "8px 12px",
+              }}
+              labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
+              formatter={(value: number, name: string) => {
+                if (name === "download") return [`${value.toFixed(1)} Mbps`, "Download"];
+                if (name === "upload") return [`${value.toFixed(1)} Mbps`, "Upload"];
+                if (name === "latency") return [`${value.toFixed(1)} ms`, "Latência"];
+                if (name === "packetLoss") return [`${value.toFixed(2)}%`, "Perda"];
+                return [null, null];
+              }}
+              labelFormatter={(label) => `Horário: ${label}`}
+            />
+            
+            {/* Linha de referência para latência SLA */}
+            <ReferenceLine
+              yAxisId="latency"
+              y={latencyThreshold}
+              stroke="hsl(38, 92%, 50%)"
+              strokeDasharray="4 4"
+              strokeOpacity={0.6}
+            />
+            
+            {/* Áreas de banda */}
+            <Area
+              yAxisId="bandwidth"
+              type="monotone"
+              dataKey="download"
+              stroke="hsl(210, 85%, 55%)"
+              strokeWidth={2}
+              fill="url(#gradDownload)"
+            />
+            <Area
+              yAxisId="bandwidth"
+              type="monotone"
+              dataKey="upload"
+              stroke="hsl(280, 70%, 60%)"
+              strokeWidth={2}
+              fill="url(#gradUpload)"
+            />
+            
+            {/* Linha de latência */}
+            <Line
+              yAxisId="latency"
+              type="monotone"
+              dataKey="latency"
+              stroke="hsl(38, 92%, 50%)"
+              strokeWidth={1.5}
+              dot={false}
+              strokeDasharray="3 3"
+            />
+            
+            {/* Linha de perda de pacotes */}
+            <Line
+              yAxisId="latency"
+              type="monotone"
+              dataKey="packetLoss"
+              stroke="hsl(0, 84%, 60%)"
+              strokeWidth={1}
+              dot={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      
+      {/* Barra de disponibilidade separada na base */}
+      <div style={{ height: availabilityBarHeight }} className="px-[55px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart 
+            data={chartData} 
+            margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+          >
+            <XAxis dataKey="time" hide />
+            <YAxis hide domain={[0, 1]} />
+            
+            <Bar
+              dataKey="availabilityOk"
+              fill="hsl(142, 76%, 45%)"
+              stackId="availability"
+              radius={[2, 2, 2, 2]}
+            />
+            <Bar
+              dataKey="availabilityDegraded"
+              fill="hsl(45, 93%, 47%)"
+              stackId="availability"
+              radius={[2, 2, 2, 2]}
+            />
+            <Bar
+              dataKey="availabilityDown"
+              fill="hsl(0, 84%, 60%)"
+              stackId="availability"
+              radius={[2, 2, 2, 2]}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
