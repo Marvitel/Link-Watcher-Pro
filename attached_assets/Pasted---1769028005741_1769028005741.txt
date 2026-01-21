@@ -1,0 +1,45 @@
+                                                                                                                   
+jan 21 17:39:44 link-monitor npm[1477560]: AggregateError [ECONNREFUSED]:
+jan 21 17:39:44 link-monitor npm[1477560]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 21 17:39:44 link-monitor npm[1477560]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 21 17:39:44 link-monitor npm[1477560]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 21 17:39:44 link-monitor npm[1477560]:     at async Ub.getPermissions (/opt/link-monitor/dist/index.cjs:287:25026)
+jan 21 17:39:44 link-monitor npm[1477560]:     at async Ub.initializeDefaultPermissions (/opt/link-monitor/dist/index.cjs:287:29547)
+jan 21 17:39:44 link-monitor npm[1477560]:     at async Ub.initializeDefaultData (/opt/link-monitor/dist/index.cjs:287:18159)
+jan 21 17:39:44 link-monitor npm[1477560]:     at async Hx (/opt/link-monitor/dist/index.cjs:313:26220)
+jan 21 17:39:44 link-monitor npm[1477560]:     at async /opt/link-monitor/dist/index.cjs:377:5935 {
+jan 21 17:39:44 link-monitor npm[1477560]:   code: 'ECONNREFUSED',
+jan 21 17:39:44 link-monitor npm[1477560]:   [errors]: [
+jan 21 17:39:44 link-monitor npm[1477560]:     Error: connect ECONNREFUSED ::1:5432
+jan 21 17:39:44 link-monitor npm[1477560]:         at createConnectionError (node:net:1652:14)
+jan 21 17:39:44 link-monitor npm[1477560]:         at afterConnectMultiple (node:net:1682:16) {
+jan 21 17:39:44 link-monitor npm[1477560]:       errno: -111,
+jan 21 17:39:44 link-monitor npm[1477560]:       code: 'ECONNREFUSED',
+jan 21 17:39:44 link-monitor npm[1477560]:       syscall: 'connect',
+jan 21 17:39:44 link-monitor npm[1477560]:       address: '::1',
+jan 21 17:39:44 link-monitor npm[1477560]:       port: 5432
+jan 21 17:39:44 link-monitor npm[1477560]:     },
+jan 21 17:39:44 link-monitor npm[1477560]:     Error: connect ECONNREFUSED 127.0.0.1:5432
+jan 21 17:39:44 link-monitor npm[1477560]:         at createConnectionError (node:net:1652:14)
+jan 21 17:39:44 link-monitor npm[1477560]:         at afterConnectMultiple (node:net:1682:16) {
+jan 21 17:39:44 link-monitor npm[1477560]:       errno: -111,
+jan 21 17:39:44 link-monitor npm[1477560]:       code: 'ECONNREFUSED',
+jan 21 17:39:44 link-monitor npm[1477560]:       syscall: 'connect',
+jan 21 17:39:44 link-monitor npm[1477560]:       address: '127.0.0.1',
+jan 21 17:39:44 link-monitor npm[1477560]:       port: 5432
+jan 21 17:39:44 link-monitor npm[1477560]:     }
+jan 21 17:39:44 link-monitor npm[1477560]:   ]
+jan 21 17:39:44 link-monitor npm[1477560]: }
+jan 21 17:39:44 link-monitor npm[1477560]: Node.js v20.19.6
+jan 21 17:39:44 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 21 17:39:44 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 21 17:39:44 link-monitor systemd[1]: link-monitor.service: Consumed 1.342s CPU time.
+jan 21 17:39:54 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 51.
+jan 21 17:39:54 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+jan 21 17:39:54 link-monitor systemd[1]: link-monitor.service: Consumed 1.342s CPU time.
+jan 21 17:39:54 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+jan 21 17:39:55 link-monitor npm[1477575]: > rest-express@1.0.0 start
+jan 21 17:39:55 link-monitor npm[1477575]: > NODE_ENV=production node dist/index.cjs
+jan 21 17:39:55 link-monitor npm[1477587]: [Security] Admin IP whitelist disabled (no ADMIN_IP_WHITELIST configured)
+jan 21 17:39:55 link-monitor npm[1477587]: /opt/link-monitor/dist/index.cjs:92
+jan 21 17:39:55 link-monitor npm[1477587]: `);sl.write(SN.format.apply(SN,e))}}Object.defineProperty(ri.exports,"isWin",{get:function(){return pd},set:function(t){pd=t}});ri.exports.warnTo=function(t){var e=sl;return sl=t,e};ri.exports.g
