@@ -63,11 +63,23 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
     terminalInstance.current = term;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
+    const hostname = window.location.hostname;
+    const currentPort = window.location.port;
+    const adminPort = "5001";
+    
+    // URL primária (mesma porta)
+    const primaryUrl = `${protocol}//${window.location.host}/ws/terminal`;
+    // URL alternativa (porta admin) - para quando o terminal está em porta separada
+    const fallbackUrl = `${protocol}//${hostname}:${adminPort}/ws/terminal`;
+    
+    // Verificar se já estamos na porta admin
+    const isAlreadyOnAdminPort = currentPort === adminPort;
     
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
 
-    const ws = new WebSocket(wsUrl);
+    // Primeiro tenta na porta atual
+    let ws = new WebSocket(primaryUrl);
+    let usingFallback = false;
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -115,11 +127,44 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
     };
 
     ws.onerror = () => {
-      term.writeln("\r\n\x1b[31mErro na conexão WebSocket\x1b[0m");
+      // Se falhou na porta atual e não é a porta admin, tentar na porta admin
+      if (!usingFallback && !isAlreadyOnAdminPort) {
+        term.writeln("\r\n\x1b[33mTentando porta administrativa...\x1b[0m");
+        usingFallback = true;
+        
+        // Criar nova conexão na porta admin
+        const fallbackWs = new WebSocket(fallbackUrl);
+        wsRef.current = fallbackWs;
+        
+        fallbackWs.onopen = ws.onopen;
+        fallbackWs.onmessage = ws.onmessage;
+        fallbackWs.onerror = () => {
+          term.writeln("\r\n\x1b[31mErro na conexão WebSocket (porta admin também falhou)\x1b[0m");
+        };
+        fallbackWs.onclose = () => {
+          term.writeln("\r\n\x1b[33mConexão encerrada\x1b[0m");
+        };
+        
+        // Reconectar handlers de input
+        term.onData((data) => {
+          if (fallbackWs.readyState === WebSocket.OPEN) {
+            fallbackWs.send(JSON.stringify({ type: "input", data }));
+          }
+        });
+        term.onResize(({ cols, rows }) => {
+          if (fallbackWs.readyState === WebSocket.OPEN) {
+            fallbackWs.send(JSON.stringify({ type: "resize", cols, rows }));
+          }
+        });
+      } else {
+        term.writeln("\r\n\x1b[31mErro na conexão WebSocket\x1b[0m");
+      }
     };
 
     ws.onclose = () => {
-      term.writeln("\r\n\x1b[33mConexão encerrada\x1b[0m");
+      if (!usingFallback) {
+        term.writeln("\r\n\x1b[33mConexão encerrada\x1b[0m");
+      }
     };
 
     term.onData((data) => {
