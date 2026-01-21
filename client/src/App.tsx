@@ -26,6 +26,7 @@ import Settings from "@/pages/settings";
 import Admin from "@/pages/admin";
 import ClientUsers from "@/pages/client-users";
 import Login from "@/pages/login";
+import AdminLogin from "@/pages/admin-login";
 
 function Router() {
   return (
@@ -93,7 +94,9 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login />;
+    // Verificar se está na rota de login admin
+    const isAdminLoginPath = window.location.pathname === "/admin/login";
+    return isAdminLoginPath ? <AdminLogin /> : <Login />;
   }
 
   return (

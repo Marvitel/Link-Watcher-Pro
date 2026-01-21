@@ -3,44 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { Network, LogIn, Building2, KeyRound, Mail } from "lucide-react";
+import { Network, LogIn, KeyRound, Mail } from "lucide-react";
 
 export default function Login() {
   const { toast } = useToast();
-  const { login, loginVoalle, recoverPasswordVoalle } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { loginVoalle, recoverPasswordVoalle } = useAuth();
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [voallePassword, setVoallePassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryUsername, setRecoveryUsername] = useState("");
   const [isRecovering, setIsRecovering] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast({ title: "Preencha todos os campos", variant: "destructive" });
-      return;
-    }
-    
-    setIsLoading(true);
-    const result = await login(email, password);
-    setIsLoading(false);
-    
-    if (result.success) {
-      toast({ title: "Login realizado com sucesso" });
-    } else {
-      toast({ 
-        title: "Erro ao fazer login", 
-        description: result.error || "Verifique suas credenciais",
-        variant: "destructive" 
-      });
-    }
-  };
 
   const handleVoalleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,127 +140,64 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="cliente" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="cliente" data-testid="tab-cliente">
-                <Building2 className="w-4 h-4 mr-2" />
-                Cliente
-              </TabsTrigger>
-              <TabsTrigger value="admin" data-testid="tab-admin">
-                <LogIn className="w-4 h-4 mr-2" />
-                Administrador
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="cliente" className="space-y-4 mt-4">
-              <form onSubmit={handleVoalleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cpfcnpj">CPF/CNPJ</Label>
-                  <Input
-                    id="cpfcnpj"
-                    type="text"
-                    placeholder="Seu CPF ou CNPJ"
-                    value={cpfCnpj}
-                    onChange={(e) => setCpfCnpj(e.target.value)}
-                    data-testid="input-cpfcnpj"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use o CPF/CNPJ cadastrado no seu contrato
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="voalle-password">Senha</Label>
-                  <Input
-                    id="voalle-password"
-                    type="password"
-                    placeholder="Sua senha do portal"
-                    value={voallePassword}
-                    onChange={(e) => setVoallePassword(e.target.value)}
-                    data-testid="input-voalle-password"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Primeiro acesso? Use seu CPF/CNPJ como senha
-                  </p>
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading}
-                  data-testid="button-login-voalle"
-                >
-                  {isLoading ? (
-                    "Entrando..."
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4 mr-2" />
-                      Entrar
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  type="button"
-                  variant="ghost" 
-                  className="w-full text-muted-foreground" 
-                  onClick={() => {
-                    setShowRecovery(true);
-                    setRecoveryUsername(cpfCnpj);
-                  }}
-                  data-testid="button-forgot-password"
-                >
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  Esqueci minha senha
-                </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="admin" className="space-y-4 mt-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Usuário</Label>
-                  <Input
-                    id="email"
-                    type="text"
-                    placeholder="usuario ou email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    data-testid="input-email"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use seu usuário RADIUS ou email cadastrado
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Sua senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    data-testid="input-password"
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={isLoading}
-                  data-testid="button-login"
-                >
-                  {isLoading ? (
-                    "Entrando..."
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4 mr-2" />
-                      Entrar
-                    </>
-                  )}
-                </Button>
-              </form>
-              <div className="mt-4 text-center text-sm text-muted-foreground">
-                <p>Super Admin: admin@marvitel.com.br / marvitel123</p>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleVoalleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cpfcnpj">CPF/CNPJ</Label>
+              <Input
+                id="cpfcnpj"
+                type="text"
+                placeholder="Seu CPF ou CNPJ"
+                value={cpfCnpj}
+                onChange={(e) => setCpfCnpj(e.target.value)}
+                data-testid="input-cpfcnpj"
+              />
+              <p className="text-xs text-muted-foreground">
+                Use o CPF/CNPJ cadastrado no seu contrato
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="voalle-password">Senha</Label>
+              <Input
+                id="voalle-password"
+                type="password"
+                placeholder="Sua senha do portal"
+                value={voallePassword}
+                onChange={(e) => setVoallePassword(e.target.value)}
+                data-testid="input-voalle-password"
+              />
+              <p className="text-xs text-muted-foreground">
+                Primeiro acesso? Use seu CPF/CNPJ como senha
+              </p>
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading}
+              data-testid="button-login-voalle"
+            >
+              {isLoading ? (
+                "Entrando..."
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Entrar
+                </>
+              )}
+            </Button>
+            <Button 
+              type="button"
+              variant="ghost" 
+              className="w-full text-muted-foreground" 
+              onClick={() => {
+                setShowRecovery(true);
+                setRecoveryUsername(cpfCnpj);
+              }}
+              data-testid="button-forgot-password"
+            >
+              <KeyRound className="w-4 h-4 mr-2" />
+              Esqueci minha senha
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
