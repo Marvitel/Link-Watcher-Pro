@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken, useAuth } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart, Cha
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
+import { XtermTerminal } from "@/components/xterm-terminal";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -1474,7 +1475,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   return (
     <div className="space-y-4">
-      {/* Terminal Integrado - Primeiro item */}
+      {/* Terminal Interativo - xterm.js */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -1482,78 +1483,11 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             Terminal
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Shell local (usuário não-root) - use qualquer comando de diagnóstico
+            Shell bash interativo - digite qualquer comando (ssh, ping, traceroute, etc)
           </p>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Atalhos Rápidos */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {quickCommands.filter(qc => !qc.disabled).map((qc, idx) => (
-              <Button
-                key={idx}
-                size="sm"
-                variant="outline"
-                onClick={() => executeCommand(qc.cmd)}
-                data-testid={`button-quick-${qc.label.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                {qc.label}
-              </Button>
-            ))}
-            {terminalOutput.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setTerminalOutput([])}
-                data-testid="button-clear-terminal"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Limpar
-              </Button>
-            )}
-          </div>
-          
-          {/* Área do Terminal */}
-          <div 
-            ref={terminalRef}
-            className="bg-zinc-950 text-green-400 font-mono text-sm p-3 rounded-md h-48 overflow-auto border border-zinc-800"
-            data-testid="terminal-output"
-          >
-            {terminalOutput.length === 0 ? (
-              <span className="text-zinc-500">Clique em um atalho acima ou digite um comando abaixo.</span>
-            ) : (
-              terminalOutput.map((line, idx) => (
-                <div key={idx} className="whitespace-pre-wrap">
-                  {line}
-                </div>
-              ))
-            )}
-            {terminalMutation.isPending && (
-              <div className="text-yellow-400 animate-pulse">Executando...</div>
-            )}
-          </div>
-          
-          {/* Input do Terminal */}
-          <div className="flex gap-2">
-            <span className="text-green-500 font-mono flex items-center text-sm">$</span>
-            <input
-              type="text"
-              value={terminalCommand}
-              onChange={(e) => setTerminalCommand(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="ping 8.8.8.8"
-              disabled={terminalMutation.isPending}
-              className="flex-1 bg-zinc-950 text-green-400 font-mono text-sm border border-zinc-700 rounded px-2 py-1.5 focus:outline-none focus:border-green-500"
-              data-testid="input-terminal-command"
-            />
-            <Button
-              size="sm"
-              onClick={() => executeCommand(terminalCommand)}
-              disabled={terminalMutation.isPending || !terminalCommand.trim()}
-              data-testid="button-execute-command"
-            >
-              <Play className="w-4 h-4" />
-            </Button>
-          </div>
+        <CardContent>
+          <XtermTerminal />
         </CardContent>
       </Card>
 
