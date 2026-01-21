@@ -1429,20 +1429,25 @@ export async function registerRoutes(
       }
       
       // Verificar se deve usar credenciais do operador
-      let concentratorSshUser = (concentrator as any)?.sshUser || "admin";
-      let concentratorSshPassword = (concentrator as any)?.sshPassword ? decrypt((concentrator as any).sshPassword) : null;
+      let concentratorSshUser = concentrator?.sshUser || "admin";
+      let concentratorSshPassword = concentrator?.sshPassword ? decrypt(concentrator.sshPassword) : null;
       
-      console.log(`[Devices] useOperatorCredentials=${(concentrator as any)?.useOperatorCredentials}, userId=${user?.id}`);
+      console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${concentrator?.useOperatorCredentials}, sshUser=${concentrator?.sshUser}`);
+      console.log(`[Devices] User logado: id=${user?.id}, name=${user?.name}`);
       
-      if ((concentrator as any)?.useOperatorCredentials && user?.id) {
+      if (concentrator?.useOperatorCredentials && user?.id) {
         // Buscar credenciais SSH do usuário logado
         const operatorUser = await storage.getUser(user.id);
-        console.log(`[Devices] Operator user found: sshUser=${operatorUser?.sshUser}, hasSshPassword=${!!operatorUser?.sshPassword}`);
+        console.log(`[Devices] Operator user found: id=${operatorUser?.id}, sshUser=${operatorUser?.sshUser}, hasSshPassword=${!!operatorUser?.sshPassword}`);
         if (operatorUser?.sshUser) {
           concentratorSshUser = operatorUser.sshUser;
           concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
-          console.log(`[Devices] Using operator credentials: ${concentratorSshUser}`);
+          console.log(`[Devices] USANDO credenciais do operador: ${concentratorSshUser}`);
+        } else {
+          console.log(`[Devices] Operador não tem sshUser configurado, usando credenciais do concentrador`);
         }
+      } else {
+        console.log(`[Devices] Não usando credenciais do operador (useOperatorCredentials=${concentrator?.useOperatorCredentials}, userId=${user?.id})`);
       }
       
       const devices = {
