@@ -32,6 +32,9 @@ export const users = pgTable("users", {
   clientId: integer("client_id"),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  // Credenciais SSH do operador (para acesso a equipamentos de rede)
+  sshUser: varchar("ssh_user", { length: 100 }),
+  sshPassword: text("ssh_password"), // Armazenado criptografado
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -507,6 +510,7 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
   sshUser: varchar("ssh_user", { length: 100 }),
   sshPassword: text("ssh_password"), // Armazenado criptografado
   sshPort: integer("ssh_port").default(22),
+  useOperatorCredentials: boolean("use_operator_credentials").default(false), // Usar credenciais SSH do operador logado
   webPort: integer("web_port").default(80), // Porta HTTP/HTTPS para acesso web
   webProtocol: varchar("web_protocol", { length: 10 }).default("http"), // http ou https
   winboxPort: integer("winbox_port").default(8291), // Porta Winbox para Mikrotik

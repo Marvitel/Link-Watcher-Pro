@@ -4905,6 +4905,8 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
     role: "operator" as "admin" | "manager" | "operator" | "viewer" | "dashboard",
     isActive: true,
     isSuperAdmin: false,
+    sshUser: "",
+    sshPassword: "",
   });
 
   const createGroupMutation = useMutation({
@@ -5028,6 +5030,8 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
       role: "operator",
       isActive: true,
       isSuperAdmin: false,
+      sshUser: "",
+      sshPassword: "",
     });
   };
 
@@ -5040,6 +5044,8 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
       role: user.role as "admin" | "manager" | "operator" | "viewer" | "dashboard",
       isActive: user.isActive,
       isSuperAdmin: user.isSuperAdmin || false,
+      sshUser: (user as any).sshUser || "",
+      sshPassword: "", // Nunca retorna a senha, só permite sobrescrever
     });
     setUserDialogOpen(true);
   };
@@ -5052,9 +5058,13 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
         role: userFormData.role,
         isActive: userFormData.isActive,
         isSuperAdmin: isSuperAdminMode ? true : userFormData.isSuperAdmin,
+        sshUser: userFormData.sshUser || null,
       };
       if (userFormData.password) {
         updateData.password = userFormData.password;
+      }
+      if (userFormData.sshPassword) {
+        updateData.sshPassword = userFormData.sshPassword;
       }
       updateUserMutation.mutate({ id: editingUser.id, data: updateData as Partial<User> });
     } else if (isSuperAdminMode) {
@@ -5457,6 +5467,36 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                         data-testid="input-user-password"
                       />
                     </div>
+                    
+                    {/* Credenciais SSH do Operador */}
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label className="text-sm font-medium">Credenciais SSH (para acesso a equipamentos)</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Usuario SSH</Label>
+                          <Input
+                            value={userFormData.sshUser}
+                            onChange={(e) => setUserFormData({ ...userFormData, sshUser: e.target.value })}
+                            placeholder="usuario"
+                            data-testid="input-user-ssh-user"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{editingUser ? "Senha SSH (vazio mantém)" : "Senha SSH"}</Label>
+                          <Input
+                            type="password"
+                            value={userFormData.sshPassword}
+                            onChange={(e) => setUserFormData({ ...userFormData, sshPassword: e.target.value })}
+                            placeholder="********"
+                            data-testid="input-user-ssh-password"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Usado quando o concentrador estiver configurado para "usar credenciais do operador"
+                      </p>
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label>Função</Label>
                       <Select
@@ -7393,6 +7433,7 @@ function ConcentratorsTab() {
     sshUser: "",
     sshPassword: "",
     sshPort: 22,
+    useOperatorCredentials: false,
     webPort: 80,
     webProtocol: "http",
     winboxPort: 8291,
@@ -7407,6 +7448,7 @@ function ConcentratorsTab() {
       sshUser: "",
       sshPassword: "",
       sshPort: 22,
+      useOperatorCredentials: false,
       webPort: 80,
       webProtocol: "http",
       winboxPort: 8291,
@@ -7464,6 +7506,7 @@ function ConcentratorsTab() {
       sshUser: concentrator.sshUser || "",
       sshPassword: "", // Nunca retorna a senha, só permite sobrescrever
       sshPort: concentrator.sshPort || 22,
+      useOperatorCredentials: concentrator.useOperatorCredentials || false,
       webPort: concentrator.webPort || 80,
       webProtocol: concentrator.webProtocol || "http",
       winboxPort: concentrator.winboxPort || 8291,
@@ -7729,6 +7772,7 @@ function ConcentratorsTab() {
                       onChange={(e) => setFormData({ ...formData, sshUser: e.target.value })}
                       placeholder="admin"
                       data-testid="input-concentrator-ssh-user"
+                      disabled={formData.useOperatorCredentials}
                     />
                   </div>
                   <div className="space-y-2">
@@ -7752,7 +7796,21 @@ function ConcentratorsTab() {
                     onChange={(e) => setFormData({ ...formData, sshPassword: e.target.value })}
                     placeholder={editingConcentrator ? "(deixe vazio para manter atual)" : "Senha"}
                     data-testid="input-concentrator-ssh-password"
+                    disabled={formData.useOperatorCredentials}
                   />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="concentrator-use-operator-credentials"
+                    checked={formData.useOperatorCredentials}
+                    onChange={(e) => setFormData({ ...formData, useOperatorCredentials: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300"
+                    data-testid="checkbox-use-operator-credentials"
+                  />
+                  <Label htmlFor="concentrator-use-operator-credentials" className="text-sm font-normal cursor-pointer">
+                    Usar credenciais SSH do operador logado
+                  </Label>
                 </div>
               </div>
 

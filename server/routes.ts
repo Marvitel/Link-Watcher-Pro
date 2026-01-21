@@ -1428,6 +1428,19 @@ export async function registerRoutes(
         concentrator = await storage.getConcentrator(link.concentratorId);
       }
       
+      // Verificar se deve usar credenciais do operador
+      let concentratorSshUser = (concentrator as any)?.sshUser || "admin";
+      let concentratorSshPassword = (concentrator as any)?.sshPassword ? decrypt((concentrator as any).sshPassword) : null;
+      
+      if ((concentrator as any)?.useOperatorCredentials && user?.id) {
+        // Buscar credenciais SSH do usuário logado
+        const operatorUser = await storage.getUser(user.id);
+        if (operatorUser?.sshUser) {
+          concentratorSshUser = operatorUser.sshUser;
+          concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
+        }
+      }
+      
       const devices = {
         olt: olt ? {
           name: olt.name,
@@ -1445,13 +1458,14 @@ export async function registerRoutes(
           name: concentrator?.name || "Concentrador",
           ip: concentrator?.ipAddress || link.snmpRouterIp,
           available: !!(concentrator?.ipAddress || link.snmpRouterIp),
-          sshUser: (concentrator as any)?.sshUser || "admin",
-          sshPassword: (concentrator as any)?.sshPassword ? decrypt((concentrator as any).sshPassword) : null,
+          sshUser: concentratorSshUser,
+          sshPassword: concentratorSshPassword,
           sshPort: (concentrator as any)?.sshPort || 22,
           webPort: (concentrator as any)?.webPort || 80,
           webProtocol: (concentrator as any)?.webProtocol || "http",
           winboxPort: (concentrator as any)?.winboxPort || 8291,
           vendor: (concentrator as any)?.vendor || null,
+          useOperatorCredentials: (concentrator as any)?.useOperatorCredentials || false,
         },
         cpe: {
           name: link.name,

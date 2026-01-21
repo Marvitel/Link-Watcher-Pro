@@ -267,10 +267,14 @@ export class DatabaseStorage {
       ? data.passwordHash 
       : hashPassword(data.passwordHash);
     
+    // Criptografar senha SSH se fornecida
+    const sshPassword = (data as any).sshPassword ? encrypt((data as any).sshPassword) : null;
+    
     const [user] = await db.insert(users).values({
       ...data,
       email: data.email.toLowerCase(),
       passwordHash,
+      sshPassword,
     }).returning();
     return user;
   }
@@ -282,6 +286,10 @@ export class DatabaseStorage {
       updateData.passwordHash = data.passwordHash.startsWith("RADIUS_ONLY:")
         ? data.passwordHash
         : hashPassword(data.passwordHash);
+    }
+    // Criptografar senha SSH se fornecida
+    if ((data as any).sshPassword) {
+      (updateData as any).sshPassword = encrypt((data as any).sshPassword);
     }
     await db.update(users).set(updateData).where(eq(users.id, id));
   }
