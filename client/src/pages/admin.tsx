@@ -5221,6 +5221,36 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
                       data-testid="input-superadmin-password"
                     />
                   </div>
+                  
+                  {/* Credenciais SSH do Operador */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label className="text-sm font-medium">Credenciais SSH (para acesso a equipamentos)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Usuario SSH</Label>
+                        <Input
+                          value={userFormData.sshUser}
+                          onChange={(e) => setUserFormData({ ...userFormData, sshUser: e.target.value })}
+                          placeholder="usuario"
+                          data-testid="input-superadmin-ssh-user"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{editingUser ? "Senha SSH (vazio mantém)" : "Senha SSH"}</Label>
+                        <Input
+                          type="password"
+                          value={userFormData.sshPassword}
+                          onChange={(e) => setUserFormData({ ...userFormData, sshPassword: e.target.value })}
+                          placeholder="********"
+                          data-testid="input-superadmin-ssh-password"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Usado quando o concentrador estiver configurado para "usar credenciais do operador"
+                    </p>
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label>Função</Label>
                     <Select
