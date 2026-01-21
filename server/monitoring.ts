@@ -494,15 +494,32 @@ const previousTrafficData = new Map<number, TrafficResult>();
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
 
+/**
+ * Detecta se um endereço é IPv6
+ * Suporta formatos: 2001:db8::1, ::1, fe80::1%eth0, [2001:db8::1]
+ */
+function isIPv6(address: string): boolean {
+  // Remove colchetes se presentes (formato URL)
+  const cleanAddress = address.replace(/^\[|\]$/g, '');
+  // Remove interface scope se presente (ex: %eth0)
+  const addressWithoutScope = cleanAddress.split('%')[0];
+  // IPv6 contém ":" e não é apenas porta (IPv4:port)
+  return addressWithoutScope.includes(':') && !addressWithoutScope.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
+}
+
 export async function pingHost(ipAddress: string, count: number = 5): Promise<PingResult> {
   if (pingPermissionDenied) {
     return simulatePing();
   }
 
   try {
+    // Detecta IPv6 e usa o comando apropriado
+    const isV6 = isIPv6(ipAddress);
+    const pingCmd = isV6 ? 'ping6' : 'ping';
+    
     // Increased timeout from 2s to 3s to reduce false positives
     // Using -i 0.3 for faster ping interval (300ms between pings)
-    const { stdout } = await execAsync(`ping -c ${count} -W 3 -i 0.3 ${ipAddress} 2>&1`, {
+    const { stdout } = await execAsync(`${pingCmd} -c ${count} -W 3 -i 0.3 ${ipAddress} 2>&1`, {
       timeout: 20000,
     });
 
