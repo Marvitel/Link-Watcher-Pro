@@ -37,6 +37,7 @@ export function setupTerminalWebSocket(server: Server) {
     let authenticated = false;
     
     const createPty = (cols: number, rows: number, customEnv?: Record<string, string>) => {
+      const terminalUser = process.env.TERMINAL_USER;
       const shell = process.env.SHELL || "/bin/bash";
       
       const env: Record<string, string> = {
@@ -49,11 +50,22 @@ export function setupTerminalWebSocket(server: Server) {
         Object.assign(env, customEnv);
       }
       
-      ptyProcess = pty.spawn(shell, [], {
+      // Se TERMINAL_USER estiver definido, usar su para trocar de usuário
+      let command: string;
+      let args: string[];
+      if (terminalUser) {
+        command = "su";
+        args = ["-", terminalUser, "-s", shell];
+      } else {
+        command = shell;
+        args = [];
+      }
+      
+      ptyProcess = pty.spawn(command, args, {
         name: "xterm-256color",
         cols: cols || 80,
         rows: rows || 24,
-        cwd: process.env.HOME || "/home/runner",
+        cwd: terminalUser ? `/home/${terminalUser}` : (process.env.HOME || "/home/runner"),
         env,
       });
 
