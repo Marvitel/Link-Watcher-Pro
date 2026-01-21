@@ -1,0 +1,20 @@
+jan 21 20:02:58 link-monitor npm[1505777]: [SNMP Optical] Índice calculado para datacom: slot=1, port=1, onuId=2 -> index=16777728
+jan 21 20:02:58 link-monitor npm[1505777]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16777728, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16777728
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] RP Paty - 50M - Óptico OK: RX=0dBm TX=0dBm OLT_RX=nulldBm
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] RP Paty - 50M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG150853A0...
+jan 21 20:02:58 link-monitor npm[1505777]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial TPLG150853A0...
+jan 21 20:02:58 link-monitor npm[1505777]: [OLT Zabbix Optical] ONU TPLG150853A0 encontrada: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] RP Paty - 50M: Offline detected, consulting OLT for diagnosis...
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] RP Paty - 50M: OLT diagnosis result: " | OLT: Rompimento de Fibra"
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] RP Paty - 50M: lat=0.0ms, loss=100.0%, status=offline
+jan 21 20:02:58 link-monitor npm[1505777]: [Monitor] Collection complete: 32 ok, 0 failed, 6025ms elapsed
+jan 21 20:03:05 link-monitor npm[1505777]: [terminal] WebSocket closed
+jan 21 20:03:07 link-monitor npm[1505777]: [terminal] WebSocket connected - awaiting authentication
+jan 21 20:03:07 link-monitor npm[1505777]: [terminal] Authenticated: marcus.melo@radius.local (Super Admin)
+jan 21 20:03:07 link-monitor su[1506104]: (to linkmonitor) root on pts/17
+jan 21 20:03:07 link-monitor su[1506104]: pam_unix(su:session): session opened for user linkmonitor(uid=999) by (uid=0)
+jan 21 20:03:09 link-monitor npm[1505777]: 8:03:09 PM [express] GET /api/version 200 in 3ms :: {"version":"9b6b3010","timestamp":1769036589153,"message":"ok"}
+jan 21 20:03:22 link-monitor npm[1505777]: [Monitor] Blacklist cache loaded: 2 links with blacklisted IPs
+jan 21 20:03:22 link-monitor npm[1505777]: [Monitor] Starting parallel collection for 32 links (10 workers)
+jan 21 20:03:23 link-monitor npm[1505777]: [SNMP Fallback] 191.52.248.245: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 21 20:03:23 link-monitor npm[1505777]: 
