@@ -595,8 +595,8 @@ export function UnifiedMetricsChart({
   };
 
   // Altura do gráfico principal e da barra de disponibilidade
-  const mainChartHeight = height - 24;
-  const availabilityBarHeight = 20;
+  const mainChartHeight = height - 12;
+  const availabilityBarHeight = 8;
 
   return (
     <div className="w-full flex flex-col" style={{ height }}>
