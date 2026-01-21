@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken, useAuth } from "@/lib/auth";
@@ -37,6 +37,7 @@ import {
   MapPin,
   Network,
   Percent,
+  Play,
   Radio,
   RefreshCw,
   Route,
@@ -46,6 +47,7 @@ import {
   Terminal,
   Ticket,
   Wrench,
+  X,
   Zap,
 } from "lucide-react";
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck } from "@shared/schema";
@@ -1229,6 +1231,11 @@ interface TracerouteResult {
 function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
+  const [terminalCommand, setTerminalCommand] = useState("");
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
@@ -1291,6 +1298,64 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     // Winbox não precisa de colchetes para IPv6
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
+
+  // Terminal mutation
+  const terminalMutation = useMutation({
+    mutationFn: async (command: string) => {
+      const res = await apiRequest("POST", `/api/links/${linkId}/tools/terminal`, { command });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setTerminalOutput(prev => [...prev, `$ ${data.command}`, data.output]);
+      setTimeout(() => {
+        if (terminalRef.current) {
+          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+        }
+      }, 50);
+    },
+    onError: (error) => {
+      setTerminalOutput(prev => [...prev, `Erro: ${error.message}`]);
+    },
+  });
+
+  const executeCommand = (cmd: string) => {
+    if (!cmd.trim()) return;
+    setTerminalCommand("");
+    setCommandHistory(prev => [...prev, cmd]);
+    setHistoryIndex(-1);
+    terminalMutation.mutate(cmd);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      executeCommand(terminalCommand);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        setHistoryIndex(newIndex);
+        setTerminalCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setTerminalCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setTerminalCommand("");
+      }
+    }
+  };
+
+  // Quick commands based on device IPs
+  const quickCommands = [
+    { label: "Ping CPE", cmd: `ping -c 4 ${devices?.cpe?.ip || ""}`, disabled: !devices?.cpe?.ip },
+    { label: "Ping Concentrador", cmd: `ping -c 4 ${devices?.concentrator?.ip || ""}`, disabled: !devices?.concentrator?.ip },
+    { label: "Ping OLT", cmd: `ping -c 4 ${devices?.olt?.ip || ""}`, disabled: !devices?.olt?.ip },
+    { label: "Traceroute CPE", cmd: `traceroute -n ${devices?.cpe?.ip || ""}`, disabled: !devices?.cpe?.ip },
+  ];
 
   const DeviceCard = ({ 
     title, 
@@ -1528,6 +1593,147 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Terminal Integrado */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Terminal className="w-4 h-4" />
+              Terminal de Diagnóstico
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              {quickCommands.map((qc, idx) => (
+                <Button
+                  key={idx}
+                  size="sm"
+                  variant="outline"
+                  disabled={qc.disabled}
+                  onClick={() => executeCommand(qc.cmd)}
+                  data-testid={`button-quick-${qc.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  {qc.label}
+                </Button>
+              ))}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setTerminalOutput([])}
+                data-testid="button-clear-terminal"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Limpar
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Comandos permitidos: ping, ping6, traceroute, traceroute6, mtr, dig, nslookup, whois, host, nmap
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div 
+            ref={terminalRef}
+            className="bg-black text-green-400 font-mono text-sm p-3 rounded-md h-64 overflow-auto mb-2"
+            data-testid="terminal-output"
+          >
+            {terminalOutput.length === 0 ? (
+              <span className="text-gray-500">Terminal pronto. Digite um comando abaixo ou use os atalhos acima.</span>
+            ) : (
+              terminalOutput.map((line, idx) => (
+                <div key={idx} className="whitespace-pre-wrap">
+                  {line}
+                </div>
+              ))
+            )}
+            {terminalMutation.isPending && (
+              <div className="text-yellow-400 animate-pulse">Executando comando...</div>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <span className="text-green-400 font-mono flex items-center">$</span>
+            <input
+              type="text"
+              value={terminalCommand}
+              onChange={(e) => setTerminalCommand(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Digite um comando..."
+              disabled={terminalMutation.isPending}
+              className="flex-1 bg-black text-green-400 font-mono text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-green-400"
+              data-testid="input-terminal-command"
+            />
+            <Button
+              size="sm"
+              onClick={() => executeCommand(terminalCommand)}
+              disabled={terminalMutation.isPending || !terminalCommand.trim()}
+              data-testid="button-execute-command"
+            >
+              <Play className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Conexões SSH Externas */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ExternalLink className="w-4 h-4" />
+            Conexões SSH Externas
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Abre o cliente SSH instalado no seu computador
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 flex-wrap">
+            {devices?.olt?.ip && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openSsh(
+                  devices.olt!.ip!,
+                  devices.olt!.sshUser || "admin",
+                  devices.olt!.sshPort || 22
+                )}
+                data-testid="button-ssh-olt-external"
+              >
+                <Terminal className="w-4 h-4 mr-1" />
+                SSH OLT ({devices.olt.ip})
+              </Button>
+            )}
+            {devices?.concentrator?.ip && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openSsh(
+                  devices.concentrator!.ip!,
+                  devices.concentrator!.sshUser || "admin",
+                  devices.concentrator!.sshPort || 22
+                )}
+                data-testid="button-ssh-concentrator-external"
+              >
+                <Terminal className="w-4 h-4 mr-1" />
+                SSH Concentrador ({devices.concentrator.ip})
+              </Button>
+            )}
+            {devices?.cpe?.ip && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openSsh(
+                  devices.cpe!.ip!,
+                  devices.cpe!.sshUser || "admin",
+                  devices.cpe!.sshPort || 22
+                )}
+                data-testid="button-ssh-cpe-external"
+              >
+                <Terminal className="w-4 h-4 mr-1" />
+                SSH CPE ({devices.cpe.ip})
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
