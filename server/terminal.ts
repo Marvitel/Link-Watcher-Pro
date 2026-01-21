@@ -40,9 +40,13 @@ export function setupTerminalWebSocket(server: Server) {
       const terminalUser = process.env.TERMINAL_USER;
       const shell = process.env.SHELL || "/bin/bash";
       
+      // Determinar o HOME correto para o usuário do terminal
+      const userHome = terminalUser ? `/home/${terminalUser}` : (process.env.HOME || "/home/runner");
+      
       const env: Record<string, string> = {
         ...(process.env as Record<string, string>),
         TERM: "xterm-256color",
+        HOME: userHome, // Garantir que HOME está correto para o usuário
       };
       
       // Adicionar variáveis de ambiente customizadas (ex: SSHPASS)
@@ -55,7 +59,7 @@ export function setupTerminalWebSocket(server: Server) {
       let args: string[];
       if (terminalUser) {
         command = "su";
-        // Usar -m para preservar variáveis de ambiente (incluindo SSHPASS)
+        // Usar -m para preservar variáveis de ambiente (incluindo SSHPASS e HOME corrigido)
         args = ["-m", terminalUser, "-c", shell];
       } else {
         command = shell;
