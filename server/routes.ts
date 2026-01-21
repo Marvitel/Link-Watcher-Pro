@@ -242,6 +242,12 @@ export async function registerRoutes(
             
             (req.session as any).user = user;
             (req.session as any).canManageSuperAdmins = canManageSuperAdmins;
+            // Armazenar credenciais RADIUS na sessão para uso em SSH (credenciais do operador)
+            (req.session as any).radiusCredentials = {
+              username: email.split("@")[0], // Usar apenas o username sem domínio
+              password: password, // Senha em texto plano para SSH (sessão é efêmera)
+            };
+            console.log(`[LOGIN] Credenciais RADIUS armazenadas na sessão para SSH (user: ${email.split("@")[0]})`);
             req.session.save((err) => {
               if (err) console.error("Session save error:", err);
               res.json({ 
@@ -1436,27 +1442,33 @@ export async function registerRoutes(
       console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${useOperatorCreds}, sshUser=${concentrator?.sshUser}`);
       console.log(`[Devices] User logado: id=${user?.id}, name=${user?.name}`);
       
-      // Se não há concentrador definido, tentar usar credenciais do operador automaticamente
-      // (para links que usam snmpRouterIp direto sem concentrador cadastrado)
-      if (!concentrator && user?.id) {
-        const operatorUser = await storage.getUser(user.id);
-        console.log(`[Devices] Sem concentrador - verificando credenciais do operador: sshUser=${operatorUser?.sshUser}`);
-        if (operatorUser?.sshUser) {
-          concentratorSshUser = operatorUser.sshUser;
-          concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
+      // Verificar credenciais RADIUS na sessão (autenticação via RADIUS armazena username/password)
+      const radiusCredentials = (req.session as any)?.radiusCredentials;
+      console.log(`[Devices] Credenciais RADIUS na sessão: ${radiusCredentials ? `user=${radiusCredentials.username}` : 'não disponível'}`);
+      
+      // Se não há concentrador definido OU useOperatorCredentials está ativo, usar credenciais do operador
+      // Prioridade: 1) Credenciais RADIUS da sessão, 2) Credenciais SSH do usuário, 3) Credenciais do concentrador
+      if (!concentrator || useOperatorCreds) {
+        // Primeiro tenta usar credenciais RADIUS da sessão (login via RADIUS)
+        if (radiusCredentials?.username && radiusCredentials?.password) {
+          concentratorSshUser = radiusCredentials.username;
+          concentratorSshPassword = radiusCredentials.password;
           useOperatorCreds = true;
-          console.log(`[Devices] USANDO credenciais do operador (sem concentrador): ${concentratorSshUser}`);
-        }
-      } else if (useOperatorCreds && user?.id) {
-        // Buscar credenciais SSH do usuário logado
-        const operatorUser = await storage.getUser(user.id);
-        console.log(`[Devices] Operator user found: id=${operatorUser?.id}, sshUser=${operatorUser?.sshUser}, hasSshPassword=${!!operatorUser?.sshPassword}`);
-        if (operatorUser?.sshUser) {
-          concentratorSshUser = operatorUser.sshUser;
-          concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
-          console.log(`[Devices] USANDO credenciais do operador: ${concentratorSshUser}`);
-        } else {
-          console.log(`[Devices] Operador não tem sshUser configurado, usando credenciais do concentrador`);
+          console.log(`[Devices] USANDO credenciais RADIUS da sessão: ${concentratorSshUser}`);
+        } else if (user?.id) {
+          // Fallback para credenciais SSH cadastradas no usuário
+          const operatorUser = await storage.getUser(user.id);
+          console.log(`[Devices] Verificando credenciais SSH do operador: sshUser=${operatorUser?.sshUser}`);
+          if (operatorUser?.sshUser) {
+            concentratorSshUser = operatorUser.sshUser;
+            concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
+            useOperatorCreds = true;
+            console.log(`[Devices] USANDO credenciais SSH do operador: ${concentratorSshUser}`);
+          } else if (!concentrator) {
+            console.log(`[Devices] Operador não tem credenciais SSH configuradas e não há concentrador`);
+          } else {
+            console.log(`[Devices] Operador não tem credenciais configuradas, usando credenciais do concentrador`);
+          }
         }
       } else {
         console.log(`[Devices] Usando credenciais do concentrador (useOperatorCredentials=${useOperatorCreds})`);
