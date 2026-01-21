@@ -95,9 +95,10 @@ function AppContent() {
   }
 
   if (!user) {
-    // Verificar se está na rota de login admin
+    // Verificar se está na porta admin (5001) ou rota de login admin
+    const isAdminPort = window.location.port === "5001";
     const isAdminLoginPath = window.location.pathname === "/admin/login";
-    return isAdminLoginPath ? <AdminLogin /> : <Login />;
+    return (isAdminPort || isAdminLoginPath) ? <AdminLogin /> : <Login />;
   }
 
   return (
