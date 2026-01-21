@@ -1195,6 +1195,7 @@ interface DeviceInfo {
   ip: string;
   available: boolean;
   sshUser?: string;
+  sshPassword?: string;
   sshPort?: number;
   webPort?: number;
   webProtocol?: string;
@@ -1302,10 +1303,10 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const getSshCommand = (mode: TerminalMode): string | undefined => {
     if (!mode || mode === "shell") return undefined;
     
-    const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPort?: number }> = {
-      "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPort: devices?.olt?.sshPort },
-      "ssh-concentrator": { ip: devices?.concentrator?.ip, sshUser: devices?.concentrator?.sshUser, sshPort: devices?.concentrator?.sshPort },
-      "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPort: devices?.cpe?.sshPort },
+    const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPassword?: string; sshPort?: number }> = {
+      "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPassword: devices?.olt?.sshPassword, sshPort: devices?.olt?.sshPort },
+      "ssh-concentrator": { ip: devices?.concentrator?.ip, sshUser: devices?.concentrator?.sshUser, sshPassword: devices?.concentrator?.sshPassword, sshPort: devices?.concentrator?.sshPort },
+      "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPassword: devices?.cpe?.sshPassword, sshPort: devices?.cpe?.sshPort },
     };
     
     const device = deviceMap[mode];
@@ -1313,8 +1314,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     
     const user = device.sshUser || "admin";
     const port = device.sshPort || 22;
-    const portArg = port !== 22 ? ` -p ${port}` : "";
-    return `ssh${portArg} ${user}@${device.ip}`;
+    const portArg = port !== 22 ? `-p ${port} ` : "";
+    
+    if (device.sshPassword) {
+      return `sshpass -p '${device.sshPassword}' ssh ${portArg}-o StrictHostKeyChecking=no ${user}@${device.ip}`;
+    }
+    return `ssh ${portArg}${user}@${device.ip}`;
   };
 
   const openTerminal = (mode: TerminalMode) => {
