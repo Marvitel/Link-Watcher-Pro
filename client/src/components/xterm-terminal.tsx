@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { getAuthToken } from "@/lib/auth";
 import "@xterm/xterm/css/xterm.css";
 
 interface XtermTerminalProps {
@@ -70,29 +71,41 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
     wsRef.current = ws;
 
     ws.onopen = () => {
-      term.writeln("\x1b[32mConectado!\x1b[0m\r\n");
+      const token = getAuthToken();
+      if (!token) {
+        term.writeln("\x1b[31mErro: Não autenticado. Faça login novamente.\x1b[0m");
+        ws.close();
+        return;
+      }
       
-      // Enviar configuração inicial incluindo variáveis de ambiente para SSH
+      term.writeln("\x1b[33mAutenticando...\x1b[0m");
+      
+      // Enviar configuração inicial com token de autenticação
       ws.send(JSON.stringify({ 
         type: "init",
+        token,
         cols: term.cols, 
         rows: term.rows,
         env: sshPassword ? { SSHPASS: sshPassword } : undefined,
       }));
-      
-      if (initialCommand && !initialCommandSent.current) {
-        initialCommandSent.current = true;
-        setTimeout(() => {
-          ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
-        }, 300);
-      }
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === "output") {
+        if (msg.type === "ready") {
+          term.writeln("\x1b[32mConectado!\x1b[0m\r\n");
+          // Enviar comando inicial após autenticação confirmada
+          if (initialCommand && !initialCommandSent.current) {
+            initialCommandSent.current = true;
+            setTimeout(() => {
+              ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+            }, 300);
+          }
+        } else if (msg.type === "output") {
           term.write(msg.data);
+        } else if (msg.type === "error") {
+          term.writeln(`\r\n\x1b[31mErro: ${msg.error}\x1b[0m`);
         } else if (msg.type === "exit") {
           term.writeln(`\r\n\x1b[31mSessão encerrada (código: ${msg.exitCode})\x1b[0m`);
         }

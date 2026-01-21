@@ -2,8 +2,27 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import type { IncomingMessage } from "http";
 import * as pty from "node-pty";
+import jwt from "jsonwebtoken";
+import type { AuthUser } from "@shared/schema";
+
+const JWT_SECRET = process.env.SESSION_SECRET || "link-monitor-secret-key";
 
 const activePtys = new Map<WebSocket, pty.IPty>();
+
+// Verifica se o token é válido e pertence a um Super Admin
+function verifyTerminalAccess(token: string): { valid: boolean; user?: AuthUser; error?: string } {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+    
+    if (!decoded.isSuperAdmin) {
+      return { valid: false, error: "Acesso restrito a Super Administradores" };
+    }
+    
+    return { valid: true, user: decoded };
+  } catch (error) {
+    return { valid: false, error: "Token inválido ou expirado" };
+  }
+}
 
 export function setupTerminalWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
@@ -12,9 +31,10 @@ export function setupTerminalWebSocket(server: Server) {
   });
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-    console.log("[terminal] WebSocket connected");
+    console.log("[terminal] WebSocket connected - awaiting authentication");
     
     let ptyProcess: pty.IPty | null = null;
+    let authenticated = false;
     
     const createPty = (cols: number, rows: number, customEnv?: Record<string, string>) => {
       const shell = process.env.SHELL || "/bin/bash";
@@ -60,17 +80,44 @@ export function setupTerminalWebSocket(server: Server) {
         
         switch (msg.type) {
           case "init":
+            // Verificar autenticação antes de criar o PTY
+            if (!msg.token) {
+              console.log("[terminal] Init without token - rejecting");
+              ws.send(JSON.stringify({ type: "error", error: "Token de autenticação não fornecido" }));
+              ws.close(4001, "Authentication required");
+              return;
+            }
+            
+            const authResult = verifyTerminalAccess(msg.token);
+            if (!authResult.valid) {
+              console.log(`[terminal] Auth failed: ${authResult.error}`);
+              ws.send(JSON.stringify({ type: "error", error: authResult.error }));
+              ws.close(4003, "Access denied");
+              return;
+            }
+            
+            authenticated = true;
+            console.log(`[terminal] Authenticated: ${authResult.user?.email} (Super Admin)`);
+            
             // Criar PTY com configuração inicial
             if (!ptyProcess) {
               createPty(msg.cols, msg.rows, msg.env);
+              ws.send(JSON.stringify({ type: "ready" }));
             }
             break;
+            
           case "input":
+            if (!authenticated) {
+              ws.send(JSON.stringify({ type: "error", error: "Não autenticado" }));
+              return;
+            }
             if (ptyProcess) {
               ptyProcess.write(msg.data);
             }
             break;
+            
           case "resize":
+            if (!authenticated) return;
             if (ptyProcess && msg.cols && msg.rows) {
               ptyProcess.resize(msg.cols, msg.rows);
             }
