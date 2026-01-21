@@ -1342,6 +1342,83 @@ export async function registerRoutes(
     }
   });
 
+  // Endpoint para executar comandos no terminal (Super Admin only)
+  app.post("/api/links/:id/tools/terminal", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso restrito a Super Admin" });
+      }
+      
+      const linkId = parseInt(req.params.id, 10);
+      const { command } = req.body;
+      
+      if (!command || typeof command !== 'string') {
+        return res.status(400).json({ error: "Comando não especificado" });
+      }
+      
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+      
+      // Whitelist de comandos permitidos por segurança
+      const allowedCommands = ['ping', 'ping6', 'traceroute', 'traceroute6', 'mtr', 'dig', 'nslookup', 'whois', 'host', 'nmap'];
+      const cmdParts = command.trim().split(/\s+/);
+      const baseCmd = cmdParts[0].toLowerCase();
+      
+      if (!allowedCommands.includes(baseCmd)) {
+        return res.json({
+          success: false,
+          output: `Comando não permitido: ${baseCmd}\n\nComandos permitidos: ${allowedCommands.join(', ')}`,
+        });
+      }
+      
+      // Validar argumentos - apenas IPs, hostnames e flags simples
+      const args = cmdParts.slice(1);
+      const dangerousPatterns = [';', '|', '&', '`', '$', '(', ')', '{', '}', '<', '>', '\\', '"', "'", '\n'];
+      
+      for (const arg of args) {
+        if (dangerousPatterns.some(p => arg.includes(p))) {
+          return res.json({
+            success: false,
+            output: `Argumento inválido detectado: caracteres especiais não são permitidos`,
+          });
+        }
+      }
+      
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      // Limitar timeout baseado no comando
+      let timeout = 30000;
+      if (baseCmd === 'traceroute' || baseCmd === 'traceroute6' || baseCmd === 'mtr') {
+        timeout = 120000;
+      }
+      
+      try {
+        const { stdout, stderr } = await execAsync(command, { timeout });
+        const output = stdout + (stderr ? `\n${stderr}` : '');
+        
+        return res.json({
+          success: true,
+          output: output || '(sem saída)',
+          command,
+        });
+      } catch (execError: any) {
+        return res.json({
+          success: false,
+          output: execError.stdout || execError.stderr || execError.message || 'Erro ao executar comando',
+          command,
+        });
+      }
+    } catch (error) {
+      console.error("Erro no terminal:", error);
+      return res.status(500).json({ error: "Falha ao executar comando" });
+    }
+  });
+
   // Endpoint para obter IPs dos dispositivos do link (Super Admin only)
   app.get("/api/links/:id/tools/devices", requireAuth, async (req, res) => {
     try {
