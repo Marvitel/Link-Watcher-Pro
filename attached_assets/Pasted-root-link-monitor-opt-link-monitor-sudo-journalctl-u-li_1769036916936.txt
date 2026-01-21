@@ -1,0 +1,18 @@
+root@link-monitor:/opt/link-monitor# sudo journalctl -u link-monitor --since "5 minutes ago" | grep -i devices
+jan 21 20:06:43 link-monitor npm[1505777]: [Devices] Concentrador: id=5, name=CE: CMP-MVT-RB-CARMELO, useOperatorCredentials=false, sshUser=read@marvitel
+jan 21 20:06:43 link-monitor npm[1505777]: [Devices] User logado: id=9, name=Marcus Melo
+jan 21 20:06:43 link-monitor npm[1505777]: [Devices] Não usando credenciais do operador (useOperatorCredentials=false, userId=9)
+jan 21 20:07:05 link-monitor npm[1505777]: [Devices] Concentrador: id=9, name=CE: AJU-MVT-RB-FABISE, useOperatorCredentials=false, sshUser=read@marvitel
+jan 21 20:07:05 link-monitor npm[1505777]: [Devices] User logado: id=9, name=Marcus Melo
+jan 21 20:07:05 link-monitor npm[1505777]: [Devices] Não usando credenciais do operador (useOperatorCredentials=false, userId=9)
+jan 21 20:07:20 link-monitor npm[1505777]: [Devices] Concentrador: id=4, name=CE: CISCO ASR1002, useOperatorCredentials=false, sshUser=null
+jan 21 20:07:20 link-monitor npm[1505777]: [Devices] User logado: id=9, name=Marcus Melo
+jan 21 20:07:20 link-monitor npm[1505777]: [Devices] Não usando credenciais do operador (useOperatorCredentials=false, userId=9)
+jan 21 20:07:30 link-monitor npm[1505777]: [Devices] Concentrador: id=1, name=CE: AJU-MVT-BORDA-HSP, useOperatorCredentials=false, sshUser=read@marvitel
+jan 21 20:07:30 link-monitor npm[1505777]: [Devices] User logado: id=9, name=Marcus Melo
+jan 21 20:07:30 link-monitor npm[1505777]: [Devices] Não usando credenciais do operador (useOperatorCredentials=false, userId=9)
+jan 21 20:07:58 link-monitor npm[1505777]: [Devices] Concentrador: id=5, name=CE: CMP-MVT-RB-CARMELO, useOperatorCredentials=true, sshUser=read@marvitel
+jan 21 20:07:58 link-monitor npm[1505777]: [Devices] User logado: id=9, name=Marcus Melo
+jan 21 20:07:58 link-monitor npm[1505777]: [Devices] Operator user found: id=9, sshUser=null, hasSshPassword=false
+jan 21 20:07:58 link-monitor npm[1505777]: [Devices] Operador não tem sshUser configurado, usando credenciais do concentrador
+root@link-monitor:/opt/link-monitor# 
