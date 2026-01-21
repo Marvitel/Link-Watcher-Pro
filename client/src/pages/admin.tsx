@@ -7482,6 +7482,11 @@ function ConcentratorsTab() {
         toast({ title: "Concentrador criado com sucesso" });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
+      // Invalidar cache de dispositivos de todos os links (dados do concentrador podem ter mudado)
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey;
+        return Array.isArray(key) && key[0] === "/api/links" && key[2] === "tools";
+      }});
       setDialogOpen(false);
       resetForm();
     } catch (error) {
@@ -7495,6 +7500,11 @@ function ConcentratorsTab() {
       await apiRequest("DELETE", `/api/concentrators/${id}`);
       toast({ title: "Concentrador excluido com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
+      // Invalidar cache de dispositivos de todos os links
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey;
+        return Array.isArray(key) && key[0] === "/api/links" && key[2] === "tools";
+      }});
     } catch (error) {
       toast({ title: "Erro ao excluir concentrador", variant: "destructive" });
     }
