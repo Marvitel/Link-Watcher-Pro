@@ -18,6 +18,14 @@ import { XtermTerminal } from "@/components/xterm-terminal";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Activity,
   AlertTriangle,
@@ -25,10 +33,13 @@ import {
   ArrowUpFromLine,
   CalendarIcon,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Cpu,
   ExternalLink,
   FileWarning,
+  Filter,
   Gauge,
   Globe,
   HardDrive,
@@ -136,6 +147,13 @@ export default function LinkDetail() {
     packetLoss: true,
   });
   
+  // Estados para aba de eventos - busca e paginação
+  const [eventSearch, setEventSearch] = useState("");
+  const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
+  const [eventStatusFilter, setEventStatusFilter] = useState<string>("all");
+  const [eventPage, setEventPage] = useState(1);
+  const [eventPageSize, setEventPageSize] = useState(50);
+  
   const toggleSeries = (series: keyof ChartSeriesVisibility) => {
     setVisibleSeries(prev => ({ ...prev, [series]: !prev[series] }));
   };
@@ -194,10 +212,44 @@ export default function LinkDetail() {
     refetchInterval: isCustomRange ? false : 5000, // Não atualizar automaticamente em modo personalizado
   });
 
-  const { data: events } = useQuery<Event[]>({
-    queryKey: ["/api/links", linkId, "events"],
+  // Query de eventos com paginação
+  interface LinkEventsResponse {
+    events: (Event & { linkName?: string | null })[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }
+  
+  const { data: eventsData, isLoading: eventsLoading, refetch: refetchEvents } = useQuery<LinkEventsResponse>({
+    queryKey: ["/api/links", linkId, "events", eventPage, eventPageSize],
+    queryFn: async () => {
+      const res = await fetch(`/api/links/${linkId}/events?page=${eventPage}&pageSize=${eventPageSize}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch events");
+      return res.json();
+    },
     enabled: !isNaN(linkId),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
+  });
+  
+  const events = eventsData?.events || [];
+  const eventsTotal = eventsData?.total || 0;
+  const eventsTotalPages = Math.ceil(eventsTotal / eventPageSize);
+  
+  // Filtrar eventos localmente (busca e filtros)
+  const filteredEvents = events.filter((event) => {
+    const title = event.title || "";
+    const description = event.description || "";
+    const matchesSearch =
+      title.toLowerCase().includes(eventSearch.toLowerCase()) ||
+      description.toLowerCase().includes(eventSearch.toLowerCase());
+    const matchesType = eventTypeFilter === "all" || event.type === eventTypeFilter;
+    const matchesStatus =
+      eventStatusFilter === "all" ||
+      (eventStatusFilter === "resolved" && event.resolved) ||
+      (eventStatusFilter === "active" && !event.resolved);
+    return matchesSearch && matchesType && matchesStatus;
   });
 
   const { data: slaIndicators } = useQuery<SLAIndicator[]>({
@@ -812,11 +864,106 @@ export default function LinkDetail() {
 
         <TabsContent value="events">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
               <CardTitle className="text-lg">Eventos do Link</CardTitle>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground" data-testid="text-events-count">
+                    {eventsTotal > 0 ? `${((eventPage - 1) * eventPageSize + 1).toLocaleString("pt-BR")}-${Math.min(eventPage * eventPageSize, eventsTotal).toLocaleString("pt-BR")} de ${eventsTotal.toLocaleString("pt-BR")}` : "0 eventos"}
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => refetchEvents()} data-testid="button-refresh-events">
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Atualizar
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <EventsTable events={events || []} />
+            <CardContent className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar eventos..."
+                    value={eventSearch}
+                    onChange={(e) => setEventSearch(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-search-link-events"
+                  />
+                </div>
+                <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                  <SelectTrigger className="w-full md:w-40" data-testid="select-event-type-filter">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="info">Informação</SelectItem>
+                    <SelectItem value="warning">Aviso</SelectItem>
+                    <SelectItem value="critical">Crítico</SelectItem>
+                    <SelectItem value="maintenance">Manutenção</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={eventStatusFilter} onValueChange={setEventStatusFilter}>
+                  <SelectTrigger className="w-full md:w-40" data-testid="select-event-status-filter">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativos</SelectItem>
+                    <SelectItem value="resolved">Resolvidos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {eventsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <EventsTable events={filteredEvents} />
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Itens por página:</span>
+                  <Select value={eventPageSize.toString()} onValueChange={(v) => { setEventPageSize(parseInt(v, 10)); setEventPage(1); }}>
+                    <SelectTrigger className="w-20" data-testid="select-events-page-size">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                      <SelectItem value="200">200</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground" data-testid="text-events-page-info">
+                    Página {eventPage} de {eventsTotalPages || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setEventPage(p => Math.max(1, p - 1))}
+                    disabled={eventPage <= 1}
+                    data-testid="button-events-prev-page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setEventPage(p => Math.min(eventsTotalPages, p + 1))}
+                    disabled={eventPage >= eventsTotalPages}
+                    data-testid="button-events-next-page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

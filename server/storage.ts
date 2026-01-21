@@ -541,6 +541,42 @@ export class DatabaseStorage {
       .orderBy(desc(events.timestamp));
   }
 
+  async getLinkEventsPaginated(linkId: number, limit: number = 50, offset: number = 0): Promise<{
+    events: (Event & { linkName?: string | null })[];
+    total: number;
+  }> {
+    const [eventsList, countResult] = await Promise.all([
+      db
+        .select({
+          id: events.id,
+          linkId: events.linkId,
+          clientId: events.clientId,
+          type: events.type,
+          title: events.title,
+          description: events.description,
+          timestamp: events.timestamp,
+          resolved: events.resolved,
+          resolvedAt: events.resolvedAt,
+          linkName: links.name,
+        })
+        .from(events)
+        .leftJoin(links, eq(events.linkId, links.id))
+        .where(eq(events.linkId, linkId))
+        .orderBy(desc(events.timestamp))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(events)
+        .where(eq(events.linkId, linkId))
+    ]);
+    
+    return {
+      events: eventsList,
+      total: countResult[0]?.count || 0
+    };
+  }
+
   async getLinkSLA(linkId: number): Promise<SLAIndicator[]> {
     const link = await this.getLink(linkId);
     return generateSLAIndicators(link?.uptime, link?.latency, link?.packetLoss);

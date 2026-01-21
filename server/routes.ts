@@ -1063,8 +1063,13 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
-      const eventsList = await storage.getLinkEvents(linkId);
-      res.json(eventsList);
+      // Suporte a paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 200);
+      const offset = (page - 1) * pageSize;
+      
+      const { events: eventsList, total } = await storage.getLinkEventsPaginated(linkId, pageSize, offset);
+      res.json({ events: eventsList, total, page, pageSize });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link events" });
     }
