@@ -481,9 +481,6 @@ export default function LinkDetail() {
           <TabsTrigger value="bandwidth" data-testid="tab-bandwidth">
             Consumo de Banda
           </TabsTrigger>
-          <TabsTrigger value="latency" data-testid="tab-latency">
-            Latência
-          </TabsTrigger>
           <TabsTrigger value="equipment" data-testid="tab-equipment">
             Equipamento
           </TabsTrigger>
@@ -725,44 +722,6 @@ export default function LinkDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="latency" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-lg">Histórico de Latência</CardTitle>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full bg-amber-500" />
-                  Latência
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-8 border-t-2 border-dashed border-red-500" />
-                  Limite SLA (80ms)
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <LatencyChart data={latencyData} height={250} threshold={80} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-lg">Histórico de Perda de Pacotes</CardTitle>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(280, 70%, 50%)" }} />
-                  Perda
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-8 border-t-2 border-dashed border-red-500" />
-                  Limite SLA (2%)
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PacketLossChart data={packetLossData} height={250} threshold={2} />
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="equipment" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
