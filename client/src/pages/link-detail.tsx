@@ -125,6 +125,7 @@ export default function LinkDetail() {
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState("bandwidth");
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [chartMode, setChartMode] = useState<"unified" | "separate">("unified"); // Modo de gráfico
@@ -484,7 +485,7 @@ export default function LinkDetail() {
         />
       </div>
 
-      <Tabs defaultValue="bandwidth" className="space-y-4">
+      <Tabs defaultValue="bandwidth" className="space-y-4" onValueChange={(value) => setActiveTab(value)}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="bandwidth" data-testid="tab-bandwidth">
             Consumo de Banda
@@ -1176,7 +1177,7 @@ export default function LinkDetail() {
         {/* Aba de Ferramentas - Apenas Super Admin */}
         {isSuperAdmin && (
           <TabsContent value="tools" className="space-y-4">
-            <ToolsSection linkId={linkId} link={link} />
+            <ToolsSection linkId={linkId} link={link} isActive={activeTab === "tools"} />
           </TabsContent>
         )}
       </Tabs>
@@ -1188,6 +1189,7 @@ export default function LinkDetail() {
 interface ToolsSectionProps {
   linkId: number;
   link: Link | null | undefined;
+  isActive?: boolean;
 }
 
 interface DeviceInfo {
@@ -1232,12 +1234,18 @@ interface TracerouteResult {
 
 type TerminalMode = "shell" | "ssh-olt" | "ssh-concentrator" | "ssh-cpe" | null;
 
-function ToolsSection({ linkId, link }: ToolsSectionProps) {
+function ToolsSection({ linkId, link, isActive }: ToolsSectionProps) {
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
   const [terminalMode, setTerminalMode] = useState<TerminalMode>(null);
   const [terminalKey, setTerminalKey] = useState(0);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    if (!isActive && terminalMode) {
+      setTerminalMode(null);
+    }
+  }, [isActive, terminalMode]);
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
     queryKey: ["/api/links", linkId, "tools", "devices"],
