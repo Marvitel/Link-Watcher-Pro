@@ -3453,7 +3453,6 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id, 10);
       const data = { ...req.body };
-      console.log(`[Concentrator] PATCH ${id} - sshPort: ${data.sshPort}, sshUser: ${data.sshUser}`);
       // Não sobrescrever senha se estiver vazia (manter a atual)
       if (!data.sshPassword) {
         delete data.sshPassword;
@@ -3462,10 +3461,8 @@ export async function registerRoutes(
       if (!concentrator) {
         return res.status(404).json({ error: "Concentrador não encontrado" });
       }
-      console.log(`[Concentrator] Updated ${id} - sshPort: ${concentrator.sshPort}`);
       res.json(concentrator);
     } catch (error) {
-      console.error("[Concentrator] Error updating:", error);
       res.status(500).json({ error: "Falha ao atualizar concentrador" });
     }
   });
