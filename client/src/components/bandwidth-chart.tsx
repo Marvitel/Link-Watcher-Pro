@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -522,6 +522,18 @@ export function UnifiedMetricsChart({
   latencyThreshold = 80,
   packetLossThreshold = 2,
 }: UnifiedMetricsChartProps) {
+  // Estado para controlar visibilidade das séries
+  const [visibleSeries, setVisibleSeries] = useState({
+    download: true,
+    upload: true,
+    latency: true,
+    packetLoss: true,
+  });
+
+  const toggleSeries = (series: keyof typeof visibleSeries) => {
+    setVisibleSeries((prev: typeof visibleSeries) => ({ ...prev, [series]: !prev[series] }));
+  };
+
   const chartData = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
     try {
@@ -670,52 +682,62 @@ export function UnifiedMetricsChart({
             />
             
             {/* Linha de referência para latência SLA */}
-            <ReferenceLine
-              yAxisId="latency"
-              y={latencyThreshold}
-              stroke="hsl(38, 92%, 50%)"
-              strokeDasharray="4 4"
-              strokeOpacity={0.6}
-            />
+            {visibleSeries.latency && (
+              <ReferenceLine
+                yAxisId="latency"
+                y={latencyThreshold}
+                stroke="hsl(38, 92%, 50%)"
+                strokeDasharray="4 4"
+                strokeOpacity={0.6}
+              />
+            )}
             
             {/* Áreas de banda */}
-            <Area
-              yAxisId="bandwidth"
-              type="monotone"
-              dataKey="download"
-              stroke="hsl(210, 85%, 55%)"
-              strokeWidth={2}
-              fill="url(#gradDownload)"
-            />
-            <Area
-              yAxisId="bandwidth"
-              type="monotone"
-              dataKey="upload"
-              stroke="hsl(280, 70%, 60%)"
-              strokeWidth={2}
-              fill="url(#gradUpload)"
-            />
+            {visibleSeries.download && (
+              <Area
+                yAxisId="bandwidth"
+                type="monotone"
+                dataKey="download"
+                stroke="hsl(210, 85%, 55%)"
+                strokeWidth={2}
+                fill="url(#gradDownload)"
+              />
+            )}
+            {visibleSeries.upload && (
+              <Area
+                yAxisId="bandwidth"
+                type="monotone"
+                dataKey="upload"
+                stroke="hsl(280, 70%, 60%)"
+                strokeWidth={2}
+                fill="url(#gradUpload)"
+              />
+            )}
             
             {/* Linha de latência */}
-            <Line
-              yAxisId="latency"
-              type="monotone"
-              dataKey="latency"
-              stroke="hsl(38, 92%, 50%)"
-              strokeWidth={1.5}
-              dot={false}
-              strokeDasharray="3 3"
-            />
+            {visibleSeries.latency && (
+              <Line
+                yAxisId="latency"
+                type="monotone"
+                dataKey="latency"
+                stroke="hsl(38, 92%, 50%)"
+                strokeWidth={1.5}
+                dot={false}
+                strokeDasharray="3 3"
+              />
+            )}
             
             {/* Linha de perda de pacotes */}
-            <Line
-              yAxisId="latency"
-              type="monotone"
-              dataKey="packetLoss"
-              stroke="hsl(0, 84%, 60%)"
-              strokeWidth={1}
-              dot={false}
-            />
+            {visibleSeries.packetLoss && (
+              <Line
+                yAxisId="latency"
+                type="monotone"
+                dataKey="packetLoss"
+                stroke="hsl(0, 84%, 60%)"
+                strokeWidth={1}
+                dot={false}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -738,6 +760,56 @@ export function UnifiedMetricsChart({
           })}
         </div>
       </div>
+      
+      {/* Legenda clicável */}
+      {showLegend && (
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-xs">
+          <button
+            onClick={() => toggleSeries("download")}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.download ? "opacity-40" : ""}`}
+            data-testid="legend-download"
+          >
+            <span className="w-3 h-0.5 bg-[hsl(210,85%,55%)]" />
+            <span>Download</span>
+          </button>
+          <button
+            onClick={() => toggleSeries("upload")}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.upload ? "opacity-40" : ""}`}
+            data-testid="legend-upload"
+          >
+            <span className="w-3 h-0.5 bg-[hsl(280,70%,60%)]" />
+            <span>Upload</span>
+          </button>
+          <button
+            onClick={() => toggleSeries("latency")}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.latency ? "opacity-40" : ""}`}
+            data-testid="legend-latency"
+          >
+            <span className="w-3 h-0.5 border-t-2 border-dashed border-[hsl(38,92%,50%)]" />
+            <span>Latência</span>
+          </button>
+          <button
+            onClick={() => toggleSeries("packetLoss")}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.packetLoss ? "opacity-40" : ""}`}
+            data-testid="legend-packet-loss"
+          >
+            <span className="w-3 h-0.5 bg-[hsl(0,84%,60%)]" />
+            <span>Perda de Pacotes</span>
+          </button>
+          <div className="flex items-center gap-1.5 px-2 py-1">
+            <span className="w-3 h-2 rounded-sm bg-green-500" />
+            <span>Online</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1">
+            <span className="w-3 h-2 rounded-sm bg-yellow-500" />
+            <span>Degradado</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2 py-1">
+            <span className="w-3 h-2 rounded-sm bg-red-500" />
+            <span>Offline</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
