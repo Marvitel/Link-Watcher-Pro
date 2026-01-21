@@ -1229,14 +1229,13 @@ interface TracerouteResult {
   error?: string;
 }
 
+type TerminalMode = "shell" | "ssh-olt" | "ssh-concentrator" | "ssh-cpe" | null;
+
 function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [terminalCommand, setTerminalCommand] = useState("");
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const terminalRef = useRef<HTMLDivElement>(null);
+  const [terminalMode, setTerminalMode] = useState<TerminalMode>(null);
+  const [terminalKey, setTerminalKey] = useState(0);
   const { toast } = useToast();
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
@@ -1300,63 +1299,28 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
-  // Terminal mutation
-  const terminalMutation = useMutation({
-    mutationFn: async (command: string) => {
-      const res = await apiRequest("POST", `/api/links/${linkId}/tools/terminal`, { command });
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setTerminalOutput(prev => [...prev, `$ ${data.command}`, data.output]);
-      setTimeout(() => {
-        if (terminalRef.current) {
-          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-        }
-      }, 50);
-    },
-    onError: (error) => {
-      setTerminalOutput(prev => [...prev, `Erro: ${error.message}`]);
-    },
-  });
-
-  const executeCommand = (cmd: string) => {
-    if (!cmd.trim()) return;
-    setTerminalCommand("");
-    setCommandHistory(prev => [...prev, cmd]);
-    setHistoryIndex(-1);
-    terminalMutation.mutate(cmd);
+  const getSshCommand = (mode: TerminalMode): string | undefined => {
+    if (!mode || mode === "shell") return undefined;
+    
+    const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPort?: number }> = {
+      "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPort: devices?.olt?.sshPort },
+      "ssh-concentrator": { ip: devices?.concentrator?.ip, sshUser: devices?.concentrator?.sshUser, sshPort: devices?.concentrator?.sshPort },
+      "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPort: devices?.cpe?.sshPort },
+    };
+    
+    const device = deviceMap[mode];
+    if (!device?.ip) return undefined;
+    
+    const user = device.sshUser || "admin";
+    const port = device.sshPort || 22;
+    const portArg = port !== 22 ? ` -p ${port}` : "";
+    return `ssh${portArg} ${user}@${device.ip}`;
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      executeCommand(terminalCommand);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        setHistoryIndex(newIndex);
-        setTerminalCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1;
-        setHistoryIndex(newIndex);
-        setTerminalCommand(commandHistory[commandHistory.length - 1 - newIndex] || "");
-      } else if (historyIndex === 0) {
-        setHistoryIndex(-1);
-        setTerminalCommand("");
-      }
-    }
+  const openTerminal = (mode: TerminalMode) => {
+    setTerminalMode(mode);
+    setTerminalKey(prev => prev + 1);
   };
-
-  // Quick commands based on device IPs
-  const quickCommands = [
-    { label: "Ping CPE", cmd: `ping -c 4 ${devices?.cpe?.ip || ""}`, disabled: !devices?.cpe?.ip },
-    { label: "Ping Concentrador", cmd: `ping -c 4 ${devices?.concentrator?.ip || ""}`, disabled: !devices?.concentrator?.ip },
-    { label: "Ping OLT", cmd: `ping -c 4 ${devices?.olt?.ip || ""}`, disabled: !devices?.olt?.ip },
-    { label: "Traceroute CPE", cmd: `traceroute -n ${devices?.cpe?.ip || ""}`, disabled: !devices?.cpe?.ip },
-  ];
 
   const DeviceCard = ({ 
     title, 
@@ -1473,9 +1437,13 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const cpeVendor = (link as any)?.cpeVendor || "";
   const showWinbox = cpeVendor.toLowerCase() === "mikrotik";
 
+  const oltAvailable = !!devices?.olt?.ip;
+  const concentratorAvailable = !!devices?.concentrator?.ip;
+  const cpeAvailable = !!devices?.cpe?.ip;
+
   return (
     <div className="space-y-4">
-      {/* Terminal Interativo - xterm.js */}
+      {/* Botões de Terminal */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -1483,11 +1451,63 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             Terminal
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Shell bash interativo - digite qualquer comando (ssh, ping, traceroute, etc)
+            Escolha uma sessão para iniciar
           </p>
         </CardHeader>
-        <CardContent>
-          <XtermTerminal />
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={terminalMode === "shell" ? "default" : "outline"}
+              onClick={() => openTerminal("shell")}
+              data-testid="button-terminal-shell"
+            >
+              <Terminal className="w-4 h-4 mr-2" />
+              Terminal
+            </Button>
+            <Button
+              variant={terminalMode === "ssh-olt" ? "default" : "outline"}
+              onClick={() => openTerminal("ssh-olt")}
+              disabled={!oltAvailable}
+              data-testid="button-terminal-ssh-olt"
+            >
+              <Radio className="w-4 h-4 mr-2" />
+              SSH Ponto de Acesso
+            </Button>
+            <Button
+              variant={terminalMode === "ssh-concentrator" ? "default" : "outline"}
+              onClick={() => openTerminal("ssh-concentrator")}
+              disabled={!concentratorAvailable}
+              data-testid="button-terminal-ssh-concentrator"
+            >
+              <Server className="w-4 h-4 mr-2" />
+              SSH Concentrador
+            </Button>
+            <Button
+              variant={terminalMode === "ssh-cpe" ? "default" : "outline"}
+              onClick={() => openTerminal("ssh-cpe")}
+              disabled={!cpeAvailable}
+              data-testid="button-terminal-ssh-cpe"
+            >
+              <HardDrive className="w-4 h-4 mr-2" />
+              SSH CPE
+            </Button>
+          </div>
+
+          {terminalMode && (
+            <div className="border rounded-md overflow-hidden">
+              <XtermTerminal 
+                key={terminalKey} 
+                initialCommand={getSshCommand(terminalMode)} 
+              />
+            </div>
+          )}
+
+          {!terminalMode && (
+            <div className="border rounded-md p-8 text-center text-muted-foreground bg-muted/30">
+              <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Clique em um dos botões acima para iniciar uma sessão</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

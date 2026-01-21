@@ -4,14 +4,16 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
 interface XtermTerminalProps {
+  initialCommand?: string;
   onClose?: () => void;
 }
 
-export function XtermTerminal({ onClose }: XtermTerminalProps) {
+export function XtermTerminal({ initialCommand, onClose }: XtermTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const initialCommandSent = useRef(false);
 
   const connect = useCallback(() => {
     if (!terminalRef.current) return;
@@ -73,6 +75,13 @@ export function XtermTerminal({ onClose }: XtermTerminalProps) {
         cols: term.cols, 
         rows: term.rows 
       }));
+      
+      if (initialCommand && !initialCommandSent.current) {
+        initialCommandSent.current = true;
+        setTimeout(() => {
+          ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+        }, 300);
+      }
     };
 
     ws.onmessage = (event) => {
@@ -121,7 +130,7 @@ export function XtermTerminal({ onClose }: XtermTerminalProps) {
       ws.close();
       term.dispose();
     };
-  }, []);
+  }, [initialCommand]);
 
   useEffect(() => {
     const cleanup = connect();
