@@ -26,7 +26,7 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
 
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: 16,
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
       theme: {
         background: "#1e1e1e",
