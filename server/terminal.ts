@@ -55,7 +55,8 @@ export function setupTerminalWebSocket(server: Server) {
       let args: string[];
       if (terminalUser) {
         command = "su";
-        args = ["-", terminalUser, "-s", shell];
+        // Usar -m para preservar variáveis de ambiente (incluindo SSHPASS)
+        args = ["-m", terminalUser, "-c", shell];
       } else {
         command = shell;
         args = [];
