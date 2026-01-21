@@ -720,36 +720,23 @@ export function UnifiedMetricsChart({
         </ResponsiveContainer>
       </div>
       
-      {/* Barra de disponibilidade separada na base */}
-      <div style={{ height: availabilityBarHeight }} className="px-[55px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart 
-            data={chartData} 
-            margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
-          >
-            <XAxis dataKey="time" hide />
-            <YAxis hide domain={[0, 1]} />
+      {/* Barra de disponibilidade contínua na base (estilo Unifi) */}
+      <div style={{ height: availabilityBarHeight }} className="mx-[55px] rounded overflow-hidden">
+        <div className="flex h-full w-full">
+          {chartData.map((point, idx) => {
+            let bgColor = "bg-green-500";
+            if (point.availabilityDown > 0) bgColor = "bg-red-500";
+            else if (point.availabilityDegraded > 0) bgColor = "bg-yellow-500";
             
-            <Bar
-              dataKey="availabilityOk"
-              fill="hsl(142, 76%, 45%)"
-              stackId="availability"
-              radius={[2, 2, 2, 2]}
-            />
-            <Bar
-              dataKey="availabilityDegraded"
-              fill="hsl(45, 93%, 47%)"
-              stackId="availability"
-              radius={[2, 2, 2, 2]}
-            />
-            <Bar
-              dataKey="availabilityDown"
-              fill="hsl(0, 84%, 60%)"
-              stackId="availability"
-              radius={[2, 2, 2, 2]}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+            return (
+              <div
+                key={idx}
+                className={`flex-1 h-full ${bgColor}`}
+                title={`${point.time} - ${point.availabilityDown > 0 ? "Offline" : point.availabilityDegraded > 0 ? "Degradado" : "Online"}`}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
