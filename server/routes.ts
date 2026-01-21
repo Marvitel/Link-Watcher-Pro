@@ -1209,6 +1209,183 @@ export async function registerRoutes(
     }
   });
 
+  // Endpoint de ping para diagnóstico (Super Admin only)
+  app.post("/api/links/:id/tools/ping", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso restrito a Super Admin" });
+      }
+      
+      const linkId = parseInt(req.params.id, 10);
+      const { target } = req.body; // 'olt', 'concentrator', 'cpe'
+      
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+      
+      let ipAddress: string | null = null;
+      let deviceName = "";
+      
+      if (target === "olt" && link.oltId) {
+        const olt = await storage.getOlt(link.oltId);
+        ipAddress = olt?.ipAddress || null;
+        deviceName = olt?.name || "OLT";
+      } else if (target === "concentrator") {
+        ipAddress = link.snmpRouterIp || null;
+        deviceName = "Concentrador";
+      } else if (target === "cpe") {
+        ipAddress = link.monitoredIp || link.address;
+        deviceName = "CPE Cliente";
+      }
+      
+      if (!ipAddress) {
+        return res.json({ success: false, error: `IP não configurado para ${deviceName}` });
+      }
+      
+      const { pingHost } = await import("./monitoring");
+      const result = await pingHost(ipAddress, 5);
+      
+      return res.json({
+        success: true,
+        target,
+        deviceName,
+        ipAddress,
+        latency: result.latency.toFixed(2),
+        packetLoss: result.packetLoss.toFixed(1),
+        reachable: result.success,
+      });
+    } catch (error) {
+      console.error("Erro no ping de diagnóstico:", error);
+      return res.status(500).json({ error: "Falha ao executar ping" });
+    }
+  });
+
+  // Endpoint de traceroute para diagnóstico (Super Admin only)
+  app.post("/api/links/:id/tools/traceroute", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso restrito a Super Admin" });
+      }
+      
+      const linkId = parseInt(req.params.id, 10);
+      const { target } = req.body;
+      
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+      
+      let ipAddress: string | null = null;
+      let deviceName = "";
+      
+      if (target === "olt" && link.oltId) {
+        const olt = await storage.getOlt(link.oltId);
+        ipAddress = olt?.ipAddress || null;
+        deviceName = olt?.name || "OLT";
+      } else if (target === "concentrator") {
+        ipAddress = link.snmpRouterIp || null;
+        deviceName = "Concentrador";
+      } else if (target === "cpe") {
+        ipAddress = link.monitoredIp || link.address;
+        deviceName = "CPE Cliente";
+      }
+      
+      if (!ipAddress) {
+        return res.json({ success: false, error: `IP não configurado para ${deviceName}` });
+      }
+      
+      const { exec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execAsync = promisify(exec);
+      
+      // Detectar IPv6
+      const isV6 = ipAddress.includes(':') && !ipAddress.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
+      const traceCmd = isV6 ? 'traceroute6' : 'traceroute';
+      
+      try {
+        const { stdout } = await execAsync(`${traceCmd} -n -w 2 -m 20 ${ipAddress} 2>&1`, {
+          timeout: 60000,
+        });
+        
+        const hops = stdout.split('\n')
+          .filter(line => line.match(/^\s*\d+/))
+          .map(line => {
+            const match = line.match(/^\s*(\d+)\s+(.+)$/);
+            if (match) {
+              return { hop: parseInt(match[1]), data: match[2].trim() };
+            }
+            return null;
+          })
+          .filter(Boolean);
+        
+        return res.json({
+          success: true,
+          target,
+          deviceName,
+          ipAddress,
+          hops,
+          raw: stdout,
+        });
+      } catch (traceError: any) {
+        return res.json({
+          success: false,
+          error: traceError.message || "Timeout no traceroute",
+          raw: traceError.stdout || "",
+        });
+      }
+    } catch (error) {
+      console.error("Erro no traceroute de diagnóstico:", error);
+      return res.status(500).json({ error: "Falha ao executar traceroute" });
+    }
+  });
+
+  // Endpoint para obter IPs dos dispositivos do link (Super Admin only)
+  app.get("/api/links/:id/tools/devices", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso restrito a Super Admin" });
+      }
+      
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+      
+      let olt = null;
+      if (link.oltId) {
+        olt = await storage.getOlt(link.oltId);
+      }
+      
+      const devices = {
+        olt: olt ? {
+          name: olt.name,
+          ip: olt.ipAddress,
+          available: !!olt.ipAddress,
+        } : null,
+        concentrator: {
+          name: "Concentrador",
+          ip: link.snmpRouterIp,
+          available: !!link.snmpRouterIp,
+        },
+        cpe: {
+          name: link.name,
+          ip: link.monitoredIp || link.address,
+          available: !!(link.monitoredIp || link.address),
+        },
+      };
+      
+      return res.json(devices);
+    } catch (error) {
+      console.error("Erro ao buscar dispositivos:", error);
+      return res.status(500).json({ error: "Falha ao buscar dispositivos" });
+    }
+  });
+
   app.get("/api/links/:id/incidents", requireAuth, async (req, res) => {
     try {
       const linkId = parseInt(req.params.id, 10);

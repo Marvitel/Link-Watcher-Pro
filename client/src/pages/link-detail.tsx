@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { getAuthToken } from "@/lib/auth";
+import { getAuthToken, useAuth } from "@/lib/auth";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
   ExternalLink,
   FileWarning,
   Gauge,
+  Globe,
   HardDrive,
   Layers,
   LayoutList,
@@ -38,10 +39,13 @@ import {
   Percent,
   Radio,
   RefreshCw,
+  Route,
   Search,
   Server,
   Shield,
+  Terminal,
   Ticket,
+  Wrench,
   Zap,
 } from "lucide-react";
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck } from "@shared/schema";
