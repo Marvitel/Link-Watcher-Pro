@@ -1322,8 +1322,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
-  const getSshCommand = (type: TerminalType): string | undefined => {
-    if (type === "shell") return undefined;
+  const getSshConfig = (type: TerminalType): { command?: string; password?: string } => {
+    if (type === "shell") return {};
     
     const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPassword?: string; sshPort?: number }> = {
       "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPassword: devices?.olt?.sshPassword, sshPort: devices?.olt?.sshPort },
@@ -1332,16 +1332,20 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     };
     
     const device = deviceMap[type];
-    if (!device?.ip) return undefined;
+    if (!device?.ip) return {};
     
     const user = device.sshUser || "admin";
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
     
     if (device.sshPassword) {
-      return `sshpass -p '${device.sshPassword}' ssh ${portArg}-o StrictHostKeyChecking=no ${user}@${device.ip}`;
+      // Usa sshpass -e para ler senha da variável SSHPASS (não aparece no histórico)
+      return {
+        command: `sshpass -e ssh ${portArg}-o StrictHostKeyChecking=no ${user}@${device.ip}`,
+        password: device.sshPassword,
+      };
     }
-    return `ssh ${portArg}${user}@${device.ip}`;
+    return { command: `ssh ${portArg}${user}@${device.ip}` };
   };
 
   const toggleTerminal = (type: TerminalType) => {
@@ -1532,7 +1536,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               <div className="border rounded-md overflow-hidden">
                 <XtermTerminal 
                   key={terminalKeys["ssh-olt"]} 
-                  initialCommand={getSshCommand("ssh-olt")} 
+                  initialCommand={getSshConfig("ssh-olt").command} 
+                  sshPassword={getSshConfig("ssh-olt").password}
                 />
               </div>
             </CardContent>
@@ -1566,7 +1571,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               <div className="border rounded-md overflow-hidden">
                 <XtermTerminal 
                   key={terminalKeys["ssh-concentrator"]} 
-                  initialCommand={getSshCommand("ssh-concentrator")} 
+                  initialCommand={getSshConfig("ssh-concentrator").command} 
+                  sshPassword={getSshConfig("ssh-concentrator").password}
                 />
               </div>
             </CardContent>
@@ -1600,7 +1606,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               <div className="border rounded-md overflow-hidden">
                 <XtermTerminal 
                   key={terminalKeys["ssh-cpe"]} 
-                  initialCommand={getSshCommand("ssh-cpe")} 
+                  initialCommand={getSshConfig("ssh-cpe").command} 
+                  sshPassword={getSshConfig("ssh-cpe").password}
                 />
               </div>
             </CardContent>

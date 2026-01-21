@@ -14,45 +14,64 @@ export function setupTerminalWebSocket(server: Server) {
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     console.log("[terminal] WebSocket connected");
     
-    const shell = process.env.SHELL || "/bin/bash";
+    let ptyProcess: pty.IPty | null = null;
     
-    const ptyProcess = pty.spawn(shell, [], {
-      name: "xterm-256color",
-      cols: 80,
-      rows: 24,
-      cwd: process.env.HOME || "/home/runner",
-      env: {
-        ...process.env,
+    const createPty = (cols: number, rows: number, customEnv?: Record<string, string>) => {
+      const shell = process.env.SHELL || "/bin/bash";
+      
+      const env: Record<string, string> = {
+        ...(process.env as Record<string, string>),
         TERM: "xterm-256color",
-      } as { [key: string]: string },
-    });
-
-    activePtys.set(ws, ptyProcess);
-
-    ptyProcess.onData((data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "output", data }));
+      };
+      
+      // Adicionar variáveis de ambiente customizadas (ex: SSHPASS)
+      if (customEnv) {
+        Object.assign(env, customEnv);
       }
-    });
+      
+      ptyProcess = pty.spawn(shell, [], {
+        name: "xterm-256color",
+        cols: cols || 80,
+        rows: rows || 24,
+        cwd: process.env.HOME || "/home/runner",
+        env,
+      });
 
-    ptyProcess.onExit(({ exitCode, signal }) => {
-      console.log(`[terminal] PTY exited with code ${exitCode}, signal ${signal}`);
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "exit", exitCode, signal }));
-        ws.close();
-      }
-    });
+      activePtys.set(ws, ptyProcess);
+
+      ptyProcess.onData((data: string) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "output", data }));
+        }
+      });
+
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        console.log(`[terminal] PTY exited with code ${exitCode}, signal ${signal}`);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "exit", exitCode, signal }));
+          ws.close();
+        }
+      });
+    };
 
     ws.on("message", (message: Buffer | string) => {
       try {
         const msg = JSON.parse(message.toString());
         
         switch (msg.type) {
+          case "init":
+            // Criar PTY com configuração inicial
+            if (!ptyProcess) {
+              createPty(msg.cols, msg.rows, msg.env);
+            }
+            break;
           case "input":
-            ptyProcess.write(msg.data);
+            if (ptyProcess) {
+              ptyProcess.write(msg.data);
+            }
             break;
           case "resize":
-            if (msg.cols && msg.rows) {
+            if (ptyProcess && msg.cols && msg.rows) {
               ptyProcess.resize(msg.cols, msg.rows);
             }
             break;

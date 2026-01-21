@@ -5,10 +5,11 @@ import "@xterm/xterm/css/xterm.css";
 
 interface XtermTerminalProps {
   initialCommand?: string;
+  sshPassword?: string;
   onClose?: () => void;
 }
 
-export function XtermTerminal({ initialCommand, onClose }: XtermTerminalProps) {
+export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -70,10 +71,13 @@ export function XtermTerminal({ initialCommand, onClose }: XtermTerminalProps) {
 
     ws.onopen = () => {
       term.writeln("\x1b[32mConectado!\x1b[0m\r\n");
+      
+      // Enviar configuração inicial incluindo variáveis de ambiente para SSH
       ws.send(JSON.stringify({ 
-        type: "resize", 
+        type: "init",
         cols: term.cols, 
-        rows: term.rows 
+        rows: term.rows,
+        env: sshPassword ? { SSHPASS: sshPassword } : undefined,
       }));
       
       if (initialCommand && !initialCommandSent.current) {
@@ -130,7 +134,7 @@ export function XtermTerminal({ initialCommand, onClose }: XtermTerminalProps) {
       ws.close();
       term.dispose();
     };
-  }, [initialCommand]);
+  }, [initialCommand, sshPassword]);
 
   useEffect(() => {
     const cleanup = connect();
