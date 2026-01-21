@@ -6,6 +6,11 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Bar,
+  Legend,
+  ReferenceLine,
 } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -489,5 +494,276 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
         />
       </AreaChart>
     </ResponsiveContainer>
+  );
+}
+
+// Gráfico unificado com banda, latência, perda e barras de disponibilidade
+interface UnifiedMetricsChartProps {
+  data: Array<{
+    timestamp: string;
+    download: number;
+    upload: number;
+    latency?: number;
+    packetLoss?: number;
+    status?: string;
+  }>;
+  height?: number;
+  invertBandwidth?: boolean;
+  showLegend?: boolean;
+  latencyThreshold?: number;
+  packetLossThreshold?: number;
+}
+
+export function UnifiedMetricsChart({
+  data,
+  height = 300,
+  invertBandwidth = false,
+  showLegend = true,
+  latencyThreshold = 80,
+  packetLossThreshold = 2,
+}: UnifiedMetricsChartProps) {
+  const chartData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return [];
+    try {
+      const filtered = data.filter((item) => item && item.timestamp);
+      
+      // Calcular max de banda para normalizar eixo Y
+      let maxBandwidth = 0;
+      filtered.forEach(item => {
+        const dl = item.download ?? 0;
+        const ul = item.upload ?? 0;
+        maxBandwidth = Math.max(maxBandwidth, dl, ul);
+      });
+      
+      // Altura da barra de disponibilidade (5% do máximo de banda)
+      const availabilityHeight = Math.max(maxBandwidth * 0.08, 5);
+      
+      return filtered.map((item) => {
+        const pointStatus = item.status || "operational";
+        const isDown = isDownStatus(pointStatus);
+        const isDegraded = pointStatus === "degraded";
+        
+        let timeLabel: string;
+        try {
+          timeLabel = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+        } catch {
+          timeLabel = "";
+        }
+        
+        const rawDl = item.download ?? 0;
+        const rawUl = item.upload ?? 0;
+        const shouldInvert = !invertBandwidth;
+        const dl = shouldInvert ? rawUl : rawDl;
+        const ul = shouldInvert ? rawDl : rawUl;
+        
+        return {
+          time: timeLabel,
+          timestamp: item.timestamp,
+          download: dl,
+          upload: ul,
+          latency: item.latency ?? 0,
+          packetLoss: item.packetLoss ?? 0,
+          // Barras de disponibilidade
+          availabilityOk: !isDown && !isDegraded ? availabilityHeight : 0,
+          availabilityDegraded: isDegraded ? availabilityHeight : 0,
+          availabilityDown: isDown ? availabilityHeight : 0,
+          status: pointStatus,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }, [data, invertBandwidth]);
+
+  // Calcular máximos para eixos
+  const { maxBandwidth, maxLatency } = useMemo(() => {
+    let maxBw = 0;
+    let maxLat = 0;
+    chartData.forEach(d => {
+      maxBw = Math.max(maxBw, d.download, d.upload);
+      maxLat = Math.max(maxLat, d.latency);
+    });
+    return { 
+      maxBandwidth: Math.ceil(maxBw * 1.1), 
+      maxLatency: Math.ceil(Math.max(maxLat * 1.2, latencyThreshold * 1.2))
+    };
+  }, [chartData, latencyThreshold]);
+
+  if (!data || data.length === 0 || chartData.length === 0) {
+    return (
+      <div 
+        className="flex items-center justify-center h-full text-muted-foreground text-sm"
+        style={{ height }}
+      >
+        Carregando dados...
+      </div>
+    );
+  }
+
+  const formatBandwidth = (value: number) => {
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}G`;
+    return `${value.toFixed(0)}M`;
+  };
+
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart 
+          data={chartData} 
+          margin={{ top: 10, right: 50, left: 10, bottom: showLegend ? 30 : 10 }}
+        >
+          <defs>
+            <linearGradient id="gradDownload" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id="gradUpload" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
+          
+          <XAxis
+            dataKey="time"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            interval="preserveStartEnd"
+          />
+          
+          {/* Eixo Y esquerdo: Banda */}
+          <YAxis
+            yAxisId="bandwidth"
+            orientation="left"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={formatBandwidth}
+            domain={[0, maxBandwidth || "auto"]}
+            width={45}
+          />
+          
+          {/* Eixo Y direito: Latência */}
+          <YAxis
+            yAxisId="latency"
+            orientation="right"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(v) => `${v}ms`}
+            domain={[0, maxLatency || "auto"]}
+            width={45}
+          />
+          
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "8px",
+              fontSize: "12px",
+              padding: "8px 12px",
+            }}
+            labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
+            formatter={(value: number, name: string) => {
+              if (name === "download") return [`${value.toFixed(1)} Mbps`, "Download"];
+              if (name === "upload") return [`${value.toFixed(1)} Mbps`, "Upload"];
+              if (name === "latency") return [`${value.toFixed(1)} ms`, "Latência"];
+              if (name === "packetLoss") return [`${value.toFixed(2)}%`, "Perda"];
+              return [null, null];
+            }}
+            labelFormatter={(label) => `Horário: ${label}`}
+          />
+          
+          {showLegend && (
+            <Legend 
+              verticalAlign="bottom"
+              height={24}
+              iconType="line"
+              wrapperStyle={{ fontSize: 11 }}
+              formatter={(value) => {
+                const labels: Record<string, string> = {
+                  download: "Download",
+                  upload: "Upload", 
+                  latency: "Latência",
+                  packetLoss: "Perda %",
+                };
+                return labels[value] || value;
+              }}
+            />
+          )}
+          
+          {/* Linha de referência para latência SLA */}
+          <ReferenceLine
+            yAxisId="latency"
+            y={latencyThreshold}
+            stroke="hsl(38, 92%, 50%)"
+            strokeDasharray="4 4"
+            strokeOpacity={0.6}
+          />
+          
+          {/* Barras de disponibilidade na base */}
+          <Bar
+            yAxisId="bandwidth"
+            dataKey="availabilityOk"
+            fill="hsl(142, 76%, 45%)"
+            barSize={4}
+            stackId="availability"
+          />
+          <Bar
+            yAxisId="bandwidth"
+            dataKey="availabilityDegraded"
+            fill="hsl(45, 93%, 47%)"
+            barSize={4}
+            stackId="availability"
+          />
+          <Bar
+            yAxisId="bandwidth"
+            dataKey="availabilityDown"
+            fill="hsl(0, 84%, 60%)"
+            barSize={4}
+            stackId="availability"
+          />
+          
+          {/* Áreas de banda */}
+          <Area
+            yAxisId="bandwidth"
+            type="monotone"
+            dataKey="download"
+            stroke="hsl(210, 85%, 55%)"
+            strokeWidth={2}
+            fill="url(#gradDownload)"
+          />
+          <Area
+            yAxisId="bandwidth"
+            type="monotone"
+            dataKey="upload"
+            stroke="hsl(280, 70%, 60%)"
+            strokeWidth={2}
+            fill="url(#gradUpload)"
+          />
+          
+          {/* Linha de latência */}
+          <Line
+            yAxisId="latency"
+            type="monotone"
+            dataKey="latency"
+            stroke="hsl(38, 92%, 50%)"
+            strokeWidth={1.5}
+            dot={false}
+            strokeDasharray="3 3"
+          />
+          
+          {/* Linha de perda de pacotes (escala latência para visibilidade) */}
+          <Line
+            yAxisId="latency"
+            type="monotone"
+            dataKey="packetLoss"
+            stroke="hsl(0, 84%, 60%)"
+            strokeWidth={1}
+            dot={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

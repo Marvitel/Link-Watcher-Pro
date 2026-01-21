@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { MetricCard } from "@/components/metric-card";
-import { BandwidthChart, LatencyChart, PacketLossChart } from "@/components/bandwidth-chart";
+import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart } from "@/components/bandwidth-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
@@ -30,6 +30,8 @@ import {
   FileWarning,
   Gauge,
   HardDrive,
+  Layers,
+  LayoutList,
   Loader2,
   MapPin,
   Network,
@@ -117,6 +119,7 @@ export default function LinkDetail() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [chartMode, setChartMode] = useState<"unified" | "separate">("unified"); // Modo de gráfico
   const [oltDiagnosisResult, setOltDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
   const queryClient = useQueryClient();
 
@@ -263,6 +266,16 @@ export default function LinkDetail() {
   const packetLossData = sortedMetrics.map((m) => ({
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     packetLoss: m.packetLoss != null ? m.packetLoss : null,
+    status: m.status,
+  }));
+
+  // Dados unificados para o gráfico completo
+  const unifiedData = sortedMetrics.map((m) => ({
+    timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
+    download: m.download,
+    upload: m.upload,
+    latency: m.latency ?? 0,
+    packetLoss: m.packetLoss ?? 0,
     status: m.status,
   }));
 
@@ -491,7 +504,41 @@ export default function LinkDetail() {
         <TabsContent value="bandwidth" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 flex-wrap">
-              <CardTitle className="text-lg">Consumo de Banda</CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-lg">Consumo de Banda</CardTitle>
+                <ToggleGroup 
+                  type="single" 
+                  value={chartMode} 
+                  onValueChange={(value) => {
+                    if (value === "unified" || value === "separate") {
+                      setChartMode(value);
+                    }
+                  }}
+                  className="border rounded-md"
+                  data-testid="toggle-chart-mode"
+                >
+                  <ToggleGroupItem 
+                    value="unified"
+                    size="sm"
+                    className="px-2 text-xs gap-1"
+                    data-testid="toggle-chart-unified"
+                    title="Gráfico Unificado"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Unificado
+                  </ToggleGroupItem>
+                  <ToggleGroupItem 
+                    value="separate"
+                    size="sm"
+                    className="px-2 text-xs gap-1"
+                    data-testid="toggle-chart-separate"
+                    title="Gráficos Separados"
+                  >
+                    <LayoutList className="w-3.5 h-3.5" />
+                    Separado
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <ToggleGroup 
                   type="single" 
@@ -564,20 +611,55 @@ export default function LinkDetail() {
                     )}
                   </PopoverContent>
                 </Popover>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-blue-500" />
-                    Download
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-green-500" />
-                    Upload
-                  </span>
-                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
+              {chartMode === "unified" ? (
+                <>
+                  <UnifiedMetricsChart 
+                    data={unifiedData} 
+                    height={350} 
+                    invertBandwidth={(link as any)?.invertBandwidth}
+                    showLegend={true}
+                    latencyThreshold={80}
+                    packetLossThreshold={2}
+                  />
+                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-1 rounded-full bg-[hsl(210,85%,55%)]" />
+                        Download
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-1 rounded-full bg-[hsl(280,70%,60%)]" />
+                        Upload
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-4 border-t border-dashed border-amber-500" />
+                        Latência
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-1 rounded-full bg-red-500" />
+                        Perda de Pacotes
+                      </span>
+                      <span className="border-l pl-3 flex items-center gap-1.5">
+                        <span className="w-3 h-2 rounded-sm bg-green-500" />
+                        Online
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-2 rounded-sm bg-yellow-500" />
+                        Degradado
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-3 h-2 rounded-sm bg-red-500" />
+                        Offline
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
+              )}
             </CardContent>
           </Card>
 
