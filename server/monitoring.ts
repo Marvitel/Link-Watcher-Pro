@@ -3,7 +3,7 @@ import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState, blacklistChecks } from "@shared/schema";
-import { eq, and, not, like } from "drizzle-orm";
+import { eq, and, not, like, gte } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
@@ -1709,6 +1709,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     
     // ========== EVENTO DE SINAL ÓPTICO DEGRADADO ==========
     // Verificar se o sinal óptico está abaixo do limite e criar evento
+    // NOTA: Eventos de sinal óptico NÃO são auto-resolvidos para evitar flapping
+    // O operador deve resolver manualmente após verificar a situação
     if (collectedMetrics.opticalSignal?.rxPower !== null && collectedMetrics.opticalSignal?.rxPower !== undefined) {
       const opticalStatus = getOpticalStatus(
         collectedMetrics.opticalSignal.rxPower, 
@@ -1716,7 +1718,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         link.opticalDeltaThreshold ?? 3
       );
       
-      // Buscar último evento de sinal óptico para detectar mudança
+      // Buscar evento de sinal óptico ativo (não resolvido)
       const activeOpticalEvent = await db.select().from(events)
         .where(and(
           eq(events.linkId, link.id),
@@ -1726,8 +1728,20 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         .limit(1);
       const hasActiveOpticalEvent = activeOpticalEvent.length > 0;
       
-      // Criar evento de sinal crítico/warning se não há evento ativo
-      if ((opticalStatus === 'critical' || opticalStatus === 'warning') && !hasActiveOpticalEvent) {
+      // Buscar último evento de sinal óptico (resolvido ou não) nas últimas 6 horas
+      // Isso evita criar eventos repetidos mesmo se o anterior foi resolvido manualmente
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+      const recentOpticalEvents = await db.select().from(events)
+        .where(and(
+          eq(events.linkId, link.id),
+          like(events.title, '%Sinal óptico%'),
+          gte(events.timestamp, sixHoursAgo)
+        ))
+        .limit(1);
+      const hasRecentOpticalEvent = recentOpticalEvents.length > 0;
+      
+      // Criar evento de sinal crítico/warning se não há evento ativo E não há evento recente (debounce 6h)
+      if ((opticalStatus === 'critical' || opticalStatus === 'warning') && !hasActiveOpticalEvent && !hasRecentOpticalEvent) {
         const eventType = opticalStatus === 'critical' ? 'critical' : 'warning';
         const statusLabel = opticalStatus === 'critical' ? 'Crítico' : 'Degradado';
         await db.insert(events).values({
@@ -1739,24 +1753,15 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           timestamp: new Date(),
           resolved: false,
         });
-        console.log(`[Monitor] ${link.name}: Created optical signal ${opticalStatus} event`);
+        console.log(`[Monitor] ${link.name}: Created optical signal ${opticalStatus} event (RX: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm)`);
+      } else if ((opticalStatus === 'critical' || opticalStatus === 'warning') && (hasRecentOpticalEvent || hasActiveOpticalEvent)) {
+        // Suprimiu evento por debounce ou evento ativo existente
+        // Não logamos para evitar spam no log
       }
       
-      // Resolver eventos de sinal óptico se voltou ao normal
-      if (opticalStatus === 'normal') {
-        const resolvedOptical = await db
-          .update(events)
-          .set({ resolved: true, resolvedAt: new Date() })
-          .where(and(
-            eq(events.linkId, link.id),
-            eq(events.resolved, false),
-            like(events.title, '%Sinal óptico%')
-          ))
-          .returning();
-        if (resolvedOptical.length > 0) {
-          console.log(`[Monitor] ${link.name}: Auto-resolved ${resolvedOptical.length} optical signal events (signal normal: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm)`);
-        }
-      }
+      // NÃO auto-resolver eventos de sinal óptico
+      // Operador deve resolver manualmente após verificar a situação
+      // Isso evita o flapping de criar/resolver/criar eventos rapidamente
     }
     
     // ========== EVENTO DE CONGESTIONAMENTO DE BANDA ==========
