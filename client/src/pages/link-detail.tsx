@@ -1230,13 +1230,30 @@ interface TracerouteResult {
   error?: string;
 }
 
-type TerminalMode = "shell" | "ssh-olt" | "ssh-concentrator" | "ssh-cpe" | null;
+type TerminalType = "shell" | "ssh-olt" | "ssh-concentrator" | "ssh-cpe";
+
+interface OpenTerminals {
+  shell: boolean;
+  "ssh-olt": boolean;
+  "ssh-concentrator": boolean;
+  "ssh-cpe": boolean;
+}
 
 function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
-  const [terminalMode, setTerminalMode] = useState<TerminalMode>(null);
-  const [terminalKey, setTerminalKey] = useState(0);
+  const [openTerminals, setOpenTerminals] = useState<OpenTerminals>({
+    shell: false,
+    "ssh-olt": false,
+    "ssh-concentrator": false,
+    "ssh-cpe": false,
+  });
+  const [terminalKeys, setTerminalKeys] = useState<Record<TerminalType, number>>({
+    shell: 0,
+    "ssh-olt": 0,
+    "ssh-concentrator": 0,
+    "ssh-cpe": 0,
+  });
   const { toast } = useToast();
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
@@ -1300,8 +1317,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
-  const getSshCommand = (mode: TerminalMode): string | undefined => {
-    if (!mode || mode === "shell") return undefined;
+  const getSshCommand = (type: TerminalType): string | undefined => {
+    if (type === "shell") return undefined;
     
     const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPassword?: string; sshPort?: number }> = {
       "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPassword: devices?.olt?.sshPassword, sshPort: devices?.olt?.sshPort },
@@ -1309,7 +1326,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
       "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPassword: devices?.cpe?.sshPassword, sshPort: devices?.cpe?.sshPort },
     };
     
-    const device = deviceMap[mode];
+    const device = deviceMap[type];
     if (!device?.ip) return undefined;
     
     const user = device.sshUser || "admin";
@@ -1322,9 +1339,15 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     return `ssh ${portArg}${user}@${device.ip}`;
   };
 
-  const openTerminal = (mode: TerminalMode) => {
-    setTerminalMode(mode);
-    setTerminalKey(prev => prev + 1);
+  const toggleTerminal = (type: TerminalType) => {
+    setOpenTerminals(prev => ({ ...prev, [type]: !prev[type] }));
+    if (!openTerminals[type]) {
+      setTerminalKeys(prev => ({ ...prev, [type]: prev[type] + 1 }));
+    }
+  };
+
+  const closeTerminal = (type: TerminalType) => {
+    setOpenTerminals(prev => ({ ...prev, [type]: false }));
   };
 
   const DeviceCard = ({ 
@@ -1448,73 +1471,137 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   return (
     <div className="space-y-4">
-      {/* Botões de Terminal */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Terminal className="w-5 h-5" />
-            Terminal
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Escolha uma sessão para iniciar
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={terminalMode === "shell" ? "default" : "outline"}
-              onClick={() => openTerminal("shell")}
-              data-testid="button-terminal-shell"
-            >
-              <Terminal className="w-4 h-4 mr-2" />
-              Terminal
-            </Button>
-            <Button
-              variant={terminalMode === "ssh-olt" ? "default" : "outline"}
-              onClick={() => openTerminal("ssh-olt")}
-              disabled={!oltAvailable}
-              data-testid="button-terminal-ssh-olt"
-            >
-              <Radio className="w-4 h-4 mr-2" />
-              {devices?.olt?.name || "SSH Ponto de Acesso"}
-            </Button>
-            <Button
-              variant={terminalMode === "ssh-concentrator" ? "default" : "outline"}
-              onClick={() => openTerminal("ssh-concentrator")}
-              disabled={!concentratorAvailable}
-              data-testid="button-terminal-ssh-concentrator"
-            >
-              <Server className="w-4 h-4 mr-2" />
-              {devices?.concentrator?.name || "SSH Concentrador"}
-            </Button>
-            <Button
-              variant={terminalMode === "ssh-cpe" ? "default" : "outline"}
-              onClick={() => openTerminal("ssh-cpe")}
-              disabled={!cpeAvailable}
-              data-testid="button-terminal-ssh-cpe"
-            >
-              <HardDrive className="w-4 h-4 mr-2" />
-              {devices?.cpe?.name || "SSH CPE"}
-            </Button>
-          </div>
-
-          {terminalMode && (
-            <div className="border rounded-md overflow-hidden">
-              <XtermTerminal 
-                key={terminalKey} 
-                initialCommand={getSshCommand(terminalMode)} 
-              />
+      {/* Terminais - Grid 2x2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Terminal Shell */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Terminal className="w-4 h-4" />
+                Terminal
+              </CardTitle>
+              <Button
+                size="sm"
+                variant={openTerminals.shell ? "destructive" : "default"}
+                onClick={() => toggleTerminal("shell")}
+                data-testid="button-terminal-shell"
+              >
+                {openTerminals.shell ? <X className="w-4 h-4" /> : "Abrir"}
+              </Button>
             </div>
+          </CardHeader>
+          {openTerminals.shell && (
+            <CardContent className="pt-0">
+              <div className="border rounded-md overflow-hidden">
+                <XtermTerminal key={terminalKeys.shell} />
+              </div>
+            </CardContent>
           )}
+        </Card>
 
-          {!terminalMode && (
-            <div className="border rounded-md p-8 text-center text-muted-foreground bg-muted/30">
-              <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Clique em um dos botões acima para iniciar uma sessão</p>
+        {/* SSH Ponto de Acesso (OLT) */}
+        <Card className={!oltAvailable ? "opacity-50" : ""}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Radio className="w-4 h-4" />
+                {devices?.olt?.name || "Ponto de Acesso"}
+              </CardTitle>
+              <Button
+                size="sm"
+                variant={openTerminals["ssh-olt"] ? "destructive" : "default"}
+                onClick={() => toggleTerminal("ssh-olt")}
+                disabled={!oltAvailable}
+                data-testid="button-terminal-ssh-olt"
+              >
+                {openTerminals["ssh-olt"] ? <X className="w-4 h-4" /> : "SSH"}
+              </Button>
             </div>
+            {oltAvailable && (
+              <p className="text-xs text-muted-foreground">{devices?.olt?.ip}</p>
+            )}
+          </CardHeader>
+          {openTerminals["ssh-olt"] && (
+            <CardContent className="pt-0">
+              <div className="border rounded-md overflow-hidden">
+                <XtermTerminal 
+                  key={terminalKeys["ssh-olt"]} 
+                  initialCommand={getSshCommand("ssh-olt")} 
+                />
+              </div>
+            </CardContent>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+
+        {/* SSH Concentrador */}
+        <Card className={!concentratorAvailable ? "opacity-50" : ""}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Server className="w-4 h-4" />
+                {devices?.concentrator?.name || "Concentrador"}
+              </CardTitle>
+              <Button
+                size="sm"
+                variant={openTerminals["ssh-concentrator"] ? "destructive" : "default"}
+                onClick={() => toggleTerminal("ssh-concentrator")}
+                disabled={!concentratorAvailable}
+                data-testid="button-terminal-ssh-concentrator"
+              >
+                {openTerminals["ssh-concentrator"] ? <X className="w-4 h-4" /> : "SSH"}
+              </Button>
+            </div>
+            {concentratorAvailable && (
+              <p className="text-xs text-muted-foreground">{devices?.concentrator?.ip}</p>
+            )}
+          </CardHeader>
+          {openTerminals["ssh-concentrator"] && (
+            <CardContent className="pt-0">
+              <div className="border rounded-md overflow-hidden">
+                <XtermTerminal 
+                  key={terminalKeys["ssh-concentrator"]} 
+                  initialCommand={getSshCommand("ssh-concentrator")} 
+                />
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* SSH CPE */}
+        <Card className={!cpeAvailable ? "opacity-50" : ""}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <HardDrive className="w-4 h-4" />
+                {devices?.cpe?.name || "CPE"}
+              </CardTitle>
+              <Button
+                size="sm"
+                variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}
+                onClick={() => toggleTerminal("ssh-cpe")}
+                disabled={!cpeAvailable}
+                data-testid="button-terminal-ssh-cpe"
+              >
+                {openTerminals["ssh-cpe"] ? <X className="w-4 h-4" /> : "SSH"}
+              </Button>
+            </div>
+            {cpeAvailable && (
+              <p className="text-xs text-muted-foreground">{devices?.cpe?.ip}</p>
+            )}
+          </CardHeader>
+          {openTerminals["ssh-cpe"] && (
+            <CardContent className="pt-0">
+              <div className="border rounded-md overflow-hidden">
+                <XtermTerminal 
+                  key={terminalKeys["ssh-cpe"]} 
+                  initialCommand={getSshCommand("ssh-cpe")} 
+                />
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      </div>
 
       {/* Dispositivos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
