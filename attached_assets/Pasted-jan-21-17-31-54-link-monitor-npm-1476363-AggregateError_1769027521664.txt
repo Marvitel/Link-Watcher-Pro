@@ -1,0 +1,35 @@
+jan 21 17:31:54 link-monitor npm[1476363]: AggregateError [ECONNREFUSED]:
+jan 21 17:31:54 link-monitor npm[1476363]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 21 17:31:54 link-monitor npm[1476363]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 21 17:31:54 link-monitor npm[1476363]:     at async /opt/link-monitor/dist/index.cjs:92:28668
+jan 21 17:31:54 link-monitor npm[1476363]:     at async Ub.getPermissions (/opt/link-monitor/dist/index.cjs:287:25026)
+jan 21 17:31:54 link-monitor npm[1476363]:     at async Ub.initializeDefaultPermissions (/opt/link-monitor/dist/index.cjs:287:29547)
+jan 21 17:31:54 link-monitor npm[1476363]:     at async Ub.initializeDefaultData (/opt/link-monitor/dist/index.cjs:287:18159)
+jan 21 17:31:54 link-monitor npm[1476363]:     at async Hx (/opt/link-monitor/dist/index.cjs:313:26220)
+jan 21 17:31:54 link-monitor npm[1476363]:     at async /opt/link-monitor/dist/index.cjs:377:5935 {
+jan 21 17:31:54 link-monitor npm[1476363]:   code: 'ECONNREFUSED',
+jan 21 17:31:54 link-monitor npm[1476363]:   [errors]: [
+jan 21 17:31:54 link-monitor npm[1476363]:     Error: connect ECONNREFUSED ::1:5432
+jan 21 17:31:54 link-monitor npm[1476363]:         at createConnectionError (node:net:1652:14)
+jan 21 17:31:54 link-monitor npm[1476363]:         at afterConnectMultiple (node:net:1682:16) {
+jan 21 17:31:54 link-monitor npm[1476363]:       errno: -111,
+jan 21 17:31:54 link-monitor npm[1476363]:       code: 'ECONNREFUSED',
+jan 21 17:31:54 link-monitor npm[1476363]:       syscall: 'connect',
+jan 21 17:31:54 link-monitor npm[1476363]:       address: '::1',
+jan 21 17:31:54 link-monitor npm[1476363]:       port: 5432
+jan 21 17:31:54 link-monitor npm[1476363]:     },
+jan 21 17:31:54 link-monitor npm[1476363]:     Error: connect ECONNREFUSED 127.0.0.1:5432
+jan 21 17:31:54 link-monitor npm[1476363]:         at createConnectionError (node:net:1652:14)
+jan 21 17:31:54 link-monitor npm[1476363]:         at afterConnectMultiple (node:net:1682:16) {
+jan 21 17:31:54 link-monitor npm[1476363]:       errno: -111,
+jan 21 17:31:54 link-monitor npm[1476363]:       code: 'ECONNREFUSED',
+jan 21 17:31:54 link-monitor npm[1476363]:       syscall: 'connect',
+jan 21 17:31:54 link-monitor npm[1476363]:       address: '127.0.0.1',
+jan 21 17:31:54 link-monitor npm[1476363]:       port: 5432
+jan 21 17:31:54 link-monitor npm[1476363]:     }
+jan 21 17:31:54 link-monitor npm[1476363]:   ]
+jan 21 17:31:54 link-monitor npm[1476363]: }
+jan 21 17:31:54 link-monitor npm[1476363]: Node.js v20.19.6
+jan 21 17:31:54 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+jan 21 17:31:54 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+jan 21 17:31:54 link-monitor systemd[1]: link-monitor.service: Consumed 1.329s CPU time.
