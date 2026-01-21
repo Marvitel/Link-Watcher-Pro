@@ -634,7 +634,7 @@ export default function LinkDetail() {
                     packetLossThreshold={2}
                     visibleSeries={visibleSeries}
                   />
-                  <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-start gap-3 mt-3 text-xs">
                     <button
                       onClick={() => toggleSeries("download")}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity ${!visibleSeries.download ? "opacity-40" : ""}`}
