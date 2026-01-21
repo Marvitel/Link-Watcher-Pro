@@ -171,12 +171,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Registrar rotas em ambos os apps
-  await registerRoutes(httpServer, app);
-  await registerRoutes(adminHttpServer, adminApp);
+  // Determinar modo de operação
+  const port = parseInt(process.env.PORT || "5000", 10);
+  const adminPort = parseInt(process.env.ADMIN_PORT || "5001", 10);
+  const isSinglePortMode = adminPort === port;
   
-  // Terminal WebSocket apenas no servidor admin
-  setupTerminalWebSocket(adminHttpServer);
+  // Registrar rotas
+  await registerRoutes(httpServer, app);
+  
+  // Em modo dual-port, configurar servidor admin separado
+  if (!isSinglePortMode) {
+    await registerRoutes(adminHttpServer, adminApp);
+    // Terminal WebSocket apenas no servidor admin
+    setupTerminalWebSocket(adminHttpServer);
+  }
 
   // Error handlers
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -193,18 +201,21 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Setup static/vite para ambos
+  // Setup static/vite
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
-    serveStatic(adminApp);
+    if (!isSinglePortMode) {
+      serveStatic(adminApp);
+    }
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
-    await setupVite(adminHttpServer, adminApp);
+    if (!isSinglePortMode) {
+      await setupVite(adminHttpServer, adminApp);
+    }
   }
 
-  // Porta principal (clientes) - PORT ou 5000
-  const port = parseInt(process.env.PORT || "5000", 10);
+  // Porta principal (clientes)
   httpServer.listen(
     {
       port,
@@ -216,13 +227,8 @@ app.use((req, res, next) => {
     },
   );
 
-  // Porta admin (funcionários Marvitel) - ADMIN_PORT ou 5001
-  // Em produção, configurar firewall para liberar apenas IPs da Marvitel
-  const adminPort = parseInt(process.env.ADMIN_PORT || "5001", 10);
-  
-  // Só inicia servidor admin se a porta for diferente da principal
-  // No Replit, ambas usam 5000, então não inicia o segundo servidor
-  if (adminPort !== port) {
+  // Porta admin (funcionários Marvitel) - apenas em modo dual-port
+  if (!isSinglePortMode) {
     adminHttpServer.listen(
       {
         port: adminPort,
@@ -234,7 +240,7 @@ app.use((req, res, next) => {
       },
     );
   } else {
-    // Se mesma porta, terminal WebSocket também no servidor principal
+    // Em single-port mode, terminal WebSocket no servidor principal
     setupTerminalWebSocket(httpServer);
     log(`Single port mode: admin features on port ${port}`);
   }
