@@ -1474,18 +1474,90 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   return (
     <div className="space-y-4">
+      {/* Terminal Integrado - Primeiro item */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Wrench className="w-5 h-5" />
-            Ferramentas de Diagnóstico
+            <Terminal className="w-5 h-5" />
+            Terminal de Diagnóstico
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Ferramentas para diagnóstico e acesso remoto aos dispositivos do link
+          <p className="text-xs text-muted-foreground">
+            Comandos: ping, traceroute, mtr, dig, nslookup, whois, host, nmap
           </p>
         </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Atalhos Rápidos */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {quickCommands.filter(qc => !qc.disabled).map((qc, idx) => (
+              <Button
+                key={idx}
+                size="sm"
+                variant="outline"
+                onClick={() => executeCommand(qc.cmd)}
+                data-testid={`button-quick-${qc.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                {qc.label}
+              </Button>
+            ))}
+            {terminalOutput.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setTerminalOutput([])}
+                data-testid="button-clear-terminal"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Limpar
+              </Button>
+            )}
+          </div>
+          
+          {/* Área do Terminal */}
+          <div 
+            ref={terminalRef}
+            className="bg-zinc-950 text-green-400 font-mono text-sm p-3 rounded-md h-48 overflow-auto border border-zinc-800"
+            data-testid="terminal-output"
+          >
+            {terminalOutput.length === 0 ? (
+              <span className="text-zinc-500">Clique em um atalho acima ou digite um comando abaixo.</span>
+            ) : (
+              terminalOutput.map((line, idx) => (
+                <div key={idx} className="whitespace-pre-wrap">
+                  {line}
+                </div>
+              ))
+            )}
+            {terminalMutation.isPending && (
+              <div className="text-yellow-400 animate-pulse">Executando...</div>
+            )}
+          </div>
+          
+          {/* Input do Terminal */}
+          <div className="flex gap-2">
+            <span className="text-green-500 font-mono flex items-center text-sm">$</span>
+            <input
+              type="text"
+              value={terminalCommand}
+              onChange={(e) => setTerminalCommand(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="ping 8.8.8.8"
+              disabled={terminalMutation.isPending}
+              className="flex-1 bg-zinc-950 text-green-400 font-mono text-sm border border-zinc-700 rounded px-2 py-1.5 focus:outline-none focus:border-green-500"
+              data-testid="input-terminal-command"
+            />
+            <Button
+              size="sm"
+              onClick={() => executeCommand(terminalCommand)}
+              disabled={terminalMutation.isPending || !terminalCommand.trim()}
+              data-testid="button-execute-command"
+            >
+              <Play className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
+      {/* Dispositivos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <DeviceCard
           title="Ponto de Acesso (OLT)"
@@ -1594,146 +1666,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
         </Card>
       )}
 
-      {/* Terminal Integrado */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Terminal className="w-4 h-4" />
-              Terminal de Diagnóstico
-            </CardTitle>
-            <div className="flex items-center gap-2 flex-wrap">
-              {quickCommands.map((qc, idx) => (
-                <Button
-                  key={idx}
-                  size="sm"
-                  variant="outline"
-                  disabled={qc.disabled}
-                  onClick={() => executeCommand(qc.cmd)}
-                  data-testid={`button-quick-${qc.label.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {qc.label}
-                </Button>
-              ))}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setTerminalOutput([])}
-                data-testid="button-clear-terminal"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Limpar
-              </Button>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Comandos permitidos: ping, ping6, traceroute, traceroute6, mtr, dig, nslookup, whois, host, nmap
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div 
-            ref={terminalRef}
-            className="bg-black text-green-400 font-mono text-sm p-3 rounded-md h-64 overflow-auto mb-2"
-            data-testid="terminal-output"
-          >
-            {terminalOutput.length === 0 ? (
-              <span className="text-gray-500">Terminal pronto. Digite um comando abaixo ou use os atalhos acima.</span>
-            ) : (
-              terminalOutput.map((line, idx) => (
-                <div key={idx} className="whitespace-pre-wrap">
-                  {line}
-                </div>
-              ))
-            )}
-            {terminalMutation.isPending && (
-              <div className="text-yellow-400 animate-pulse">Executando comando...</div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <span className="text-green-400 font-mono flex items-center">$</span>
-            <input
-              type="text"
-              value={terminalCommand}
-              onChange={(e) => setTerminalCommand(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Digite um comando..."
-              disabled={terminalMutation.isPending}
-              className="flex-1 bg-black text-green-400 font-mono text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-green-400"
-              data-testid="input-terminal-command"
-            />
-            <Button
-              size="sm"
-              onClick={() => executeCommand(terminalCommand)}
-              disabled={terminalMutation.isPending || !terminalCommand.trim()}
-              data-testid="button-execute-command"
-            >
-              <Play className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Conexões SSH Externas */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ExternalLink className="w-4 h-4" />
-            Conexões SSH Externas
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Abre o cliente SSH instalado no seu computador
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 flex-wrap">
-            {devices?.olt?.ip && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openSsh(
-                  devices.olt!.ip!,
-                  devices.olt!.sshUser || "admin",
-                  devices.olt!.sshPort || 22
-                )}
-                data-testid="button-ssh-olt-external"
-              >
-                <Terminal className="w-4 h-4 mr-1" />
-                SSH OLT ({devices.olt.ip})
-              </Button>
-            )}
-            {devices?.concentrator?.ip && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openSsh(
-                  devices.concentrator!.ip!,
-                  devices.concentrator!.sshUser || "admin",
-                  devices.concentrator!.sshPort || 22
-                )}
-                data-testid="button-ssh-concentrator-external"
-              >
-                <Terminal className="w-4 h-4 mr-1" />
-                SSH Concentrador ({devices.concentrator.ip})
-              </Button>
-            )}
-            {devices?.cpe?.ip && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openSsh(
-                  devices.cpe!.ip!,
-                  devices.cpe!.sshUser || "admin",
-                  devices.cpe!.sshPort || 22
-                )}
-                data-testid="button-ssh-cpe-external"
-              >
-                <Terminal className="w-4 h-4 mr-1" />
-                SSH CPE ({devices.cpe.ip})
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
