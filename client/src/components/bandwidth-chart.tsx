@@ -606,12 +606,13 @@ export function UnifiedMetricsChart({
     return `${value.toFixed(0)}M`;
   };
 
-  // Altura do gráfico principal e da barra de disponibilidade
-  const mainChartHeight = height - 12;
+  // Altura do gráfico principal (desconta barra de disponibilidade e legenda)
+  const legendHeight = showLegend ? 32 : 0;
   const availabilityBarHeight = 8;
+  const mainChartHeight = height - availabilityBarHeight - legendHeight - 4;
 
   return (
-    <div className="w-full flex flex-col" style={{ height }}>
+    <div className="w-full flex flex-col">
       {/* Gráfico principal */}
       <div style={{ height: mainChartHeight }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -743,7 +744,7 @@ export function UnifiedMetricsChart({
       </div>
       
       {/* Barra de disponibilidade contínua na base (estilo Unifi) */}
-      <div style={{ height: availabilityBarHeight }} className="mx-[55px] rounded overflow-hidden">
+      <div style={{ height: availabilityBarHeight, minHeight: availabilityBarHeight }} className="mx-[55px] rounded overflow-hidden flex-shrink-0">
         <div className="flex h-full w-full">
           {chartData.map((point, idx) => {
             let bgColor = "bg-green-500";
@@ -763,7 +764,7 @@ export function UnifiedMetricsChart({
       
       {/* Legenda clicável */}
       {showLegend && (
-        <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-xs">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-2 text-xs flex-shrink-0" style={{ minHeight: legendHeight }}>
           <button
             onClick={() => toggleSeries("download")}
             className={`flex items-center gap-1.5 px-2 py-1 rounded transition-opacity ${!visibleSeries.download ? "opacity-40" : ""}`}
