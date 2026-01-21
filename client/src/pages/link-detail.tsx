@@ -117,6 +117,7 @@ function getStatusLabel(status: string) {
 }
 
 export default function LinkDetail() {
+  const { isSuperAdmin } = useAuth();
   const [, params] = useRoute("/link/:id");
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
@@ -510,6 +511,12 @@ export default function LinkDetail() {
               </Badge>
             )}
           </TabsTrigger>
+          {isSuperAdmin && (
+            <TabsTrigger value="tools" data-testid="tab-tools" className="gap-1">
+              <Wrench className="w-4 h-4" />
+              Ferramentas
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="bandwidth" className="space-y-4">
@@ -1162,7 +1169,361 @@ export default function LinkDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Aba de Ferramentas - Apenas Super Admin */}
+        {isSuperAdmin && (
+          <TabsContent value="tools" className="space-y-4">
+            <ToolsSection linkId={linkId} link={link} />
+          </TabsContent>
+        )}
       </Tabs>
+    </div>
+  );
+}
+
+// Componente de Ferramentas de Diagnóstico
+interface ToolsSectionProps {
+  linkId: number;
+  link: Link | null | undefined;
+}
+
+interface DeviceInfo {
+  name: string;
+  ip: string;
+  available: boolean;
+  sshUser?: string;
+  sshPort?: number;
+  webPort?: number;
+  webProtocol?: string;
+  winboxPort?: number;
+  vendor?: string;
+}
+
+interface DevicesInfo {
+  olt: DeviceInfo | null;
+  concentrator: DeviceInfo;
+  cpe: DeviceInfo;
+}
+
+interface PingResult {
+  success: boolean;
+  target: string;
+  deviceName: string;
+  ipAddress: string;
+  latency: string;
+  packetLoss: string;
+  reachable: boolean;
+  error?: string;
+}
+
+interface TracerouteResult {
+  success: boolean;
+  target: string;
+  deviceName: string;
+  ipAddress: string;
+  hops?: { hop: number; data: string }[];
+  raw?: string;
+  error?: string;
+}
+
+function ToolsSection({ linkId, link }: ToolsSectionProps) {
+  const [pingResult, setPingResult] = useState<PingResult | null>(null);
+  const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
+  const { toast } = useToast();
+
+  const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
+    queryKey: ["/api/links", linkId, "tools", "devices"],
+  });
+
+  const pingMutation = useMutation({
+    mutationFn: async (target: string) => {
+      const res = await apiRequest("POST", `/api/links/${linkId}/tools/ping`, { target });
+      return res.json();
+    },
+    onSuccess: (data: PingResult) => {
+      setPingResult(data);
+      if (data.success) {
+        toast({
+          title: data.reachable ? "Dispositivo alcançável" : "Dispositivo inacessível",
+          description: data.reachable 
+            ? `${data.deviceName} (${data.ipAddress}): ${data.latency}ms, ${data.packetLoss}% perda`
+            : `${data.deviceName} não respondeu ao ping`,
+          variant: data.reachable ? "default" : "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({ title: "Erro ao executar ping", variant: "destructive" });
+    },
+  });
+
+  const tracerouteMutation = useMutation({
+    mutationFn: async (target: string) => {
+      const res = await apiRequest("POST", `/api/links/${linkId}/tools/traceroute`, { target });
+      return res.json();
+    },
+    onSuccess: (data: TracerouteResult) => {
+      setTracerouteResult(data);
+    },
+    onError: () => {
+      toast({ title: "Erro ao executar traceroute", variant: "destructive" });
+    },
+  });
+
+  // Formata IP para URL (adiciona colchetes se for IPv6)
+  const formatIpForUrl = (ip: string): string => {
+    const isIPv6 = ip.includes(':') && !ip.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
+    return isIPv6 ? `[${ip.replace(/^\[|\]$/g, '')}]` : ip;
+  };
+
+  const openWeb = (ip: string, port: number = 80, protocol: string = "http") => {
+    const formattedIp = formatIpForUrl(ip);
+    const portSuffix = (protocol === "http" && port !== 80) || (protocol === "https" && port !== 443) ? `:${port}` : "";
+    window.open(`${protocol}://${formattedIp}${portSuffix}`, "_blank");
+  };
+
+  const openSsh = (ip: string, user: string = "admin", port: number = 22) => {
+    const formattedIp = formatIpForUrl(ip);
+    window.open(`ssh://${user}@${formattedIp}:${port}`, "_blank");
+  };
+
+  const openWinbox = (ip: string, port: number = 8291) => {
+    // Winbox não precisa de colchetes para IPv6
+    window.open(`winbox://${ip}:${port}`, "_blank");
+  };
+
+  const DeviceCard = ({ 
+    title, 
+    icon: Icon, 
+    target, 
+    ip, 
+    available,
+    showWinbox = false,
+    sshUser = "admin",
+    sshPort = 22,
+    webPort = 80,
+    webProtocol = "http",
+    winboxPort = 8291,
+  }: { 
+    title: string; 
+    icon: any; 
+    target: string; 
+    ip: string | null; 
+    available: boolean;
+    showWinbox?: boolean;
+    sshUser?: string;
+    sshPort?: number;
+    webPort?: number;
+    webProtocol?: string;
+    winboxPort?: number;
+  }) => (
+    <Card className={!available ? "opacity-50" : ""}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Icon className="w-5 h-5" />
+          {title}
+        </CardTitle>
+        <p className="text-sm font-mono text-muted-foreground">
+          {ip || "Não configurado"}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!available || pingMutation.isPending}
+            onClick={() => pingMutation.mutate(target)}
+            data-testid={`button-ping-${target}`}
+          >
+            {pingMutation.isPending && pingMutation.variables === target ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Activity className="w-4 h-4 mr-1" />
+            )}
+            Ping
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!available || tracerouteMutation.isPending}
+            onClick={() => tracerouteMutation.mutate(target)}
+            data-testid={`button-traceroute-${target}`}
+          >
+            {tracerouteMutation.isPending && tracerouteMutation.variables === target ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Route className="w-4 h-4 mr-1" />
+            )}
+            Traceroute
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!available}
+            onClick={() => ip && openWeb(ip, webPort, webProtocol)}
+            data-testid={`button-web-${target}`}
+          >
+            <Globe className="w-4 h-4 mr-1" />
+            Web
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!available}
+            onClick={() => ip && openSsh(ip, sshUser, sshPort)}
+            data-testid={`button-ssh-${target}`}
+          >
+            <Terminal className="w-4 h-4 mr-1" />
+            SSH
+          </Button>
+          {showWinbox && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!available}
+              onClick={() => ip && openWinbox(ip, winboxPort)}
+              data-testid={`button-winbox-${target}`}
+            >
+              <Network className="w-4 h-4 mr-1" />
+              Winbox
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (devicesLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+      </div>
+    );
+  }
+
+  const cpeVendor = (link as any)?.cpeVendor || "";
+  const showWinbox = cpeVendor.toLowerCase() === "mikrotik";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wrench className="w-5 h-5" />
+            Ferramentas de Diagnóstico
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Ferramentas para diagnóstico e acesso remoto aos dispositivos do link
+          </p>
+        </CardHeader>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <DeviceCard
+          title="Ponto de Acesso (OLT)"
+          icon={Radio}
+          target="olt"
+          ip={devices?.olt?.ip || null}
+          available={devices?.olt?.available || false}
+          sshUser={devices?.olt?.sshUser || "admin"}
+          sshPort={devices?.olt?.sshPort || 22}
+          webPort={devices?.olt?.webPort || 80}
+          webProtocol={devices?.olt?.webProtocol || "http"}
+        />
+        <DeviceCard
+          title="Concentrador"
+          icon={Server}
+          target="concentrator"
+          ip={devices?.concentrator?.ip || null}
+          available={devices?.concentrator?.available || false}
+          sshUser={devices?.concentrator?.sshUser || "admin"}
+          sshPort={devices?.concentrator?.sshPort || 22}
+          webPort={devices?.concentrator?.webPort || 80}
+          webProtocol={devices?.concentrator?.webProtocol || "http"}
+        />
+        <DeviceCard
+          title="CPE Cliente"
+          icon={HardDrive}
+          target="cpe"
+          ip={devices?.cpe?.ip || null}
+          available={devices?.cpe?.available || false}
+          showWinbox={devices?.cpe?.vendor?.toLowerCase() === "mikrotik"}
+          sshUser={devices?.cpe?.sshUser || "admin"}
+          sshPort={devices?.cpe?.sshPort || 22}
+          webPort={devices?.cpe?.webPort || 80}
+          webProtocol={devices?.cpe?.webProtocol || "http"}
+          winboxPort={devices?.cpe?.winboxPort || 8291}
+        />
+      </div>
+
+      {/* Resultado do Ping */}
+      {pingResult && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Resultado do Ping - {pingResult.deviceName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pingResult.success ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">IP</p>
+                  <p className="font-mono">{pingResult.ipAddress}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <Badge variant={pingResult.reachable ? "default" : "destructive"}>
+                    {pingResult.reachable ? "Alcançável" : "Inacessível"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Latência</p>
+                  <p className="font-medium">{pingResult.latency} ms</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Perda de Pacotes</p>
+                  <p className="font-medium">{pingResult.packetLoss}%</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-destructive">{pingResult.error}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Resultado do Traceroute */}
+      {tracerouteResult && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Route className="w-4 h-4" />
+              Traceroute - {tracerouteResult.deviceName} ({tracerouteResult.ipAddress})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tracerouteResult.success && tracerouteResult.hops ? (
+              <div className="font-mono text-sm space-y-1 bg-muted p-3 rounded max-h-64 overflow-auto">
+                {tracerouteResult.hops.map((hop, idx) => (
+                  <div key={idx} className="flex gap-3">
+                    <span className="text-muted-foreground w-6 text-right">{hop.hop}</span>
+                    <span>{hop.data}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <pre className="font-mono text-sm bg-muted p-3 rounded max-h-64 overflow-auto whitespace-pre-wrap">
+                {tracerouteResult.raw || tracerouteResult.error || "Sem resultado"}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

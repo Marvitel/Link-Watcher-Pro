@@ -148,6 +148,14 @@ export const links = pgTable("links", {
   opticalRxOid: varchar("optical_rx_oid", { length: 255 }), // OID para potência RX na ONU
   opticalTxOid: varchar("optical_tx_oid", { length: 255 }), // OID para potência TX na ONU
   opticalOltRxOid: varchar("optical_olt_rx_oid", { length: 255 }), // OID para RX na OLT
+  // Credenciais do CPE/Roteador do cliente
+  cpeVendor: varchar("cpe_vendor", { length: 50 }), // Fabricante: mikrotik, ubiquiti, cisco, etc
+  cpeUser: varchar("cpe_user", { length: 100 }), // Usuário de acesso ao CPE
+  cpePassword: text("cpe_password"), // Senha do CPE (armazenada criptografada)
+  cpeWebPort: integer("cpe_web_port").default(80), // Porta HTTP/HTTPS
+  cpeWebProtocol: varchar("cpe_web_protocol", { length: 10 }).default("http"), // http ou https
+  cpeSshPort: integer("cpe_ssh_port").default(22), // Porta SSH
+  cpeWinboxPort: integer("cpe_winbox_port").default(8291), // Porta Winbox (Mikrotik)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -495,6 +503,12 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
   equipmentVendorId: integer("equipment_vendor_id"), // Fabricante (Huawei, Cisco, etc)
   model: varchar("model", { length: 100 }),
   description: text("description"),
+  // Credenciais de acesso SSH/CLI
+  sshUser: varchar("ssh_user", { length: 100 }),
+  sshPassword: text("ssh_password"), // Armazenado criptografado
+  sshPort: integer("ssh_port").default(22),
+  webPort: integer("web_port").default(80), // Porta HTTP/HTTPS para acesso web
+  webProtocol: varchar("web_protocol", { length: 10 }).default("http"), // http ou https
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

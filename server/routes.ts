@@ -1361,21 +1361,41 @@ export async function registerRoutes(
         olt = await storage.getOlt(link.oltId);
       }
       
+      // Buscar concentrador se configurado
+      let concentrator = null;
+      if (link.concentratorId) {
+        concentrator = await storage.getConcentrator(link.concentratorId);
+      }
+      
       const devices = {
         olt: olt ? {
           name: olt.name,
           ip: olt.ipAddress,
           available: !!olt.ipAddress,
+          sshUser: olt.username || "admin",
+          sshPort: olt.port || 22,
+          webPort: 80,
+          webProtocol: "http",
         } : null,
         concentrator: {
-          name: "Concentrador",
-          ip: link.snmpRouterIp,
-          available: !!link.snmpRouterIp,
+          name: concentrator?.name || "Concentrador",
+          ip: concentrator?.ipAddress || link.snmpRouterIp,
+          available: !!(concentrator?.ipAddress || link.snmpRouterIp),
+          sshUser: (concentrator as any)?.sshUser || "admin",
+          sshPort: (concentrator as any)?.sshPort || 22,
+          webPort: (concentrator as any)?.webPort || 80,
+          webProtocol: (concentrator as any)?.webProtocol || "http",
         },
         cpe: {
           name: link.name,
           ip: link.monitoredIp || link.address,
           available: !!(link.monitoredIp || link.address),
+          sshUser: (link as any).cpeUser || "admin",
+          sshPort: (link as any).cpeSshPort || 22,
+          webPort: (link as any).cpeWebPort || 80,
+          webProtocol: (link as any).cpeWebProtocol || "http",
+          winboxPort: (link as any).cpeWinboxPort || 8291,
+          vendor: (link as any).cpeVendor || null,
         },
       };
       
