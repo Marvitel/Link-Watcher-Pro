@@ -3452,7 +3452,12 @@ export async function registerRoutes(
   app.patch("/api/concentrators/:id", requireSuperAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const concentrator = await storage.updateConcentrator(id, req.body);
+      const data = { ...req.body };
+      // Não sobrescrever senha se estiver vazia (manter a atual)
+      if (!data.sshPassword) {
+        delete data.sshPassword;
+      }
+      const concentrator = await storage.updateConcentrator(id, data);
       if (!concentrator) {
         return res.status(404).json({ error: "Concentrador não encontrado" });
       }

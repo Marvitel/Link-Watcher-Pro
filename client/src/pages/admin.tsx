@@ -7390,6 +7390,13 @@ function ConcentratorsTab() {
     description: "",
     isActive: true,
     voalleId: null as number | null,
+    sshUser: "",
+    sshPassword: "",
+    sshPort: 22,
+    webPort: 80,
+    webProtocol: "http",
+    winboxPort: 8291,
+    vendor: "",
   });
 
   const resetForm = () => {
@@ -7397,6 +7404,13 @@ function ConcentratorsTab() {
       name: "",
       ipAddress: "",
       snmpProfileId: null,
+      sshUser: "",
+      sshPassword: "",
+      sshPort: 22,
+      webPort: 80,
+      webProtocol: "http",
+      winboxPort: 8291,
+      vendor: "",
       equipmentVendorId: null,
       model: "",
       description: "",
@@ -7447,6 +7461,13 @@ function ConcentratorsTab() {
       description: concentrator.description || "",
       isActive: concentrator.isActive,
       voalleId: concentrator.voalleId,
+      sshUser: concentrator.sshUser || "",
+      sshPassword: "", // Nunca retorna a senha, só permite sobrescrever
+      sshPort: concentrator.sshPort || 22,
+      webPort: concentrator.webPort || 80,
+      webProtocol: concentrator.webProtocol || "http",
+      winboxPort: concentrator.winboxPort || 8291,
+      vendor: concentrator.vendor || "",
     });
     setDialogOpen(true);
   };
@@ -7685,7 +7706,89 @@ function ConcentratorsTab() {
                   ID do authenticationConcentrator no Voalle para associacao automatica
                 </p>
               </div>
-              <div className="flex items-center justify-between">
+              
+              {/* Credenciais SSH */}
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-sm font-medium">Credenciais SSH</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="concentrator-ssh-user">Usuario SSH</Label>
+                    <Input
+                      id="concentrator-ssh-user"
+                      value={formData.sshUser}
+                      onChange={(e) => setFormData({ ...formData, sshUser: e.target.value })}
+                      placeholder="admin"
+                      data-testid="input-concentrator-ssh-user"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="concentrator-ssh-port">Porta</Label>
+                    <Input
+                      id="concentrator-ssh-port"
+                      type="number"
+                      value={formData.sshPort}
+                      onChange={(e) => setFormData({ ...formData, sshPort: parseInt(e.target.value, 10) || 22 })}
+                      placeholder="22"
+                      data-testid="input-concentrator-ssh-port"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-ssh-password">Senha SSH</Label>
+                  <Input
+                    id="concentrator-ssh-password"
+                    type="password"
+                    value={formData.sshPassword}
+                    onChange={(e) => setFormData({ ...formData, sshPassword: e.target.value })}
+                    placeholder={editingConcentrator ? "(deixe vazio para manter atual)" : "Senha"}
+                    data-testid="input-concentrator-ssh-password"
+                  />
+                </div>
+              </div>
+
+              {/* Acesso Web */}
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-sm font-medium">Acesso Web</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="concentrator-web-protocol">Protocolo</Label>
+                    <Select
+                      value={formData.webProtocol}
+                      onValueChange={(v) => setFormData({ ...formData, webProtocol: v })}
+                    >
+                      <SelectTrigger data-testid="select-concentrator-web-protocol">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="http">HTTP</SelectItem>
+                        <SelectItem value="https">HTTPS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="concentrator-web-port">Porta Web</Label>
+                    <Input
+                      id="concentrator-web-port"
+                      type="number"
+                      value={formData.webPort}
+                      onChange={(e) => setFormData({ ...formData, webPort: parseInt(e.target.value, 10) || 80 })}
+                      data-testid="input-concentrator-web-port"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="concentrator-winbox-port">Porta Winbox</Label>
+                    <Input
+                      id="concentrator-winbox-port"
+                      type="number"
+                      value={formData.winboxPort}
+                      onChange={(e) => setFormData({ ...formData, winboxPort: parseInt(e.target.value, 10) || 8291 })}
+                      data-testid="input-concentrator-winbox-port"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
                 <Label htmlFor="concentrator-active">Ativo</Label>
                 <Switch
                   id="concentrator-active"
