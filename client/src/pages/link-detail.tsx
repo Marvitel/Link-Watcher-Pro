@@ -1471,7 +1471,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               data-testid="button-terminal-ssh-olt"
             >
               <Radio className="w-4 h-4 mr-2" />
-              SSH Ponto de Acesso
+              {devices?.olt?.name || "SSH Ponto de Acesso"}
             </Button>
             <Button
               variant={terminalMode === "ssh-concentrator" ? "default" : "outline"}
@@ -1480,7 +1480,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               data-testid="button-terminal-ssh-concentrator"
             >
               <Server className="w-4 h-4 mr-2" />
-              SSH Concentrador
+              {devices?.concentrator?.name || "SSH Concentrador"}
             </Button>
             <Button
               variant={terminalMode === "ssh-cpe" ? "default" : "outline"}
@@ -1489,7 +1489,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               data-testid="button-terminal-ssh-cpe"
             >
               <HardDrive className="w-4 h-4 mr-2" />
-              SSH CPE
+              {devices?.cpe?.name || "SSH CPE"}
             </Button>
           </div>
 
