@@ -1431,11 +1431,23 @@ export async function registerRoutes(
       // Verificar se deve usar credenciais do operador
       let concentratorSshUser = concentrator?.sshUser || "admin";
       let concentratorSshPassword = concentrator?.sshPassword ? decrypt(concentrator.sshPassword) : null;
+      let useOperatorCreds = concentrator?.useOperatorCredentials || false;
       
-      console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${concentrator?.useOperatorCredentials}, sshUser=${concentrator?.sshUser}`);
+      console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${useOperatorCreds}, sshUser=${concentrator?.sshUser}`);
       console.log(`[Devices] User logado: id=${user?.id}, name=${user?.name}`);
       
-      if (concentrator?.useOperatorCredentials && user?.id) {
+      // Se não há concentrador definido, tentar usar credenciais do operador automaticamente
+      // (para links que usam snmpRouterIp direto sem concentrador cadastrado)
+      if (!concentrator && user?.id) {
+        const operatorUser = await storage.getUser(user.id);
+        console.log(`[Devices] Sem concentrador - verificando credenciais do operador: sshUser=${operatorUser?.sshUser}`);
+        if (operatorUser?.sshUser) {
+          concentratorSshUser = operatorUser.sshUser;
+          concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
+          useOperatorCreds = true;
+          console.log(`[Devices] USANDO credenciais do operador (sem concentrador): ${concentratorSshUser}`);
+        }
+      } else if (useOperatorCreds && user?.id) {
         // Buscar credenciais SSH do usuário logado
         const operatorUser = await storage.getUser(user.id);
         console.log(`[Devices] Operator user found: id=${operatorUser?.id}, sshUser=${operatorUser?.sshUser}, hasSshPassword=${!!operatorUser?.sshPassword}`);
@@ -1447,7 +1459,7 @@ export async function registerRoutes(
           console.log(`[Devices] Operador não tem sshUser configurado, usando credenciais do concentrador`);
         }
       } else {
-        console.log(`[Devices] Não usando credenciais do operador (useOperatorCredentials=${concentrator?.useOperatorCredentials}, userId=${user?.id})`);
+        console.log(`[Devices] Usando credenciais do concentrador (useOperatorCredentials=${useOperatorCreds})`);
       }
       
       const devices = {
@@ -1472,9 +1484,9 @@ export async function registerRoutes(
           sshPort: (concentrator as any)?.sshPort || 22,
           webPort: (concentrator as any)?.webPort || 80,
           webProtocol: (concentrator as any)?.webProtocol || "http",
-          winboxPort: (concentrator as any)?.winboxPort || 8291,
-          vendor: (concentrator as any)?.vendor || null,
-          useOperatorCredentials: (concentrator as any)?.useOperatorCredentials || false,
+          winboxPort: concentrator?.winboxPort || 8291,
+          vendor: concentrator?.vendor || null,
+          useOperatorCredentials: useOperatorCreds,
         },
         cpe: {
           name: link.name,
