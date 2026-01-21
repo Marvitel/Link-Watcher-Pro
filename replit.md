@@ -27,6 +27,26 @@ PostgreSQL serves as the primary database, accessed via Drizzle ORM with `drizzl
 ### Authentication
 Authentication is localStorage-based, managed by a React context (`client/src/lib/auth.tsx`). Express sessions are used with `MemoryStore`. User authentication data is stored in `link_monitor_auth_user` in localStorage.
 
+### Dual-Port Architecture (Production Security)
+The system supports running on two separate ports for security isolation:
+- **Port 5000 (PORT)**: Client portal - public access for customers
+- **Port 5001 (ADMIN_PORT)**: Admin portal - restricted access for Marvitel staff
+
+**Configuration:**
+- `PORT`: Main client-facing port (default: 5000)
+- `ADMIN_PORT`: Administrative port (default: 5001, set same as PORT for single-port mode)
+- `ADMIN_IP_WHITELIST`: Comma-separated list of allowed IPv4 addresses/CIDRs for admin port (e.g., "192.168.1.0/24,10.0.0.0/8,200.123.45.67"). Note: IPv6 addresses are not supported in the whitelist; use firewall rules for IPv6 filtering.
+
+**Production Deployment:**
+1. Configure firewall to allow public access only on PORT (5000)
+2. Restrict ADMIN_PORT (5001) to Marvitel internal IPs
+3. Optionally set ADMIN_IP_WHITELIST for additional application-level IP filtering
+4. Admin login at `/admin/login`, client login at `/login`
+
+**Development Mode:**
+- Set `ADMIN_PORT` same as `PORT` to use single-port mode
+- Terminal WebSocket available on both servers when ports differ, or main server when same
+
 ### Key Design Patterns
 - **Monorepo Structure**: Organized into `client/`, `server/`, and `shared/` directories.
 - **Path Aliases**: `@/` for client source and `@shared/` for shared code.
