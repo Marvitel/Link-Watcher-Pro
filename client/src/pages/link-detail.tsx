@@ -1479,10 +1479,10 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Terminal className="w-5 h-5" />
-            Terminal de Diagnóstico
+            Terminal
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Comandos: ping, traceroute, mtr, dig, nslookup, whois, host, nmap
+            Shell local (usuário não-root) - use qualquer comando de diagnóstico
           </p>
         </CardHeader>
         <CardContent className="space-y-3">

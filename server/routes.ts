@@ -1362,40 +1362,24 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link não encontrado" });
       }
       
-      // Whitelist de comandos permitidos por segurança
-      const allowedCommands = ['ping', 'ping6', 'traceroute', 'traceroute6', 'mtr', 'dig', 'nslookup', 'whois', 'host', 'nmap'];
+      // Lista de comandos bloqueados por segurança (podem danificar o sistema)
+      const blockedCommands = ['rm', 'rmdir', 'mkfs', 'dd', 'shutdown', 'reboot', 'poweroff', 'halt', 'init', 'systemctl', 'kill', 'killall', 'pkill'];
       const cmdParts = command.trim().split(/\s+/);
-      const baseCmd = cmdParts[0].toLowerCase();
+      const baseCmd = cmdParts[0].toLowerCase().replace(/^.*\//, ''); // Remove path prefix
       
-      if (!allowedCommands.includes(baseCmd)) {
+      if (blockedCommands.includes(baseCmd)) {
         return res.json({
           success: false,
-          output: `Comando não permitido: ${baseCmd}\n\nComandos permitidos: ${allowedCommands.join(', ')}`,
+          output: `Comando bloqueado por segurança: ${baseCmd}`,
         });
-      }
-      
-      // Validar argumentos - apenas IPs, hostnames e flags simples
-      const args = cmdParts.slice(1);
-      const dangerousPatterns = [';', '|', '&', '`', '$', '(', ')', '{', '}', '<', '>', '\\', '"', "'", '\n'];
-      
-      for (const arg of args) {
-        if (dangerousPatterns.some(p => arg.includes(p))) {
-          return res.json({
-            success: false,
-            output: `Argumento inválido detectado: caracteres especiais não são permitidos`,
-          });
-        }
       }
       
       const { exec } = await import("child_process");
       const { promisify } = await import("util");
       const execAsync = promisify(exec);
       
-      // Limitar timeout baseado no comando
-      let timeout = 30000;
-      if (baseCmd === 'traceroute' || baseCmd === 'traceroute6' || baseCmd === 'mtr') {
-        timeout = 120000;
-      }
+      // Timeout de 60 segundos para qualquer comando
+      const timeout = 60000;
       
       try {
         const { stdout, stderr } = await execAsync(command, { timeout });
