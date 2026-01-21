@@ -152,9 +152,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout errors
     }
     
-    // Redirecionar admin para página de login admin
+    // Redirecionar admin para página de login admin na porta 5001
     if (isAdmin) {
-      window.location.href = "/admin/login";
+      const port = window.location.port;
+      // Se está na porta 5001 (ou outra porta admin), manter na mesma porta
+      if (port && port !== "443" && port !== "80" && port !== "") {
+        window.location.href = `${window.location.protocol}//${window.location.hostname}:${port}/admin/login`;
+      } else {
+        // Redirecionar para porta 5001
+        window.location.href = `${window.location.protocol}//${window.location.hostname}:5001/admin/login`;
+      }
     }
   }, [user]);
 
