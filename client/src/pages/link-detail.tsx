@@ -125,6 +125,7 @@ export default function LinkDetail() {
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState("bandwidth");
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [chartMode, setChartMode] = useState<"unified" | "separate">("unified"); // Modo de gráfico
@@ -484,7 +485,7 @@ export default function LinkDetail() {
         />
       </div>
 
-      <Tabs defaultValue="bandwidth" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="bandwidth" data-testid="tab-bandwidth">
             Consumo de Banda
@@ -1173,9 +1174,13 @@ export default function LinkDetail() {
           </Card>
         </TabsContent>
 
-        {/* Aba de Ferramentas - Apenas Super Admin */}
+        {/* Aba de Ferramentas - Apenas Super Admin - forceMount mantém sessões ativas */}
         {isSuperAdmin && (
-          <TabsContent value="tools" className="space-y-4">
+          <TabsContent 
+            value="tools" 
+            className={`space-y-4 ${activeTab !== "tools" ? "hidden" : ""}`}
+            forceMount
+          >
             <ToolsSection linkId={linkId} link={link} />
           </TabsContent>
         )}
