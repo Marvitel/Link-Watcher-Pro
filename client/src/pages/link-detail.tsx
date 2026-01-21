@@ -1428,10 +1428,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           target="olt"
           ip={devices?.olt?.ip || null}
           available={devices?.olt?.available || false}
+          showWinbox={devices?.olt?.vendor?.toLowerCase() === "mikrotik"}
           sshUser={devices?.olt?.sshUser || "admin"}
           sshPort={devices?.olt?.sshPort || 22}
           webPort={devices?.olt?.webPort || 80}
           webProtocol={devices?.olt?.webProtocol || "http"}
+          winboxPort={devices?.olt?.winboxPort || 8291}
         />
         <DeviceCard
           title="Concentrador"
@@ -1439,10 +1441,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           target="concentrator"
           ip={devices?.concentrator?.ip || null}
           available={devices?.concentrator?.available || false}
+          showWinbox={devices?.concentrator?.vendor?.toLowerCase() === "mikrotik"}
           sshUser={devices?.concentrator?.sshUser || "admin"}
           sshPort={devices?.concentrator?.sshPort || 22}
           webPort={devices?.concentrator?.webPort || 80}
           webProtocol={devices?.concentrator?.webProtocol || "http"}
+          winboxPort={devices?.concentrator?.winboxPort || 8291}
         />
         <DeviceCard
           title="CPE Cliente"

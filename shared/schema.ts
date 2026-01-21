@@ -509,6 +509,8 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
   sshPort: integer("ssh_port").default(22),
   webPort: integer("web_port").default(80), // Porta HTTP/HTTPS para acesso web
   webProtocol: varchar("web_protocol", { length: 10 }).default("http"), // http ou https
+  winboxPort: integer("winbox_port").default(8291), // Porta Winbox para Mikrotik
+  vendor: varchar("vendor", { length: 50 }), // mikrotik, cisco, huawei, etc
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -527,6 +529,7 @@ export const olts = pgTable("olts", {
   password: text("password").notNull(),
   connectionType: varchar("connection_type", { length: 20 }).notNull().default("telnet"),
   vendor: varchar("vendor", { length: 50 }),
+  winboxPort: integer("winbox_port").default(8291), // Porta Winbox para Mikrotik
   model: varchar("model", { length: 100 }),
   database: varchar("database", { length: 100 }), // Para conexões MySQL (ex: Zabbix)
   // Templates para busca e diagnóstico de ONU - variáveis: {serial}, {slot}, {port}, {onuId}

@@ -1376,6 +1376,8 @@ export async function registerRoutes(
           sshPort: olt.port || 22,
           webPort: 80,
           webProtocol: "http",
+          winboxPort: (olt as any).winboxPort || 8291,
+          vendor: olt.vendor || null,
         } : null,
         concentrator: {
           name: concentrator?.name || "Concentrador",
@@ -1385,6 +1387,8 @@ export async function registerRoutes(
           sshPort: (concentrator as any)?.sshPort || 22,
           webPort: (concentrator as any)?.webPort || 80,
           webProtocol: (concentrator as any)?.webProtocol || "http",
+          winboxPort: (concentrator as any)?.winboxPort || 8291,
+          vendor: (concentrator as any)?.vendor || null,
         },
         cpe: {
           name: link.name,
