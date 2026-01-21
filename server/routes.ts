@@ -1446,7 +1446,7 @@ export async function registerRoutes(
           ip: concentrator?.ipAddress || link.snmpRouterIp,
           available: !!(concentrator?.ipAddress || link.snmpRouterIp),
           sshUser: (concentrator as any)?.sshUser || "admin",
-          sshPassword: (concentrator as any)?.sshPassword || null,
+          sshPassword: (concentrator as any)?.sshPassword ? decrypt((concentrator as any).sshPassword) : null,
           sshPort: (concentrator as any)?.sshPort || 22,
           webPort: (concentrator as any)?.webPort || 80,
           webProtocol: (concentrator as any)?.webProtocol || "http",

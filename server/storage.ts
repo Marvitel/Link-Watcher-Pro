@@ -99,6 +99,7 @@ import { startRealTimeMonitoring } from "./monitoring";
 import { startAggregationJobs } from "./aggregation";
 import { eq, desc, gte, lte, and, lt, isNull, sql, or, like } from "drizzle-orm";
 import crypto from "crypto";
+import { encrypt } from "./crypto";
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
@@ -1746,12 +1747,22 @@ export class DatabaseStorage {
   }
 
   async createConcentrator(data: InsertSnmpConcentrator): Promise<SnmpConcentrator> {
-    const result = await db.insert(snmpConcentrators).values(data).returning();
+    // Criptografar senha SSH se fornecida
+    const dataToInsert = { ...data };
+    if ((dataToInsert as any).sshPassword) {
+      (dataToInsert as any).sshPassword = encrypt((dataToInsert as any).sshPassword);
+    }
+    const result = await db.insert(snmpConcentrators).values(dataToInsert).returning();
     return result[0];
   }
 
   async updateConcentrator(id: number, data: Partial<InsertSnmpConcentrator>): Promise<SnmpConcentrator | undefined> {
-    const result = await db.update(snmpConcentrators).set({ ...data, updatedAt: new Date() }).where(eq(snmpConcentrators.id, id)).returning();
+    // Criptografar senha SSH se fornecida
+    const dataToUpdate = { ...data, updatedAt: new Date() };
+    if ((dataToUpdate as any).sshPassword) {
+      (dataToUpdate as any).sshPassword = encrypt((dataToUpdate as any).sshPassword);
+    }
+    const result = await db.update(snmpConcentrators).set(dataToUpdate).where(eq(snmpConcentrators.id, id)).returning();
     return result[0];
   }
 
