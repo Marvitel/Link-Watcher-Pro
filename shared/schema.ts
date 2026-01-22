@@ -258,6 +258,8 @@ export const cpes = pgTable("cpes", {
   type: varchar("type", { length: 30 }).notNull().default("cpe"), // cpe, firewall, switch, router, onu
   vendorId: integer("vendor_id"), // FK para equipmentVendors
   model: varchar("model", { length: 100 }),
+  // isStandard: equipamento padrão sem IP/MAC/serial fixo - IP definido no cadastro do link
+  isStandard: boolean("is_standard").notNull().default(false),
   ipAddress: varchar("ip_address", { length: 45 }),
   // Indicador de acesso
   hasAccess: boolean("has_access").notNull().default(true), // false = equipamento do cliente sem acesso
@@ -288,6 +290,10 @@ export const linkCpes = pgTable("link_cpes", {
   linkId: integer("link_id").notNull(),
   cpeId: integer("cpe_id").notNull(),
   role: varchar("role", { length: 30 }).default("primary"), // primary, backup, firewall
+  // IP específico para este link (usado quando CPE é isStandard=true ou para override)
+  ipOverride: varchar("ip_override", { length: 45 }),
+  // Se true, este CPE aparece na aba "Equipamento" nos detalhes do link
+  showInEquipmentTab: boolean("show_in_equipment_tab").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

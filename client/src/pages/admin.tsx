@@ -65,8 +65,16 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers, Router } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers, Router, Monitor } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 
@@ -626,14 +634,16 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   });
 
   // Estado para CPEs selecionados
-  const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string }>>([]);
+  const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }>>([]);
 
   // Inicializar CPEs selecionados quando carrega associações existentes
   useEffect(() => {
     if (linkCpeAssociations) {
       setSelectedCpes(linkCpeAssociations.map(a => ({
         cpeId: a.cpeId,
-        role: a.role || "primary"
+        role: a.role || "primary",
+        ipOverride: (a as any).ipOverride || "",
+        showInEquipmentTab: (a as any).showInEquipmentTab || false
       })));
     }
   }, [linkCpeAssociations]);
@@ -1983,59 +1993,142 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         </div>
         
         {allCpes && allCpes.length > 0 ? (
-          <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-            {allCpes.map((cpe) => {
-              const isSelected = selectedCpes.some(s => s.cpeId === cpe.id);
-              const selectedData = selectedCpes.find(s => s.cpeId === cpe.id);
-              return (
-                <div 
-                  key={cpe.id} 
-                  className={`flex items-center justify-between gap-2 p-2 rounded ${isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
-                >
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCpes([...selectedCpes, { cpeId: cpe.id, role: "primary" }]);
-                        } else {
-                          setSelectedCpes(selectedCpes.filter(s => s.cpeId !== cpe.id));
-                        }
-                      }}
-                      className="w-4 h-4"
-                      data-testid={`checkbox-cpe-${cpe.id}`}
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">{cpe.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {cpe.type} {cpe.manufacturer && `- ${cpe.manufacturer}`} {cpe.model && cpe.model} {cpe.ipAddress && `(${cpe.ipAddress})`}
-                      </span>
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <Select
-                      value={selectedData?.role || "primary"}
-                      onValueChange={(v) => {
-                        setSelectedCpes(selectedCpes.map(s => 
-                          s.cpeId === cpe.id ? { ...s, role: v } : s
-                        ));
-                      }}
+          <div className="space-y-3">
+            {/* Combobox para adicionar CPE */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start" data-testid="button-add-cpe">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar equipamento...
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar equipamento..." data-testid="input-search-cpe" />
+                  <CommandList>
+                    <CommandEmpty>Nenhum equipamento encontrado.</CommandEmpty>
+                    <CommandGroup heading="Equipamentos disponíveis">
+                      {allCpes
+                        .filter((cpe) => !selectedCpes.some((s) => s.cpeId === cpe.id))
+                        .map((cpe) => (
+                          <CommandItem
+                            key={cpe.id}
+                            value={`${cpe.name} ${cpe.type} ${cpe.model || ""} ${cpe.ipAddress || ""}`}
+                            onSelect={() => {
+                              setSelectedCpes([...selectedCpes, { 
+                                cpeId: cpe.id, 
+                                role: "primary",
+                                ipOverride: cpe.isStandard ? "" : (cpe.ipAddress || ""),
+                                showInEquipmentTab: selectedCpes.length === 0
+                              }]);
+                            }}
+                            data-testid={`command-item-cpe-${cpe.id}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{cpe.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {cpe.type} {cpe.model && `- ${cpe.model}`} {cpe.ipAddress && `(${cpe.ipAddress})`}
+                                {cpe.isStandard && " [Padrão]"}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Lista de CPEs selecionados */}
+            {selectedCpes.length > 0 && (
+              <div className="space-y-2 border rounded-md p-2">
+                {selectedCpes.map((sel) => {
+                  const cpe = allCpes.find((c) => c.id === sel.cpeId);
+                  if (!cpe) return null;
+                  const isStandard = cpe.isStandard ?? false;
+                  return (
+                    <div 
+                      key={sel.cpeId}
+                      className="flex items-center justify-between gap-2 p-2 rounded bg-primary/10"
                     >
-                      <SelectTrigger className="w-28 h-7 text-xs" data-testid={`select-cpe-role-${cpe.id}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="primary">Principal</SelectItem>
-                        <SelectItem value="backup">Backup</SelectItem>
-                        <SelectItem value="firewall">Firewall</SelectItem>
-                        <SelectItem value="switch">Switch</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              );
-            })}
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">{cpe.name}</span>
+                            {isStandard && <Badge variant="outline" className="text-xs">Padrão</Badge>}
+                          </div>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {cpe.type} {cpe.model && `- ${cpe.model}`}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Campo de IP */}
+                      <div className="w-32">
+                        <Input
+                          placeholder={isStandard ? "IP do link" : "IP"}
+                          value={(sel as any).ipOverride || ""}
+                          onChange={(e) => {
+                            setSelectedCpes(selectedCpes.map((s) =>
+                              s.cpeId === sel.cpeId ? { ...s, ipOverride: e.target.value } : s
+                            ));
+                          }}
+                          className="h-7 text-xs"
+                          data-testid={`input-cpe-ip-${sel.cpeId}`}
+                        />
+                      </div>
+                      
+                      {/* Role selector */}
+                      <Select
+                        value={sel.role || "primary"}
+                        onValueChange={(v) => {
+                          setSelectedCpes(selectedCpes.map((s) =>
+                            s.cpeId === sel.cpeId ? { ...s, role: v } : s
+                          ));
+                        }}
+                      >
+                        <SelectTrigger className="w-28 h-7 text-xs" data-testid={`select-cpe-role-${sel.cpeId}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="primary">Principal</SelectItem>
+                          <SelectItem value="backup">Backup</SelectItem>
+                          <SelectItem value="firewall">Firewall</SelectItem>
+                          <SelectItem value="switch">Switch</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Checkbox para aba equipamento */}
+                      <div className="flex items-center gap-1" title="Exibir na aba Equipamento">
+                        <input
+                          type="checkbox"
+                          checked={(sel as any).showInEquipmentTab || false}
+                          onChange={(e) => {
+                            setSelectedCpes(selectedCpes.map((s) =>
+                              s.cpeId === sel.cpeId ? { ...s, showInEquipmentTab: e.target.checked } : s
+                            ));
+                          }}
+                          className="w-3 h-3"
+                          data-testid={`checkbox-equipment-tab-${sel.cpeId}`}
+                        />
+                        <Monitor className="w-3 h-3 text-muted-foreground" />
+                      </div>
+                      
+                      {/* Botão remover */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setSelectedCpes(selectedCpes.filter((s) => s.cpeId !== sel.cpeId))}
+                        data-testid={`button-remove-cpe-${sel.cpeId}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center p-4 bg-muted/30 rounded-md text-sm text-muted-foreground">
@@ -3758,14 +3851,19 @@ export default function Admin() {
   });
 
   const createLinkMutation = useMutation({
-    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string }> }) => {
+    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> }) => {
       const { _selectedCpes, ...linkData } = data;
       const response = await apiRequest("POST", "/api/links", linkData);
       const newLink = await response.json();
       // Adicionar CPEs ao link recém-criado
       if (_selectedCpes && _selectedCpes.length > 0 && newLink?.id) {
         for (const cpe of _selectedCpes) {
-          await apiRequest("POST", `/api/links/${newLink.id}/cpes`, { cpeId: cpe.cpeId, role: cpe.role });
+          await apiRequest("POST", `/api/links/${newLink.id}/cpes`, { 
+            cpeId: cpe.cpeId, 
+            role: cpe.role,
+            ipOverride: cpe.ipOverride || null,
+            showInEquipmentTab: cpe.showInEquipmentTab || false
+          });
         }
       }
       return newLink;
@@ -3782,13 +3880,13 @@ export default function Admin() {
   });
 
   const updateLinkMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string }> } }) => {
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> } }) => {
       const { _selectedCpes, ...linkData } = data;
       const response = await apiRequest("PATCH", `/api/links/${id}`, linkData);
       // Sincronizar CPEs: buscar existentes, remover/adicionar/atualizar conforme necessário
       if (_selectedCpes !== undefined) {
         const existingRes = await apiRequest("GET", `/api/links/${id}/cpes`);
-        const existing: Array<{ cpeId: number; role: string | null }> = await existingRes.json();
+        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean }> = await existingRes.json();
         const existingIds = existing.map(e => e.cpeId);
         const selectedIds = _selectedCpes.map(s => s.cpeId);
         // Remover os que não estão mais selecionados
@@ -3797,16 +3895,30 @@ export default function Admin() {
             await apiRequest("DELETE", `/api/links/${id}/cpes/${e.cpeId}`);
           }
         }
-        // Adicionar novos ou recriar se role mudou (delete+add para atualizar role)
+        // Adicionar novos ou recriar se dados mudaram (delete+add para atualizar)
         for (const s of _selectedCpes) {
           const existingAssoc = existing.find(e => e.cpeId === s.cpeId);
           if (!existingAssoc) {
             // Novo CPE
-            await apiRequest("POST", `/api/links/${id}/cpes`, { cpeId: s.cpeId, role: s.role });
-          } else if (existingAssoc.role !== s.role) {
-            // Role mudou - remover e readicionar
+            await apiRequest("POST", `/api/links/${id}/cpes`, { 
+              cpeId: s.cpeId, 
+              role: s.role,
+              ipOverride: s.ipOverride || null,
+              showInEquipmentTab: s.showInEquipmentTab || false
+            });
+          } else if (
+            existingAssoc.role !== s.role || 
+            existingAssoc.ipOverride !== (s.ipOverride || null) ||
+            existingAssoc.showInEquipmentTab !== (s.showInEquipmentTab || false)
+          ) {
+            // Dados mudaram - remover e readicionar
             await apiRequest("DELETE", `/api/links/${id}/cpes/${s.cpeId}`);
-            await apiRequest("POST", `/api/links/${id}/cpes`, { cpeId: s.cpeId, role: s.role });
+            await apiRequest("POST", `/api/links/${id}/cpes`, { 
+              cpeId: s.cpeId, 
+              role: s.role,
+              ipOverride: s.ipOverride || null,
+              showInEquipmentTab: s.showInEquipmentTab || false
+            });
           }
         }
       }

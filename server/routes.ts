@@ -1495,28 +1495,31 @@ export async function registerRoutes(
             console.error(`Failed to decrypt SSH password for CPE ${cpe.id}:`, e);
           }
         }
+        // IP efetivo: usa ipOverride se disponível, senão ipAddress do CPE
+        const effectiveIp = assoc.ipOverride || cpe.ipAddress;
         return {
           id: cpe.id,
           name: cpe.name,
           type: cpe.type,
-          ip: cpe.ipAddress,
-          available: !!cpe.ipAddress && cpe.hasAccess,
-          manufacturer: cpe.manufacturer,
+          ip: effectiveIp,
+          available: !!effectiveIp && cpe.hasAccess,
+          isStandard: cpe.isStandard || false,
           model: cpe.model,
           role: assoc.role || "primary",
+          ipOverride: assoc.ipOverride || null,
+          showInEquipmentTab: assoc.showInEquipmentTab || false,
           sshUser: cpe.sshUser || "admin",
           sshPassword: decryptedSshPassword,
           sshPort: cpe.sshPort || 22,
           webPort: cpe.webPort || 80,
           webProtocol: cpe.webProtocol || "http",
           winboxPort: cpe.winboxPort || 8291,
-          vendor: cpe.manufacturer || null,
           hasAccess: cpe.hasAccess,
         };
       }).filter(Boolean);
 
-      // Manter compatibilidade: pegar o primeiro CPE como "cpe" principal
-      const primaryCpe = cpes.find((c: any) => c.role === "primary") || cpes[0] || null;
+      // Manter compatibilidade: pegar o CPE marcado para exibição na aba equipamento ou o primeiro
+      const primaryCpe = cpes.find((c: any) => c.showInEquipmentTab) || cpes.find((c: any) => c.role === "primary") || cpes[0] || null;
 
       const devices = {
         olt: olt ? {

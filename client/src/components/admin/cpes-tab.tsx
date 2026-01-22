@@ -54,6 +54,7 @@ interface CpeFormData {
   type: string;
   vendorId: number | null;
   model: string;
+  isStandard: boolean;
   ipAddress: string;
   hasAccess: boolean;
   ownership: string;
@@ -76,6 +77,7 @@ const defaultFormData: CpeFormData = {
   type: "cpe",
   vendorId: null,
   model: "",
+  isStandard: false,
   ipAddress: "",
   hasAccess: true,
   ownership: "marvitel",
@@ -134,6 +136,7 @@ export function CpesTab() {
       type: cpe.type,
       vendorId: cpe.vendorId,
       model: cpe.model || "",
+      isStandard: cpe.isStandard ?? false,
       ipAddress: cpe.ipAddress || "",
       hasAccess: cpe.hasAccess,
       ownership: cpe.ownership,
@@ -327,15 +330,19 @@ export function CpesTab() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="ipAddress">Endereço IP</Label>
-                    <Input
-                      id="ipAddress"
-                      value={formData.ipAddress}
-                      onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
-                      placeholder="Ex: 192.168.1.1"
-                      data-testid="input-cpe-ip"
+                  <div className="flex items-center space-x-3 py-2">
+                    <Switch
+                      id="isStandard"
+                      checked={formData.isStandard}
+                      onCheckedChange={(checked) => setFormData({ ...formData, isStandard: checked })}
+                      data-testid="switch-cpe-standard"
                     />
+                    <Label htmlFor="isStandard" className="flex flex-col">
+                      <span>Equipamento Padrão</span>
+                      <span className="text-xs text-muted-foreground">
+                        IP definido no cadastro do link
+                      </span>
+                    </Label>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ownership">Propriedade</Label>
@@ -356,6 +363,19 @@ export function CpesTab() {
                     </Select>
                   </div>
                 </div>
+
+                {!formData.isStandard && (
+                  <div className="space-y-2">
+                    <Label htmlFor="ipAddress">Endereço IP</Label>
+                    <Input
+                      id="ipAddress"
+                      value={formData.ipAddress}
+                      onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                      placeholder="Ex: 192.168.1.1"
+                      data-testid="input-cpe-ip"
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
