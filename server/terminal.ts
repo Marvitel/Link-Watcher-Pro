@@ -82,12 +82,12 @@ export function setupTerminalWebSocket(server: Server) {
       activePtys.set(ws, ptyProcess);
 
       // Configurar alias SSH para equipamentos legados após o shell iniciar
+      // Nota: não limpa a tela para que o usuário veja o comando sendo executado
       setTimeout(() => {
         if (ptyProcess) {
           ptyProcess.write(`alias ssh='ssh -F ${sshConfigPath}'\n`);
-          ptyProcess.write("clear\n");
         }
-      }, 500);
+      }, 300);
 
       ptyProcess.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {
