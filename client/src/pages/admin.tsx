@@ -614,6 +614,30 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/concentrators"],
   });
 
+  // CPEs disponíveis
+  const { data: allCpes } = useQuery<Cpe[]>({
+    queryKey: ["/api/cpes"],
+  });
+
+  // CPEs associados ao link (se editando)
+  const { data: linkCpeAssociations, refetch: refetchLinkCpes } = useQuery<Array<{ id: number; cpeId: number; role: string | null; notes: string | null; cpe?: Cpe }>>({
+    queryKey: ["/api/links", link?.id, "cpes"],
+    enabled: !!link?.id,
+  });
+
+  // Estado para CPEs selecionados
+  const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string }>>([]);
+
+  // Inicializar CPEs selecionados quando carrega associações existentes
+  useEffect(() => {
+    if (linkCpeAssociations) {
+      setSelectedCpes(linkCpeAssociations.map(a => ({
+        cpeId: a.cpeId,
+        role: a.role || "primary"
+      })));
+    }
+  }, [linkCpeAssociations]);
+
   // Concentradores ativos
   const activeConcentrators = concentrators?.filter(c => c.isActive);
   
@@ -1947,6 +1971,79 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         )}
       </div>
+
+      {/* Seção de CPEs */}
+      <div className="border-t pt-4 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-medium flex items-center gap-2">
+            <Router className="w-4 h-4" />
+            Equipamentos (CPEs)
+          </h4>
+          <Badge variant="secondary">{selectedCpes.length} selecionado(s)</Badge>
+        </div>
+        
+        {allCpes && allCpes.length > 0 ? (
+          <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
+            {allCpes.map((cpe) => {
+              const isSelected = selectedCpes.some(s => s.cpeId === cpe.id);
+              const selectedData = selectedCpes.find(s => s.cpeId === cpe.id);
+              return (
+                <div 
+                  key={cpe.id} 
+                  className={`flex items-center justify-between gap-2 p-2 rounded ${isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCpes([...selectedCpes, { cpeId: cpe.id, role: "primary" }]);
+                        } else {
+                          setSelectedCpes(selectedCpes.filter(s => s.cpeId !== cpe.id));
+                        }
+                      }}
+                      className="w-4 h-4"
+                      data-testid={`checkbox-cpe-${cpe.id}`}
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{cpe.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {cpe.type} {cpe.manufacturer && `- ${cpe.manufacturer}`} {cpe.model && cpe.model} {cpe.ipAddress && `(${cpe.ipAddress})`}
+                      </span>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <Select
+                      value={selectedData?.role || "primary"}
+                      onValueChange={(v) => {
+                        setSelectedCpes(selectedCpes.map(s => 
+                          s.cpeId === cpe.id ? { ...s, role: v } : s
+                        ));
+                      }}
+                    >
+                      <SelectTrigger className="w-28 h-7 text-xs" data-testid={`select-cpe-role-${cpe.id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">Principal</SelectItem>
+                        <SelectItem value="backup">Backup</SelectItem>
+                        <SelectItem value="firewall">Firewall</SelectItem>
+                        <SelectItem value="switch">Switch</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center p-4 bg-muted/30 rounded-md text-sm text-muted-foreground">
+            <p>Nenhum CPE cadastrado.</p>
+            <p className="text-xs mt-1">Cadastre CPEs na aba "CPEs" do painel admin.</p>
+          </div>
+        )}
+      </div>
       
       <DialogFooter>
         <Button variant="outline" onClick={onClose} data-testid="button-cancel">
@@ -1958,6 +2055,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             ...formData,
             opticalRxBaseline: formData.opticalRxBaseline ? parseFloat(formData.opticalRxBaseline) : null,
             opticalTxBaseline: formData.opticalTxBaseline ? parseFloat(formData.opticalTxBaseline) : null,
+            _selectedCpes: selectedCpes, // Passa CPEs selecionados para o handler
           };
           onSave(processedData);
         }} data-testid="button-save-link">
@@ -3660,8 +3758,17 @@ export default function Admin() {
   });
 
   const createLinkMutation = useMutation({
-    mutationFn: async (data: Partial<Link>) => {
-      return await apiRequest("POST", "/api/links", data);
+    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string }> }) => {
+      const { _selectedCpes, ...linkData } = data;
+      const response = await apiRequest("POST", "/api/links", linkData);
+      const newLink = await response.json();
+      // Adicionar CPEs ao link recém-criado
+      if (_selectedCpes && _selectedCpes.length > 0 && newLink?.id) {
+        for (const cpe of _selectedCpes) {
+          await apiRequest("POST", `/api/links/${newLink.id}/cpes`, { cpeId: cpe.cpeId, role: cpe.role });
+        }
+      }
+      return newLink;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });
@@ -3675,8 +3782,35 @@ export default function Admin() {
   });
 
   const updateLinkMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> }) => {
-      return await apiRequest("PATCH", `/api/links/${id}`, data);
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string }> } }) => {
+      const { _selectedCpes, ...linkData } = data;
+      const response = await apiRequest("PATCH", `/api/links/${id}`, linkData);
+      // Sincronizar CPEs: buscar existentes, remover/adicionar/atualizar conforme necessário
+      if (_selectedCpes !== undefined) {
+        const existingRes = await apiRequest("GET", `/api/links/${id}/cpes`);
+        const existing: Array<{ cpeId: number; role: string | null }> = await existingRes.json();
+        const existingIds = existing.map(e => e.cpeId);
+        const selectedIds = _selectedCpes.map(s => s.cpeId);
+        // Remover os que não estão mais selecionados
+        for (const e of existing) {
+          if (!selectedIds.includes(e.cpeId)) {
+            await apiRequest("DELETE", `/api/links/${id}/cpes/${e.cpeId}`);
+          }
+        }
+        // Adicionar novos ou recriar se role mudou (delete+add para atualizar role)
+        for (const s of _selectedCpes) {
+          const existingAssoc = existing.find(e => e.cpeId === s.cpeId);
+          if (!existingAssoc) {
+            // Novo CPE
+            await apiRequest("POST", `/api/links/${id}/cpes`, { cpeId: s.cpeId, role: s.role });
+          } else if (existingAssoc.role !== s.role) {
+            // Role mudou - remover e readicionar
+            await apiRequest("DELETE", `/api/links/${id}/cpes/${s.cpeId}`);
+            await apiRequest("POST", `/api/links/${id}/cpes`, { cpeId: s.cpeId, role: s.role });
+          }
+        }
+      }
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });

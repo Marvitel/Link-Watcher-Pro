@@ -1481,6 +1481,43 @@ export async function registerRoutes(
         console.log(`[Devices] Usando credenciais do concentrador (useOperatorCredentials=${useOperatorCreds})`);
       }
       
+      // Buscar CPEs associados ao link
+      const linkCpeAssociations = await storage.getLinkCpes(linkId);
+      const cpes = linkCpeAssociations.map((assoc: any) => {
+        const cpe = assoc.cpe;
+        if (!cpe) return null;
+        // Decrypt SSH password only if encrypted
+        let decryptedSshPassword = null;
+        if (cpe.sshPassword) {
+          try {
+            decryptedSshPassword = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword;
+          } catch (e) {
+            console.error(`Failed to decrypt SSH password for CPE ${cpe.id}:`, e);
+          }
+        }
+        return {
+          id: cpe.id,
+          name: cpe.name,
+          type: cpe.type,
+          ip: cpe.ipAddress,
+          available: !!cpe.ipAddress && cpe.hasAccess,
+          manufacturer: cpe.manufacturer,
+          model: cpe.model,
+          role: assoc.role || "primary",
+          sshUser: cpe.sshUser || "admin",
+          sshPassword: decryptedSshPassword,
+          sshPort: cpe.sshPort || 22,
+          webPort: cpe.webPort || 80,
+          webProtocol: cpe.webProtocol || "http",
+          winboxPort: cpe.winboxPort || 8291,
+          vendor: cpe.manufacturer || null,
+          hasAccess: cpe.hasAccess,
+        };
+      }).filter(Boolean);
+
+      // Manter compatibilidade: pegar o primeiro CPE como "cpe" principal
+      const primaryCpe = cpes.find((c: any) => c.role === "primary") || cpes[0] || null;
+
       const devices = {
         olt: olt ? {
           name: olt.name,
@@ -1507,7 +1544,7 @@ export async function registerRoutes(
           vendor: concentrator?.vendor || null,
           useOperatorCredentials: useOperatorCreds,
         },
-        cpe: {
+        cpe: primaryCpe || {
           name: link.name,
           ip: link.monitoredIp || link.address,
           available: !!(link.monitoredIp || link.address),
@@ -1519,6 +1556,7 @@ export async function registerRoutes(
           winboxPort: (link as any).cpeWinboxPort || 8291,
           vendor: (link as any).cpeVendor || null,
         },
+        cpes: cpes, // Lista completa de CPEs associados
       };
       
       return res.json(devices);

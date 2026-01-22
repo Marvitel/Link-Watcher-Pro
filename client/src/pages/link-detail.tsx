@@ -1355,10 +1355,20 @@ interface DeviceInfo {
   vendor?: string;
 }
 
+interface CpeDeviceInfo extends DeviceInfo {
+  id?: number;
+  type?: string;
+  role?: string;
+  manufacturer?: string;
+  model?: string;
+  hasAccess?: boolean;
+}
+
 interface DevicesInfo {
   olt: DeviceInfo | null;
   concentrator: DeviceInfo;
   cpe: DeviceInfo;
+  cpes?: CpeDeviceInfo[];
 }
 
 interface PingResult {
@@ -1406,6 +1416,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     "ssh-concentrator": 0,
     "ssh-cpe": 0,
   });
+  // Estado para terminais de CPEs individuais (quando há múltiplos)
+  const [openCpeTerminals, setOpenCpeTerminals] = useState<Record<number, boolean>>({});
+  const [cpeTerminalKeys, setCpeTerminalKeys] = useState<Record<number, number>>({});
   const { toast } = useToast();
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
@@ -1726,40 +1739,98 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           )}
         </Card>
 
-        {/* SSH CPE */}
-        <Card className={!cpeAvailable ? "opacity-50" : ""}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <HardDrive className="w-4 h-4" />
-                {devices?.cpe?.name || "CPE"}
-              </CardTitle>
-              <Button
-                size="sm"
-                variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}
-                onClick={() => toggleTerminal("ssh-cpe")}
-                disabled={!cpeAvailable}
-                data-testid="button-terminal-ssh-cpe"
-              >
-                {openTerminals["ssh-cpe"] ? <X className="w-4 h-4" /> : "SSH"}
-              </Button>
-            </div>
-            {cpeAvailable && (
-              <p className="text-xs text-muted-foreground">{devices?.cpe?.ip}</p>
-            )}
-          </CardHeader>
-          {openTerminals["ssh-cpe"] && (
-            <CardContent className="pt-0">
-              <div className="border rounded-md overflow-hidden">
-                <XtermTerminal 
-                  key={terminalKeys["ssh-cpe"]} 
-                  initialCommand={getSshConfig("ssh-cpe").command} 
-                  sshPassword={getSshConfig("ssh-cpe").password}
-                />
+        {/* CPEs do Link */}
+        {devices?.cpes && devices.cpes.length > 0 ? (
+          devices.cpes.map((cpe) => {
+            const isOpen = openCpeTerminals[cpe.id || 0] || false;
+            const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
+            const sshCommand = cpe.ip && cpe.sshUser 
+              ? `ssh -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}` 
+              : undefined;
+            const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
+            return (
+              <Card key={cpe.id} className={!cpe.available ? "opacity-50" : ""}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <HardDrive className="w-4 h-4" />
+                      <span className="truncate">{cpe.name}</span>
+                      <Badge variant="outline" className="text-xs">{cpe.type || "CPE"}</Badge>
+                      {roleLabel && <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>}
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant={isOpen ? "destructive" : "default"}
+                      onClick={() => {
+                        setOpenCpeTerminals(prev => ({ ...prev, [cpe.id || 0]: !prev[cpe.id || 0] }));
+                        if (!isOpen) {
+                          setCpeTerminalKeys(prev => ({ ...prev, [cpe.id || 0]: (prev[cpe.id || 0] || 0) + 1 }));
+                        }
+                      }}
+                      disabled={!cpe.available}
+                      data-testid={`button-terminal-ssh-cpe-${cpe.id}`}
+                    >
+                      {isOpen ? <X className="w-4 h-4" /> : "SSH"}
+                    </Button>
+                  </div>
+                  {cpe.available && (
+                    <p className="text-xs text-muted-foreground">
+                      {cpe.ip} {cpe.manufacturer && `- ${cpe.manufacturer}`} {cpe.model && cpe.model}
+                    </p>
+                  )}
+                  {!cpe.hasAccess && (
+                    <p className="text-xs text-yellow-600">Sem acesso configurado</p>
+                  )}
+                </CardHeader>
+                {isOpen && (
+                  <CardContent className="pt-0">
+                    <div className="border rounded-md overflow-hidden">
+                      <XtermTerminal 
+                        key={cpeKey} 
+                        initialCommand={sshCommand} 
+                        sshPassword={cpe.sshPassword || undefined}
+                      />
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })
+        ) : (
+          <Card className={!cpeAvailable ? "opacity-50" : ""}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HardDrive className="w-4 h-4" />
+                  {devices?.cpe?.name || "CPE"}
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}
+                  onClick={() => toggleTerminal("ssh-cpe")}
+                  disabled={!cpeAvailable}
+                  data-testid="button-terminal-ssh-cpe"
+                >
+                  {openTerminals["ssh-cpe"] ? <X className="w-4 h-4" /> : "SSH"}
+                </Button>
               </div>
-            </CardContent>
-          )}
-        </Card>
+              {cpeAvailable && (
+                <p className="text-xs text-muted-foreground">{devices?.cpe?.ip}</p>
+              )}
+            </CardHeader>
+            {openTerminals["ssh-cpe"] && (
+              <CardContent className="pt-0">
+                <div className="border rounded-md overflow-hidden">
+                  <XtermTerminal 
+                    key={terminalKeys["ssh-cpe"]} 
+                    initialCommand={getSshConfig("ssh-cpe").command} 
+                    sshPassword={getSshConfig("ssh-cpe").password}
+                  />
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
       </div>
 
       {/* Dispositivos */}
