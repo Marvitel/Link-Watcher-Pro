@@ -1497,15 +1497,17 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const user = device.sshUser || "admin";
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
+    // Opções SSH para compatibilidade com equipamentos legados
+    const legacyOpts = "-o KexAlgorithms=+diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o Ciphers=+aes128-cbc,3des-cbc,aes256-cbc";
     
     if (device.sshPassword) {
       // Usa sshpass -e para ler senha da variável SSHPASS (não aparece no histórico)
       return {
-        command: `sshpass -e ssh ${portArg}-o StrictHostKeyChecking=no ${user}@${device.ip}`,
+        command: `sshpass -e ssh ${portArg}-o StrictHostKeyChecking=no ${legacyOpts} ${user}@${device.ip}`,
         password: device.sshPassword,
       };
     }
-    return { command: `ssh ${portArg}${user}@${device.ip}` };
+    return { command: `ssh ${portArg}${legacyOpts} ${user}@${device.ip}` };
   };
 
   const toggleTerminal = (type: TerminalType) => {
@@ -1744,10 +1746,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           devices.cpes.map((cpe) => {
             const isOpen = openCpeTerminals[cpe.id || 0] || false;
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
+            // Opções SSH para compatibilidade com equipamentos legados (Mikrotik antigos, etc)
+            const legacyOpts = "-o KexAlgorithms=+diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1 -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o Ciphers=+aes128-cbc,3des-cbc,aes256-cbc";
             const sshCommand = cpe.ip && cpe.sshUser 
               ? (cpe.sshPassword 
-                  ? `sshpass -e ssh -p ${cpe.sshPort || 22} -o StrictHostKeyChecking=no ${cpe.sshUser}@${cpe.ip}`
-                  : `ssh -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`)
+                  ? `sshpass -e ssh -p ${cpe.sshPort || 22} -o StrictHostKeyChecking=no ${legacyOpts} ${cpe.sshUser}@${cpe.ip}`
+                  : `ssh -p ${cpe.sshPort || 22} ${legacyOpts} ${cpe.sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
             return (
