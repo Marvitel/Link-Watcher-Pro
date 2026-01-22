@@ -153,18 +153,27 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
               const sshCmd = initialCommand;
               // Configura alias SSH com timeout menor para resposta rápida
               const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
-              console.log("[Terminal/Fallback] Enviando alias SSH...");
+              term.writeln("\x1b[90m[DEBUG] Preparando execução automática...\x1b[0m");
               setTimeout(() => {
-                console.log("[Terminal/Fallback] Timeout 100ms - enviando alias");
-                ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
-                // Executa o comando SSH após o alias
-                setTimeout(() => {
-                  console.log("[Terminal/Fallback] Timeout 300ms - enviando SSH:", sshCmd.substring(0, 60) + "...");
-                  ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
-                }, 300);
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
+                  // Executa o comando SSH após o alias
+                  setTimeout(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                      term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
+                      ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
+                    } else {
+                      term.writeln("\x1b[31m[ERRO] WebSocket fechou antes de enviar SSH\x1b[0m");
+                    }
+                  }, 300);
+                } else {
+                  term.writeln("\x1b[31m[ERRO] WebSocket não está aberto para enviar alias\x1b[0m");
+                }
               }, 100);
+            } else if (!initialCommand) {
+              // Terminal sem comando inicial - modo shell puro
             } else {
-              console.log("[Terminal/Fallback] Comando inicial NÃO será executado - initialCommand:", initialCommand, "sent:", initialCommandSent.current);
+              term.writeln("\x1b[33m[AVISO] Comando já foi enviado anteriormente\x1b[0m");
             }
           } else if (data.type === "auth_error") {
             term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
@@ -200,18 +209,27 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
           const sshCmd = initialCommand;
           // Configura alias SSH com timeout menor para resposta rápida
           const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
-          console.log("[Terminal] Enviando alias SSH...");
+          term.writeln("\x1b[90m[DEBUG] Preparando execução automática...\x1b[0m");
           setTimeout(() => {
-            console.log("[Terminal] Timeout 100ms - enviando alias");
-            ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
-            // Executa o comando SSH após o alias
-            setTimeout(() => {
-              console.log("[Terminal] Timeout 300ms - enviando SSH:", sshCmd.substring(0, 60) + "...");
-              ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
-            }, 300);
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
+              // Executa o comando SSH após o alias
+              setTimeout(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
+                  ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
+                } else {
+                  term.writeln("\x1b[31m[ERRO] WebSocket fechou antes de enviar SSH\x1b[0m");
+                }
+              }, 300);
+            } else {
+              term.writeln("\x1b[31m[ERRO] WebSocket não está aberto para enviar alias\x1b[0m");
+            }
           }, 100);
+        } else if (!initialCommand) {
+          // Terminal sem comando inicial - modo shell puro
         } else {
-          console.log("[Terminal] Comando inicial NÃO será executado - initialCommand:", initialCommand, "sent:", initialCommandSent.current);
+          term.writeln("\x1b[33m[AVISO] Comando já foi enviado anteriormente\x1b[0m");
         }
       } else if (data.type === "auth_error") {
         term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
