@@ -1483,6 +1483,7 @@ export async function registerRoutes(
       
       // Buscar CPEs associados ao link
       const linkCpeAssociations = await storage.getLinkCpes(linkId);
+      console.log(`[Devices] Link ${linkId}: encontrados ${linkCpeAssociations.length} CPEs associados`);
       const cpes = linkCpeAssociations.map((assoc: any) => {
         const cpe = assoc.cpe;
         if (!cpe) return null;
@@ -1491,9 +1492,14 @@ export async function registerRoutes(
         if (cpe.sshPassword) {
           try {
             decryptedSshPassword = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword;
+            // Log para debug (mostrando primeiros/últimos caracteres da senha)
+            const masked = decryptedSshPassword ? `${decryptedSshPassword.slice(0,2)}***${decryptedSshPassword.slice(-2)}` : 'null';
+            console.log(`[Devices] CPE ${cpe.id} (${cpe.name}): sshUser=${cpe.sshUser}, sshPassword=${masked}`);
           } catch (e) {
             console.error(`Failed to decrypt SSH password for CPE ${cpe.id}:`, e);
           }
+        } else {
+          console.log(`[Devices] CPE ${cpe.id} (${cpe.name}): sem senha SSH cadastrada`);
         }
         // IP efetivo: usa ipOverride se disponível, senão ipAddress do CPE
         const effectiveIp = assoc.ipOverride || cpe.ipAddress;
