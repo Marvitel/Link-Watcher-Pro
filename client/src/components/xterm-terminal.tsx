@@ -149,19 +149,22 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
             console.log("[Terminal/Fallback] initialCommandSent.current:", initialCommandSent.current);
             if (initialCommand && !initialCommandSent.current) {
               initialCommandSent.current = true;
+              // Captura o comando em variável local para evitar problemas de closure
+              const sshCmd = initialCommand;
               // Configura alias SSH com timeout menor para resposta rápida
               const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
               console.log("[Terminal/Fallback] Enviando alias SSH...");
               setTimeout(() => {
+                console.log("[Terminal/Fallback] Timeout 100ms - enviando alias");
                 ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
                 // Executa o comando SSH após o alias
-                console.log("[Terminal/Fallback] Enviando comando SSH:", initialCommand.substring(0, 50) + "...");
                 setTimeout(() => {
-                  ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+                  console.log("[Terminal/Fallback] Timeout 300ms - enviando SSH:", sshCmd.substring(0, 60) + "...");
+                  ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
                 }, 300);
               }, 100);
             } else {
-              console.log("[Terminal/Fallback] Comando inicial NÃO será executado");
+              console.log("[Terminal/Fallback] Comando inicial NÃO será executado - initialCommand:", initialCommand, "sent:", initialCommandSent.current);
             }
           } else if (data.type === "auth_error") {
             term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
@@ -193,19 +196,22 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
         console.log("[Terminal] initialCommandSent.current:", initialCommandSent.current);
         if (initialCommand && !initialCommandSent.current) {
           initialCommandSent.current = true;
+          // Captura o comando em variável local para evitar problemas de closure
+          const sshCmd = initialCommand;
           // Configura alias SSH com timeout menor para resposta rápida
           const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
           console.log("[Terminal] Enviando alias SSH...");
           setTimeout(() => {
+            console.log("[Terminal] Timeout 100ms - enviando alias");
             ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
             // Executa o comando SSH após o alias
-            console.log("[Terminal] Enviando comando SSH:", initialCommand.substring(0, 50) + "...");
             setTimeout(() => {
-              ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+              console.log("[Terminal] Timeout 300ms - enviando SSH:", sshCmd.substring(0, 60) + "...");
+              ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
             }, 300);
           }, 100);
         } else {
-          console.log("[Terminal] Comando inicial NÃO será executado");
+          console.log("[Terminal] Comando inicial NÃO será executado - initialCommand:", initialCommand, "sent:", initialCommandSent.current);
         }
       } else if (data.type === "auth_error") {
         term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
