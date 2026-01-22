@@ -30,8 +30,8 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
       theme: {
         background: "#1e1e1e",
-        foreground: "#d4d4d4",
-        cursor: "#aeafad",
+        foreground: "#5af78e",
+        cursor: "#5af78e",
         cursorAccent: "#000000",
         selectionBackground: "#264f78",
         black: "#000000",
