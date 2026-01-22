@@ -96,12 +96,13 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
       term.writeln("\x1b[33mAutenticando...\x1b[0m");
       
       // Enviar configuração inicial com token de autenticação
+      // SSHPASS vai em env para que o servidor configure a variável de ambiente
       ws.send(JSON.stringify({ 
         type: "init",
         token,
         cols: term.cols, 
         rows: term.rows,
-        sshPassword: sshPassword || undefined
+        env: sshPassword ? { SSHPASS: sshPassword } : undefined
       }));
     };
 
@@ -122,12 +123,13 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
           }
           
           term.writeln("\x1b[33mAutenticando...\x1b[0m");
+          // SSHPASS vai em env para que o servidor configure a variável de ambiente
           ws.send(JSON.stringify({ 
             type: "init",
             token,
             cols: term.cols, 
             rows: term.rows,
-            sshPassword: sshPassword || undefined
+            env: sshPassword ? { SSHPASS: sshPassword } : undefined
           }));
         };
         
