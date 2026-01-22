@@ -7,7 +7,11 @@ Host *
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     # Forçar autenticação por senha
-    PreferredAuthentications keyboard-interactive,password,publickey
+    PreferredAuthentications keyboard-interactive,password
     PubkeyAuthentication no
     PasswordAuthentication yes
     KbdInteractiveAuthentication yes
+    # Forçar alocação de TTY
+    RequestTTY yes
+    # Número de tentativas
+    NumberOfPasswordPrompts 3
