@@ -1,0 +1,73 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+root@link-monitor:/opt/link-monitor# git pull
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 8 (delta 5), reused 8 (delta 5), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 185.07 KiB | 1.04 MiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   438ee9e4..3593c5ac  main       -> origin/main
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read 93b21f58b86469a9ff2c2c64244d784a4a05f949
+fatal: Failed to traverse parents of commit 85579a940046ac178d18cb21d050bc3e5abb564d
+fatal: failed to run repack
+
+Updating 438ee9e4..3593c5ac
+Fast-forward
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read 93b21f58b86469a9ff2c2c64244d784a4a05f949
+fatal: Failed to traverse parents of commit 85579a940046ac178d18cb21d050bc3e5abb564d
+fatal: failed to run repack
+
+ "attached_assets/Captura_de_Tela_2026-01-22_a\314\200s_16.10.31_1769109041831.png" | Bin 0 -> 164773 bytes
+ "attached_assets/Captura_de_Tela_2026-01-22_a\314\200s_16.12.48_1769109179954.png" | Bin 0 -> 46779 bytes
+ 2 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 "attached_assets/Captura_de_Tela_2026-01-22_a\314\200s_16.10.31_1769109041831.png"
+ create mode 100644 "attached_assets/Captura_de_Tela_2026-01-22_a\314\200s_16.12.48_1769109179954.png"
+root@link-monitor:/opt/link-monitor# npm run build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3464 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.48 kB
+../dist/public/assets/index-BB7K0zui.css              85.60 kB │ gzip:  14.04 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-Cam0N2Wf.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-CNtIiyiB.js            2,059.16 kB │ gzip: 568.11 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 30.57s
+building server...
+
+  dist/index.cjs  1.5mb ⚠️
+
+⚡ Done in 420ms
+root@link-monitor:/opt/link-monitor# pm2 restart link-monitor
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [link-monitor](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ 1.0.0   │ fork    │ 1723446  │ 0s     │ 2    │ online    │ 0%       │ 27.5mb   │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@link-monitor:/opt/link-monitor# 
