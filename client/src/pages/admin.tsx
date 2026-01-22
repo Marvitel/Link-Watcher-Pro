@@ -8194,6 +8194,15 @@ function EquipmentVendorsTab() {
     },
   });
 
+  const { data: snmpProfilesList } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/snmp-profiles", "all"],
+    queryFn: async () => {
+      const res = await fetch("/api/snmp-profiles?all=true", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch SNMP profiles");
+      return res.json();
+    },
+  });
+
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -8205,6 +8214,7 @@ function EquipmentVendorsTab() {
     opticalRxOid: "",
     opticalTxOid: "",
     opticalOltRxOid: "",
+    snmpProfileId: null as number | null,
     description: "",
     isActive: true,
   });
@@ -8221,6 +8231,7 @@ function EquipmentVendorsTab() {
       opticalRxOid: "",
       opticalTxOid: "",
       opticalOltRxOid: "",
+      snmpProfileId: null,
       description: "",
       isActive: true,
     });
@@ -8240,6 +8251,7 @@ function EquipmentVendorsTab() {
       opticalRxOid: vendor.opticalRxOid || "",
       opticalTxOid: vendor.opticalTxOid || "",
       opticalOltRxOid: vendor.opticalOltRxOid || "",
+      snmpProfileId: vendor.snmpProfileId ?? null,
       description: vendor.description || "",
       isActive: vendor.isActive,
     });
@@ -8443,6 +8455,34 @@ function EquipmentVendorsTab() {
                       data-testid="input-vendor-optical-olt-rx-oid"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-3">Perfil SNMP Padrao</h4>
+                <div className="space-y-2">
+                  <Label>Perfil SNMP</Label>
+                  <Select
+                    value={formData.snmpProfileId?.toString() || "none"}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, snmpProfileId: value === "none" ? null : parseInt(value) })
+                    }
+                  >
+                    <SelectTrigger data-testid="select-vendor-snmp-profile">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {snmpProfilesList?.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id.toString()}>
+                          {profile.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Perfil SNMP padrao para CPEs deste fabricante
+                  </p>
                 </div>
               </div>
 

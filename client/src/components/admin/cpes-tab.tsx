@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Plus, Pencil, Trash2, Search, Eye, EyeOff, Loader2, Router, Shield, ShieldOff } from "lucide-react";
-import type { Cpe, EquipmentVendor } from "@shared/schema";
+import type { Cpe, EquipmentVendor, SnmpProfile } from "@shared/schema";
 
 const CPE_TYPES = [
   { value: "cpe", label: "CPE" },
@@ -66,6 +66,7 @@ interface CpeFormData {
   sshUser: string;
   sshPassword: string;
   winboxPort: number;
+  snmpProfileId: number | null;
   serialNumber: string;
   macAddress: string;
   notes: string;
@@ -89,6 +90,7 @@ const defaultFormData: CpeFormData = {
   sshUser: "",
   sshPassword: "",
   winboxPort: 8291,
+  snmpProfileId: null,
   serialNumber: "",
   macAddress: "",
   notes: "",
@@ -122,6 +124,15 @@ export function CpesTab() {
     },
   });
 
+  const { data: snmpProfiles } = useQuery<SnmpProfile[]>({
+    queryKey: ["/api/snmp-profiles", "all"],
+    queryFn: async () => {
+      const res = await fetch("/api/snmp-profiles?all=true", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch SNMP profiles");
+      return res.json();
+    },
+  });
+
   const resetForm = () => {
     setFormData(defaultFormData);
     setEditingCpe(undefined);
@@ -148,6 +159,7 @@ export function CpesTab() {
       sshUser: cpe.sshUser || "",
       sshPassword: "",
       winboxPort: cpe.winboxPort || 8291,
+      snmpProfileId: cpe.snmpProfileId ?? null,
       serialNumber: cpe.serialNumber || "",
       macAddress: cpe.macAddress || "",
       notes: cpe.notes || "",
@@ -531,6 +543,45 @@ export function CpesTab() {
                     </div>
                   </>
                 )}
+
+                {/* Perfil SNMP */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Configuração SNMP</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="snmpProfileId">Perfil SNMP</Label>
+                    <Select
+                      value={formData.snmpProfileId?.toString() || "vendor"}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, snmpProfileId: value === "vendor" ? null : parseInt(value) })
+                      }
+                    >
+                      <SelectTrigger data-testid="select-snmp-profile">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vendor">
+                          Usar do Fabricante
+                          {formData.vendorId && vendors?.find(v => v.id === formData.vendorId)?.snmpProfileId && (
+                            ` (${snmpProfiles?.find(p => p.id === vendors?.find(v => v.id === formData.vendorId)?.snmpProfileId)?.name || "configurado"})`
+                          )}
+                        </SelectItem>
+                        {snmpProfiles?.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id.toString()}>
+                            {profile.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {formData.snmpProfileId 
+                        ? "Usando perfil personalizado" 
+                        : formData.vendorId && vendors?.find(v => v.id === formData.vendorId)?.snmpProfileId
+                          ? `Herdando do fabricante: ${snmpProfiles?.find(p => p.id === vendors?.find(v => v.id === formData.vendorId)?.snmpProfileId)?.name || ""}`
+                          : "Nenhum perfil SNMP configurado no fabricante"
+                      }
+                    </p>
+                  </div>
+                </div>
 
                 {!formData.isStandard && (
                   <div className="border-t pt-4">

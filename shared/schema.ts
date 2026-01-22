@@ -244,6 +244,8 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   opticalRxOid: varchar("optical_rx_oid", { length: 255 }),
   opticalTxOid: varchar("optical_tx_oid", { length: 255 }),
   opticalOltRxOid: varchar("optical_olt_rx_oid", { length: 255 }),
+  // Perfil SNMP padrão para equipamentos deste fabricante
+  snmpProfileId: integer("snmp_profile_id"),
   description: text("description"),
   isBuiltIn: boolean("is_built_in").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
@@ -275,6 +277,8 @@ export const cpes = pgTable("cpes", {
   sshPassword: text("ssh_password"), // Criptografado
   // Winbox (Mikrotik)
   winboxPort: integer("winbox_port").default(8291),
+  // Perfil SNMP (personalizado ou herda do fabricante)
+  snmpProfileId: integer("snmp_profile_id"),
   // Metadados
   serialNumber: varchar("serial_number", { length: 100 }),
   macAddress: varchar("mac_address", { length: 17 }),
