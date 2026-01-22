@@ -6,3 +6,8 @@ Host *
     MACs +hmac-sha1,hmac-md5
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
+    # Forçar autenticação por senha
+    PreferredAuthentications keyboard-interactive,password,publickey
+    PubkeyAuthentication no
+    PasswordAuthentication yes
+    KbdInteractiveAuthentication yes
