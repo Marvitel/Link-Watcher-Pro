@@ -57,6 +57,12 @@ export function setupTerminalWebSocket(server: Server) {
       // Adicionar variáveis de ambiente customizadas (ex: SSHPASS)
       if (customEnv) {
         Object.assign(env, customEnv);
+        // Log para debug (mascarando a senha)
+        const debugEnv = { ...customEnv };
+        if (debugEnv.SSHPASS) {
+          debugEnv.SSHPASS = `***${debugEnv.SSHPASS.slice(-4) || '****'}`;
+        }
+        console.log(`[terminal] Custom env received:`, debugEnv);
       }
       
       // Se TERMINAL_USER estiver definido, usar su para trocar de usuário
