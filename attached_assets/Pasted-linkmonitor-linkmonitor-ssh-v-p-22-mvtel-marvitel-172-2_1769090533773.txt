@@ -1,0 +1,70 @@
+linkmonitor@linkmonitor]$ ssh -v -p 22 mvtel_marvitel@172.26.254.10
+OpenSSH_9.2p1 Debian-2+deb12u7, OpenSSL 3.0.17 1 Jul 2025
+debug1: Reading configuration data /opt/link-monitor/ssh_legacy_config
+debug1: /opt/link-monitor/ssh_legacy_config line 2: Applying options for *
+debug1: Connecting to 172.26.254.10 [172.26.254.10] port 22.
+debug1: Connection established.
+debug1: identity file /opt/link-monitor/.ssh/id_rsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_rsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519 type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u7
+debug1: Remote protocol version 2.0, remote software version OpenSSH_3.8.1p1
+debug1: compat_banner: match: OpenSSH_3.8.1p1 pat OpenSSH_3.* compat 0x01000002
+debug1: Authenticating to 172.26.254.10:22 as 'mvtel_marvitel'
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts2: No such file or directory
+debug1: SSH2_MSG_KEXINIT sent
+debug1: SSH2_MSG_KEXINIT received
+debug1: kex: algorithm: diffie-hellman-group1-sha1
+debug1: kex: host key algorithm: ssh-dss
+debug1: kex: server->client cipher: aes128-ctr MAC: hmac-sha1 compression: none
+debug1: kex: client->server cipher: aes128-ctr MAC: hmac-sha1 compression: none
+debug1: expecting SSH2_MSG_KEX_ECDH_REPLY
+debug1: SSH2_MSG_KEX_ECDH_REPLY received
+debug1: Server host key: ssh-dss SHA256:0kWDuVQmvGK/A8KGHDNrNnx89odsLPjlu2o922qt1xk
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts2: No such file or directory
+Warning: Permanently added '172.26.254.10' (DSA) to the list of known hosts.
+debug1: rekey out after 4294967296 blocks
+debug1: SSH2_MSG_NEWKEYS sent
+debug1: expecting SSH2_MSG_NEWKEYS
+debug1: SSH2_MSG_NEWKEYS received
+debug1: rekey in after 4294967296 blocks
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_rsa 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ecdsa 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ecdsa_sk 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ed25519 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ed25519_sk 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_xmss 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_dsa 
+debug1: SSH2_MSG_SERVICE_ACCEPT received
+debug1: Authentications that can continue: publickey,keyboard-interactive
+debug1: Next authentication method: publickey
+debug1: Trying private key: /opt/link-monitor/.ssh/id_rsa
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ecdsa
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ecdsa_sk
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ed25519
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ed25519_sk
+debug1: Trying private key: /opt/link-monitor/.ssh/id_xmss
+debug1: Trying private key: /opt/link-monitor/.ssh/id_dsa
+debug1: Next authentication method: keyboard-interactive
+debug1: read_passphrase: can't open /dev/tty: No such device or address
+debug1: Authentications that can continue: publickey,keyboard-interactive
+debug1: read_passphrase: can't open /dev/tty: No such device or address
+debug1: Authentications that can continue: publickey,keyboard-interactive
+debug1: read_passphrase: can't open /dev/tty: No such device or address
+debug1: Authentications that can continue: publickey,keyboard-interactive
+debug1: No more authentication methods to try.
+mvtel_marvitel@172.26.254.10: Permission denied (publickey,keyboard-interactive).
+[linkmonitor@linkmonitor]$ 
