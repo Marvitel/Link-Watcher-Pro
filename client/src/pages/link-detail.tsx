@@ -1745,7 +1745,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const isOpen = openCpeTerminals[cpe.id || 0] || false;
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
             const sshCommand = cpe.ip && cpe.sshUser 
-              ? `ssh -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}` 
+              ? (cpe.sshPassword 
+                  ? `sshpass -e ssh -p ${cpe.sshPort || 22} -o StrictHostKeyChecking=no ${cpe.sshUser}@${cpe.ip}`
+                  : `ssh -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
             return (
