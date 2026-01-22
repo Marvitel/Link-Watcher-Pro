@@ -43,10 +43,15 @@ export function setupTerminalWebSocket(server: Server) {
       // Determinar o HOME correto para o usuário do terminal
       const userHome = terminalUser ? `/home/${terminalUser}` : (process.env.HOME || "/home/runner");
       
+      // Caminho para configuração SSH com suporte a equipamentos legados
+      const sshConfigPath = process.cwd() + "/ssh_legacy_config";
+      
       const env: Record<string, string> = {
         ...(process.env as Record<string, string>),
         TERM: "xterm-256color",
-        HOME: userHome, // Garantir que HOME está correto para o usuário
+        HOME: userHome,
+        // Alias para SSH usar configuração com algoritmos legados
+        SSH_CONFIG: sshConfigPath,
       };
       
       // Adicionar variáveis de ambiente customizadas (ex: SSHPASS)
@@ -75,6 +80,14 @@ export function setupTerminalWebSocket(server: Server) {
       });
 
       activePtys.set(ws, ptyProcess);
+
+      // Configurar alias SSH para equipamentos legados após o shell iniciar
+      setTimeout(() => {
+        if (ptyProcess) {
+          ptyProcess.write(`alias ssh='ssh -F ${sshConfigPath}'\n`);
+          ptyProcess.write("clear\n");
+        }
+      }, 500);
 
       ptyProcess.onData((data: string) => {
         if (ws.readyState === WebSocket.OPEN) {

@@ -1,0 +1,8 @@
+# Configuração para equipamentos legados (Mikrotik, switches antigos, etc.)
+Host *
+    KexAlgorithms +diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1
+    HostKeyAlgorithms +ssh-rsa,ssh-dss
+    Ciphers +aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+    MACs +hmac-sha1,hmac-md5
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
