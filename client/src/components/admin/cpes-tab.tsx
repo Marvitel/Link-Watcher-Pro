@@ -226,6 +226,12 @@ export function CpesTab() {
     return CPE_TYPES.find((t) => t.value === type)?.label || type;
   };
 
+  const isMikrotik = () => {
+    if (!formData.vendorId) return false;
+    const vendor = vendors?.find((v) => v.id === formData.vendorId);
+    return vendor?.slug === "mikrotik";
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -507,57 +513,61 @@ export function CpesTab() {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="winboxPort">Porta Winbox (Mikrotik)</Label>
-                          <Input
-                            id="winboxPort"
-                            type="number"
-                            value={formData.winboxPort}
-                            onChange={(e) => setFormData({ ...formData, winboxPort: parseInt(e.target.value) || 8291 })}
-                            className="w-32"
-                            data-testid="input-winbox-port"
-                          />
+                      {isMikrotik() && (
+                        <div className="mt-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="winboxPort">Porta Winbox (Mikrotik)</Label>
+                            <Input
+                              id="winboxPort"
+                              type="number"
+                              value={formData.winboxPort}
+                              onChange={(e) => setFormData({ ...formData, winboxPort: parseInt(e.target.value) || 8291 })}
+                              className="w-32"
+                              data-testid="input-winbox-port"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </>
                 )}
 
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Informações Adicionais</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="serialNumber">Número de Série</Label>
-                      <Input
-                        id="serialNumber"
-                        value={formData.serialNumber}
-                        onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-                        data-testid="input-serial"
-                      />
+                {!formData.isStandard && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium mb-3">Informações Adicionais</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="serialNumber">Número de Série</Label>
+                        <Input
+                          id="serialNumber"
+                          value={formData.serialNumber}
+                          onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                          data-testid="input-serial"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="macAddress">Endereço MAC</Label>
+                        <Input
+                          id="macAddress"
+                          value={formData.macAddress}
+                          onChange={(e) => setFormData({ ...formData, macAddress: e.target.value })}
+                          placeholder="Ex: AA:BB:CC:DD:EE:FF"
+                          data-testid="input-mac"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="macAddress">Endereço MAC</Label>
-                      <Input
-                        id="macAddress"
-                        value={formData.macAddress}
-                        onChange={(e) => setFormData({ ...formData, macAddress: e.target.value })}
-                        placeholder="Ex: AA:BB:CC:DD:EE:FF"
-                        data-testid="input-mac"
+                    <div className="mt-3 space-y-2">
+                      <Label htmlFor="notes">Observações</Label>
+                      <Textarea
+                        id="notes"
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        rows={3}
+                        data-testid="textarea-notes"
                       />
                     </div>
                   </div>
-                  <div className="mt-3 space-y-2">
-                    <Label htmlFor="notes">Observações</Label>
-                    <Textarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={3}
-                      data-testid="textarea-notes"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
