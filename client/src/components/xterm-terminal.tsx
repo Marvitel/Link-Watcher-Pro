@@ -1,7 +1,9 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { getAuthToken } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 
 interface XtermTerminalProps {
@@ -16,6 +18,7 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
   const fitAddon = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const initialCommandSent = useRef(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const connect = useCallback(() => {
     if (!terminalRef.current) return;
@@ -98,73 +101,110 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
         token,
         cols: term.cols, 
         rows: term.rows,
-        env: sshPassword ? { SSHPASS: sshPassword } : undefined,
+        sshPassword: sshPassword || undefined
       }));
     };
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "ready") {
-          term.writeln("\x1b[32mConectado!\x1b[0m\r\n");
-          // Enviar comando inicial após autenticação confirmada
-          if (initialCommand && !initialCommandSent.current) {
-            initialCommandSent.current = true;
-            setTimeout(() => {
-              ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
-            }, 300);
+    ws.onerror = (error) => {
+      // Se falhou na porta principal e não estamos na porta admin, tenta a porta admin
+      if (!usingFallback && !isAlreadyOnAdminPort) {
+        term.writeln("\x1b[33mTentando conexão alternativa...\x1b[0m");
+        usingFallback = true;
+        ws = new WebSocket(fallbackUrl);
+        wsRef.current = ws;
+        
+        ws.onopen = () => {
+          const token = getAuthToken();
+          if (!token) {
+            term.writeln("\x1b[31mErro: Não autenticado. Faça login novamente.\x1b[0m");
+            ws.close();
+            return;
           }
-        } else if (msg.type === "output") {
-          term.write(msg.data);
-        } else if (msg.type === "error") {
-          term.writeln(`\r\n\x1b[31mErro: ${msg.error}\x1b[0m`);
-        } else if (msg.type === "exit") {
-          term.writeln(`\r\n\x1b[31mSessão encerrada (código: ${msg.exitCode})\x1b[0m`);
-        }
-      } catch {
-        term.write(event.data);
+          
+          term.writeln("\x1b[33mAutenticando...\x1b[0m");
+          ws.send(JSON.stringify({ 
+            type: "init",
+            token,
+            cols: term.cols, 
+            rows: term.rows,
+            sshPassword: sshPassword || undefined
+          }));
+        };
+        
+        ws.onerror = () => {
+          term.writeln("\x1b[31mErro: Não foi possível conectar ao terminal.\x1b[0m");
+          term.writeln("\x1b[31mVerifique se o servidor está rodando.\x1b[0m");
+        };
+        
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "output") {
+            term.write(data.data);
+          } else if (data.type === "authenticated") {
+            term.writeln("\x1b[32mConectado!\x1b[0m");
+            term.writeln("");
+            
+            // Enviar comando inicial se fornecido (somente uma vez)
+            if (initialCommand && !initialCommandSent.current) {
+              initialCommandSent.current = true;
+              // Configura alias SSH com timeout menor para resposta rápida
+              const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
+              setTimeout(() => {
+                ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
+                // Executa o comando SSH após o alias
+                setTimeout(() => {
+                  ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+                }, 300);
+              }, 100);
+            }
+          } else if (data.type === "auth_error") {
+            term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
+            ws.close();
+          } else if (data.type === "error") {
+            term.writeln(`\x1b[31mErro: ${data.message}\x1b[0m`);
+          }
+        };
+        
+        ws.onclose = () => {
+          term.writeln("\x1b[33mConexão encerrada.\x1b[0m");
+        };
+      } else {
+        term.writeln("\x1b[31mErro: Não foi possível conectar ao terminal.\x1b[0m");
+        term.writeln("\x1b[31mVerifique se o servidor está rodando.\x1b[0m");
       }
     };
 
-    ws.onerror = () => {
-      // Se falhou na porta atual e não é a porta admin, tentar na porta admin
-      if (!usingFallback && !isAlreadyOnAdminPort) {
-        term.writeln("\r\n\x1b[33mTentando porta administrativa...\x1b[0m");
-        usingFallback = true;
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "output") {
+        term.write(data.data);
+      } else if (data.type === "authenticated") {
+        term.writeln("\x1b[32mConectado!\x1b[0m");
+        term.writeln("");
         
-        // Criar nova conexão na porta admin
-        const fallbackWs = new WebSocket(fallbackUrl);
-        wsRef.current = fallbackWs;
-        
-        fallbackWs.onopen = ws.onopen;
-        fallbackWs.onmessage = ws.onmessage;
-        fallbackWs.onerror = () => {
-          term.writeln("\r\n\x1b[31mErro na conexão WebSocket (porta admin também falhou)\x1b[0m");
-        };
-        fallbackWs.onclose = () => {
-          term.writeln("\r\n\x1b[33mConexão encerrada\x1b[0m");
-        };
-        
-        // Reconectar handlers de input
-        term.onData((data) => {
-          if (fallbackWs.readyState === WebSocket.OPEN) {
-            fallbackWs.send(JSON.stringify({ type: "input", data }));
-          }
-        });
-        term.onResize(({ cols, rows }) => {
-          if (fallbackWs.readyState === WebSocket.OPEN) {
-            fallbackWs.send(JSON.stringify({ type: "resize", cols, rows }));
-          }
-        });
-      } else {
-        term.writeln("\r\n\x1b[31mErro na conexão WebSocket\x1b[0m");
+        // Enviar comando inicial se fornecido (somente uma vez)
+        if (initialCommand && !initialCommandSent.current) {
+          initialCommandSent.current = true;
+          // Configura alias SSH com timeout menor para resposta rápida
+          const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
+          setTimeout(() => {
+            ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
+            // Executa o comando SSH após o alias
+            setTimeout(() => {
+              ws.send(JSON.stringify({ type: "input", data: initialCommand + "\n" }));
+            }, 300);
+          }, 100);
+        }
+      } else if (data.type === "auth_error") {
+        term.writeln(`\x1b[31mErro de autenticação: ${data.message}\x1b[0m`);
+        ws.close();
+      } else if (data.type === "error") {
+        term.writeln(`\x1b[31mErro: ${data.message}\x1b[0m`);
       }
     };
 
     ws.onclose = () => {
-      if (!usingFallback) {
-        term.writeln("\r\n\x1b[33mConexão encerrada\x1b[0m");
-      }
+      term.writeln("\x1b[33mConexão encerrada.\x1b[0m");
     };
 
     term.onData((data) => {
@@ -173,15 +213,16 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
       }
     });
 
-    term.onResize(({ cols, rows }) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "resize", cols, rows }));
-      }
-    });
-
     const handleResize = () => {
-      if (fitAddon.current) {
+      if (fitAddon.current && terminalInstance.current) {
         fitAddon.current.fit();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ 
+            type: "resize", 
+            cols: terminalInstance.current.cols, 
+            rows: terminalInstance.current.rows 
+          }));
+        }
       }
     };
 
@@ -207,12 +248,109 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
     };
   }, [connect]);
 
+  // Refit terminal quando mudar fullscreen
+  useEffect(() => {
+    if (fitAddon.current && terminalInstance.current) {
+      // Pequeno delay para garantir que o DOM atualizou
+      setTimeout(() => {
+        fitAddon.current?.fit();
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ 
+            type: "resize", 
+            cols: terminalInstance.current?.cols, 
+            rows: terminalInstance.current?.rows 
+          }));
+        }
+      }, 50);
+    }
+  }, [isFullscreen]);
+
+  // Escape para sair do fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
+  if (isFullscreen) {
+    return (
+      <div 
+        className="fixed inset-0 z-50 bg-[#1e1e1e] flex flex-col"
+        data-testid="terminal-fullscreen"
+      >
+        <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#404040]">
+          <span className="text-[#5af78e] font-mono text-sm">Terminal SSH</span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={toggleFullscreen}
+              className="text-gray-400 hover:text-white hover:bg-[#404040]"
+              data-testid="button-exit-fullscreen"
+            >
+              <Minimize2 className="w-4 h-4 mr-1" />
+              Sair da Tela Cheia
+            </Button>
+            {onClose && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onClose}
+                className="text-gray-400 hover:text-red-400 hover:bg-[#404040]"
+                data-testid="button-close-terminal"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <div 
+          ref={terminalRef} 
+          className="flex-1 w-full"
+          data-testid="xterm-terminal"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={toggleFullscreen}
+          className="h-7 px-2 text-gray-400 hover:text-white bg-[#2d2d2d]/80 hover:bg-[#404040]"
+          title="Tela Cheia (ESC para sair)"
+          data-testid="button-fullscreen"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </Button>
+        {onClose && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onClose}
+            className="h-7 px-2 text-gray-400 hover:text-red-400 bg-[#2d2d2d]/80 hover:bg-[#404040]"
+            title="Fechar Terminal"
+            data-testid="button-close-terminal-inline"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
       <div 
         ref={terminalRef} 
         className="w-full rounded-md overflow-hidden"
-        style={{ height: "400px" }}
+        style={{ height: "500px" }}
         data-testid="xterm-terminal"
       />
     </div>
