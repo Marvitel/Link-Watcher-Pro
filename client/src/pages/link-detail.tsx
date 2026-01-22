@@ -1497,15 +1497,15 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const user = device.sshUser || "admin";
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
-    // Usa variável SSH_CONFIG passada pelo terminal (definida em server/terminal.ts)
+    // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
+    const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
     if (device.sshPassword) {
-      // Usa sshpass -e para ler senha da variável SSHPASS (não aparece no histórico)
       return {
-        command: `sshpass -e ssh -F $SSH_CONFIG ${portArg}${user}@${device.ip}`,
+        command: `sshpass -e ssh ${legacyOpts} ${portArg}${user}@${device.ip}`,
         password: device.sshPassword,
       };
     }
-    return { command: `ssh -F $SSH_CONFIG ${portArg}${user}@${device.ip}` };
+    return { command: `ssh ${legacyOpts} ${portArg}${user}@${device.ip}` };
   };
 
   const toggleTerminal = (type: TerminalType) => {
@@ -1744,11 +1744,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           devices.cpes.map((cpe) => {
             const isOpen = openCpeTerminals[cpe.id || 0] || false;
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
-            // Usa variável SSH_CONFIG passada pelo terminal (definida em server/terminal.ts)
+            // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
+            const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
             const sshCommand = cpe.ip && cpe.sshUser 
               ? (cpe.sshPassword 
-                  ? `sshpass -e ssh -F $SSH_CONFIG -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`
-                  : `ssh -F $SSH_CONFIG -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`)
+                  ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`
+                  : `ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
             return (
