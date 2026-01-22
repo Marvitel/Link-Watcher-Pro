@@ -65,9 +65,10 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers } from "lucide-react";
+import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
+import { Database, Globe, Plug, Server, Layers, Router } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
+import { CpesTab } from "@/components/admin/cpes-tab";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -3933,6 +3934,10 @@ export default function Admin() {
             <Cpu className="w-4 h-4" />
             Fabricantes
           </TabsTrigger>
+          <TabsTrigger value="cpes" className="gap-2" data-testid="tab-cpes">
+            <Router className="w-4 h-4" />
+            CPEs
+          </TabsTrigger>
           <TabsTrigger value="database" className="gap-2">
             <Database className="w-4 h-4" />
             Banco de Dados
@@ -4474,6 +4479,10 @@ export default function Admin() {
 
         <TabsContent value="vendors" className="space-y-4">
           <EquipmentVendorsTab />
+        </TabsContent>
+
+        <TabsContent value="cpes" className="space-y-4">
+          <CpesTab />
         </TabsContent>
 
         <TabsContent value="database" className="space-y-4">

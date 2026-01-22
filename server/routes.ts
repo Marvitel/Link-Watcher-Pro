@@ -21,6 +21,8 @@ import {
   insertSnmpProfileSchema,
   insertMibConfigSchema,
   insertClientEventSettingSchema,
+  insertCpeSchema,
+  insertLinkCpeSchema,
   insertOltSchema,
   insertSnmpConcentratorSchema,
   insertErpIntegrationSchema,
@@ -3208,6 +3210,139 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Falha ao excluir fabricante" });
+    }
+  });
+
+  // CPE Management Endpoints
+  app.get("/api/cpes", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const cpesList = await storage.getCpes();
+      res.json(cpesList);
+    } catch (error) {
+      console.error("Error fetching CPEs:", error);
+      res.status(500).json({ error: "Falha ao buscar CPEs" });
+    }
+  });
+
+  app.get("/api/cpes/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const id = parseInt(req.params.id, 10);
+      const cpe = await storage.getCpe(id);
+      if (!cpe) {
+        return res.status(404).json({ error: "CPE não encontrado" });
+      }
+      res.json(cpe);
+    } catch (error) {
+      console.error("Error fetching CPE:", error);
+      res.status(500).json({ error: "Falha ao buscar CPE" });
+    }
+  });
+
+  app.post("/api/cpes", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem criar CPEs" });
+      }
+      const data = insertCpeSchema.parse(req.body);
+      // Criptografar senhas se fornecidas e não já criptografadas
+      if (data.webPassword && !isEncrypted(data.webPassword)) {
+        data.webPassword = encrypt(data.webPassword);
+      }
+      if (data.sshPassword && !isEncrypted(data.sshPassword)) {
+        data.sshPassword = encrypt(data.sshPassword);
+      }
+      const cpe = await storage.createCpe(data);
+      res.json(cpe);
+    } catch (error) {
+      console.error("Error creating CPE:", error);
+      res.status(400).json({ error: "Dados inválidos para CPE" });
+    }
+  });
+
+  app.patch("/api/cpes/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem editar CPEs" });
+      }
+      const id = parseInt(req.params.id, 10);
+      const data = req.body;
+      // Criptografar senhas se fornecidas e não já criptografadas
+      if (data.webPassword && !isEncrypted(data.webPassword)) {
+        data.webPassword = encrypt(data.webPassword);
+      }
+      if (data.sshPassword && !isEncrypted(data.sshPassword)) {
+        data.sshPassword = encrypt(data.sshPassword);
+      }
+      const cpe = await storage.updateCpe(id, data);
+      res.json(cpe);
+    } catch (error) {
+      console.error("Error updating CPE:", error);
+      res.status(500).json({ error: "Falha ao atualizar CPE" });
+    }
+  });
+
+  app.delete("/api/cpes/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem excluir CPEs" });
+      }
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteCpe(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting CPE:", error);
+      res.status(500).json({ error: "Falha ao excluir CPE" });
+    }
+  });
+
+  // Link-CPE Associations
+  app.get("/api/links/:linkId/cpes", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const associations = await storage.getLinkCpes(linkId);
+      res.json(associations);
+    } catch (error) {
+      console.error("Error fetching link CPEs:", error);
+      res.status(500).json({ error: "Falha ao buscar CPEs do link" });
+    }
+  });
+
+  app.post("/api/links/:linkId/cpes", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem associar CPEs" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const data = insertLinkCpeSchema.parse({ ...req.body, linkId });
+      const association = await storage.addCpeToLink(data);
+      res.json(association);
+    } catch (error) {
+      console.error("Error adding CPE to link:", error);
+      res.status(400).json({ error: "Falha ao associar CPE ao link" });
+    }
+  });
+
+  app.delete("/api/links/:linkId/cpes/:cpeId", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem remover CPEs" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const cpeId = parseInt(req.params.cpeId, 10);
+      await storage.removeCpeFromLink(linkId, cpeId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing CPE from link:", error);
+      res.status(500).json({ error: "Falha ao remover CPE do link" });
     }
   });
 

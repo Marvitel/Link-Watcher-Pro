@@ -33,6 +33,8 @@ import {
   linkGroupMembers,
   externalIntegrations,
   blacklistChecks,
+  cpes,
+  linkCpes,
   type Client,
   type User,
   type Link,
@@ -83,6 +85,10 @@ import {
   type InsertEquipmentVendor,
   type InsertLinkGroup,
   type InsertLinkGroupMember,
+  type InsertCpe,
+  type InsertLinkCpe,
+  type Cpe,
+  type LinkCpe,
   type RadiusGroupMapping,
   type InsertRadiusGroupMapping,
   type SLAIndicator,
@@ -2525,6 +2531,60 @@ export class DatabaseStorage {
       ));
     
     console.log(`[BlacklistEvent] Resolved blacklist events for link ${linkId}`);
+  }
+
+  // CPE Management
+  async getCpes(): Promise<Cpe[]> {
+    return await db.select().from(cpes).where(eq(cpes.isActive, true)).orderBy(cpes.name);
+  }
+
+  async getCpe(id: number): Promise<Cpe | undefined> {
+    const [cpe] = await db.select().from(cpes).where(eq(cpes.id, id));
+    return cpe;
+  }
+
+  async createCpe(data: InsertCpe): Promise<Cpe> {
+    const [cpe] = await db.insert(cpes).values(data).returning();
+    return cpe;
+  }
+
+  async updateCpe(id: number, data: Partial<InsertCpe>): Promise<Cpe | undefined> {
+    const [cpe] = await db.update(cpes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(cpes.id, id))
+      .returning();
+    return cpe;
+  }
+
+  async deleteCpe(id: number): Promise<void> {
+    await db.update(cpes).set({ isActive: false, updatedAt: new Date() }).where(eq(cpes.id, id));
+  }
+
+  // Link-CPE Associations
+  async getLinkCpes(linkId: number): Promise<(LinkCpe & { cpe: Cpe })[]> {
+    const associations = await db.select().from(linkCpes).where(eq(linkCpes.linkId, linkId));
+    const result: (LinkCpe & { cpe: Cpe })[] = [];
+    for (const assoc of associations) {
+      const cpe = await this.getCpe(assoc.cpeId);
+      if (cpe) {
+        result.push({ ...assoc, cpe });
+      }
+    }
+    return result;
+  }
+
+  async addCpeToLink(data: InsertLinkCpe): Promise<LinkCpe> {
+    const [assoc] = await db.insert(linkCpes).values(data).returning();
+    return assoc;
+  }
+
+  async removeCpeFromLink(linkId: number, cpeId: number): Promise<void> {
+    await db.delete(linkCpes).where(and(eq(linkCpes.linkId, linkId), eq(linkCpes.cpeId, cpeId)));
+  }
+
+  async updateLinkCpe(id: number, data: Partial<InsertLinkCpe>): Promise<LinkCpe | undefined> {
+    const [assoc] = await db.update(linkCpes).set(data).where(eq(linkCpes.id, id)).returning();
+    return assoc;
   }
 }
 

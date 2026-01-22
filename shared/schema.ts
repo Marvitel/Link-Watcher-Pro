@@ -251,6 +251,47 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Cadastro de CPEs (Customer Premises Equipment) - equipamentos nas instalações do cliente
+export const cpes = pgTable("cpes", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: varchar("type", { length: 30 }).notNull().default("cpe"), // cpe, firewall, switch, router, onu
+  vendorId: integer("vendor_id"), // FK para equipmentVendors
+  model: varchar("model", { length: 100 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  // Indicador de acesso
+  hasAccess: boolean("has_access").notNull().default(true), // false = equipamento do cliente sem acesso
+  ownership: varchar("ownership", { length: 20 }).notNull().default("marvitel"), // marvitel, client
+  // Credenciais Web
+  webProtocol: varchar("web_protocol", { length: 10 }).default("http"), // http, https
+  webPort: integer("web_port").default(80),
+  webUser: varchar("web_user", { length: 100 }),
+  webPassword: text("web_password"), // Criptografado
+  // Credenciais SSH/Telnet
+  sshPort: integer("ssh_port").default(22),
+  sshUser: varchar("ssh_user", { length: 100 }),
+  sshPassword: text("ssh_password"), // Criptografado
+  // Winbox (Mikrotik)
+  winboxPort: integer("winbox_port").default(8291),
+  // Metadados
+  serialNumber: varchar("serial_number", { length: 100 }),
+  macAddress: varchar("mac_address", { length: 17 }),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Associação entre Links e CPEs (muitos-para-muitos)
+export const linkCpes = pgTable("link_cpes", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  cpeId: integer("cpe_id").notNull(),
+  role: varchar("role", { length: 30 }).default("primary"), // primary, backup, firewall
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const mibConfigs = pgTable("mib_configs", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull(),
@@ -571,6 +612,8 @@ export const insertLinkGroupSchema = createInsertSchema(linkGroups).omit({ id: t
 export const insertLinkGroupMemberSchema = createInsertSchema(linkGroupMembers).omit({ id: true, createdAt: true });
 export const insertOpticalSettingsSchema = createInsertSchema(opticalSettings).omit({ id: true, updatedAt: true });
 export const insertSplitterSchema = createInsertSchema(splitters).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCpeSchema = createInsertSchema(cpes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLinkCpeSchema = createInsertSchema(linkCpes).omit({ id: true, createdAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -599,6 +642,8 @@ export type InsertLinkGroup = z.infer<typeof insertLinkGroupSchema>;
 export type InsertLinkGroupMember = z.infer<typeof insertLinkGroupMemberSchema>;
 export type InsertOpticalSettings = z.infer<typeof insertOpticalSettingsSchema>;
 export type InsertSplitter = z.infer<typeof insertSplitterSchema>;
+export type InsertCpe = z.infer<typeof insertCpeSchema>;
+export type InsertLinkCpe = z.infer<typeof insertLinkCpeSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -627,6 +672,8 @@ export type LinkGroup = typeof linkGroups.$inferSelect;
 export type LinkGroupMember = typeof linkGroupMembers.$inferSelect;
 export type OpticalSettings = typeof opticalSettings.$inferSelect;
 export type Splitter = typeof splitters.$inferSelect;
+export type Cpe = typeof cpes.$inferSelect;
+export type LinkCpe = typeof linkCpes.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {
