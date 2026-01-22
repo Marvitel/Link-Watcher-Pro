@@ -140,7 +140,7 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
           const data = JSON.parse(event.data);
           if (data.type === "output") {
             term.write(data.data);
-          } else if (data.type === "authenticated") {
+          } else if (data.type === "authenticated" || data.type === "ready") {
             term.writeln("\x1b[32mConectado!\x1b[0m");
             term.writeln("");
             
@@ -196,7 +196,7 @@ export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTer
       const data = JSON.parse(event.data);
       if (data.type === "output") {
         term.write(data.data);
-      } else if (data.type === "authenticated") {
+      } else if (data.type === "authenticated" || data.type === "ready") {
         term.writeln("\x1b[32mConectado!\x1b[0m");
         term.writeln("");
         
