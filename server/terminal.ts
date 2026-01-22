@@ -138,7 +138,7 @@ export function setupTerminalWebSocket(server: Server) {
             // Criar PTY com configuração inicial
             if (!ptyProcess) {
               createPty(msg.cols, msg.rows, msg.env);
-              ws.send(JSON.stringify({ type: "ready" }));
+              ws.send(JSON.stringify({ type: "authenticated" }));
             }
             break;
             
