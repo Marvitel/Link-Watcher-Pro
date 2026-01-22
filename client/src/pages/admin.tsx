@@ -1572,77 +1572,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         </div>
 
-        <div className="space-y-2 mt-3">
-          <Label htmlFor="snmpCommunity">Community SNMP (sobrescreve o perfil)</Label>
-          <Input
-            id="snmpCommunity"
-            value={formData.snmpCommunity}
-            onChange={(e) => setFormData({ ...formData, snmpCommunity: e.target.value })}
-            placeholder="Deixe vazio para usar a community do perfil"
-            data-testid="input-snmp-community"
-          />
-          <p className="text-xs text-muted-foreground">Se informado, será usado ao invés da community do perfil SNMP selecionado</p>
-        </div>
-      </div>
-
-      <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Equipamento de Rede</h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="equipmentVendorId">Fabricante</Label>
-            <Select
-              value={formData.equipmentVendorId?.toString() || "none"}
-              onValueChange={(value) => setFormData({ ...formData, equipmentVendorId: value === "none" ? null : parseInt(value, 10) })}
-            >
-              <SelectTrigger data-testid="select-equipment-vendor">
-                <SelectValue placeholder="Selecione o fabricante" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum / Não coletar CPU/Memória</SelectItem>
-                {equipmentVendors?.map((vendor) => (
-                  <SelectItem key={vendor.id} value={vendor.id.toString()}>
-                    {vendor.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="equipmentModel">Modelo do Equipamento</Label>
-            <Input
-              id="equipmentModel"
-              value={formData.equipmentModel}
-              onChange={(e) => setFormData({ ...formData, equipmentModel: e.target.value })}
-              placeholder="FortiGate 60F, Mikrotik RB3011, etc."
-              data-testid="input-equipment-model"
-            />
-          </div>
-        </div>
-        
-        {formData.equipmentVendorId && equipmentVendors?.find(v => v.id === formData.equipmentVendorId)?.slug === "custom" && (
-          <div className="grid grid-cols-2 gap-4 mt-3">
-            <div className="space-y-2">
-              <Label htmlFor="customCpuOid">OID Customizado CPU</Label>
-              <Input
-                id="customCpuOid"
-                value={formData.customCpuOid}
-                onChange={(e) => setFormData({ ...formData, customCpuOid: e.target.value })}
-                placeholder="1.3.6.1.4.1...."
-                data-testid="input-custom-cpu-oid"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customMemoryOid">OID Customizado Memória</Label>
-              <Input
-                id="customMemoryOid"
-                value={formData.customMemoryOid}
-                onChange={(e) => setFormData({ ...formData, customMemoryOid: e.target.value })}
-                placeholder="1.3.6.1.4.1...."
-                data-testid="input-custom-memory-oid"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="border-t pt-4 mt-4">
@@ -2009,7 +1938,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     <CommandEmpty>Nenhum equipamento encontrado.</CommandEmpty>
                     <CommandGroup heading="Equipamentos disponíveis">
                       {allCpes
-                        .filter((cpe) => !selectedCpes.some((s) => s.cpeId === cpe.id))
+                        .filter((cpe) => cpe.isStandard || !selectedCpes.some((s) => s.cpeId === cpe.id))
                         .map((cpe) => (
                           <CommandItem
                             key={cpe.id}
@@ -2019,7 +1948,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                                 cpeId: cpe.id, 
                                 role: "primary",
                                 ipOverride: cpe.isStandard ? "" : (cpe.ipAddress || ""),
-                                showInEquipmentTab: selectedCpes.length === 0
+                                showInEquipmentTab: selectedCpes.length === 0,
+                                instanceId: cpe.isStandard ? `${cpe.id}-${Date.now()}` : undefined
                               }]);
                             }}
                             data-testid={`command-item-cpe-${cpe.id}`}
@@ -2042,13 +1972,14 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             {/* Lista de CPEs selecionados */}
             {selectedCpes.length > 0 && (
               <div className="space-y-2 border rounded-md p-2">
-                {selectedCpes.map((sel) => {
+                {selectedCpes.map((sel, idx) => {
                   const cpe = allCpes.find((c) => c.id === sel.cpeId);
                   if (!cpe) return null;
                   const isStandard = cpe.isStandard ?? false;
+                  const selKey = (sel as any).instanceId || sel.cpeId;
                   return (
                     <div 
-                      key={sel.cpeId}
+                      key={selKey}
                       className="flex items-center justify-between gap-2 p-2 rounded bg-primary/10"
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -2069,8 +2000,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                           placeholder={isStandard ? "IP do link" : "IP"}
                           value={(sel as any).ipOverride || ""}
                           onChange={(e) => {
-                            setSelectedCpes(selectedCpes.map((s) =>
-                              s.cpeId === sel.cpeId ? { ...s, ipOverride: e.target.value } : s
+                            setSelectedCpes(selectedCpes.map((s, i) =>
+                              i === idx ? { ...s, ipOverride: e.target.value } : s
                             ));
                           }}
                           className="h-7 text-xs"
@@ -2082,12 +2013,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                       <Select
                         value={sel.role || "primary"}
                         onValueChange={(v) => {
-                          setSelectedCpes(selectedCpes.map((s) =>
-                            s.cpeId === sel.cpeId ? { ...s, role: v } : s
+                          setSelectedCpes(selectedCpes.map((s, i) =>
+                            i === idx ? { ...s, role: v } : s
                           ));
                         }}
                       >
-                        <SelectTrigger className="w-28 h-7 text-xs" data-testid={`select-cpe-role-${sel.cpeId}`}>
+                        <SelectTrigger className="w-28 h-7 text-xs" data-testid={`select-cpe-role-${selKey}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -2104,12 +2035,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                           type="checkbox"
                           checked={(sel as any).showInEquipmentTab || false}
                           onChange={(e) => {
-                            setSelectedCpes(selectedCpes.map((s) =>
-                              s.cpeId === sel.cpeId ? { ...s, showInEquipmentTab: e.target.checked } : s
+                            setSelectedCpes(selectedCpes.map((s, i) =>
+                              i === idx ? { ...s, showInEquipmentTab: e.target.checked } : s
                             ));
                           }}
                           className="w-3 h-3"
-                          data-testid={`checkbox-equipment-tab-${sel.cpeId}`}
+                          data-testid={`checkbox-equipment-tab-${selKey}`}
                         />
                         <Monitor className="w-3 h-3 text-muted-foreground" />
                       </div>
@@ -2119,8 +2050,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => setSelectedCpes(selectedCpes.filter((s) => s.cpeId !== sel.cpeId))}
-                        data-testid={`button-remove-cpe-${sel.cpeId}`}
+                        onClick={() => setSelectedCpes(selectedCpes.filter((_, i) => i !== idx))}
+                        data-testid={`button-remove-cpe-${selKey}`}
                       >
                         <X className="w-4 h-4" />
                       </Button>
