@@ -28,27 +28,15 @@ tar --exclude='node_modules' --exclude='dist' -czf $BACKUP_DIR/backup_$TIMESTAMP
 echo "Backup salvo em: $BACKUP_DIR/backup_$TIMESTAMP.tar.gz"
 
 echo ""
-echo "[2/6] Parando serviço..."
-systemctl stop link-monitor
+echo "[2/6] Atualizando código via git..."
+cd $APP_DIR
+git fetch origin
+git reset --hard origin/main
+echo "Código atualizado para última versão"
 
 echo ""
-echo "[3/6] Atualizando arquivos..."
-if [ -d "./client" ] && [ -d "./server" ]; then
-  cp -r ./client $APP_DIR/
-  cp -r ./server $APP_DIR/
-  cp -r ./shared $APP_DIR/
-  cp ./package.json $APP_DIR/
-  cp ./package-lock.json $APP_DIR/ 2>/dev/null || true
-  cp ./tsconfig.json $APP_DIR/
-  cp ./vite.config.ts $APP_DIR/
-  cp ./drizzle.config.ts $APP_DIR/
-  cp ./tailwind.config.ts $APP_DIR/
-  cp ./postcss.config.js $APP_DIR/ 2>/dev/null || true
-else
-  echo "ERRO: Execute este script no diretório com os novos arquivos do projeto"
-  systemctl start link-monitor
-  exit 1
-fi
+echo "[3/6] Parando serviço..."
+systemctl stop link-monitor
 
 echo ""
 echo "[4/6] Instalando dependências..."
