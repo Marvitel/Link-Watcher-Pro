@@ -2029,6 +2029,7 @@ export async function collectAllCpesMetrics(): Promise<void> {
         
         // Verificar se o fabricante tem OIDs de CPU/memória configurados
         if (!vendor.cpuOid && !vendor.memoryOid) {
+          console.log(`[Monitor/CPE] CPE ${cpe.id} (${cpe.name}): fabricante ${vendor.name} sem OIDs de CPU/memória configurados`);
           return;
         }
         
