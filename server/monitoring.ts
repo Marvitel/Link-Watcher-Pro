@@ -2098,17 +2098,30 @@ export async function collectAllCpesMetrics(): Promise<void> {
         );
         
         if (resources) {
-          // Atualizar CPE com métricas coletadas
-          await db.update(cpes)
-            .set({
-              cpuUsage: resources.cpuUsage,
-              memoryUsage: resources.memoryUsage,
-              lastMonitoredAt: new Date(),
-              updatedAt: new Date()
-            })
-            .where(eq(cpes.id, cpe.id));
+          const now = new Date();
           
-          console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+          // Para CPEs padrão com linkCpeId, salvar métricas na associação (link_cpes)
+          // Para CPEs não-padrão, salvar métricas no próprio CPE
+          if (cpe.isStandard && cpe.linkCpeId) {
+            await db.update(linkCpes)
+              .set({
+                cpuUsage: resources.cpuUsage,
+                memoryUsage: resources.memoryUsage,
+                lastMonitoredAt: now
+              })
+              .where(eq(linkCpes.id, cpe.linkCpeId));
+            console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}) [linkCpe=${cpe.linkCpeId}]: CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+          } else {
+            await db.update(cpes)
+              .set({
+                cpuUsage: resources.cpuUsage,
+                memoryUsage: resources.memoryUsage,
+                lastMonitoredAt: now,
+                updatedAt: now
+              })
+              .where(eq(cpes.id, cpe.id));
+            console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+          }
         } else {
           console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): SNMP retornou null (timeout ou erro)`);
         }

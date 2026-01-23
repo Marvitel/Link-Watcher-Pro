@@ -1510,8 +1510,16 @@ export async function registerRoutes(
         const effectiveIp = assoc.ipOverride || cpe.ipAddress;
         // Buscar nome do fabricante
         const vendor = cpe.vendorId ? vendorsMap.get(cpe.vendorId) : null;
+        
+        // Para CPEs padrão, usar métricas da associação (link_cpes); caso contrário, usar do CPE
+        const useAssocMetrics = cpe.isStandard && assoc.lastMonitoredAt;
+        const cpuUsage = useAssocMetrics ? assoc.cpuUsage : cpe.cpuUsage;
+        const memoryUsage = useAssocMetrics ? assoc.memoryUsage : cpe.memoryUsage;
+        const lastMonitoredAt = useAssocMetrics ? assoc.lastMonitoredAt : cpe.lastMonitoredAt;
+        
         return {
           id: cpe.id,
+          linkCpeId: assoc.id,
           name: cpe.name,
           type: cpe.type,
           ip: effectiveIp,
@@ -1529,9 +1537,9 @@ export async function registerRoutes(
           webProtocol: cpe.webProtocol || "http",
           winboxPort: cpe.winboxPort || 8291,
           hasAccess: cpe.hasAccess,
-          cpuUsage: cpe.lastMonitoredAt ? (cpe.cpuUsage ?? null) : null,
-          memoryUsage: cpe.lastMonitoredAt ? (cpe.memoryUsage ?? null) : null,
-          lastMonitoredAt: cpe.lastMonitoredAt?.toISOString() || null,
+          cpuUsage: lastMonitoredAt ? (cpuUsage ?? null) : null,
+          memoryUsage: lastMonitoredAt ? (memoryUsage ?? null) : null,
+          lastMonitoredAt: lastMonitoredAt?.toISOString() || null,
         };
       }).filter(Boolean);
 

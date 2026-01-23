@@ -305,6 +305,10 @@ export const linkCpes = pgTable("link_cpes", {
   showInEquipmentTab: boolean("show_in_equipment_tab").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // Métricas por instância (para CPEs padrão com múltiplas instâncias)
+  cpuUsage: real("cpu_usage"),
+  memoryUsage: real("memory_usage"),
+  lastMonitoredAt: timestamp("last_monitored_at"),
 });
 
 export const mibConfigs = pgTable("mib_configs", {
