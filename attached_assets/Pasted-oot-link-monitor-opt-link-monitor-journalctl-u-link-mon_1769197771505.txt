@@ -1,0 +1,29 @@
+oot@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -E "\[Monitor/CPE\]"
+jan 23 16:44:51 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:44:51 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:44:51 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:45:26 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:45:26 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:45:26 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:45:50 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:45:50 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:45:50 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:46:20 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:46:20 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:46:20 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:46:50 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:46:50 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:46:50 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:47:24 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:47:24 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:47:24 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:47:54 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:47:54 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:47:54 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:48:22 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:48:22 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:48:22 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+jan 23 16:48:50 link-monitor npm[1948650]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 23 16:48:50 link-monitor npm[1948650]: [Monitor/CPE] CPEs ativos encontrados: 2
+jan 23 16:48:50 link-monitor npm[1948650]: [Monitor/CPE] Nenhum CPE monitorável (sem IP: 2, sem fabricante: 0, sem acesso: 0)
+root@link-monitor:/opt/link-monitor# 
