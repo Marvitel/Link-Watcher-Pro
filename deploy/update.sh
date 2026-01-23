@@ -24,7 +24,7 @@ fi
 
 echo "[1/6] Criando backup..."
 mkdir -p $BACKUP_DIR
-tar -czf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C /opt link-monitor --exclude='node_modules'
+tar --exclude='node_modules' --exclude='dist' -czf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C /opt link-monitor
 echo "Backup salvo em: $BACKUP_DIR/backup_$TIMESTAMP.tar.gz"
 
 echo ""
