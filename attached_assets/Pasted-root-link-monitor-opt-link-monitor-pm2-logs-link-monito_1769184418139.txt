@@ -1,0 +1,36 @@
+root@link-monitor:/opt/link-monitor# pm2 logs link-monitor --lines 50 | grep "\[Monitor"
+0|link-mon | [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.18Mbps, up=0.66Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.23Mbps, up=0.82Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.20Mbps, up=0.66Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.23Mbps, up=0.80Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.19Mbps, up=0.67Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.27Mbps, up=0.84Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.72Mbps, up=3.27Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.9ms, loss=0.0%, down=0.85Mbps, up=4.28Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.85Mbps, up=4.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=3.8ms, loss=0.0%, down=0.95Mbps, up=3.70Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=2.0ms, loss=0.0%, down=0.98Mbps, up=3.46Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.99Mbps, up=3.81Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.76Mbps, up=1.59Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.80Mbps, up=1.78Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.55Mbps, up=1.10Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.5ms, loss=0.0%, down=0.58Mbps, up=1.29Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.9ms, loss=0.0%, down=0.53Mbps, up=1.01Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=2.0ms, loss=0.0%, down=0.58Mbps, up=1.15Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.55Mbps, up=1.01Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.61Mbps, up=1.18Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.63Mbps, up=1.09Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.8ms, loss=0.0%, down=0.66Mbps, up=1.23Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Starting real-time monitoring with 30s interval
+0|link-mon | [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Starting real-time monitoring with 30s interval
+0|link-mon | [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=2.0ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Starting real-time monitoring with 30s interval
+0|link-mon | [Monitor] Central de Atendimento: latency=1.7ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=2.3ms, loss=0.0%, down=0.00Mbps, up=0.00Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.6ms, loss=0.0%, down=0.59Mbps, up=1.06Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.7ms, loss=0.0%, down=0.64Mbps, up=1.21Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Central de Atendimento: latency=1.8ms, loss=0.0%, down=0.52Mbps, up=0.96Mbps, cpu=0.0%, mem=0.0%, status=operational
+0|link-mon | [Monitor] Sede Administrativa: latency=1.3ms, loss=0.0%, down=0.57Mbps, up=1.12Mbps, cpu=0.0%, mem=0.0%, status=operational
