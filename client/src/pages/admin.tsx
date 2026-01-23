@@ -636,6 +636,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   // Estado para CPEs selecionados
   const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }>>([]);
 
+  // Limpar CPEs selecionados quando muda de link (editar outro ou criar novo)
+  useEffect(() => {
+    if (!link?.id) {
+      setSelectedCpes([]);
+    }
+  }, [link?.id]);
+
   // Inicializar CPEs selecionados quando carrega associações existentes
   useEffect(() => {
     if (linkCpeAssociations) {
