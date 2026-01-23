@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState, blacklistChecks } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes } from "@shared/schema";
 import { eq, and, not, like, gte } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
@@ -1948,12 +1948,112 @@ export async function collectAllLinksMetrics(): Promise<void> {
     const elapsed = Date.now() - startTime;
     
     console.log(`[Monitor] Collection complete: ${successful} ok, ${failed} failed, ${elapsed}ms elapsed`);
+    
+    // Coletar métricas dos CPEs após a coleta de links
+    try {
+      await collectAllCpesMetrics();
+    } catch (err) {
+      console.error("[Monitor] CPE collection error:", err);
+    }
   } catch (error) {
     console.error("[Monitor] Error in collectAllLinksMetrics:", error);
   }
 }
 
 let monitoringInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Coleta métricas de CPU/Memória de todos os CPEs cadastrados via SNMP
+ * Usa os OIDs configurados no fabricante (equipmentVendors) associado ao CPE
+ */
+export async function collectAllCpesMetrics(): Promise<void> {
+  try {
+    // Buscar todos os CPEs ativos com IP e vendorId definidos
+    const allCpes = await db.select().from(cpes).where(eq(cpes.isActive, true));
+    const monitorableCpes = allCpes.filter(c => c.ipAddress && c.vendorId && c.hasAccess);
+    
+    if (monitorableCpes.length === 0) {
+      return;
+    }
+    
+    console.log(`[Monitor/CPE] Coletando métricas de ${monitorableCpes.length} CPEs...`);
+    
+    // Buscar perfis SNMP e vendors em paralelo
+    const [allProfiles, allVendors] = await Promise.all([
+      db.select().from(snmpProfiles),
+      db.select().from(equipmentVendors)
+    ]);
+    
+    const profilesMap = new Map(allProfiles.map(p => [p.id, p]));
+    const vendorsMap = new Map(allVendors.map(v => [v.id, v]));
+    
+    const collectCpeMetrics = async (cpe: typeof allCpes[0]) => {
+      try {
+        if (!cpe.ipAddress || !cpe.vendorId) return;
+        
+        const vendor = vendorsMap.get(cpe.vendorId);
+        if (!vendor) {
+          console.log(`[Monitor/CPE] CPE ${cpe.id} (${cpe.name}): fabricante ID ${cpe.vendorId} não encontrado`);
+          return;
+        }
+        
+        // Verificar se o fabricante tem OIDs de CPU/memória configurados
+        if (!vendor.cpuOid && !vendor.memoryOid) {
+          return;
+        }
+        
+        // Obter perfil SNMP (prioridade: CPE > Vendor)
+        const profileId = cpe.snmpProfileId || vendor.snmpProfileId;
+        const profile = profileId ? profilesMap.get(profileId) : null;
+        
+        // Se não encontrou perfil SNMP, pular este CPE (não usar fallback inseguro)
+        if (!profile) {
+          console.log(`[Monitor/CPE] CPE ${cpe.id} (${cpe.name}): sem perfil SNMP configurado - pulando coleta`);
+          return;
+        }
+        
+        // Montar configuração de memória
+        const memoryConfig = {
+          memoryOid: vendor.memoryOid,
+          memoryTotalOid: vendor.memoryTotalOid,
+          memoryUsedOid: vendor.memoryUsedOid,
+          memoryIsPercentage: vendor.memoryIsPercentage ?? true
+        };
+        
+        // Coletar recursos do sistema
+        const resources = await getSystemResources(
+          cpe.ipAddress,
+          profile,
+          vendor.cpuOid,
+          memoryConfig
+        );
+        
+        if (resources) {
+          // Atualizar CPE com métricas coletadas
+          await db.update(cpes)
+            .set({
+              cpuUsage: resources.cpuUsage,
+              memoryUsage: resources.memoryUsage,
+              lastMonitoredAt: new Date(),
+              updatedAt: new Date()
+            })
+            .where(eq(cpes.id, cpe.id));
+          
+          console.log(`[Monitor/CPE] ${cpe.name} (${cpe.ipAddress}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+        }
+      } catch (error) {
+        console.error(`[Monitor/CPE] Erro ao coletar ${cpe.name}:`, error);
+      }
+    };
+    
+    // Executar coleta em paralelo com limite de concorrência
+    await runWithConcurrencyLimit(monitorableCpes, PARALLEL_WORKERS, collectCpeMetrics);
+    
+    console.log(`[Monitor/CPE] Coleta de CPEs concluída`);
+  } catch (error) {
+    console.error("[Monitor/CPE] Erro na coleta de métricas dos CPEs:", error);
+  }
+}
 
 export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
   if (monitoringInterval) {

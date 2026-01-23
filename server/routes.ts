@@ -1521,6 +1521,9 @@ export async function registerRoutes(
           webProtocol: cpe.webProtocol || "http",
           winboxPort: cpe.winboxPort || 8291,
           hasAccess: cpe.hasAccess,
+          cpuUsage: cpe.lastMonitoredAt ? (cpe.cpuUsage ?? null) : null,
+          memoryUsage: cpe.lastMonitoredAt ? (cpe.memoryUsage ?? null) : null,
+          lastMonitoredAt: cpe.lastMonitoredAt?.toISOString() || null,
         };
       }).filter(Boolean);
 

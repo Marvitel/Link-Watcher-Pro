@@ -272,6 +272,19 @@ export default function LinkDetail() {
     staleTime: 60000, // Cache por 1 minuto
   });
 
+  // Buscar dispositivos do link (CPEs, OLT, Concentrador) para exibição na aba Equipamento
+  const { data: devicesInfo } = useQuery<DevicesInfo>({
+    queryKey: ["/api/links", linkId, "tools", "devices"],
+    enabled: !isNaN(linkId),
+    refetchInterval: 30000,
+  });
+  
+  // CPE principal para exibição na aba Equipamento (prioridade: showInEquipmentTab > primary > primeiro)
+  const equipmentCpe = devicesInfo?.cpes?.find((c: CpeDeviceInfo) => (c as any).showInEquipmentTab) 
+    || devicesInfo?.cpes?.find((c: CpeDeviceInfo) => c.role === "primary") 
+    || devicesInfo?.cpes?.[0] 
+    || null;
+
   // Buscar status de blacklist do link (endpoint específico por linkId para melhor performance)
   const { data: blacklistChecks, isLoading: blacklistLoading, refetch: refetchBlacklist } = useQuery<BlacklistCheck[]>({
     queryKey: ["/api/blacklist/cached", linkId],
@@ -824,39 +837,96 @@ export default function LinkDetail() {
             <Card>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 <Gauge className="w-5 h-5" />
-                <CardTitle className="text-base">Recursos do Sistema</CardTitle>
+                <CardTitle className="text-base">
+                  Recursos do Sistema
+                  {equipmentCpe && (
+                    <span className="text-xs text-muted-foreground ml-2 font-normal">
+                      ({equipmentCpe.name})
+                    </span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <Cpu className="w-4 h-4" />
-                      CPU
-                    </span>
-                    <span className="font-mono">{link.cpuUsage}%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${link.cpuUsage}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-2 text-muted-foreground">
-                      <HardDrive className="w-4 h-4" />
-                      Memória
-                    </span>
-                    <span className="font-mono">{link.memoryUsage}%</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${link.memoryUsage}%` }}
-                    />
-                  </div>
-                </div>
+                {equipmentCpe ? (
+                  equipmentCpe.lastMonitoredAt !== null && equipmentCpe.cpuUsage !== null ? (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <Cpu className="w-4 h-4" />
+                            CPU
+                          </span>
+                          <span className="font-mono">{(equipmentCpe.cpuUsage ?? 0).toFixed(1)}%</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${equipmentCpe.cpuUsage ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-2 text-muted-foreground">
+                            <HardDrive className="w-4 h-4" />
+                            Memória
+                          </span>
+                          <span className="font-mono">{(equipmentCpe.memoryUsage ?? 0).toFixed(1)}%</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${equipmentCpe.memoryUsage ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-right">
+                        Última coleta: {new Date(equipmentCpe.lastMonitoredAt!).toLocaleString('pt-BR')}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground text-sm">Aguardando coleta de métricas do CPE</p>
+                      <p className="text-xs text-muted-foreground mt-1">Verifique se o perfil SNMP está configurado corretamente</p>
+                    </div>
+                  )
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          <Cpu className="w-4 h-4" />
+                          CPU
+                        </span>
+                        <span className="font-mono">{link.cpuUsage}%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${link.cpuUsage}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          <HardDrive className="w-4 h-4" />
+                          Memória
+                        </span>
+                        <span className="font-mono">{link.memoryUsage}%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${link.memoryUsage}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Nenhum CPE cadastrado. Dados exibidos são do monitoramento da interface.
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1362,6 +1432,9 @@ interface CpeDeviceInfo extends DeviceInfo {
   manufacturer?: string;
   model?: string;
   hasAccess?: boolean;
+  cpuUsage?: number | null;
+  memoryUsage?: number | null;
+  lastMonitoredAt?: string | null;
 }
 
 interface DevicesInfo {
