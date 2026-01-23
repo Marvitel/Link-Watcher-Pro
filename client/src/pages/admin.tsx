@@ -8168,6 +8168,7 @@ interface EquipmentVendor {
   name: string;
   slug: string;
   cpuOid: string | null;
+  cpuDivisor: number;
   memoryOid: string | null;
   memoryTotalOid: string | null;
   memoryUsedOid: string | null;
@@ -8207,6 +8208,7 @@ function EquipmentVendorsTab() {
     name: "",
     slug: "",
     cpuOid: "",
+    cpuDivisor: 1,
     memoryOid: "",
     memoryTotalOid: "",
     memoryUsedOid: "",
@@ -8224,6 +8226,7 @@ function EquipmentVendorsTab() {
       name: "",
       slug: "",
       cpuOid: "",
+      cpuDivisor: 1,
       memoryOid: "",
       memoryTotalOid: "",
       memoryUsedOid: "",
@@ -8244,6 +8247,7 @@ function EquipmentVendorsTab() {
       name: vendor.name,
       slug: vendor.slug,
       cpuOid: vendor.cpuOid || "",
+      cpuDivisor: vendor.cpuDivisor ?? 1,
       memoryOid: vendor.memoryOid || "",
       memoryTotalOid: vendor.memoryTotalOid || "",
       memoryUsedOid: vendor.memoryUsedOid || "",
@@ -8368,15 +8372,30 @@ function EquipmentVendorsTab() {
                   data-testid="input-vendor-description"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>OID de CPU (%)</Label>
-                <Input
-                  value={formData.cpuOid}
-                  onChange={(e) => setFormData({ ...formData, cpuOid: e.target.value })}
-                  placeholder="Ex: 1.3.6.1.4.1.3709.3.5.201.1.1.1.1.0"
-                  className="font-mono text-sm"
-                  data-testid="input-vendor-cpu-oid"
-                />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <Label>OID de CPU</Label>
+                  <Input
+                    value={formData.cpuOid}
+                    onChange={(e) => setFormData({ ...formData, cpuOid: e.target.value })}
+                    placeholder="Ex: 1.3.6.1.4.1.3709.3.5.201.1.1.11.0"
+                    className="font-mono text-sm"
+                    data-testid="input-vendor-cpu-oid"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Divisor CPU</Label>
+                  <Input
+                    type="number"
+                    value={formData.cpuDivisor}
+                    onChange={(e) => setFormData({ ...formData, cpuDivisor: parseInt(e.target.value) || 1 })}
+                    placeholder="1"
+                    min={1}
+                    className="font-mono text-sm"
+                    data-testid="input-vendor-cpu-divisor"
+                  />
+                  <p className="text-xs text-muted-foreground">Use 100 se valor vier como 3315 = 33.15%</p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>OID de Memoria (% ou usado)</Label>

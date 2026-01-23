@@ -826,7 +826,8 @@ export async function getSystemResources(
   targetIp: string,
   profile: SnmpProfile,
   cpuOid?: string | null,
-  memoryConfig?: string | null | MemoryOids
+  memoryConfig?: string | null | MemoryOids,
+  cpuDivisor: number = 1
 ): Promise<SystemResourceResult | null> {
   // Parse memory config - can be a simple OID string or an object with multiple OIDs
   let memoryOid: string | null = null;
@@ -913,6 +914,10 @@ export async function getSystemResources(
             const vb = varbinds[oidMap.cpu];
             if (vb.type !== noSuchObject && vb.type !== noSuchInstance) {
               cpuUsage = parseSnmpValue(vb.value);
+              // Aplicar divisor (ex: 100 para valores como 3315 -> 33.15%)
+              if (cpuDivisor > 1) {
+                cpuUsage = cpuUsage / cpuDivisor;
+              }
             }
           }
 
@@ -1227,12 +1232,14 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
 
       // If no custom OIDs, try vendor OIDs
+      let cpuDivisor = 1;
       if ((!cpuOid || !memoryConfig.memoryOid) && link.equipmentVendorId) {
         const vendor = await getEquipmentVendor(link.equipmentVendorId);
-        console.log(`[Monitor] ${link.name} - vendorId: ${link.equipmentVendorId}, vendor: ${vendor?.name}, cpuOid: ${vendor?.cpuOid}, memOid: ${vendor?.memoryOid}, memTotalOid: ${vendor?.memoryTotalOid}, memUsedOid: ${vendor?.memoryUsedOid}`);
+        console.log(`[Monitor] ${link.name} - vendorId: ${link.equipmentVendorId}, vendor: ${vendor?.name}, cpuOid: ${vendor?.cpuOid}, cpuDivisor: ${vendor?.cpuDivisor}, memOid: ${vendor?.memoryOid}, memTotalOid: ${vendor?.memoryTotalOid}, memUsedOid: ${vendor?.memoryUsedOid}`);
         if (vendor) {
           if (!cpuOid && vendor.cpuOid) {
             cpuOid = vendor.cpuOid;
+            cpuDivisor = vendor.cpuDivisor ?? 1;
           }
           if (!memoryConfig.memoryOid) {
             memoryConfig = {
@@ -1247,8 +1254,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
       const hasMemoryOids = memoryConfig.memoryOid || (memoryConfig.memoryTotalOid && memoryConfig.memoryUsedOid);
       if (cpuOid || hasMemoryOids) {
-        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, memConfig: ${JSON.stringify(memoryConfig)}`);
-        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryConfig);
+        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, cpuDivisor: ${cpuDivisor}, memConfig: ${JSON.stringify(memoryConfig)}`);
+        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryConfig, cpuDivisor);
         console.log(`[Monitor] ${link.name} - Resultado CPU/Mem: cpu=${systemResources?.cpuUsage}, mem=${systemResources?.memoryUsage}`);
         if (systemResources) {
           cpuUsage = systemResources.cpuUsage;
@@ -2064,7 +2071,8 @@ export async function collectAllCpesMetrics(): Promise<void> {
           cpe.effectiveIp,
           profile,
           vendor.cpuOid,
-          memoryConfig
+          memoryConfig,
+          vendor.cpuDivisor ?? 1
         );
         
         if (resources) {

@@ -236,6 +236,7 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   name: text("name").notNull(),
   slug: varchar("slug", { length: 50 }).notNull().unique(),
   cpuOid: varchar("cpu_oid", { length: 255 }),
+  cpuDivisor: integer("cpu_divisor").notNull().default(1), // Divisor para CPU (ex: 100 para valores como 3315 -> 33.15%)
   memoryOid: varchar("memory_oid", { length: 255 }),
   memoryTotalOid: varchar("memory_total_oid", { length: 255 }),
   memoryUsedOid: varchar("memory_used_oid", { length: 255 }),
