@@ -1984,13 +1984,21 @@ export async function collectAllCpesMetrics(): Promise<void> {
       }
     }
     
-    // Adicionar IP efetivo a cada CPE
-    const cpesWithEffectiveIp = allCpes.map(cpe => ({
-      ...cpe,
-      effectiveIp: cpe.ipAddress || ipOverrideMap.get(cpe.id) || null
-    }));
+    // Adicionar IP efetivo a cada CPE (prioridade: ipOverride > ipAddress)
+    const cpesWithEffectiveIp = allCpes.map(cpe => {
+      const ipOverride = ipOverrideMap.get(cpe.id);
+      const effectiveIp = ipOverride || cpe.ipAddress || null;
+      return { ...cpe, effectiveIp, ipSource: ipOverride ? 'override' : (cpe.ipAddress ? 'cpe' : 'none') };
+    });
     
     console.log(`[Monitor/CPE] CPEs ativos encontrados: ${allCpes.length}`);
+    
+    // Debug: mostrar de onde vem o IP de cada CPE
+    for (const cpe of cpesWithEffectiveIp) {
+      if (cpe.effectiveIp) {
+        console.log(`[Monitor/CPE] ${cpe.name}: IP=${cpe.effectiveIp} (fonte: ${cpe.ipSource})`);
+      }
+    }
     
     const monitorableCpes = cpesWithEffectiveIp.filter(c => c.effectiveIp && c.vendorId && c.hasAccess);
     
