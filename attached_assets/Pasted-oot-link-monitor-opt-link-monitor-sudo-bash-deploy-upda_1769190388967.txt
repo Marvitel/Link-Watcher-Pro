@@ -1,0 +1,68 @@
+oot@link-monitor:/opt/link-monitor# sudo bash deploy/update.sh
+==============================================
+  Link Monitor - Atualização
+  Marvitel Telecomunicações
+==============================================
+
+[1/6] Criando backup...
+Backup salvo em: /opt/link-monitor-backups/backup_20260123_144327.tar.gz
+
+[2/6] Atualizando código via git...
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read 772d3985e27c2d757946f694851d07fab139e79d
+fatal: Failed to traverse parents of commit 31fe98745ee05b865622f7bdd8a528cc865b8487
+fatal: failed to run repack
+
+HEAD is now at 1637bb89 Update deployment script to use git for code updates
+Código atualizado para última versão
+
+[3/6] Parando serviço...
+
+[4/6] Instalando dependências...
+npm warn config production Use `--omit=dev` instead.
+
+up to date, audited 440 packages in 5s
+
+55 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (1 moderate, 3 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+[5/6] Reconstruindo aplicação...
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'esbuild' imported from /opt/link-monitor/script/build.ts
+    at packageResolve (node:internal/modules/esm/resolve:873:9)
+    at moduleResolve (node:internal/modules/esm/resolve:946:18)
+    at defaultResolve (node:internal/modules/esm/resolve:1188:11)
+    at nextResolve (node:internal/modules/esm/hooks:864:28)
+    at resolveBase (file:///usr/lib/node_modules/tsx/dist/esm/index.mjs?1769190362355:2:3744)
+    at resolveDirectory (file:///usr/lib/node_modules/tsx/dist/esm/index.mjs?1769190362355:2:4243)
+    at resolveTsPaths (file:///usr/lib/node_modules/tsx/dist/esm/index.mjs?1769190362355:2:4984)
+    at async resolve (file:///usr/lib/node_modules/tsx/dist/esm/index.mjs?1769190362355:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:864:22)
+    at async Hooks.resolve (node:internal/modules/esm/hooks:306:24) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v20.19.6
+root@link-monitor:/opt/link-monitor# 

@@ -41,7 +41,7 @@ systemctl stop link-monitor
 echo ""
 echo "[4/6] Instalando dependências..."
 cd $APP_DIR
-npm install --production
+npm install
 
 echo ""
 echo "[5/6] Reconstruindo aplicação..."
