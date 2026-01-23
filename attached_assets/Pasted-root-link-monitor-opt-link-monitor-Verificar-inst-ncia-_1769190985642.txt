@@ -1,0 +1,55 @@
+root@link-monitor:/opt/link-monitor# # Verificar instância real do PostgreSQL
+systemctl status postgresql@*
+
+# Ou listar processos do PostgreSQL
+ps aux | grep postgres
+
+# Tentar conectar ao banco
+psql -U postgres -d link_monitor -c "SELECT 1"
+● postgresql@15-main.service - PostgreSQL Cluster 15-main
+     Loaded: loaded (/lib/systemd/system/postgresql@.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-01-23 14:55:41 -03; 33s ago
+    Process: 1948616 ExecStart=/usr/bin/pg_ctlcluster --skip-systemctl-redirect 15-main start (code=exited, status=0/SUCCESS)
+   Main PID: 1948621 (postgres)
+      Tasks: 16 (limit: 9467)
+     Memory: 155.3M
+        CPU: 7.907s
+     CGroup: /system.slice/system-postgresql.slice/postgresql@15-main.service
+             ├─1948621 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main -c config_file=/etc/postgresql/15/main/postgresql.conf
+             ├─1948622 "postgres: 15/main: checkpointer "
+             ├─1948623 "postgres: 15/main: background writer "
+             ├─1948625 "postgres: 15/main: walwriter "
+             ├─1948626 "postgres: 15/main: autovacuum launcher "
+             ├─1948627 "postgres: 15/main: logical replication launcher "
+             ├─1948811 "postgres: 15/main: postgres link_monitor ::1(56966) idle"
+             ├─1948812 "postgres: 15/main: postgres link_monitor ::1(56982) idle"
+             ├─1948833 "postgres: 15/main: postgres link_monitor ::1(56994) idle"
+             ├─1948834 "postgres: 15/main: postgres link_monitor ::1(57008) idle"
+             ├─1948835 "postgres: 15/main: postgres link_monitor ::1(57014) UPDATE"
+             ├─1948836 "postgres: 15/main: postgres link_monitor ::1(57028) UPDATE"
+             ├─1948837 "postgres: 15/main: postgres link_monitor ::1(57042) SELECT"
+             ├─1948838 "postgres: 15/main: postgres link_monitor ::1(57056) idle"
+             ├─1948839 "postgres: 15/main: postgres link_monitor ::1(57060) UPDATE"
+             └─1948840 "postgres: 15/main: postgres link_monitor ::1(57064) idle"
+
+jan 23 14:55:36 link-monitor systemd[1]: Starting postgresql@15-main.service - PostgreSQL Cluster 15-main...
+jan 23 14:55:41 link-monitor systemd[1]: Started postgresql@15-main.service - PostgreSQL Cluster 15-main.
+postgres 1948621  0.3  0.3 219792 30216 ?        Ss   14:55   0:00 /usr/lib/postgresql/15/bin/postgres -D /var/lib/postgresql/15/main -c config_file=/etc/postgresql/15/main/postgresql.conf
+postgres 1948622  0.0  0.1 219924  8576 ?        Ss   14:55   0:00 postgres: 15/main: checkpointer 
+postgres 1948623  0.0  0.0 219940  6048 ?        Ss   14:55   0:00 postgres: 15/main: background writer 
+postgres 1948625  0.0  0.1 219792 10316 ?        Ss   14:55   0:00 postgres: 15/main: walwriter 
+postgres 1948626  0.0  0.1 221388  8912 ?        Ss   14:55   0:00 postgres: 15/main: autovacuum launcher 
+postgres 1948627  0.0  0.0 221364  7164 ?        Ss   14:55   0:00 postgres: 15/main: logical replication launcher 
+postgres 1948811 11.3  0.3 222644 27736 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(56966) idle
+postgres 1948812  1.6  0.3 222628 25684 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(56982) idle
+postgres 1948833  0.4  0.2 222612 16856 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(56994) idle
+postgres 1948834  0.0  0.1 221912 14684 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57008) idle
+postgres 1948835  2.7  0.2 222696 23884 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57014) idle
+postgres 1948836 16.8  0.3 222660 27188 ?        Rs   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57028) UPDATE
+postgres 1948837  6.4  0.3 222612 27064 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57042) idle
+postgres 1948838 12.9  0.3 222676 27440 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57056) idle
+postgres 1948839  3.7  0.3 222516 26728 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57060) idle
+postgres 1948840  8.3  0.3 222612 26972 ?        Ss   14:56   0:00 postgres: 15/main: postgres link_monitor ::1(57064) idle
+root     1948882  0.0  0.0   6356  2156 pts/80   S+   14:56   0:00 grep postgres
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  Peer authentication failed for user "postgres"
+root@link-monitor:/opt/link-monitor# 
