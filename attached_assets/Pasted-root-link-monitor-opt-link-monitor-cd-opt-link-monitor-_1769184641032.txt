@@ -1,0 +1,75 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor && git fetch origin && git checkout 02f102dc && npm run build && pm2 restart link-monitor
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 8 (delta 5), reused 8 (delta 5), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 2.25 KiB | 85.00 KiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   5b614c42..02f102dc  main       -> origin/main
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read 772d3985e27c2d757946f694851d07fab139e79d
+fatal: Failed to traverse parents of commit 31fe98745ee05b865622f7bdd8a528cc865b8487
+fatal: failed to run repack
+
+M       deploy/bootstrap.sh
+M       deploy/install.sh
+M       deploy/update-from-github.sh
+Note: switching to '02f102dc'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 02f102dc Update deployment instructions to include build step
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (8) src/lib/queryClient.ts
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3464 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.48 kB
+../dist/public/assets/index-BB7K0zui.css              85.60 kB │ gzip:  14.04 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-sEpV-uYM.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-BmO9dwhB.js            2,061.24 kB │ gzip: 568.52 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 31.33s
+building server...
+
+  dist/index.cjs  1.5mb ⚠️
+
+⚡ Done in 381ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [link-monitor](ids: [ 0 ])
+[PM2] [link-monitor](0) ✓
+┌────┬─────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name            │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼─────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ link-monitor    │ default     │ 1.0.0   │ fork    │ 1928824  │ 0s     │ 10   │ online    │ 0%       │ 18.5mb   │ root     │ disabled │
+└────┴─────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+root@link-monitor:/opt/link-monitor# curl -s https://linkmonitor.marvitel.com.br/api/version
+{"version":"5d50d7bf","timestamp":1769184619740,"message":"ok"}root@link-monitor:/opt/link-monitor# 
