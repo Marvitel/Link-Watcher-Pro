@@ -279,6 +279,10 @@ export const cpes = pgTable("cpes", {
   winboxPort: integer("winbox_port").default(8291),
   // Perfil SNMP (personalizado ou herda do fabricante)
   snmpProfileId: integer("snmp_profile_id"),
+  // Métricas de monitoramento SNMP (CPU/Memória)
+  cpuUsage: real("cpu_usage").notNull().default(0),
+  memoryUsage: real("memory_usage").notNull().default(0),
+  lastMonitoredAt: timestamp("last_monitored_at"),
   // Metadados
   serialNumber: varchar("serial_number", { length: 100 }),
   macAddress: varchar("mac_address", { length: 17 }),
