@@ -1973,6 +1973,12 @@ export async function collectAllCpesMetrics(): Promise<void> {
     const monitorableCpes = allCpes.filter(c => c.ipAddress && c.vendorId && c.hasAccess);
     
     if (monitorableCpes.length === 0) {
+      if (allCpes.length > 0) {
+        const missingIp = allCpes.filter(c => !c.ipAddress).length;
+        const missingVendor = allCpes.filter(c => !c.vendorId).length;
+        const noAccess = allCpes.filter(c => !c.hasAccess).length;
+        console.log(`[Monitor/CPE] ${allCpes.length} CPEs ativos, nenhum monitorável (sem IP: ${missingIp}, sem fabricante: ${missingVendor}, sem acesso: ${noAccess})`);
+      }
       return;
     }
     

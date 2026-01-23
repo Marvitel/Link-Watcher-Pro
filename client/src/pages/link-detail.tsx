@@ -813,7 +813,9 @@ export default function LinkDetail() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Modelo</span>
-                  <span className="font-medium">{link.equipmentModel || "Não informado"}</span>
+                  <span className="font-medium">
+                    {equipmentCpe?.model || link.equipmentModel || equipmentCpe?.manufacturer || "Não informado"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bloco IP</span>
@@ -848,7 +850,7 @@ export default function LinkDetail() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {equipmentCpe ? (
-                  equipmentCpe.lastMonitoredAt !== null && equipmentCpe.cpuUsage !== null ? (
+                  equipmentCpe.lastMonitoredAt && equipmentCpe.cpuUsage !== null && equipmentCpe.cpuUsage !== undefined ? (
                     <>
                       <div>
                         <div className="flex items-center justify-between mb-1">
@@ -881,13 +883,13 @@ export default function LinkDetail() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
-                        Última coleta: {new Date(equipmentCpe.lastMonitoredAt!).toLocaleString('pt-BR')}
+                        Última coleta: {new Date(equipmentCpe.lastMonitoredAt).toLocaleString('pt-BR')}
                       </div>
                     </>
                   ) : (
                     <div className="text-center py-4">
                       <p className="text-muted-foreground text-sm">Aguardando coleta de métricas do CPE</p>
-                      <p className="text-xs text-muted-foreground mt-1">Verifique se o perfil SNMP está configurado corretamente</p>
+                      <p className="text-xs text-muted-foreground mt-1">Verifique se o perfil SNMP e fabricante estão configurados corretamente</p>
                     </div>
                   )
                 ) : (
@@ -1429,8 +1431,8 @@ interface CpeDeviceInfo extends DeviceInfo {
   id?: number;
   type?: string;
   role?: string;
-  manufacturer?: string;
-  model?: string;
+  manufacturer?: string | null;
+  model?: string | null;
   hasAccess?: boolean;
   cpuUsage?: number | null;
   memoryUsage?: number | null;

@@ -1484,6 +1484,11 @@ export async function registerRoutes(
       // Buscar CPEs associados ao link
       const linkCpeAssociations = await storage.getLinkCpes(linkId);
       console.log(`[Devices] Link ${linkId}: encontrados ${linkCpeAssociations.length} CPEs associados`);
+      
+      // Buscar fabricantes para incluir nome no retorno
+      const allVendors = await storage.getEquipmentVendors();
+      const vendorsMap = new Map(allVendors.map(v => [v.id, v]));
+      
       const cpes = linkCpeAssociations.map((assoc: any) => {
         const cpe = assoc.cpe;
         if (!cpe) return null;
@@ -1503,6 +1508,8 @@ export async function registerRoutes(
         }
         // IP efetivo: usa ipOverride se disponível, senão ipAddress do CPE
         const effectiveIp = assoc.ipOverride || cpe.ipAddress;
+        // Buscar nome do fabricante
+        const vendor = cpe.vendorId ? vendorsMap.get(cpe.vendorId) : null;
         return {
           id: cpe.id,
           name: cpe.name,
@@ -1511,6 +1518,7 @@ export async function registerRoutes(
           available: !!effectiveIp && cpe.hasAccess,
           isStandard: cpe.isStandard || false,
           model: cpe.model,
+          manufacturer: vendor?.name || null,
           role: assoc.role || "primary",
           ipOverride: assoc.ipOverride || null,
           showInEquipmentTab: assoc.showInEquipmentTab || false,
