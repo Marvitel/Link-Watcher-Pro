@@ -1968,8 +1968,12 @@ let monitoringInterval: NodeJS.Timeout | null = null;
  */
 export async function collectAllCpesMetrics(): Promise<void> {
   try {
+    console.log(`[Monitor/CPE] Iniciando coleta de métricas de CPEs...`);
+    
     // Buscar todos os CPEs ativos com IP e vendorId definidos
     const allCpes = await db.select().from(cpes).where(eq(cpes.isActive, true));
+    console.log(`[Monitor/CPE] CPEs ativos encontrados: ${allCpes.length}`);
+    
     const monitorableCpes = allCpes.filter(c => c.ipAddress && c.vendorId && c.hasAccess);
     
     if (monitorableCpes.length === 0) {
@@ -1977,7 +1981,9 @@ export async function collectAllCpesMetrics(): Promise<void> {
         const missingIp = allCpes.filter(c => !c.ipAddress).length;
         const missingVendor = allCpes.filter(c => !c.vendorId).length;
         const noAccess = allCpes.filter(c => !c.hasAccess).length;
-        console.log(`[Monitor/CPE] ${allCpes.length} CPEs ativos, nenhum monitorável (sem IP: ${missingIp}, sem fabricante: ${missingVendor}, sem acesso: ${noAccess})`);
+        console.log(`[Monitor/CPE] Nenhum CPE monitorável (sem IP: ${missingIp}, sem fabricante: ${missingVendor}, sem acesso: ${noAccess})`);
+      } else {
+        console.log(`[Monitor/CPE] Nenhum CPE ativo cadastrado`);
       }
       return;
     }
