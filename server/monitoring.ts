@@ -1970,17 +1970,35 @@ export async function collectAllCpesMetrics(): Promise<void> {
   try {
     console.log(`[Monitor/CPE] Iniciando coleta de métricas de CPEs...`);
     
-    // Buscar todos os CPEs ativos com IP e vendorId definidos
+    // Buscar todos os CPEs ativos com IP (do CPE ou via ipOverride do linkCpes)
     const allCpes = await db.select().from(cpes).where(eq(cpes.isActive, true));
+    
+    // Buscar relações linkCpes para obter ipOverride
+    const allLinkCpes = await db.select().from(linkCpes);
+    
+    // Mapear CPE ID para ipOverride (primeiro encontrado)
+    const ipOverrideMap = new Map<number, string>();
+    for (const lc of allLinkCpes) {
+      if (lc.ipOverride && !ipOverrideMap.has(lc.cpeId)) {
+        ipOverrideMap.set(lc.cpeId, lc.ipOverride);
+      }
+    }
+    
+    // Adicionar IP efetivo a cada CPE
+    const cpesWithEffectiveIp = allCpes.map(cpe => ({
+      ...cpe,
+      effectiveIp: cpe.ipAddress || ipOverrideMap.get(cpe.id) || null
+    }));
+    
     console.log(`[Monitor/CPE] CPEs ativos encontrados: ${allCpes.length}`);
     
-    const monitorableCpes = allCpes.filter(c => c.ipAddress && c.vendorId && c.hasAccess);
+    const monitorableCpes = cpesWithEffectiveIp.filter(c => c.effectiveIp && c.vendorId && c.hasAccess);
     
     if (monitorableCpes.length === 0) {
       if (allCpes.length > 0) {
-        const missingIp = allCpes.filter(c => !c.ipAddress).length;
-        const missingVendor = allCpes.filter(c => !c.vendorId).length;
-        const noAccess = allCpes.filter(c => !c.hasAccess).length;
+        const missingIp = cpesWithEffectiveIp.filter(c => !c.effectiveIp).length;
+        const missingVendor = cpesWithEffectiveIp.filter(c => !c.vendorId).length;
+        const noAccess = cpesWithEffectiveIp.filter(c => !c.hasAccess).length;
         console.log(`[Monitor/CPE] Nenhum CPE monitorável (sem IP: ${missingIp}, sem fabricante: ${missingVendor}, sem acesso: ${noAccess})`);
       } else {
         console.log(`[Monitor/CPE] Nenhum CPE ativo cadastrado`);
@@ -1999,9 +2017,9 @@ export async function collectAllCpesMetrics(): Promise<void> {
     const profilesMap = new Map(allProfiles.map(p => [p.id, p]));
     const vendorsMap = new Map(allVendors.map(v => [v.id, v]));
     
-    const collectCpeMetrics = async (cpe: typeof allCpes[0]) => {
+    const collectCpeMetrics = async (cpe: typeof monitorableCpes[0]) => {
       try {
-        if (!cpe.ipAddress || !cpe.vendorId) return;
+        if (!cpe.effectiveIp || !cpe.vendorId) return;
         
         const vendor = vendorsMap.get(cpe.vendorId);
         if (!vendor) {
@@ -2034,7 +2052,7 @@ export async function collectAllCpesMetrics(): Promise<void> {
         
         // Coletar recursos do sistema
         const resources = await getSystemResources(
-          cpe.ipAddress,
+          cpe.effectiveIp,
           profile,
           vendor.cpuOid,
           memoryConfig
@@ -2051,7 +2069,7 @@ export async function collectAllCpesMetrics(): Promise<void> {
             })
             .where(eq(cpes.id, cpe.id));
           
-          console.log(`[Monitor/CPE] ${cpe.name} (${cpe.ipAddress}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+          console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
         }
       } catch (error) {
         console.error(`[Monitor/CPE] Erro ao coletar ${cpe.name}:`, error);
