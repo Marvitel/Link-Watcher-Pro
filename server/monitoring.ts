@@ -1983,37 +1983,59 @@ export async function collectAllCpesMetrics(): Promise<void> {
     // Buscar relações linkCpes para obter ipOverride
     const allLinkCpes = await db.select().from(linkCpes);
     
-    // Mapear CPE ID para ipOverride (primeiro encontrado)
-    const ipOverrideMap = new Map<number, string>();
-    for (const lc of allLinkCpes) {
-      if (lc.ipOverride && !ipOverrideMap.has(lc.cpeId)) {
-        ipOverrideMap.set(lc.cpeId, lc.ipOverride);
+    // Para CPEs padrão (isStandard=true), cada associação link_cpe é uma instância separada
+    // Para CPEs não-padrão, usa o primeiro ipOverride encontrado ou o IP do próprio CPE
+    type CpeInstance = typeof allCpes[0] & { effectiveIp: string | null; ipSource: string; linkCpeId?: number };
+    const cpeInstances: CpeInstance[] = [];
+    
+    for (const cpe of allCpes) {
+      if (cpe.isStandard) {
+        // CPE padrão: criar uma instância para cada associação com ipOverride
+        const associations = allLinkCpes.filter(lc => lc.cpeId === cpe.id && lc.ipOverride);
+        if (associations.length > 0) {
+          for (const assoc of associations) {
+            cpeInstances.push({
+              ...cpe,
+              effectiveIp: assoc.ipOverride,
+              ipSource: 'override',
+              linkCpeId: assoc.id
+            });
+          }
+        } else {
+          // CPE padrão sem override: usar IP do CPE se existir
+          if (cpe.ipAddress) {
+            cpeInstances.push({
+              ...cpe,
+              effectiveIp: cpe.ipAddress,
+              ipSource: 'cpe'
+            });
+          }
+        }
+      } else {
+        // CPE não-padrão: usar primeiro ipOverride ou IP do próprio CPE
+        const assocWithOverride = allLinkCpes.find(lc => lc.cpeId === cpe.id && lc.ipOverride);
+        const effectiveIp = assocWithOverride?.ipOverride || cpe.ipAddress || null;
+        const ipSource = assocWithOverride?.ipOverride ? 'override' : (cpe.ipAddress ? 'cpe' : 'none');
+        cpeInstances.push({ ...cpe, effectiveIp, ipSource });
       }
     }
     
-    // Adicionar IP efetivo a cada CPE (prioridade: ipOverride > ipAddress)
-    const cpesWithEffectiveIp = allCpes.map(cpe => {
-      const ipOverride = ipOverrideMap.get(cpe.id);
-      const effectiveIp = ipOverride || cpe.ipAddress || null;
-      return { ...cpe, effectiveIp, ipSource: ipOverride ? 'override' : (cpe.ipAddress ? 'cpe' : 'none') };
-    });
+    console.log(`[Monitor/CPE] CPEs ativos encontrados: ${allCpes.length}, instâncias para coleta: ${cpeInstances.length}`);
     
-    console.log(`[Monitor/CPE] CPEs ativos encontrados: ${allCpes.length}`);
-    
-    // Debug: mostrar de onde vem o IP de cada CPE
-    for (const cpe of cpesWithEffectiveIp) {
+    // Debug: mostrar de onde vem o IP de cada instância
+    for (const cpe of cpeInstances) {
       if (cpe.effectiveIp) {
         console.log(`[Monitor/CPE] ${cpe.name}: IP=${cpe.effectiveIp} (fonte: ${cpe.ipSource})`);
       }
     }
     
-    const monitorableCpes = cpesWithEffectiveIp.filter(c => c.effectiveIp && c.vendorId && c.hasAccess);
+    const monitorableCpes = cpeInstances.filter(c => c.effectiveIp && c.vendorId && c.hasAccess);
     
     if (monitorableCpes.length === 0) {
-      if (allCpes.length > 0) {
-        const missingIp = cpesWithEffectiveIp.filter(c => !c.effectiveIp).length;
-        const missingVendor = cpesWithEffectiveIp.filter(c => !c.vendorId).length;
-        const noAccess = cpesWithEffectiveIp.filter(c => !c.hasAccess).length;
+      if (cpeInstances.length > 0) {
+        const missingIp = cpeInstances.filter(c => !c.effectiveIp).length;
+        const missingVendor = cpeInstances.filter(c => !c.vendorId).length;
+        const noAccess = cpeInstances.filter(c => !c.hasAccess).length;
         console.log(`[Monitor/CPE] Nenhum CPE monitorável (sem IP: ${missingIp}, sem fabricante: ${missingVendor}, sem acesso: ${noAccess})`);
       } else {
         console.log(`[Monitor/CPE] Nenhum CPE ativo cadastrado`);
@@ -2021,7 +2043,7 @@ export async function collectAllCpesMetrics(): Promise<void> {
       return;
     }
     
-    console.log(`[Monitor/CPE] Coletando métricas de ${monitorableCpes.length} CPEs...`);
+    console.log(`[Monitor/CPE] Coletando métricas de ${monitorableCpes.length} instâncias...`);
     
     // Buscar perfis SNMP e vendors em paralelo
     const [allProfiles, allVendors] = await Promise.all([
