@@ -2071,6 +2071,8 @@ export async function collectAllCpesMetrics(): Promise<void> {
             .where(eq(cpes.id, cpe.id));
           
           console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): CPU=${resources.cpuUsage.toFixed(1)}%, Mem=${resources.memoryUsage.toFixed(1)}%`);
+        } else {
+          console.log(`[Monitor/CPE] ${cpe.name} (${cpe.effectiveIp}): SNMP retornou null (timeout ou erro)`);
         }
       } catch (error) {
         console.error(`[Monitor/CPE] Erro ao coletar ${cpe.name}:`, error);
