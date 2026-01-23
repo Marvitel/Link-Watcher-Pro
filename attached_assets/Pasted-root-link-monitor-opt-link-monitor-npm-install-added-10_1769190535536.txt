@@ -1,0 +1,80 @@
+root@link-monitor:/opt/link-monitor# npm install
+
+added 107 packages, and audited 547 packages in 6s
+
+70 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (1 moderate, 3 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+root@link-monitor:/opt/link-monitor# npm run build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3464 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.48 kB
+../dist/public/assets/index-BB7K0zui.css              85.60 kB │ gzip:  14.04 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-sEpV-uYM.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-BmO9dwhB.js            2,061.24 kB │ gzip: 568.52 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 31.70s
+building server...
+
+  dist/index.cjs  1.5mb ⚠️
+
+⚡ Done in 490ms
+root@link-monitor:/opt/link-monitor# source .env && npm run db:push
+
+> rest-express@1.0.0 db:push
+> drizzle-kit push
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/opt/link-monitor/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+AggregateError [ECONNREFUSED]: 
+    at /opt/link-monitor/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Object.query (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:80622:26)
+    at async fromDatabase2 (/opt/link-monitor/node_modules/drizzle-kit/bin.cjs:19276:25) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:5432
+        at createConnectionError (node:net:1652:14)
+        at afterConnectMultiple (node:net:1682:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 5432
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:5432
+        at createConnectionError (node:net:1652:14)
+        at afterConnectMultiple (node:net:1682:16) {
+      errno: -111,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 5432
+    }
+  ]
+}
+root@link-monitor:/opt/link-monitor# 
