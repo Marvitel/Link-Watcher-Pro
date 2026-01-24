@@ -8060,7 +8060,7 @@ function SwitchesTab() {
                       {testingSnmp === sw.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "SNMP"}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => handleEdit(sw)} data-testid={`button-edit-switch-${sw.id}`}>
-                      <Edit className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </Button>
                     <Button size="sm" variant="destructive" onClick={() => handleDelete(sw.id)} data-testid={`button-delete-switch-${sw.id}`}>
                       <Trash2 className="w-4 h-4" />
