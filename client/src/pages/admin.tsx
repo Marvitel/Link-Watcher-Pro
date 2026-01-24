@@ -618,7 +618,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/olts"],
   });
 
-  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean }>>({
+  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean; voalleId: number | null }>>({
     queryKey: ["/api/switches"],
   });
 
@@ -760,10 +760,25 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
     // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
     let matchedOltId: number | null = null;
-    if (tag.oltId && olts) {
-      const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
-      if (matchedOlt) {
-        matchedOltId = matchedOlt.id;
+    let matchedSwitchId: number | null = null;
+    let matchedLinkType: "gpon" | "ptp" = "gpon";
+    
+    if (tag.oltId) {
+      // Primeiro tentar match com OLT
+      if (olts) {
+        const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
+        if (matchedOlt) {
+          matchedOltId = matchedOlt.id;
+          matchedLinkType = "gpon";
+        }
+      }
+      // Se não encontrou OLT, tentar match com Switch (PTP)
+      if (!matchedOltId && switches) {
+        const matchedSwitch = switches.find(sw => sw.voalleId === tag.oltId);
+        if (matchedSwitch) {
+          matchedSwitchId = matchedSwitch.id;
+          matchedLinkType = "ptp";
+        }
       }
     }
 
@@ -787,7 +802,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       bandwidth: tag.bandwidth || prev.bandwidth,
       address: prev.address || tag.address || "",
       location: prev.location || tag.location || "",
-      oltId: matchedOltId || prev.oltId,
+      linkType: matchedSwitchId ? "ptp" : (matchedOltId ? "gpon" : prev.linkType),
+      oltId: matchedOltId || (matchedSwitchId ? null : prev.oltId),
+      switchId: matchedSwitchId || prev.switchId,
       concentratorId: matchedConcentratorId || prev.concentratorId,
       slotOlt: tag.slotOlt ?? prev.slotOlt,
       portOlt: tag.portOlt ?? prev.portOlt,
@@ -804,6 +821,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     if (tag.description || tag.serviceTag) messages.push(`Etiqueta: ${tag.description || tag.serviceTag}`);
     if (tag.ipBlock) messages.push(`Bloco IP: ${tag.ipBlock}`);
     if (matchedOltId) messages.push(`OLT encontrada`);
+    if (matchedSwitchId) messages.push(`Switch PTP encontrado`);
     if (matchedConcentratorId) messages.push(`Concentrador encontrado`);
     if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
     if (tag.equipmentSerialNumber) messages.push(`Serial ONU: ${tag.equipmentSerialNumber}`);
@@ -849,12 +867,24 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         return;
       }
 
-      // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
+      // Tentar match automático de OLT ou Switch pelo voalleId (authenticationAccessPoint)
       let matchedOltId: number | null = null;
-      if (tag.oltId && olts) {
-        const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
-        if (matchedOlt) {
-          matchedOltId = matchedOlt.id;
+      let matchedSwitchId: number | null = null;
+      
+      if (tag.oltId) {
+        // Primeiro tentar match com OLT
+        if (olts) {
+          const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
+          if (matchedOlt) {
+            matchedOltId = matchedOlt.id;
+          }
+        }
+        // Se não encontrou OLT, tentar match com Switch (PTP)
+        if (!matchedOltId && switches) {
+          const matchedSwitch = switches.find(sw => sw.voalleId === tag.oltId);
+          if (matchedSwitch) {
+            matchedSwitchId = matchedSwitch.id;
+          }
         }
       }
 
@@ -877,7 +907,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         bandwidth: tag.bandwidth || prev.bandwidth,
         address: tag.address || prev.address,
         location: tag.location || prev.location,
-        oltId: matchedOltId ?? prev.oltId,
+        linkType: matchedSwitchId ? "ptp" : (matchedOltId ? "gpon" : prev.linkType),
+        oltId: matchedOltId ?? (matchedSwitchId ? null : prev.oltId),
+        switchId: matchedSwitchId ?? prev.switchId,
         concentratorId: matchedConcentratorId ?? prev.concentratorId,
         slotOlt: tag.slotOlt ?? prev.slotOlt,
         portOlt: tag.portOlt ?? prev.portOlt,
@@ -894,7 +926,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       if (tag.description || tag.serviceTag) updates.push(`Nome: ${tag.description || tag.serviceTag}`);
       if (tag.ip) updates.push(`IP: ${tag.ip}`);
       if (matchedOltId) updates.push(`OLT: encontrada`);
-      else if (tag.oltId) updates.push(`OLT Voalle #${tag.oltId}: não mapeada`);
+      else if (matchedSwitchId) updates.push(`Switch PTP: encontrado`);
+      else if (tag.oltId) updates.push(`OLT/Switch Voalle #${tag.oltId}: não mapeado`);
       if (matchedConcentratorId) updates.push(`Concentrador: encontrado`);
       else if (tag.concentratorId) updates.push(`Conc. Voalle #${tag.concentratorId}: não mapeado`);
       if (tag.slotOlt !== null && tag.portOlt !== null) updates.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
@@ -1832,15 +1865,126 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               </div>
               <div className="space-y-2">
                 <Label htmlFor="switchPort">Porta do Switch</Label>
-                <Input
-                  id="switchPort"
-                  value={formData.switchPort}
-                  onChange={(e) => setFormData({ ...formData, switchPort: e.target.value })}
-                  placeholder="Ex: 1/1/1 ou GigabitEthernet0/1"
-                  data-testid="input-switch-port"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="switchPort"
+                    value={formData.switchPort}
+                    onChange={(e) => setFormData({ ...formData, switchPort: e.target.value })}
+                    placeholder="Ex: 1/1/1 ou GigabitEthernet0/1"
+                    data-testid="input-switch-port"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Buscar interfaces do switch via SNMP"
+                    onClick={async () => {
+                      const selectedSwitch = switches?.find(s => s.id === formData.switchId);
+                      if (selectedSwitch) {
+                        const swData = await fetch(`/api/switches/${selectedSwitch.id}`).then(r => r.json());
+                        const profileId = swData.snmpProfileId;
+                        if (profileId) {
+                          handleDiscoverInterfaces(selectedSwitch.ipAddress, profileId);
+                        } else {
+                          toast({
+                            title: "Perfil SNMP nao configurado",
+                            description: "Configure um perfil SNMP para o switch",
+                            variant: "destructive",
+                          });
+                        }
+                      }
+                    }}
+                    disabled={isDiscovering || !formData.switchId}
+                    data-testid="button-discover-interfaces-switch"
+                  >
+                    {isDiscovering ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
+            
+            {discoveredInterfaces.length > 0 && formData.switchId && (
+              <div className="space-y-2 mt-3">
+                <Label>Selecionar Interface Descoberta ({discoveredInterfaces.length} encontradas)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Buscar por nome, indice, descricao..."
+                    value={interfaceSearchTerm}
+                    onChange={(e) => setInterfaceSearchTerm(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-interface-search-ptp"
+                  />
+                  {interfaceSearchTerm && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setInterfaceSearchTerm("")}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                <Select
+                  value=""
+                  onValueChange={(ifIndex) => {
+                    const iface = discoveredInterfaces.find(i => i.ifIndex.toString() === ifIndex);
+                    if (iface) {
+                      setFormData({
+                        ...formData,
+                        switchPort: iface.ifName || iface.ifDescr || ifIndex,
+                      });
+                      toast({
+                        title: "Interface selecionada",
+                        description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-discovered-interface-ptp">
+                    <SelectValue placeholder="Escolha uma interface..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {discoveredInterfaces
+                      .filter((iface) => {
+                        if (!interfaceSearchTerm) return true;
+                        const search = interfaceSearchTerm.toLowerCase();
+                        return (
+                          iface.ifIndex.toString().includes(search) ||
+                          (iface.ifName || "").toLowerCase().includes(search) ||
+                          (iface.ifDescr || "").toLowerCase().includes(search) ||
+                          (iface.ifAlias || "").toLowerCase().includes(search)
+                        );
+                      })
+                      .map((iface) => (
+                      <SelectItem key={iface.ifIndex} value={iface.ifIndex.toString()}>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={iface.ifOperStatus === "up" ? "default" : "secondary"}
+                            className="text-xs"
+                          >
+                            {iface.ifOperStatus}
+                          </Badge>
+                          <span className="font-mono text-sm">{iface.ifIndex}</span>
+                          <span>{iface.ifName || iface.ifDescr}</span>
+                          {iface.ifAlias && iface.ifAlias !== iface.ifName && (
+                            <span className="text-muted-foreground text-xs italic">
+                              ({iface.ifAlias})
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
             {!switches?.filter(s => s.isActive).length && (
               <p className="text-sm text-muted-foreground mt-2">
                 Nenhum switch cadastrado. Acesse a aba Switches para cadastrar.
