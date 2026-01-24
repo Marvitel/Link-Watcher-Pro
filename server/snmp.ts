@@ -994,3 +994,174 @@ export async function testSnmpConnection(
     };
   }
 }
+
+/**
+ * Calcula o índice SNMP da porta do switch baseado no template de fórmula
+ * @param portIndexTemplate Template como "{slot}*8+{port}" ou número direto
+ * @param switchPort Porta do switch como "1/1/1" (slot/module/port)
+ * @returns Índice SNMP calculado
+ */
+export function calculateSwitchPortIndex(portIndexTemplate: string | null, switchPort: string): number | null {
+  if (!switchPort) return null;
+  
+  // Se não há template, tentar extrair número diretamente da porta
+  if (!portIndexTemplate || portIndexTemplate.trim() === "") {
+    // Formato direto: "1" ou "GigabitEthernet0/1" -> extrair número final
+    const match = switchPort.match(/(\d+)$/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+  
+  // Parse da porta: pode ser "1/1/1" (slot/module/port) ou "0/1" (slot/port) ou "1" (port)
+  const parts = switchPort.split("/").map(p => parseInt(p.replace(/\D/g, ""), 10)).filter(n => !isNaN(n));
+  
+  let slot = 0, port = 0, module = 0;
+  if (parts.length === 1) {
+    port = parts[0];
+  } else if (parts.length === 2) {
+    slot = parts[0];
+    port = parts[1];
+  } else if (parts.length >= 3) {
+    slot = parts[0];
+    module = parts[1];
+    port = parts[2];
+  }
+  
+  // Substituir variáveis no template
+  let formula = portIndexTemplate
+    .replace(/\{slot\}/gi, slot.toString())
+    .replace(/\{module\}/gi, module.toString())
+    .replace(/\{port\}/gi, port.toString());
+  
+  // Avaliar a fórmula matemática de forma segura
+  try {
+    // Permitir apenas números, operadores matemáticos e parênteses
+    if (!/^[\d\s+\-*/()]+$/.test(formula)) {
+      console.log(`[Switch Port Index] Fórmula inválida: ${formula}`);
+      return null;
+    }
+    const result = eval(formula);
+    return typeof result === "number" && !isNaN(result) ? Math.floor(result) : null;
+  } catch (error) {
+    console.log(`[Switch Port Index] Erro ao avaliar fórmula: ${formula}`, error);
+    return null;
+  }
+}
+
+/**
+ * Coleta sinal óptico de um switch PTP via SNMP
+ * @param targetIp IP do switch
+ * @param profile Perfil SNMP
+ * @param switchPort Porta do switch (ex: "1/1/1")
+ * @param opticalRxOidTemplate Template OID RX com {portIndex}
+ * @param opticalTxOidTemplate Template OID TX com {portIndex}
+ * @param portIndexTemplate Template para cálculo do índice da porta
+ * @returns Dados de sinal óptico ou null se falhar
+ */
+export async function getOpticalSignalFromSwitch(
+  targetIp: string,
+  profile: SnmpProfile,
+  switchPort: string,
+  opticalRxOidTemplate: string | null,
+  opticalTxOidTemplate: string | null,
+  portIndexTemplate: string | null
+): Promise<OpticalSignalData | null> {
+  if (!opticalRxOidTemplate && !opticalTxOidTemplate) {
+    return null; // Sem OIDs configurados
+  }
+  
+  // Calcular índice da porta
+  const portIndex = calculateSwitchPortIndex(portIndexTemplate, switchPort);
+  if (portIndex === null) {
+    console.log(`[SNMP Switch Optical] Não foi possível calcular índice para porta '${switchPort}'`);
+    return null;
+  }
+  
+  console.log(`[SNMP Switch Optical] Porta ${switchPort} -> índice ${portIndex}`);
+
+  const session = createSession(targetIp, profile);
+  
+  try {
+    const oidsToQuery: string[] = [];
+    const oidMapping: Record<string, keyof OpticalSignalData> = {};
+    
+    // Substituir {portIndex} nos templates de OID
+    if (opticalRxOidTemplate) {
+      const fullOid = opticalRxOidTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'rxPower';
+    }
+    if (opticalTxOidTemplate) {
+      const fullOid = opticalTxOidTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'txPower';
+    }
+    
+    console.log(`[SNMP Switch Optical] Consultando OIDs: ${oidsToQuery.join(', ')}`);
+
+    return new Promise((resolve) => {
+      let completed = false;
+      
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          try { session.close(); } catch {}
+          resolve(null);
+        }
+      }, profile.timeout + 2000);
+      
+      (session as any).get(oidsToQuery, (error: any, varbinds: any[]) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timeoutId);
+          try { session.close(); } catch {}
+          
+          if (error) {
+            console.log(`[SNMP Switch Optical] Erro na consulta: ${error.message || error}`);
+            resolve(null);
+            return;
+          }
+          
+          if (!varbinds || varbinds.length === 0) {
+            console.log(`[SNMP Switch Optical] Resposta vazia`);
+            resolve(null);
+            return;
+          }
+          
+          const result: OpticalSignalData = {
+            rxPower: null,
+            txPower: null,
+            oltRxPower: null
+          };
+          
+          for (const varbind of varbinds) {
+            if ((varbind as any).type && (varbind as any).type === 128) continue; // noSuchObject
+            if ((varbind as any).type && (varbind as any).type === 129) continue; // noSuchInstance
+            
+            const oid = varbind.oid;
+            const key = oidMapping[oid];
+            if (key && varbind.value !== undefined) {
+              // Converter valor SNMP para dBm
+              const rawValue = Number(varbind.value);
+              if (!isNaN(rawValue)) {
+                // Valor pode estar em centésimos de dBm
+                result[key] = rawValue > 100 || rawValue < -100 ? rawValue / 100 : rawValue;
+                console.log(`[SNMP Switch Optical] ${key}: ${result[key]} dBm (raw: ${rawValue})`);
+              }
+            }
+          }
+          
+          // Retornar null se não obteve nenhum valor
+          if (result.rxPower === null && result.txPower === null) {
+            resolve(null);
+          } else {
+            resolve(result);
+          }
+        }
+      });
+    });
+  } catch (error) {
+    try { session.close(); } catch {}
+    console.log(`[SNMP Switch Optical] Erro: ${error instanceof Error ? error.message : "desconhecido"}`);
+    return null;
+  }
+}

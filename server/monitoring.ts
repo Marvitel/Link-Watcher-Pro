@@ -2,10 +2,10 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes } from "@shared/schema";
 import { eq, and, not, like, gte } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
-import { findInterfaceByName, getOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 
 const execAsync = promisify(exec);
 
@@ -1452,6 +1452,54 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       } else if (olt.length > 0) {
         console.log(`[Monitor] ${link.name} - Óptico: OLT ${olt[0].name} sem vendor ou perfil SNMP`);
       }
+    }
+  }
+
+  // Coleta de sinal óptico para links PTP (via Switch)
+  const linkType = (link as any).linkType;
+  const switchId = (link as any).switchId;
+  const switchPort = (link as any).switchPort;
+  
+  if (link.opticalMonitoringEnabled && linkType === "ptp" && switchId && switchPort && !opticalSignal) {
+    try {
+      // Buscar switch com perfil SNMP
+      const switchData = await db.select().from(switches).where(eq(switches.id, switchId)).limit(1);
+      
+      if (switchData.length > 0 && switchData[0].snmpProfileId) {
+        const sw = switchData[0];
+        const swProfile = await getSnmpProfile(sw.snmpProfileId!);
+        
+        if (swProfile && (sw.opticalRxOidTemplate || sw.opticalTxOidTemplate)) {
+          console.log(`[Monitor] ${link.name} - Óptico PTP: coletando via Switch ${sw.name} porta ${switchPort}`);
+          
+          opticalSignal = await getOpticalSignalFromSwitch(
+            sw.ipAddress,
+            swProfile,
+            switchPort,
+            sw.opticalRxOidTemplate,
+            sw.opticalTxOidTemplate,
+            sw.portIndexTemplate
+          );
+          
+          if (opticalSignal) {
+            const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null;
+            if (hasValues) {
+              console.log(`[Monitor] ${link.name} - Óptico PTP OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm`);
+            } else {
+              console.log(`[Monitor] ${link.name} - Óptico PTP: SNMP respondeu mas sem valores`);
+              opticalSignal = null;
+            }
+          }
+        } else if (!sw.opticalRxOidTemplate && !sw.opticalTxOidTemplate) {
+          console.log(`[Monitor] ${link.name} - Óptico PTP: OIDs não configurados no switch ${sw.name}`);
+        } else {
+          console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP não encontrado`);
+        }
+      } else if (switchData.length > 0) {
+        console.log(`[Monitor] ${link.name} - Óptico PTP: Switch ${switchData[0].name} sem perfil SNMP`);
+      }
+    } catch (error) {
+      console.log(`[Monitor] ${link.name} - Óptico PTP: erro ${error instanceof Error ? error.message : "desconhecido"}`);
     }
   }
 
