@@ -114,9 +114,17 @@ export const links = pgTable("links", {
   equipmentModel: varchar("equipment_model", { length: 100 }),
   latencyThreshold: real("latency_threshold").notNull().default(80),
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
+  // Tipo de conexão: gpon (fibra com OLT) ou ptp (ponto-a-ponto com switch)
+  linkType: varchar("link_type", { length: 20 }).notNull().default("gpon"), // gpon, ptp
+  // Campos para GPON (OLT)
   oltId: integer("olt_id"),
   onuSearchString: varchar("onu_search_string", { length: 100 }), // String de busca (serial da ONU)
   onuId: varchar("onu_id", { length: 50 }), // ID da ONU descoberto via busca na OLT
+  // Campos para PTP (Switch)
+  switchId: integer("switch_id"), // Switch de acesso para links PTP
+  switchPort: varchar("switch_port", { length: 50 }), // Porta no switch (ex: "1/0/1", "GigabitEthernet0/0/1")
+  switchSlot: integer("switch_slot"), // Slot no switch (se aplicável)
+  switchPortNumber: integer("switch_port_number"), // Número da porta no switch
   // Voalle ERP integration - Contract tag (etiqueta = conexão no Voalle)
   voalleContractTagId: integer("voalle_contract_tag_id"),
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
@@ -606,6 +614,34 @@ export const olts = pgTable("olts", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Switches para links Ponto-a-Ponto (PTP) - similar a OLTs mas para conexões diretas
+// A relação cliente-Switch é feita através dos links (link.switchId + link.clientId)
+export const switches = pgTable("switches", {
+  id: serial("id").primaryKey(),
+  voalleId: integer("voalle_id"), // ID do Switch/Access Point no Voalle (authenticationAccessPoint.id)
+  name: text("name").notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(),
+  vendor: varchar("vendor", { length: 50 }), // Datacom, Huawei, Cisco, etc.
+  model: varchar("model", { length: 100 }),
+  // Credenciais de acesso SSH/Web
+  sshUser: varchar("ssh_user", { length: 100 }).default("admin"),
+  sshPassword: text("ssh_password"), // Criptografado
+  sshPort: integer("ssh_port").default(22),
+  webPort: integer("web_port").default(80),
+  webProtocol: varchar("web_protocol", { length: 10 }).default("http"),
+  winboxPort: integer("winbox_port").default(8291),
+  // SNMP para coleta de sinal óptico das portas SFP
+  snmpProfileId: integer("snmp_profile_id"), // Referência ao perfil SNMP
+  // OIDs para sinal óptico das portas SFP - variável: {portIndex}
+  opticalRxOidTemplate: varchar("optical_rx_oid_template", { length: 255 }), // Ex: 1.3.6.1.4.1.3709.3.5.201.1.4.1.1.7.{portIndex}
+  opticalTxOidTemplate: varchar("optical_tx_oid_template", { length: 255 }), // Ex: 1.3.6.1.4.1.3709.3.5.201.1.4.1.1.6.{portIndex}
+  // Template para calcular índice SNMP da porta - variáveis: {slot}, {port}
+  portIndexTemplate: varchar("port_index_template", { length: 100 }), // Ex: "{slot}*8+{port}" ou apenas o número da porta
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
 export const insertLinkSchema = createInsertSchema(links).omit({ id: true, lastUpdated: true, createdAt: true });
@@ -626,6 +662,7 @@ export const insertHostMibConfigSchema = createInsertSchema(hostMibConfigs).omit
 export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: true, createdAt: true });
 export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOltSchema = createInsertSchema(olts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSwitchSchema = createInsertSchema(switches).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSnmpConcentratorSchema = createInsertSchema(snmpConcentrators).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupSchema = createInsertSchema(linkGroups).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupMemberSchema = createInsertSchema(linkGroupMembers).omit({ id: true, createdAt: true });
@@ -656,6 +693,7 @@ export type InsertHostMibConfig = z.infer<typeof insertHostMibConfigSchema>;
 export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
 export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
 export type InsertOlt = z.infer<typeof insertOltSchema>;
+export type InsertSwitch = z.infer<typeof insertSwitchSchema>;
 export type InsertSnmpConcentrator = z.infer<typeof insertSnmpConcentratorSchema>;
 export type InsertLinkGroup = z.infer<typeof insertLinkGroupSchema>;
 export type InsertLinkGroupMember = z.infer<typeof insertLinkGroupMemberSchema>;
@@ -686,6 +724,7 @@ export type HostMibConfig = typeof hostMibConfigs.$inferSelect;
 export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 export type Olt = typeof olts.$inferSelect;
+export type Switch = typeof switches.$inferSelect;
 export type SnmpConcentrator = typeof snmpConcentrators.$inferSelect;
 export type LinkGroup = typeof linkGroups.$inferSelect;
 export type LinkGroupMember = typeof linkGroupMembers.$inferSelect;
