@@ -4110,6 +4110,10 @@ export default function Admin() {
             <Radio className="w-4 h-4" />
             OLTs
           </TabsTrigger>
+          <TabsTrigger value="switches" className="gap-2" data-testid="tab-switches">
+            <Network className="w-4 h-4" />
+            Switches
+          </TabsTrigger>
           <TabsTrigger value="concentrators" className="gap-2">
             <Server className="w-4 h-4" />
             Concentradores
@@ -4655,6 +4659,10 @@ export default function Admin() {
 
         <TabsContent value="olts" className="space-y-4">
           <OltsTab clients={clients || []} />
+        </TabsContent>
+
+        <TabsContent value="switches" className="space-y-4">
+          <SwitchesTab />
         </TabsContent>
 
         <TabsContent value="concentrators" className="space-y-4">
@@ -7595,6 +7603,402 @@ function OltsTab({ clients }: { clients: Client[] }) {
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 Nenhuma OLT cadastrada. Clique em "Adicionar OLT" para comecar.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SwitchType {
+  id: number;
+  voalleId: number | null;
+  name: string;
+  ipAddress: string;
+  vendor: string | null;
+  model: string | null;
+  sshUser: string | null;
+  sshPassword: string | null;
+  sshPort: number | null;
+  webPort: number | null;
+  webProtocol: string | null;
+  winboxPort: number | null;
+  snmpProfileId: number | null;
+  opticalRxOidTemplate: string | null;
+  opticalTxOidTemplate: string | null;
+  portIndexTemplate: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function SwitchesTab() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSwitch, setEditingSwitch] = useState<SwitchType | undefined>(undefined);
+  const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
+  const [testingSsh, setTestingSsh] = useState<number | null>(null);
+  const [testingSnmp, setTestingSnmp] = useState<number | null>(null);
+
+  const { data: switchesList, isLoading } = useQuery<SwitchType[]>({
+    queryKey: ["/api/switches"],
+  });
+
+  const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
+    queryKey: ["/api/snmp-profiles"],
+  });
+
+  const [formData, setFormData] = useState({
+    name: "",
+    ipAddress: "",
+    vendor: "datacom",
+    model: "",
+    sshUser: "admin",
+    sshPassword: "",
+    sshPort: 22,
+    webPort: 80,
+    webProtocol: "http",
+    winboxPort: 8291,
+    snmpProfileId: null as number | null,
+    opticalRxOidTemplate: "",
+    opticalTxOidTemplate: "",
+    portIndexTemplate: "",
+    isActive: true,
+    voalleId: null as number | null,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      ipAddress: "",
+      vendor: "datacom",
+      model: "",
+      sshUser: "admin",
+      sshPassword: "",
+      sshPort: 22,
+      webPort: 80,
+      webProtocol: "http",
+      winboxPort: 8291,
+      snmpProfileId: null,
+      opticalRxOidTemplate: "",
+      opticalTxOidTemplate: "",
+      portIndexTemplate: "",
+      isActive: true,
+      voalleId: null,
+    });
+    setEditingSwitch(undefined);
+  };
+
+  const handleEdit = (sw: SwitchType) => {
+    setEditingSwitch(sw);
+    setFormData({
+      name: sw.name,
+      ipAddress: sw.ipAddress,
+      vendor: sw.vendor || "datacom",
+      model: sw.model || "",
+      sshUser: sw.sshUser || "admin",
+      sshPassword: sw.sshPassword || "",
+      sshPort: sw.sshPort || 22,
+      webPort: sw.webPort || 80,
+      webProtocol: sw.webProtocol || "http",
+      winboxPort: sw.winboxPort || 8291,
+      snmpProfileId: sw.snmpProfileId || null,
+      opticalRxOidTemplate: sw.opticalRxOidTemplate || "",
+      opticalTxOidTemplate: sw.opticalTxOidTemplate || "",
+      portIndexTemplate: sw.portIndexTemplate || "",
+      isActive: sw.isActive,
+      voalleId: sw.voalleId || null,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (editingSwitch) {
+        await apiRequest("PATCH", `/api/switches/${editingSwitch.id}`, formData);
+        toast({ title: "Switch atualizado com sucesso" });
+      } else {
+        await apiRequest("POST", "/api/switches", formData);
+        toast({ title: "Switch criado com sucesso" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/switches"] });
+      setDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast({ title: "Erro ao salvar switch", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Tem certeza que deseja excluir este switch?")) return;
+    try {
+      await apiRequest("DELETE", `/api/switches/${id}`);
+      toast({ title: "Switch excluido com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/switches"] });
+    } catch (error) {
+      toast({ title: "Erro ao excluir switch", variant: "destructive" });
+    }
+  };
+
+  const handleTestSsh = async (id: number) => {
+    setTestingSsh(id);
+    try {
+      const response = await apiRequest("POST", `/api/switches/${id}/test-ssh`);
+      const result = await response.json();
+      toast({
+        title: result.success ? "SSH OK" : "Falha SSH",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({ title: "Erro ao testar SSH", variant: "destructive" });
+    } finally {
+      setTestingSsh(null);
+    }
+  };
+
+  const handleTestSnmp = async (id: number) => {
+    setTestingSnmp(id);
+    try {
+      const response = await apiRequest("POST", `/api/switches/${id}/test-snmp`);
+      const result = await response.json();
+      toast({
+        title: result.success ? "SNMP OK" : "Falha SNMP",
+        description: result.sysName ? `sysName: ${result.sysName}` : result.message,
+        variant: result.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({ title: "Erro ao testar SNMP", variant: "destructive" });
+    } finally {
+      setTestingSnmp(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Switches (PTP)</h2>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button size="sm" data-testid="button-add-switch">
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Switch
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingSwitch ? "Editar Switch" : "Adicionar Switch"}</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="switch-name">Nome</Label>
+                <Input
+                  id="switch-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Switch Principal"
+                  data-testid="input-switch-name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-ip">IP</Label>
+                <Input
+                  id="switch-ip"
+                  value={formData.ipAddress}
+                  onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
+                  placeholder="192.168.1.1"
+                  data-testid="input-switch-ip"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-vendor">Fabricante</Label>
+                <Select value={formData.vendor} onValueChange={(v) => setFormData({ ...formData, vendor: v })}>
+                  <SelectTrigger id="switch-vendor" data-testid="select-switch-vendor">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="datacom">Datacom</SelectItem>
+                    <SelectItem value="huawei">Huawei</SelectItem>
+                    <SelectItem value="cisco">Cisco</SelectItem>
+                    <SelectItem value="mikrotik">Mikrotik</SelectItem>
+                    <SelectItem value="juniper">Juniper</SelectItem>
+                    <SelectItem value="hp">HP/Aruba</SelectItem>
+                    <SelectItem value="other">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="switch-model">Modelo</Label>
+                <Input
+                  id="switch-model"
+                  value={formData.model}
+                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                  placeholder="DmSwitch 2104G2"
+                  data-testid="input-switch-model"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-ssh-user">Usuario SSH</Label>
+                <Input
+                  id="switch-ssh-user"
+                  value={formData.sshUser}
+                  onChange={(e) => setFormData({ ...formData, sshUser: e.target.value })}
+                  placeholder="admin"
+                  data-testid="input-switch-ssh-user"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-ssh-password">Senha SSH</Label>
+                <Input
+                  id="switch-ssh-password"
+                  type="password"
+                  value={formData.sshPassword}
+                  onChange={(e) => setFormData({ ...formData, sshPassword: e.target.value })}
+                  placeholder="••••••••"
+                  data-testid="input-switch-ssh-password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-ssh-port">Porta SSH</Label>
+                <Input
+                  id="switch-ssh-port"
+                  type="number"
+                  value={formData.sshPort}
+                  onChange={(e) => setFormData({ ...formData, sshPort: parseInt(e.target.value) || 22 })}
+                  data-testid="input-switch-ssh-port"
+                />
+              </div>
+              <div>
+                <Label htmlFor="switch-snmp-profile">Perfil SNMP</Label>
+                <Select
+                  value={formData.snmpProfileId?.toString() || "none"}
+                  onValueChange={(v) => setFormData({ ...formData, snmpProfileId: v === "none" ? null : parseInt(v) })}
+                >
+                  <SelectTrigger id="switch-snmp-profile" data-testid="select-switch-snmp-profile">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {allSnmpProfiles?.map((p) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
+                <Label htmlFor="switch-optical-rx-oid">OID RX Optico (template)</Label>
+                <Input
+                  id="switch-optical-rx-oid"
+                  value={formData.opticalRxOidTemplate}
+                  onChange={(e) => setFormData({ ...formData, opticalRxOidTemplate: e.target.value })}
+                  placeholder="1.3.6.1.4.1.3709.3.5.201.1.4.1.1.7.{portIndex}"
+                  data-testid="input-switch-optical-rx-oid"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Use {"{portIndex}"} para o indice SNMP da porta</p>
+              </div>
+              <div className="col-span-2">
+                <Label htmlFor="switch-optical-tx-oid">OID TX Optico (template)</Label>
+                <Input
+                  id="switch-optical-tx-oid"
+                  value={formData.opticalTxOidTemplate}
+                  onChange={(e) => setFormData({ ...formData, opticalTxOidTemplate: e.target.value })}
+                  placeholder="1.3.6.1.4.1.3709.3.5.201.1.4.1.1.6.{portIndex}"
+                  data-testid="input-switch-optical-tx-oid"
+                />
+              </div>
+              <div className="col-span-2">
+                <Label htmlFor="switch-port-index-template">Formula Indice da Porta</Label>
+                <Input
+                  id="switch-port-index-template"
+                  value={formData.portIndexTemplate}
+                  onChange={(e) => setFormData({ ...formData, portIndexTemplate: e.target.value })}
+                  placeholder="{slot}*8+{port} ou numero direto"
+                  data-testid="input-switch-port-index-template"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Formula para calcular o indice SNMP. Use {"{slot}"} e {"{port}"}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={formData.isActive}
+                  onCheckedChange={(v) => setFormData({ ...formData, isActive: v })}
+                  data-testid="switch-active-toggle"
+                />
+                <Label>Ativo</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} data-testid="button-save-switch">
+                {editingSwitch ? "Salvar" : "Criar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8">Carregando...</div>
+      ) : (
+        <div className="grid gap-4">
+          {switchesList?.map((sw) => (
+            <Card key={sw.id}>
+              <CardContent className="py-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Network className="w-4 h-4 text-primary" />
+                      <span className="font-medium">{sw.name}</span>
+                      {!sw.isActive && (
+                        <Badge variant="secondary">Inativo</Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      IP: {sw.ipAddress} | {sw.vendor || "N/A"} {sw.model || ""}
+                    </div>
+                    {sw.snmpProfileId && (
+                      <div className="text-xs text-muted-foreground">
+                        SNMP: Perfil #{sw.snmpProfileId}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTestSsh(sw.id)}
+                      disabled={testingSsh === sw.id}
+                      data-testid={`button-test-ssh-${sw.id}`}
+                    >
+                      {testingSsh === sw.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "SSH"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTestSnmp(sw.id)}
+                      disabled={testingSnmp === sw.id || !sw.snmpProfileId}
+                      data-testid={`button-test-snmp-${sw.id}`}
+                    >
+                      {testingSnmp === sw.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "SNMP"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(sw)} data-testid={`button-edit-switch-${sw.id}`}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDelete(sw.id)} data-testid={`button-delete-switch-${sw.id}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {(!switchesList || switchesList.length === 0) && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Nenhum switch cadastrado. Clique em "Adicionar Switch" para comecar.
               </CardContent>
             </Card>
           )}
