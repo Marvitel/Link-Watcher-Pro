@@ -24,6 +24,7 @@ import {
   insertCpeSchema,
   insertLinkCpeSchema,
   insertOltSchema,
+  insertSwitchSchema,
   insertSnmpConcentratorSchema,
   insertErpIntegrationSchema,
   insertClientErpMappingSchema,
@@ -3665,6 +3666,175 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Erro ao testar diagnóstico:", error);
       res.status(500).json({ error: "Falha ao testar diagnóstico" });
+    }
+  });
+
+  // ============ Switches (PTP) Routes ============
+
+  app.get("/api/switches", requireAuth, async (req, res) => {
+    try {
+      const switchList = await storage.getSwitches();
+      res.json(switchList);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar switches" });
+    }
+  });
+
+  app.get("/api/switches/:id", requireAuth, async (req, res) => {
+    try {
+      const sw = await storage.getSwitch(parseInt(req.params.id, 10));
+      if (!sw) {
+        return res.status(404).json({ error: "Switch não encontrado" });
+      }
+      res.json(sw);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao buscar switch" });
+    }
+  });
+
+  app.post("/api/switches", requireSuperAdmin, async (req, res) => {
+    try {
+      const data = insertSwitchSchema.parse(req.body);
+      const sw = await storage.createSwitch(data);
+      res.status(201).json(sw);
+    } catch (error) {
+      console.error("Error creating switch:", error);
+      res.status(400).json({ error: "Dados de switch inválidos" });
+    }
+  });
+
+  app.patch("/api/switches/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const sw = await storage.updateSwitch(id, req.body);
+      if (!sw) {
+        return res.status(404).json({ error: "Switch não encontrado" });
+      }
+      res.json(sw);
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao atualizar switch" });
+    }
+  });
+
+  app.delete("/api/switches/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteSwitch(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao excluir switch" });
+    }
+  });
+
+  app.post("/api/switches/:id/test-ssh", requireSuperAdmin, async (req, res) => {
+    try {
+      const sw = await storage.getSwitch(parseInt(req.params.id, 10));
+      if (!sw) {
+        return res.status(404).json({ error: "Switch não encontrado" });
+      }
+
+      // Testar conexão SSH
+      const { Client } = require("ssh2");
+      const conn = new Client();
+      
+      const result = await new Promise<{ success: boolean; message: string }>((resolve) => {
+        const timeout = setTimeout(() => {
+          conn.end();
+          resolve({ success: false, message: "Timeout de conexão (10s)" });
+        }, 10000);
+
+        conn.on("ready", () => {
+          clearTimeout(timeout);
+          conn.end();
+          resolve({ success: true, message: "Conexão SSH bem-sucedida" });
+        });
+
+        conn.on("error", (err: Error) => {
+          clearTimeout(timeout);
+          resolve({ success: false, message: `Erro: ${err.message}` });
+        });
+
+        const password = sw.sshPassword ? (isEncrypted(sw.sshPassword) ? decrypt(sw.sshPassword) : sw.sshPassword) : "";
+        
+        conn.connect({
+          host: sw.ipAddress,
+          port: sw.sshPort || 22,
+          username: sw.sshUser || "admin",
+          password: password,
+          readyTimeout: 10000,
+        });
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao testar SSH do switch:", error);
+      res.status(500).json({ error: "Falha ao testar conexão SSH" });
+    }
+  });
+
+  app.post("/api/switches/:id/test-snmp", requireSuperAdmin, async (req, res) => {
+    try {
+      const sw = await storage.getSwitch(parseInt(req.params.id, 10));
+      if (!sw) {
+        return res.status(404).json({ error: "Switch não encontrado" });
+      }
+
+      if (!sw.snmpProfileId) {
+        return res.status(400).json({ error: "Switch sem perfil SNMP configurado" });
+      }
+
+      const profile = await storage.getSnmpProfile(sw.snmpProfileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Perfil SNMP não encontrado" });
+      }
+
+      // Testar conectividade SNMP com sysName
+      const snmp = require("net-snmp");
+      const options = {
+        port: 161,
+        retries: 1,
+        timeout: 5000,
+        version: profile.version === "3" ? snmp.Version3 : (profile.version === "2c" ? snmp.Version2c : snmp.Version1),
+      };
+
+      let session: any;
+      if (profile.version === "3") {
+        const user = {
+          name: profile.securityName || "admin",
+          level: snmp.SecurityLevel.authPriv,
+          authProtocol: profile.authProtocol === "SHA" ? snmp.AuthProtocols.sha : snmp.AuthProtocols.md5,
+          authKey: profile.authPassword || "",
+          privProtocol: profile.privProtocol === "AES" ? snmp.PrivProtocols.aes : snmp.PrivProtocols.des,
+          privKey: profile.privPassword || "",
+        };
+        session = snmp.createV3Session(sw.ipAddress, user, options);
+      } else {
+        session = snmp.createSession(sw.ipAddress, profile.community || "public", options);
+      }
+
+      const sysNameOid = "1.3.6.1.2.1.1.5.0";
+      
+      const result = await new Promise<{ success: boolean; message: string; sysName?: string }>((resolve) => {
+        session.get([sysNameOid], (error: Error, varbinds: any[]) => {
+          session.close();
+          if (error) {
+            resolve({ success: false, message: `Erro SNMP: ${error.message}` });
+          } else if (snmp.isVarbindError(varbinds[0])) {
+            resolve({ success: false, message: `Erro: ${snmp.varbindError(varbinds[0])}` });
+          } else {
+            resolve({
+              success: true,
+              message: "Conexão SNMP bem-sucedida",
+              sysName: varbinds[0].value.toString(),
+            });
+          }
+        });
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Erro ao testar SNMP do switch:", error);
+      res.status(500).json({ error: "Falha ao testar conexão SNMP" });
     }
   });
 

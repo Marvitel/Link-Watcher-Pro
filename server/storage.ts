@@ -21,6 +21,7 @@ import {
   clientEventSettings,
   equipmentVendors,
   olts,
+  switches,
   snmpConcentrators,
   erpIntegrations,
   clientErpMappings,
@@ -55,6 +56,7 @@ import {
   type ClientEventSetting,
   type EquipmentVendor,
   type Olt,
+  type Switch,
   type SnmpConcentrator,
   type ErpIntegration,
   type ClientErpMapping,
@@ -79,6 +81,7 @@ import {
   type InsertEventType,
   type InsertClientEventSetting,
   type InsertOlt,
+  type InsertSwitch,
   type InsertSnmpConcentrator,
   type InsertErpIntegration,
   type InsertClientErpMapping,
@@ -1783,6 +1786,31 @@ export class DatabaseStorage {
 
   async deleteOlt(id: number): Promise<void> {
     await db.delete(olts).where(eq(olts.id, id));
+  }
+
+  // ============ Switches (PTP) ============
+  
+  async getSwitches(): Promise<Switch[]> {
+    return db.select().from(switches).orderBy(switches.name);
+  }
+
+  async getSwitch(id: number): Promise<Switch | undefined> {
+    const result = await db.select().from(switches).where(eq(switches.id, id));
+    return result[0];
+  }
+
+  async createSwitch(data: InsertSwitch): Promise<Switch> {
+    const result = await db.insert(switches).values(data).returning();
+    return result[0];
+  }
+
+  async updateSwitch(id: number, data: Partial<InsertSwitch>): Promise<Switch | undefined> {
+    const result = await db.update(switches).set({ ...data, updatedAt: new Date() }).where(eq(switches.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteSwitch(id: number): Promise<void> {
+    await db.delete(switches).where(eq(switches.id, id));
   }
 
   // ============ SNMP Concentrators ============
