@@ -1006,13 +1006,25 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const handleSelectInterface = (ifIndex: string) => {
     const iface = discoveredInterfaces.find(i => i.ifIndex.toString() === ifIndex);
     if (iface) {
-      setFormData({
-        ...formData,
-        snmpInterfaceIndex: iface.ifIndex,
-        snmpInterfaceName: iface.ifName,
-        snmpInterfaceDescr: iface.ifDescr,
-        snmpInterfaceAlias: iface.ifAlias || "",
-      });
+      if (formData.linkType === "ptp") {
+        setFormData({
+          ...formData,
+          switchPort: iface.ifName || iface.ifDescr || ifIndex,
+          snmpInterfaceIndex: iface.ifIndex,
+        });
+        toast({
+          title: "Interface selecionada",
+          description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
+        });
+      } else {
+        setFormData({
+          ...formData,
+          snmpInterfaceIndex: iface.ifIndex,
+          snmpInterfaceName: iface.ifName,
+          snmpInterfaceDescr: iface.ifDescr,
+          snmpInterfaceAlias: iface.ifAlias || "",
+        });
+      }
     }
   };
 
@@ -1881,18 +1893,36 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     title="Buscar interfaces do switch via SNMP"
                     onClick={async () => {
                       const selectedSwitch = switches?.find(s => s.id === formData.switchId);
-                      if (selectedSwitch) {
-                        const swData = await fetch(`/api/switches/${selectedSwitch.id}`).then(r => r.json());
+                      if (!selectedSwitch) {
+                        toast({
+                          title: "Switch nao encontrado",
+                          description: "Selecione um switch valido",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      try {
+                        const response = await apiRequest("GET", `/api/switches/${selectedSwitch.id}`);
+                        if (!response.ok) {
+                          throw new Error("Erro ao buscar dados do switch");
+                        }
+                        const swData = await response.json();
                         const profileId = swData.snmpProfileId;
                         if (profileId) {
                           handleDiscoverInterfaces(selectedSwitch.ipAddress, profileId);
                         } else {
                           toast({
                             title: "Perfil SNMP nao configurado",
-                            description: "Configure um perfil SNMP para o switch",
+                            description: "Configure um perfil SNMP para o switch antes de buscar interfaces",
                             variant: "destructive",
                           });
                         }
+                      } catch (error: any) {
+                        toast({
+                          title: "Erro ao buscar switch",
+                          description: error.message || "Nao foi possivel obter dados do switch",
+                          variant: "destructive",
+                        });
                       }
                     }}
                     disabled={isDiscovering || !formData.switchId}
@@ -1907,83 +1937,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 </div>
               </div>
             </div>
-            
-            {discoveredInterfaces.length > 0 && formData.switchId && (
-              <div className="space-y-2 mt-3">
-                <Label>Selecionar Interface Descoberta ({discoveredInterfaces.length} encontradas)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Buscar por nome, indice, descricao..."
-                    value={interfaceSearchTerm}
-                    onChange={(e) => setInterfaceSearchTerm(e.target.value)}
-                    className="flex-1"
-                    data-testid="input-interface-search-ptp"
-                  />
-                  {interfaceSearchTerm && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setInterfaceSearchTerm("")}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-                <Select
-                  value=""
-                  onValueChange={(ifIndex) => {
-                    const iface = discoveredInterfaces.find(i => i.ifIndex.toString() === ifIndex);
-                    if (iface) {
-                      setFormData({
-                        ...formData,
-                        switchPort: iface.ifName || iface.ifDescr || ifIndex,
-                      });
-                      toast({
-                        title: "Interface selecionada",
-                        description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger data-testid="select-discovered-interface-ptp">
-                    <SelectValue placeholder="Escolha uma interface..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {discoveredInterfaces
-                      .filter((iface) => {
-                        if (!interfaceSearchTerm) return true;
-                        const search = interfaceSearchTerm.toLowerCase();
-                        return (
-                          iface.ifIndex.toString().includes(search) ||
-                          (iface.ifName || "").toLowerCase().includes(search) ||
-                          (iface.ifDescr || "").toLowerCase().includes(search) ||
-                          (iface.ifAlias || "").toLowerCase().includes(search)
-                        );
-                      })
-                      .map((iface) => (
-                      <SelectItem key={iface.ifIndex} value={iface.ifIndex.toString()}>
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={iface.ifOperStatus === "up" ? "default" : "secondary"}
-                            className="text-xs"
-                          >
-                            {iface.ifOperStatus}
-                          </Badge>
-                          <span className="font-mono text-sm">{iface.ifIndex}</span>
-                          <span>{iface.ifName || iface.ifDescr}</span>
-                          {iface.ifAlias && iface.ifAlias !== iface.ifName && (
-                            <span className="text-muted-foreground text-xs italic">
-                              ({iface.ifAlias})
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             
             {!switches?.filter(s => s.isActive).length && (
               <p className="text-sm text-muted-foreground mt-2">
