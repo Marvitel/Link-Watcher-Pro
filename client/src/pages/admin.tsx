@@ -7915,6 +7915,20 @@ function SwitchesTab() {
                 />
               </div>
               <div>
+                <Label htmlFor="switch-voalle-id">ID Voalle (Access Point)</Label>
+                <Input
+                  id="switch-voalle-id"
+                  type="number"
+                  value={formData.voalleId ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
+                  placeholder="Ex: 70"
+                  data-testid="input-switch-voalle-id"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID do authenticationAccessPoint no Voalle para associacao automatica com etiquetas de contrato
+                </p>
+              </div>
+              <div>
                 <Label htmlFor="switch-ssh-user">Usuario SSH</Label>
                 <Input
                   id="switch-ssh-user"
@@ -8033,6 +8047,7 @@ function SwitchesTab() {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       IP: {sw.ipAddress} | {sw.vendor || "N/A"} {sw.model || ""}
+                      {sw.voalleId && <span> | Voalle: #{sw.voalleId}</span>}
                     </div>
                     {sw.snmpProfileId && (
                       <div className="text-xs text-muted-foreground">
