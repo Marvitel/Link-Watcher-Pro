@@ -618,6 +618,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/olts"],
   });
 
+  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean }>>({
+    queryKey: ["/api/switches"],
+  });
+
   const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleId: number | null; snmpProfileId: number | null; isActive: boolean }>>({
     queryKey: ["/api/concentrators"],
   });
@@ -672,6 +676,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     icmpInterval: link?.icmpInterval || 30,
     snmpProfileId: link?.snmpProfileId || null,
     snmpRouterIp: link?.snmpRouterIp || "",
+    linkType: (link as any)?.linkType || "gpon",
+    switchId: (link as any)?.switchId || null,
+    switchPort: (link as any)?.switchPort || "",
     concentratorId: (link as any)?.concentratorId || null,
     snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
     snmpInterfaceName: link?.snmpInterfaceName || "",
@@ -1582,13 +1589,34 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       </div>
 
       <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Diagnostico OLT/ONU</h4>
-        <p className="text-sm text-muted-foreground mb-3">
-          Configure a OLT e ONU para diagnostico automatico de causa raiz em alarmes criticos
-        </p>
-        <div className="grid grid-cols-2 gap-4">
+        <h4 className="font-medium mb-3">Tipo de Conexao</h4>
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
-            <Label htmlFor="oltId">OLT</Label>
+            <Label htmlFor="linkType">Tipo de Link</Label>
+            <Select
+              value={formData.linkType}
+              onValueChange={(value) => setFormData({ ...formData, linkType: value, oltId: null, switchId: null })}
+            >
+              <SelectTrigger data-testid="select-link-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gpon">GPON (Fibra/OLT)</SelectItem>
+                <SelectItem value="ptp">PTP (Ponto-a-Ponto/Switch)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {formData.linkType === "gpon" && (
+          <>
+            <h4 className="font-medium mb-3">Diagnostico OLT/ONU</h4>
+            <p className="text-sm text-muted-foreground mb-3">
+              Configure a OLT e ONU para diagnostico automatico de causa raiz em alarmes criticos
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="oltId">OLT</Label>
             <Select
               value={formData.oltId?.toString() || "none"}
               onValueChange={(value) => setFormData({ ...formData, oltId: value === "none" ? null : parseInt(value, 10) })}
@@ -1772,6 +1800,53 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               </div>
             )}
           </div>
+        )}
+          </>
+        )}
+
+        {formData.linkType === "ptp" && (
+          <>
+            <h4 className="font-medium mb-3">Configuracao Switch PTP</h4>
+            <p className="text-sm text-muted-foreground mb-3">
+              Configure o switch e porta para monitoramento do link ponto-a-ponto
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="switchId">Switch</Label>
+                <Select
+                  value={formData.switchId?.toString() || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, switchId: value === "none" ? null : parseInt(value, 10) })}
+                >
+                  <SelectTrigger data-testid="select-switch">
+                    <SelectValue placeholder="Selecione o Switch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum Switch</SelectItem>
+                    {switches?.filter(s => s.isActive).map((sw) => (
+                      <SelectItem key={sw.id} value={sw.id.toString()}>
+                        {sw.name} ({sw.ipAddress})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="switchPort">Porta do Switch</Label>
+                <Input
+                  id="switchPort"
+                  value={formData.switchPort}
+                  onChange={(e) => setFormData({ ...formData, switchPort: e.target.value })}
+                  placeholder="Ex: 1/1/1 ou GigabitEthernet0/1"
+                  data-testid="input-switch-port"
+                />
+              </div>
+            </div>
+            {!switches?.filter(s => s.isActive).length && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Nenhum switch cadastrado. Acesse a aba Switches para cadastrar.
+              </p>
+            )}
+          </>
         )}
       </div>
 
