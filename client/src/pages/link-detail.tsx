@@ -278,6 +278,15 @@ export default function LinkDetail() {
     enabled: !isNaN(linkId),
     refetchInterval: 30000,
   });
+
+  // Buscar lista de switches para exibição quando link PTP
+  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null }>>({
+    queryKey: ["/api/switches"],
+    enabled: (link as any)?.linkType === "ptp" && !!(link as any)?.switchId,
+  });
+
+  // Dados do switch vinculado ao link PTP
+  const linkedSwitch = switches?.find((s) => s.id === (link as any)?.switchId);
   
   // CPE principal para exibição na aba Equipamento (prioridade: showInEquipmentTab > primary > primeiro)
   const equipmentCpe = devicesInfo?.cpes?.find((c: CpeDeviceInfo) => (c as any).showInEquipmentTab) 
@@ -459,7 +468,7 @@ export default function LinkDetail() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {link.oltId && link.onuId && (
+              {(link as any).linkType !== "ptp" && link.oltId && link.onuId && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -474,6 +483,12 @@ export default function LinkDetail() {
                   )}
                   Consultar OLT
                 </Button>
+              )}
+              {(link as any).linkType === "ptp" && linkedSwitch && (
+                <Badge variant="outline" className="gap-1">
+                  <Network className="w-3 h-3" />
+                  {linkedSwitch.name} - Porta {(link as any).switchPort || "N/A"}
+                </Badge>
               )}
               {activeIncident && (
                 <div className="text-right">
