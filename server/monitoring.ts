@@ -1473,6 +1473,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         let opticalRxOid = sw.opticalRxOidTemplate;
         let opticalTxOid = sw.opticalTxOidTemplate;
         let portIndexTemplate = sw.portIndexTemplate;
+        let opticalDivisor = 1000; // Default: milésimos de dBm (Mikrotik)
         
         // Se o switch tem vendorId, buscar OIDs do fabricante
         if (sw.vendorId) {
@@ -1483,7 +1484,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
             if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
             if (vendor.switchPortIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
-            console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendor.name}`);
+            if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
+            console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendor.name} (divisor: ${opticalDivisor})`);
           }
         }
         
@@ -1496,7 +1498,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             switchPort,
             opticalRxOid,
             opticalTxOid,
-            portIndexTemplate
+            portIndexTemplate,
+            opticalDivisor
           );
           
           if (opticalSignal) {

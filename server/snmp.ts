@@ -1055,6 +1055,7 @@ export function calculateSwitchPortIndex(portIndexTemplate: string | null, switc
  * @param opticalRxOidTemplate Template OID RX com {portIndex}
  * @param opticalTxOidTemplate Template OID TX com {portIndex}
  * @param portIndexTemplate Template para cálculo do índice da porta
+ * @param divisor Divisor para conversão do valor SNMP para dBm (ex: 1000 para Mikrotik)
  * @returns Dados de sinal óptico ou null se falhar
  */
 export async function getOpticalSignalFromSwitch(
@@ -1063,7 +1064,8 @@ export async function getOpticalSignalFromSwitch(
   switchPort: string,
   opticalRxOidTemplate: string | null,
   opticalTxOidTemplate: string | null,
-  portIndexTemplate: string | null
+  portIndexTemplate: string | null,
+  divisor: number = 1000
 ): Promise<OpticalSignalData | null> {
   if (!opticalRxOidTemplate && !opticalTxOidTemplate) {
     return null; // Sem OIDs configurados
@@ -1153,22 +1155,14 @@ export async function getOpticalSignalFromSwitch(
             const oid = varbind.oid;
             const key = oidMapping[oid];
             if (key && varbind.value !== undefined) {
-              // Converter valor SNMP para dBm
+              // Converter valor SNMP para dBm usando divisor configurado
               const rawValue = Number(varbind.value);
               if (!isNaN(rawValue)) {
-                // Mikrotik retorna em milésimos de dBm (ex: -6315 = -6.315 dBm)
-                // Valores típicos de sinal óptico: -40 a 0 dBm
-                // Se |valor| > 100, provavelmente está em milésimos (divide por 1000)
-                let dBmValue: number;
-                if (Math.abs(rawValue) > 1000) {
-                  dBmValue = rawValue / 1000;
-                } else if (Math.abs(rawValue) > 100) {
-                  dBmValue = rawValue / 100;
-                } else {
-                  dBmValue = rawValue;
-                }
+                // Usar divisor parametrizado (ex: 1000 para Mikrotik, 100 para outros)
+                // Se divisor = 1, valor já está em dBm
+                const dBmValue = divisor > 1 ? rawValue / divisor : rawValue;
                 result[key] = dBmValue;
-                console.log(`[SNMP Switch Optical] ${key}: ${result[key]} dBm (raw: ${rawValue})`);
+                console.log(`[SNMP Switch Optical] ${key}: ${result[key]} dBm (raw: ${rawValue}, divisor: ${divisor})`);
               }
             }
           }

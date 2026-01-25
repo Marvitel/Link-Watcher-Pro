@@ -259,6 +259,8 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   switchOpticalTxOid: varchar("switch_optical_tx_oid", { length: 255 }),
   // Template para calcular índice SNMP da porta do switch - variáveis: {slot}, {port}
   switchPortIndexTemplate: varchar("switch_port_index_template", { length: 100 }),
+  // Divisor para conversão do valor SNMP para dBm (ex: 1000 para Mikrotik, 100 para outros)
+  switchOpticalDivisor: integer("switch_optical_divisor").default(1000),
   // Perfil SNMP padrão para equipamentos deste fabricante
   snmpProfileId: integer("snmp_profile_id"),
   description: text("description"),

@@ -8797,6 +8797,7 @@ interface EquipmentVendor {
   switchOpticalRxOid: string | null;
   switchOpticalTxOid: string | null;
   switchPortIndexTemplate: string | null;
+  switchOpticalDivisor: number | null;
   description: string | null;
   isBuiltIn: boolean;
   isActive: boolean;
@@ -8840,6 +8841,7 @@ function EquipmentVendorsTab() {
     switchOpticalRxOid: "",
     switchOpticalTxOid: "",
     switchPortIndexTemplate: "",
+    switchOpticalDivisor: 1000,
     snmpProfileId: null as number | null,
     description: "",
     isActive: true,
@@ -8861,6 +8863,7 @@ function EquipmentVendorsTab() {
       switchOpticalRxOid: "",
       switchOpticalTxOid: "",
       switchPortIndexTemplate: "",
+      switchOpticalDivisor: 1000,
       snmpProfileId: null,
       description: "",
       isActive: true,
@@ -8885,6 +8888,7 @@ function EquipmentVendorsTab() {
       switchOpticalRxOid: vendor.switchOpticalRxOid || "",
       switchOpticalTxOid: vendor.switchOpticalTxOid || "",
       switchPortIndexTemplate: vendor.switchPortIndexTemplate || "",
+      switchOpticalDivisor: vendor.switchOpticalDivisor ?? 1000,
       snmpProfileId: vendor.snmpProfileId ?? null,
       description: vendor.description || "",
       isActive: vendor.isActive,
@@ -9144,6 +9148,20 @@ function EquipmentVendorsTab() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Formula para calcular indice SNMP da porta. Variaveis: {"{slot}"}, {"{port}"}. Ex: "1" para porta 1 direta, ou "{"{slot}"}*8+{"{port}"}" para switches modulares.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Divisor do Valor SNMP</Label>
+                    <Input
+                      type="number"
+                      value={formData.switchOpticalDivisor}
+                      onChange={(e) => setFormData({ ...formData, switchOpticalDivisor: parseInt(e.target.value) || 1000 })}
+                      placeholder="1000"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-switch-optical-divisor"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Divisor para converter valor SNMP para dBm. Ex: 1000 para Mikrotik (-6315 / 1000 = -6.315 dBm), 100 para outros, 1 se ja estiver em dBm.
                     </p>
                   </div>
                 </div>
