@@ -249,10 +249,16 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   memoryTotalOid: varchar("memory_total_oid", { length: 255 }),
   memoryUsedOid: varchar("memory_used_oid", { length: 255 }),
   memoryIsPercentage: boolean("memory_is_percentage").notNull().default(true),
-  // OIDs padrão para monitoramento de sinal óptico deste fabricante
+  // OIDs padrão para monitoramento de sinal óptico de OLTs deste fabricante
   opticalRxOid: varchar("optical_rx_oid", { length: 255 }),
   opticalTxOid: varchar("optical_tx_oid", { length: 255 }),
   opticalOltRxOid: varchar("optical_olt_rx_oid", { length: 255 }),
+  // OIDs padrão para monitoramento de sinal óptico de Switches deste fabricante (portas SFP)
+  // Template com variável {portIndex} para índice SNMP da porta
+  switchOpticalRxOid: varchar("switch_optical_rx_oid", { length: 255 }),
+  switchOpticalTxOid: varchar("switch_optical_tx_oid", { length: 255 }),
+  // Template para calcular índice SNMP da porta do switch - variáveis: {slot}, {port}
+  switchPortIndexTemplate: varchar("switch_port_index_template", { length: 100 }),
   // Perfil SNMP padrão para equipamentos deste fabricante
   snmpProfileId: integer("snmp_profile_id"),
   description: text("description"),
@@ -621,7 +627,8 @@ export const switches = pgTable("switches", {
   voalleId: integer("voalle_id"), // ID do Switch/Access Point no Voalle (authenticationAccessPoint.id)
   name: text("name").notNull(),
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
-  vendor: varchar("vendor", { length: 50 }), // Datacom, Huawei, Cisco, etc.
+  vendor: varchar("vendor", { length: 50 }), // Slug do fabricante (ex: "mikrotik", "datacom") - legado
+  vendorId: integer("vendor_id"), // FK para equipmentVendors - preferencial
   model: varchar("model", { length: 100 }),
   // Credenciais de acesso SSH/Web
   sshUser: varchar("ssh_user", { length: 100 }).default("admin"),

@@ -1469,16 +1469,34 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         const sw = switchData[0];
         const swProfile = await getSnmpProfile(sw.snmpProfileId!);
         
-        if (swProfile && (sw.opticalRxOidTemplate || sw.opticalTxOidTemplate)) {
+        // Buscar OIDs do vendor (preferencial) ou do switch individual (fallback/legado)
+        let opticalRxOid = sw.opticalRxOidTemplate;
+        let opticalTxOid = sw.opticalTxOidTemplate;
+        let portIndexTemplate = sw.portIndexTemplate;
+        
+        // Se o switch tem vendorId, buscar OIDs do fabricante
+        if (sw.vendorId) {
+          const vendorData = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
+          if (vendorData.length > 0) {
+            const vendor = vendorData[0];
+            // Usar OIDs do vendor se disponíveis
+            if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
+            if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
+            if (vendor.switchPortIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
+            console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendor.name}`);
+          }
+        }
+        
+        if (swProfile && (opticalRxOid || opticalTxOid)) {
           console.log(`[Monitor] ${link.name} - Óptico PTP: coletando via Switch ${sw.name} porta ${switchPort}`);
           
           opticalSignal = await getOpticalSignalFromSwitch(
             sw.ipAddress,
             swProfile,
             switchPort,
-            sw.opticalRxOidTemplate,
-            sw.opticalTxOidTemplate,
-            sw.portIndexTemplate
+            opticalRxOid,
+            opticalTxOid,
+            portIndexTemplate
           );
           
           if (opticalSignal) {
@@ -1490,8 +1508,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               opticalSignal = null;
             }
           }
-        } else if (!sw.opticalRxOidTemplate && !sw.opticalTxOidTemplate) {
-          console.log(`[Monitor] ${link.name} - Óptico PTP: OIDs não configurados no switch ${sw.name}`);
+        } else if (!opticalRxOid && !opticalTxOid) {
+          console.log(`[Monitor] ${link.name} - Óptico PTP: OIDs não configurados no fabricante ou switch ${sw.name}`);
         } else {
           console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP não encontrado`);
         }

@@ -7790,6 +7790,7 @@ interface SwitchType {
   name: string;
   ipAddress: string;
   vendor: string | null;
+  vendorId: number | null;
   model: string | null;
   sshUser: string | null;
   sshPassword: string | null;
@@ -7822,10 +7823,15 @@ function SwitchesTab() {
     queryKey: ["/api/snmp-profiles"],
   });
 
+  const { data: equipmentVendorsList } = useQuery<Array<{ id: number; name: string; slug: string }>>({
+    queryKey: ["/api/equipment-vendors"],
+  });
+
   const [formData, setFormData] = useState({
     name: "",
     ipAddress: "",
-    vendor: "datacom",
+    vendor: "",
+    vendorId: null as number | null,
     model: "",
     sshUser: "admin",
     sshPassword: "",
@@ -7845,7 +7851,8 @@ function SwitchesTab() {
     setFormData({
       name: "",
       ipAddress: "",
-      vendor: "datacom",
+      vendor: "",
+      vendorId: null,
       model: "",
       sshUser: "admin",
       sshPassword: "",
@@ -7868,7 +7875,8 @@ function SwitchesTab() {
     setFormData({
       name: sw.name,
       ipAddress: sw.ipAddress,
-      vendor: sw.vendor || "datacom",
+      vendor: sw.vendor || "",
+      vendorId: sw.vendorId || null,
       model: sw.model || "",
       sshUser: sw.sshUser || "admin",
       sshPassword: sw.sshPassword || "",
@@ -7986,20 +7994,32 @@ function SwitchesTab() {
               </div>
               <div>
                 <Label htmlFor="switch-vendor">Fabricante</Label>
-                <Select value={formData.vendor} onValueChange={(v) => setFormData({ ...formData, vendor: v })}>
+                <Select 
+                  value={formData.vendorId?.toString() || "none"} 
+                  onValueChange={(v) => {
+                    const selectedVendor = equipmentVendorsList?.find(vendor => vendor.id.toString() === v);
+                    setFormData({ 
+                      ...formData, 
+                      vendorId: v === "none" ? null : parseInt(v),
+                      vendor: selectedVendor?.slug || ""
+                    });
+                  }}
+                >
                   <SelectTrigger id="switch-vendor" data-testid="select-switch-vendor">
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione o fabricante..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="datacom">Datacom</SelectItem>
-                    <SelectItem value="huawei">Huawei</SelectItem>
-                    <SelectItem value="cisco">Cisco</SelectItem>
-                    <SelectItem value="mikrotik">Mikrotik</SelectItem>
-                    <SelectItem value="juniper">Juniper</SelectItem>
-                    <SelectItem value="hp">HP/Aruba</SelectItem>
-                    <SelectItem value="other">Outro</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {equipmentVendorsList?.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Os OIDs de sinal optico serao herdados do fabricante selecionado
+                </p>
               </div>
               <div>
                 <Label htmlFor="switch-model">Modelo</Label>
@@ -8774,6 +8794,9 @@ interface EquipmentVendor {
   opticalRxOid: string | null;
   opticalTxOid: string | null;
   opticalOltRxOid: string | null;
+  switchOpticalRxOid: string | null;
+  switchOpticalTxOid: string | null;
+  switchPortIndexTemplate: string | null;
   description: string | null;
   isBuiltIn: boolean;
   isActive: boolean;
@@ -8814,6 +8837,9 @@ function EquipmentVendorsTab() {
     opticalRxOid: "",
     opticalTxOid: "",
     opticalOltRxOid: "",
+    switchOpticalRxOid: "",
+    switchOpticalTxOid: "",
+    switchPortIndexTemplate: "",
     snmpProfileId: null as number | null,
     description: "",
     isActive: true,
@@ -8832,6 +8858,9 @@ function EquipmentVendorsTab() {
       opticalRxOid: "",
       opticalTxOid: "",
       opticalOltRxOid: "",
+      switchOpticalRxOid: "",
+      switchOpticalTxOid: "",
+      switchPortIndexTemplate: "",
       snmpProfileId: null,
       description: "",
       isActive: true,
@@ -8853,6 +8882,9 @@ function EquipmentVendorsTab() {
       opticalRxOid: vendor.opticalRxOid || "",
       opticalTxOid: vendor.opticalTxOid || "",
       opticalOltRxOid: vendor.opticalOltRxOid || "",
+      switchOpticalRxOid: vendor.switchOpticalRxOid || "",
+      switchOpticalTxOid: vendor.switchOpticalTxOid || "",
+      switchPortIndexTemplate: vendor.switchPortIndexTemplate || "",
       snmpProfileId: vendor.snmpProfileId ?? null,
       description: vendor.description || "",
       isActive: vendor.isActive,
@@ -9071,6 +9103,48 @@ function EquipmentVendorsTab() {
                       className="font-mono text-sm"
                       data-testid="input-vendor-optical-olt-rx-oid"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-3">OIDs de Sinal Optico - Switch (PTP)</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  OIDs para coleta de sinal optico em portas SFP de switches deste fabricante. Use {"{portIndex}"} como variavel.
+                </p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>OID RX SFP (Recebido)</Label>
+                    <Input
+                      value={formData.switchOpticalRxOid}
+                      onChange={(e) => setFormData({ ...formData, switchOpticalRxOid: e.target.value })}
+                      placeholder="Ex: 1.3.6.1.4.1.14988.1.1.19.1.1.4.{portIndex}"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-switch-optical-rx-oid"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>OID TX SFP (Transmitido)</Label>
+                    <Input
+                      value={formData.switchOpticalTxOid}
+                      onChange={(e) => setFormData({ ...formData, switchOpticalTxOid: e.target.value })}
+                      placeholder="Ex: 1.3.6.1.4.1.14988.1.1.19.1.1.5.{portIndex}"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-switch-optical-tx-oid"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template de Indice da Porta</Label>
+                    <Input
+                      value={formData.switchPortIndexTemplate}
+                      onChange={(e) => setFormData({ ...formData, switchPortIndexTemplate: e.target.value })}
+                      placeholder="Ex: {slot}*8+{port} ou numero direto"
+                      className="font-mono text-sm"
+                      data-testid="input-vendor-switch-port-index-template"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Formula para calcular indice SNMP da porta. Variaveis: {"{slot}"}, {"{port}"}. Ex: "1" para porta 1 direta, ou "{"{slot}"}*8+{"{port}"}" para switches modulares.
+                    </p>
                   </div>
                 </div>
               </div>
