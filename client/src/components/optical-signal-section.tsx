@@ -125,6 +125,9 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
   const currentTxPower = latestMetric?.opticalTxPower;
   const currentOltRxPower = latestMetric?.opticalOltRxPower;
   
+  // Verificar se é link PTP (via switch)
+  const isPtp = link.linkType === "ptp";
+  
   const rxStatus = getOpticalStatus(currentRxPower);
   
   const baselineRx = link.opticalRxBaseline;
@@ -158,13 +161,13 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
             <Radio className="w-5 h-5 text-blue-500" />
-            <CardTitle className="text-base">Potência RX (ONU)</CardTitle>
+            <CardTitle className="text-base">{isPtp ? "Potência RX (SFP)" : "Potência RX (ONU)"}</CardTitle>
             <Tooltip>
               <TooltipTrigger>
                 <Info className="w-4 h-4 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Potência de sinal recebida na ONU do cliente (downstream)</p>
+                <p>{isPtp ? "Potência de sinal recebida no transceiver SFP" : "Potência de sinal recebida na ONU do cliente (downstream)"}</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
@@ -199,13 +202,13 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
             <Radio className="w-5 h-5 text-green-500" />
-            <CardTitle className="text-base">Potência TX (ONU)</CardTitle>
+            <CardTitle className="text-base">{isPtp ? "Potência TX (SFP)" : "Potência TX (ONU)"}</CardTitle>
             <Tooltip>
               <TooltipTrigger>
                 <Info className="w-4 h-4 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Potência de sinal transmitida pela ONU do cliente (upstream)</p>
+                <p>{isPtp ? "Potência de sinal transmitida pelo transceiver SFP" : "Potência de sinal transmitida pela ONU do cliente (upstream)"}</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
@@ -223,30 +226,32 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
-            <Radio className="w-5 h-5 text-purple-500" />
-            <CardTitle className="text-base">RX na OLT</CardTitle>
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="w-4 h-4 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Potência de sinal do cliente recebida na OLT da Marvitel</p>
-              </TooltipContent>
-            </Tooltip>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold font-mono" data-testid="text-optical-olt-rx">
-                {formatDbm(currentOltRxPower)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Upstream do cliente na OLT
-            </p>
-          </CardContent>
-        </Card>
+        {!isPtp && (
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              <Radio className="w-5 h-5 text-purple-500" />
+              <CardTitle className="text-base">RX na OLT</CardTitle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="w-4 h-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Potência de sinal do cliente recebida na OLT da Marvitel</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-semibold font-mono" data-testid="text-optical-olt-rx">
+                  {formatDbm(currentOltRxPower)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Upstream do cliente na OLT
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {(link.zabbixSplitterName || link.zabbixSplitterPort || link.zabbixOnuDistance) && (
@@ -369,7 +374,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                   stroke="hsl(var(--chart-1))" 
                   strokeWidth={2}
                   dot={false}
-                  name="RX (ONU)"
+                  name={isPtp ? "RX (SFP)" : "RX (ONU)"}
                 />
                 <Line 
                   type="monotone" 
@@ -377,31 +382,35 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                   stroke="hsl(var(--chart-2))" 
                   strokeWidth={2}
                   dot={false}
-                  name="TX (ONU)"
+                  name={isPtp ? "TX (SFP)" : "TX (ONU)"}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="oltRx" 
-                  stroke="hsl(var(--chart-3))" 
-                  strokeWidth={2}
-                  dot={false}
-                  name="RX (OLT)"
-                />
+                {!isPtp && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="oltRx" 
+                    stroke="hsl(var(--chart-3))" 
+                    strokeWidth={2}
+                    dot={false}
+                    name="RX (OLT)"
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-6 mt-4 text-sm">
               <span className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />
-                RX (ONU)
+                {isPtp ? "RX (SFP)" : "RX (ONU)"}
               </span>
               <span className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} />
-                TX (ONU)
+                {isPtp ? "TX (SFP)" : "TX (ONU)"}
               </span>
-              <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} />
-                RX (OLT)
-              </span>
+              {!isPtp && (
+                <span className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} />
+                  RX (OLT)
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -411,12 +420,24 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
             <div className="text-center text-muted-foreground">
               <Radio className="w-12 h-12 mx-auto mb-4 opacity-30" />
               {link.linkType === "ptp" ? (
-                <>
-                  <p className="text-lg font-medium">Link Ponto-a-Ponto (PTP)</p>
-                  <p className="text-sm mt-2">
-                    O monitoramento de sinal óptico não está disponível para links PTP conectados via switch.
-                  </p>
-                </>
+                link.opticalMonitoringEnabled && (link as any).switchId ? (
+                  <>
+                    <p className="text-lg font-medium">Aguardando Coleta de Sinal Óptico</p>
+                    <p className="text-sm mt-2">
+                      O monitoramento está configurado. Os dados aparecerão assim que a primeira coleta for realizada.
+                    </p>
+                    <p className="text-xs mt-1">
+                      Verifique se o switch possui OIDs ópticos e porta do link configurados.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-medium">Monitoramento Óptico PTP</p>
+                    <p className="text-sm mt-2">
+                      Para habilitar, configure o switch com OIDs ópticos e habilite o monitoramento no cadastro do link.
+                    </p>
+                  </>
+                )
               ) : link.opticalMonitoringEnabled && link.oltId ? (
                 <>
                   <p className="text-lg font-medium">Aguardando Coleta de Sinal Óptico</p>
