@@ -1156,8 +1156,18 @@ export async function getOpticalSignalFromSwitch(
               // Converter valor SNMP para dBm
               const rawValue = Number(varbind.value);
               if (!isNaN(rawValue)) {
-                // Valor pode estar em centésimos de dBm
-                result[key] = rawValue > 100 || rawValue < -100 ? rawValue / 100 : rawValue;
+                // Mikrotik retorna em milésimos de dBm (ex: -6315 = -6.315 dBm)
+                // Valores típicos de sinal óptico: -40 a 0 dBm
+                // Se |valor| > 100, provavelmente está em milésimos (divide por 1000)
+                let dBmValue: number;
+                if (Math.abs(rawValue) > 1000) {
+                  dBmValue = rawValue / 1000;
+                } else if (Math.abs(rawValue) > 100) {
+                  dBmValue = rawValue / 100;
+                } else {
+                  dBmValue = rawValue;
+                }
+                result[key] = dBmValue;
                 console.log(`[SNMP Switch Optical] ${key}: ${result[key]} dBm (raw: ${rawValue})`);
               }
             }
