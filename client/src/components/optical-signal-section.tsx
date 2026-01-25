@@ -494,7 +494,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                 <Line 
                   type="monotone" 
                   dataKey="rx" 
-                  stroke="hsl(var(--chart-1))" 
+                  stroke="#3b82f6"
                   strokeWidth={2}
                   dot={false}
                   name={isPtp ? "RX (SFP)" : "RX (ONU)"}
@@ -502,7 +502,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                 <Line 
                   type="monotone" 
                   dataKey="tx" 
-                  stroke="hsl(var(--chart-2))" 
+                  stroke="#10b981"
                   strokeWidth={2}
                   dot={false}
                   name={isPtp ? "TX (SFP)" : "TX (ONU)"}
@@ -511,7 +511,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                   <Line 
                     type="monotone" 
                     dataKey="oltRx" 
-                    stroke="hsl(var(--chart-3))" 
+                    stroke="#f97316"
                     strokeWidth={2}
                     dot={false}
                     name="RX (OLT)"
@@ -521,16 +521,16 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-6 mt-4 text-sm">
               <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} />
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#3b82f6" }} />
                 {isPtp ? "RX (SFP)" : "RX (ONU)"}
               </span>
               <span className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} />
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#10b981" }} />
                 {isPtp ? "TX (SFP)" : "TX (ONU)"}
               </span>
               {!isPtp && (
                 <span className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "#f97316" }} />
                   RX (OLT)
                 </span>
               )}
