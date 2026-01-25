@@ -1456,6 +1456,7 @@ interface CpeDeviceInfo extends DeviceInfo {
 
 interface DevicesInfo {
   olt: DeviceInfo | null;
+  switch: DeviceInfo | null;
   concentrator: DeviceInfo;
   cpe: DeviceInfo;
   cpes?: CpeDeviceInfo[];
@@ -1482,11 +1483,12 @@ interface TracerouteResult {
   error?: string;
 }
 
-type TerminalType = "shell" | "ssh-olt" | "ssh-concentrator" | "ssh-cpe";
+type TerminalType = "shell" | "ssh-olt" | "ssh-access-point" | "ssh-concentrator" | "ssh-cpe";
 
 interface OpenTerminals {
   shell: boolean;
   "ssh-olt": boolean;
+  "ssh-access-point": boolean;
   "ssh-concentrator": boolean;
   "ssh-cpe": boolean;
 }
@@ -1497,12 +1499,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const [openTerminals, setOpenTerminals] = useState<OpenTerminals>({
     shell: false,
     "ssh-olt": false,
+    "ssh-access-point": false,
     "ssh-concentrator": false,
     "ssh-cpe": false,
   });
   const [terminalKeys, setTerminalKeys] = useState<Record<TerminalType, number>>({
     shell: 0,
     "ssh-olt": 0,
+    "ssh-access-point": 0,
     "ssh-concentrator": 0,
     "ssh-cpe": 0,
   });
@@ -1575,8 +1579,13 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const getSshConfig = (type: TerminalType): { command?: string; password?: string } => {
     if (type === "shell") return {};
     
+    // Determina o dispositivo de ponto de acesso (OLT para GPON, Switch para PTP)
+    const isPtpLink = link?.linkType === "ptp";
+    const accessPointDev = isPtpLink ? devices?.switch : devices?.olt;
+    
     const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPassword?: string; sshPort?: number }> = {
       "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPassword: devices?.olt?.sshPassword, sshPort: devices?.olt?.sshPort },
+      "ssh-access-point": { ip: accessPointDev?.ip, sshUser: accessPointDev?.sshUser, sshPassword: accessPointDev?.sshPassword, sshPort: accessPointDev?.sshPort },
       "ssh-concentrator": { ip: devices?.concentrator?.ip, sshUser: devices?.concentrator?.sshUser, sshPassword: devices?.concentrator?.sshPassword, sshPort: devices?.concentrator?.sshPort },
       "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPassword: devices?.cpe?.sshPassword, sshPort: devices?.cpe?.sshPort },
     };
@@ -1725,8 +1734,15 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const showWinbox = cpeVendor.toLowerCase() === "mikrotik";
 
   const oltAvailable = !!devices?.olt?.ip;
+  const switchAvailable = !!devices?.switch?.ip;
   const concentratorAvailable = !!devices?.concentrator?.ip;
   const cpeAvailable = !!devices?.cpe?.ip;
+  
+  // Para links PTP, usar switch como ponto de acesso ao invés de OLT
+  const isPtp = link?.linkType === "ptp";
+  const accessPointAvailable = isPtp ? switchAvailable : oltAvailable;
+  const accessPointDevice = isPtp ? devices?.switch : devices?.olt;
+  const accessPointName = accessPointDevice?.name || (isPtp ? "Switch" : "Ponto de Acesso");
 
   return (
     <div className="space-y-4">
@@ -1759,35 +1775,36 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           )}
         </Card>
 
-        {/* SSH Ponto de Acesso (OLT) */}
-        <Card className={!oltAvailable ? "opacity-50" : ""}>
+        {/* SSH Ponto de Acesso (OLT ou Switch para PTP) */}
+        <Card className={!accessPointAvailable ? "opacity-50" : ""}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <Radio className="w-4 h-4" />
-                {devices?.olt?.name || "Ponto de Acesso"}
+                {accessPointName}
+                {isPtp && <Badge variant="secondary" className="text-xs">switch</Badge>}
               </CardTitle>
               <Button
                 size="sm"
-                variant={openTerminals["ssh-olt"] ? "destructive" : "default"}
-                onClick={() => toggleTerminal("ssh-olt")}
-                disabled={!oltAvailable}
-                data-testid="button-terminal-ssh-olt"
+                variant={openTerminals["ssh-access-point"] ? "destructive" : "default"}
+                onClick={() => toggleTerminal("ssh-access-point")}
+                disabled={!accessPointAvailable}
+                data-testid="button-terminal-ssh-access-point"
               >
-                {openTerminals["ssh-olt"] ? <X className="w-4 h-4" /> : "SSH"}
+                {openTerminals["ssh-access-point"] ? <X className="w-4 h-4" /> : "SSH"}
               </Button>
             </div>
-            {oltAvailable && (
-              <p className="text-xs text-muted-foreground">{devices?.olt?.ip}</p>
+            {accessPointAvailable && (
+              <p className="text-xs text-muted-foreground">{accessPointDevice?.ip}</p>
             )}
           </CardHeader>
-          {openTerminals["ssh-olt"] && (
+          {openTerminals["ssh-access-point"] && (
             <CardContent className="pt-0">
               <div className="border rounded-md overflow-hidden">
                 <XtermTerminal 
-                  key={terminalKeys["ssh-olt"]} 
-                  initialCommand={getSshConfig("ssh-olt").command} 
-                  sshPassword={getSshConfig("ssh-olt").password}
+                  key={terminalKeys["ssh-access-point"]} 
+                  initialCommand={getSshConfig("ssh-access-point").command} 
+                  sshPassword={getSshConfig("ssh-access-point").password}
                 />
               </div>
             </CardContent>
@@ -1930,17 +1947,17 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
       {/* Dispositivos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <DeviceCard
-          title="Ponto de Acesso (OLT)"
+          title={isPtp ? `Ponto de Acesso (${accessPointDevice?.name || "Switch"})` : "Ponto de Acesso (OLT)"}
           icon={Radio}
-          target="olt"
-          ip={devices?.olt?.ip || null}
-          available={devices?.olt?.available || false}
-          showWinbox={devices?.olt?.vendor?.toLowerCase() === "mikrotik"}
-          sshUser={devices?.olt?.sshUser || "admin"}
-          sshPort={devices?.olt?.sshPort || 22}
-          webPort={devices?.olt?.webPort || 80}
-          webProtocol={devices?.olt?.webProtocol || "http"}
-          winboxPort={devices?.olt?.winboxPort || 8291}
+          target={isPtp ? "switch" : "olt"}
+          ip={accessPointDevice?.ip || null}
+          available={accessPointDevice?.available || false}
+          showWinbox={accessPointDevice?.vendor?.toLowerCase() === "mikrotik"}
+          sshUser={accessPointDevice?.sshUser || "admin"}
+          sshPort={accessPointDevice?.sshPort || 22}
+          webPort={accessPointDevice?.webPort || 80}
+          webProtocol={accessPointDevice?.webProtocol || "http"}
+          winboxPort={accessPointDevice?.winboxPort || 8291}
         />
         <DeviceCard
           title="Concentrador"

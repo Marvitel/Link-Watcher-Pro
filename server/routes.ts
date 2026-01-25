@@ -1436,6 +1436,12 @@ export async function registerRoutes(
         olt = await storage.getOlt(link.oltId);
       }
       
+      // Buscar switch para links PTP
+      let switchDevice = null;
+      if (link.switchId) {
+        switchDevice = await storage.getSwitch(link.switchId);
+      }
+      
       // Buscar concentrador se configurado
       let concentrator = null;
       if (link.concentratorId) {
@@ -1559,6 +1565,19 @@ export async function registerRoutes(
           webProtocol: "http",
           winboxPort: (olt as any).winboxPort || 8291,
           vendor: olt.vendor || null,
+        } : null,
+        switch: switchDevice ? {
+          name: switchDevice.name,
+          ip: switchDevice.ipAddress,
+          available: !!switchDevice.ipAddress,
+          sshUser: switchDevice.sshUser || "admin",
+          sshPassword: switchDevice.sshPassword ? decrypt(switchDevice.sshPassword) : null,
+          sshPort: switchDevice.sshPort || 22,
+          webPort: switchDevice.webPort || 80,
+          webProtocol: switchDevice.webProtocol || "http",
+          winboxPort: (switchDevice as any).winboxPort || 8291,
+          vendor: switchDevice.vendor || null,
+          model: switchDevice.model || null,
         } : null,
         concentrator: {
           name: concentrator?.name || "Concentrador",

@@ -410,7 +410,14 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
           <CardContent className="py-12">
             <div className="text-center text-muted-foreground">
               <Radio className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              {link.opticalMonitoringEnabled && link.oltId ? (
+              {link.linkType === "ptp" ? (
+                <>
+                  <p className="text-lg font-medium">Link Ponto-a-Ponto (PTP)</p>
+                  <p className="text-sm mt-2">
+                    O monitoramento de sinal óptico não está disponível para links PTP conectados via switch.
+                  </p>
+                </>
+              ) : link.opticalMonitoringEnabled && link.oltId ? (
                 <>
                   <p className="text-lg font-medium">Aguardando Coleta de Sinal Óptico</p>
                   <p className="text-sm mt-2">
