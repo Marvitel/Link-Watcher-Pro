@@ -1084,18 +1084,31 @@ export async function getOpticalSignalFromSwitch(
     const oidsToQuery: string[] = [];
     const oidMapping: Record<string, keyof OpticalSignalData> = {};
     
-    // Substituir {portIndex} nos templates de OID
+    // Substituir {portIndex} nos templates de OID e limpar caracteres invisíveis
+    // A biblioteca net-snmp requer OIDs SEM ponto inicial (ex: "1.3.6.1.2.1" não ".1.3.6.1.2.1")
     if (opticalRxOidTemplate) {
-      const fullOid = opticalRxOidTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      let cleanTemplate = opticalRxOidTemplate.trim().replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+      if (cleanTemplate.startsWith('.')) {
+        cleanTemplate = cleanTemplate.substring(1);
+      }
+      const fullOid = cleanTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
       oidsToQuery.push(fullOid);
       oidMapping[fullOid] = 'rxPower';
     }
     if (opticalTxOidTemplate) {
-      const fullOid = opticalTxOidTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      let cleanTemplate = opticalTxOidTemplate.trim().replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+      if (cleanTemplate.startsWith('.')) {
+        cleanTemplate = cleanTemplate.substring(1);
+      }
+      const fullOid = cleanTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
       oidsToQuery.push(fullOid);
       oidMapping[fullOid] = 'txPower';
     }
     
+    // Debug: mostrar OIDs e seus bytes para detectar caracteres invisíveis
+    for (const oid of oidsToQuery) {
+      console.log(`[SNMP Switch Optical] OID: "${oid}" (len=${oid.length}, bytes=${Buffer.from(oid).toString('hex')})`);
+    }
     console.log(`[SNMP Switch Optical] Consultando OIDs: ${oidsToQuery.join(', ')}`);
 
     return new Promise((resolve) => {
