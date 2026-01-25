@@ -490,6 +490,7 @@ export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promi
     const onu = results[0];
     console.log(`[OLT Zabbix Optical] ONU ${serial} encontrada: RX=${onu.ONURX}dBm TX=${onu.ONUTX}dBm OLT_RX=${onu.OLTRX}dBm`);
 
+    // Datacom retorna distância em km (confirmado pelo suporte) - manter valor original
     return {
       rxPower: onu.ONURX,
       txPower: onu.ONUTX,

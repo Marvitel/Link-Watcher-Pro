@@ -416,7 +416,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                 <div>
                   <p className="text-xs text-muted-foreground">Distância</p>
                   <p className="text-sm font-medium" data-testid="text-onu-distance">
-                    {link.zabbixOnuDistance ? `${link.zabbixOnuDistance} m` : "—"}
+                    {link.zabbixOnuDistance ? `${link.zabbixOnuDistance} km` : "—"}
                   </p>
                 </div>
               </div>
