@@ -155,6 +155,8 @@ export const links = pgTable("links", {
   zabbixOnuDistance: varchar("zabbix_onu_distance", { length: 20 }), // Distância da ONU (metros)
   zabbixLastSync: timestamp("zabbix_last_sync"), // Última sincronização com Zabbix
   opticalDeltaThreshold: real("optical_delta_threshold").default(3), // Variação máxima em dB antes de alertar
+  // Tipo de transceiver SFP (para links PTP)
+  sfpType: varchar("sfp_type", { length: 50 }), // sfp_10g_lr, sfp_10g_bidi, qsfp_40g_er4, gpon_onu, gpon_olt
   // OIDs para coleta SNMP de sinal óptico (variam por fabricante)
   opticalRxOid: varchar("optical_rx_oid", { length: 255 }), // OID para potência RX na ONU
   opticalTxOid: varchar("optical_tx_oid", { length: 255 }), // OID para potência TX na ONU

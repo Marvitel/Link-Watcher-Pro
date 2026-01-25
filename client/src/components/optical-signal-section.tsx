@@ -23,14 +23,105 @@ interface OpticalSignalSectionProps {
   metrics: Metric[];
 }
 
-const DEFAULT_THRESHOLDS = {
-  rxNormalMin: -25,
-  rxWarningMin: -28,
-  rxCriticalMin: -30,
+// Escalas de sinal óptico por tecnologia
+// PTP: SFP+ 10G LR (10km): TX -6 a -0.5, RX sens: -14.4, sat: 0.5, alerta: -12
+// PTP: SFP+ 10G BIDI (20km): TX -6 a -0.5, RX sens: -15.0, sat: 0.5, alerta: -13
+// PTP: QSFP+ 40G ER4 (20km): TX -5.5 a +1.5, RX sens: -12.6, sat: -1.0, alerta: -10.5
+// GPON ONU: ideal -8 a -25, alerta < -27, dano > -3
+// GPON OLT: ideal -8 a -28, alerta < -30, dano > -6
+
+type SfpType = "sfp_10g_lr" | "sfp_10g_bidi" | "qsfp_40g_er4" | "gpon_onu" | "gpon_olt";
+
+interface OpticalThresholds {
+  label: string;
+  description: string;
+  txMin: number;     // Potência TX mínima
+  txMax: number;     // Potência TX máxima
+  rxIdealMin: number;  // RX ideal mínimo (faixa verde)
+  rxIdealMax: number;  // RX ideal máximo (faixa verde/saturação)
+  rxWarningMin: number; // Abaixo disso = alerta
+  rxSaturation: number; // Acima disso = saturação/dano
+  scaleMin: number;  // Escala do medidor (min)
+  scaleMax: number;  // Escala do medidor (max)
+}
+
+const OPTICAL_THRESHOLDS: Record<SfpType, OpticalThresholds> = {
+  sfp_10g_lr: {
+    label: "SFP+ 10G LR",
+    description: "10km, 1310nm single-mode",
+    txMin: -6,
+    txMax: -0.5,
+    rxIdealMin: -14.4,
+    rxIdealMax: 0.5,
+    rxWarningMin: -12,
+    rxSaturation: 0.5,
+    scaleMin: -20,
+    scaleMax: 2,
+  },
+  sfp_10g_bidi: {
+    label: "SFP+ 10G BIDI",
+    description: "20km, BiDi single-fiber",
+    txMin: -6,
+    txMax: -0.5,
+    rxIdealMin: -15.0,
+    rxIdealMax: 0.5,
+    rxWarningMin: -13,
+    rxSaturation: 0.5,
+    scaleMin: -20,
+    scaleMax: 2,
+  },
+  qsfp_40g_er4: {
+    label: "QSFP+ 40G ER4",
+    description: "20km, 4x10G CWDM",
+    txMin: -5.5,
+    txMax: 1.5,
+    rxIdealMin: -12.6,
+    rxIdealMax: -1.0,
+    rxWarningMin: -10.5,
+    rxSaturation: -1.0,
+    scaleMin: -18,
+    scaleMax: 3,
+  },
+  gpon_onu: {
+    label: "GPON ONU",
+    description: "ONU cliente, 2.5G/1.25G",
+    txMin: 0.5,
+    txMax: 5,
+    rxIdealMin: -25,
+    rxIdealMax: -8,
+    rxWarningMin: -27,
+    rxSaturation: -3,
+    scaleMin: -35,
+    scaleMax: 0,
+  },
+  gpon_olt: {
+    label: "GPON OLT",
+    description: "OLT central",
+    txMin: 1.5,
+    txMax: 5,
+    rxIdealMin: -28,
+    rxIdealMax: -8,
+    rxWarningMin: -30,
+    rxSaturation: -6,
+    scaleMin: -35,
+    scaleMax: 0,
+  },
 };
 
-function getOpticalStatus(rxPower: number | null | undefined): {
-  status: "normal" | "warning" | "critical" | "unknown";
+function getThresholdsForLink(link: Link): OpticalThresholds {
+  // Se tem sfpType definido, usa ele
+  if (link.sfpType && link.sfpType in OPTICAL_THRESHOLDS) {
+    return OPTICAL_THRESHOLDS[link.sfpType as SfpType];
+  }
+  // Fallback baseado no linkType
+  if (link.linkType === "ptp") {
+    return OPTICAL_THRESHOLDS.sfp_10g_lr; // Default para PTP
+  }
+  return OPTICAL_THRESHOLDS.gpon_onu; // Default para GPON
+}
+
+function getOpticalStatus(rxPower: number | null | undefined, thresholds: OpticalThresholds): {
+  status: "normal" | "warning" | "critical" | "saturated" | "unknown";
   label: string;
   color: string;
   bgColor: string;
@@ -38,12 +129,19 @@ function getOpticalStatus(rxPower: number | null | undefined): {
   if (rxPower === null || rxPower === undefined) {
     return { status: "unknown", label: "Sem Dados", color: "text-muted-foreground", bgColor: "bg-muted" };
   }
-  if (rxPower >= DEFAULT_THRESHOLDS.rxNormalMin) {
+  // Saturação (sinal muito forte - pode danificar)
+  if (rxPower >= thresholds.rxSaturation) {
+    return { status: "saturated", label: "Saturado", color: "text-purple-600", bgColor: "bg-purple-500/10" };
+  }
+  // Normal (dentro da faixa ideal)
+  if (rxPower >= thresholds.rxWarningMin && rxPower < thresholds.rxSaturation) {
     return { status: "normal", label: "Normal", color: "text-green-600", bgColor: "bg-green-500/10" };
   }
-  if (rxPower >= DEFAULT_THRESHOLDS.rxWarningMin) {
+  // Alerta (abaixo do ideal mas acima do crítico)
+  if (rxPower >= thresholds.rxIdealMin) {
     return { status: "warning", label: "Atenção", color: "text-amber-600", bgColor: "bg-amber-500/10" };
   }
+  // Crítico (abaixo da sensibilidade)
   return { status: "critical", label: "Crítico", color: "text-red-600", bgColor: "bg-red-500/10" };
 }
 
@@ -52,12 +150,13 @@ function formatDbm(value: number | null | undefined): string {
   return `${value.toFixed(1)} dBm`;
 }
 
-function SignalMeter({ value, min = -35, max = -10, thresholds }: { 
+function SignalMeter({ value, thresholds }: { 
   value: number | null | undefined; 
-  min?: number; 
-  max?: number;
-  thresholds: typeof DEFAULT_THRESHOLDS;
+  thresholds: OpticalThresholds;
 }) {
+  const min = thresholds.scaleMin;
+  const max = thresholds.scaleMax;
+  
   if (value === null || value === undefined) {
     return (
       <div className="space-y-2">
@@ -76,8 +175,10 @@ function SignalMeter({ value, min = -35, max = -10, thresholds }: {
   const range = max - min;
   const position = Math.max(0, Math.min(100, ((value - min) / range) * 100));
   
-  const normalPos = ((thresholds.rxNormalMin - min) / range) * 100;
+  // Posições das zonas na escala (da direita para esquerda: saturado > normal > alerta > crítico)
+  const saturationPos = ((thresholds.rxSaturation - min) / range) * 100;
   const warningPos = ((thresholds.rxWarningMin - min) / range) * 100;
+  const idealMinPos = ((thresholds.rxIdealMin - min) / range) * 100;
 
   return (
     <div className="space-y-2">
@@ -90,17 +191,25 @@ function SignalMeter({ value, min = -35, max = -10, thresholds }: {
           className="absolute inset-0 flex"
           style={{ direction: "rtl" }}
         >
+          {/* Saturação (roxo) - muito forte */}
+          <div 
+            className="h-full bg-purple-500/40" 
+            style={{ width: `${100 - saturationPos}%` }}
+          />
+          {/* Normal (verde) - faixa ideal */}
           <div 
             className="h-full bg-green-500/40" 
-            style={{ width: `${100 - normalPos}%` }}
+            style={{ width: `${saturationPos - warningPos}%` }}
           />
+          {/* Alerta (amarelo) - sinal baixo */}
           <div 
             className="h-full bg-amber-500/40" 
-            style={{ width: `${normalPos - warningPos}%` }}
+            style={{ width: `${warningPos - idealMinPos}%` }}
           />
+          {/* Crítico (vermelho) - abaixo da sensibilidade */}
           <div 
             className="h-full bg-red-500/40" 
-            style={{ width: `${warningPos}%` }}
+            style={{ width: `${idealMinPos}%` }}
           />
         </div>
         <div 
@@ -109,8 +218,9 @@ function SignalMeter({ value, min = -35, max = -10, thresholds }: {
         />
       </div>
       <div className="flex justify-between text-xs">
+        <span className="text-purple-600">Saturado</span>
         <span className="text-green-600">Normal</span>
-        <span className="text-amber-600">Atenção</span>
+        <span className="text-amber-600">Alerta</span>
         <span className="text-red-600">Crítico</span>
       </div>
     </div>
@@ -128,7 +238,10 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
   // Verificar se é link PTP (via switch)
   const isPtp = link.linkType === "ptp";
   
-  const rxStatus = getOpticalStatus(currentRxPower);
+  // Obter thresholds baseados no tipo de SFP/tecnologia
+  const thresholds = getThresholdsForLink(link);
+  
+  const rxStatus = getOpticalStatus(currentRxPower, thresholds);
   
   const baselineRx = link.opticalRxBaseline;
   const baselineTx = link.opticalTxBaseline;
@@ -157,6 +270,16 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
 
   return (
     <div className="space-y-4">
+      {/* Badge de tecnologia */}
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-xs">
+          {thresholds.label}
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          {thresholds.description} | RX: {thresholds.rxIdealMin} a {thresholds.rxSaturation} dBm
+        </span>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
@@ -317,7 +440,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
         <CardContent>
           <SignalMeter 
             value={currentRxPower} 
-            thresholds={DEFAULT_THRESHOLDS}
+            thresholds={thresholds}
           />
         </CardContent>
       </Card>
@@ -343,19 +466,19 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                   className="fill-muted-foreground"
                 />
                 <ReferenceLine 
-                  y={DEFAULT_THRESHOLDS.rxNormalMin} 
-                  stroke="hsl(var(--chart-2))" 
+                  y={thresholds.rxSaturation} 
+                  stroke="hsl(280 100% 50%)" 
                   strokeDasharray="5 5"
-                  label={{ value: "Normal", position: "right", fontSize: 10 }}
+                  label={{ value: "Saturação", position: "right", fontSize: 10 }}
                 />
                 <ReferenceLine 
-                  y={DEFAULT_THRESHOLDS.rxWarningMin} 
+                  y={thresholds.rxWarningMin} 
                   stroke="hsl(var(--chart-4))" 
                   strokeDasharray="5 5"
-                  label={{ value: "Atenção", position: "right", fontSize: 10 }}
+                  label={{ value: "Alerta", position: "right", fontSize: 10 }}
                 />
                 <ReferenceLine 
-                  y={DEFAULT_THRESHOLDS.rxCriticalMin} 
+                  y={thresholds.rxIdealMin} 
                   stroke="hsl(var(--destructive))" 
                   strokeDasharray="5 5"
                   label={{ value: "Crítico", position: "right", fontSize: 10 }}

@@ -708,6 +708,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
     opticalTxBaseline: (link as any)?.opticalTxBaseline || "",
     opticalDeltaThreshold: (link as any)?.opticalDeltaThreshold ?? 3,
+    sfpType: (link as any)?.sfpType || "",
   });
 
   // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador
@@ -2079,11 +2080,30 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 />
                 <p className="text-xs text-muted-foreground">Variação máxima antes de alertar (padrão: 3dB)</p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="sfpType">Tipo de Transceiver/Tecnologia</Label>
+                <Select
+                  value={formData.sfpType || (formData.linkType === "ptp" ? "sfp_10g_lr" : "gpon_onu")}
+                  onValueChange={(value) => setFormData({ ...formData, sfpType: value })}
+                >
+                  <SelectTrigger data-testid="select-sfp-type">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sfp_10g_lr">SFP+ 10G LR (10km)</SelectItem>
+                    <SelectItem value="sfp_10g_bidi">SFP+ 10G BIDI (20km)</SelectItem>
+                    <SelectItem value="qsfp_40g_er4">QSFP+ 40G ER4 (20km)</SelectItem>
+                    <SelectItem value="gpon_onu">GPON ONU (Cliente)</SelectItem>
+                    <SelectItem value="gpon_olt">GPON OLT (Central)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Define a escala de medição do sinal óptico</p>
+              </div>
             </div>
             
             <div className="p-3 bg-muted/50 rounded-md">
               <p className="text-xs text-muted-foreground">
-                <strong>Thresholds de sinal:</strong> RX ≥ -25dBm = Normal | -28dBm a -25dBm = Atenção | &lt; -28dBm = Crítico
+                <strong>Escalas variam por tecnologia:</strong> PTP (SFP+): até -14.4 dBm | GPON ONU: -8 a -25 dBm | GPON OLT: -8 a -28 dBm
               </p>
             </div>
           </div>
