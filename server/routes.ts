@@ -1246,6 +1246,10 @@ export async function registerRoutes(
         const olt = await storage.getOlt(link.oltId);
         ipAddress = olt?.ipAddress || null;
         deviceName = olt?.name || "OLT";
+      } else if (target === "switch" && link.switchId) {
+        const switchDevice = await storage.getSwitch(link.switchId);
+        ipAddress = switchDevice?.ipAddress || null;
+        deviceName = switchDevice?.name || "Switch";
       } else if (target === "concentrator") {
         ipAddress = link.snmpRouterIp || null;
         deviceName = "Concentrador";
@@ -1255,7 +1259,7 @@ export async function registerRoutes(
       }
       
       if (!ipAddress) {
-        return res.json({ success: false, error: `IP não configurado para ${deviceName}` });
+        return res.json({ success: false, error: `IP não configurado para ${deviceName || target}` });
       }
       
       const { pingHost } = await import("./monitoring");
@@ -1299,6 +1303,10 @@ export async function registerRoutes(
         const olt = await storage.getOlt(link.oltId);
         ipAddress = olt?.ipAddress || null;
         deviceName = olt?.name || "OLT";
+      } else if (target === "switch" && link.switchId) {
+        const switchDevice = await storage.getSwitch(link.switchId);
+        ipAddress = switchDevice?.ipAddress || null;
+        deviceName = switchDevice?.name || "Switch";
       } else if (target === "concentrator") {
         ipAddress = link.snmpRouterIp || null;
         deviceName = "Concentrador";
@@ -1308,7 +1316,7 @@ export async function registerRoutes(
       }
       
       if (!ipAddress) {
-        return res.json({ success: false, error: `IP não configurado para ${deviceName}` });
+        return res.json({ success: false, error: `IP não configurado para ${deviceName || target}` });
       }
       
       const { exec } = await import("child_process");
