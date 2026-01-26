@@ -2264,6 +2264,29 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/clients/:clientId/wanguard/mitigated-prefixes", async (req, res) => {
+    try {
+      const clientId = parseInt(req.params.clientId, 10);
+      const settings = await storage.getClientSettings(clientId);
+      
+      if (!settings?.wanguardEnabled || !settings.wanguardApiEndpoint) {
+        return res.status(400).json({ error: "Wanguard não configurado" });
+      }
+
+      wanguardService.configure({
+        endpoint: settings.wanguardApiEndpoint,
+        user: settings.wanguardApiUser || "",
+        password: settings.wanguardApiPassword || "",
+      });
+
+      const prefixes = await wanguardService.getMitigatedPrefixes();
+      res.json(prefixes);
+    } catch (error) {
+      console.error("Erro ao buscar prefixos mitigados:", error);
+      res.status(500).json({ error: "Erro ao buscar prefixos mitigados do Wanguard" });
+    }
+  });
+
   // Voalle Integration Routes
   app.post("/api/clients/:clientId/voalle/test", async (req, res) => {
     try {

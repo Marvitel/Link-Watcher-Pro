@@ -4,6 +4,28 @@ interface WanguardAnomalyRef {
   href: string;
 }
 
+interface WanguardBgpAnnouncement {
+  id: number;
+  prefix: string;
+  next_hop: string;
+  origin: string;
+  as_path: string;
+  communities: string;
+  extended_communities: string;
+  local_pref: string;
+  med: string;
+  connector: string;
+  status: string;
+  announced_at: string;
+  expires_at: string | null;
+  anomaly_id: number | null;
+  href: string;
+}
+
+interface WanguardBgpAnnouncementRef {
+  href: string;
+}
+
 interface WanguardAnomalyDetail {
   status: string;
   prefix: string;
@@ -255,6 +277,51 @@ export class WanguardService {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erro desconhecido";
       return { success: false, message: `Falha na conexão: ${message}` };
+    }
+  }
+
+  private extractBgpIdFromHref(href: string): number {
+    const match = href.match(/\/bgp_announcements\/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  async getActiveBgpAnnouncements(): Promise<WanguardBgpAnnouncement[]> {
+    try {
+      const refs = await this.apiRequest<WanguardBgpAnnouncementRef[]>("/bgp_announcements", { Status: "Active" });
+      const announcements: WanguardBgpAnnouncement[] = [];
+      
+      for (const ref of refs) {
+        const id = this.extractBgpIdFromHref(ref.href);
+        if (id) {
+          try {
+            const detail = await this.apiRequest<WanguardBgpAnnouncement>(`/bgp_announcements/${id}`);
+            announcements.push({ ...detail, id });
+          } catch (detailError) {
+            console.error(`Erro ao buscar detalhes do anúncio BGP ${id}:`, detailError);
+          }
+        }
+      }
+      
+      return announcements;
+    } catch (error) {
+      console.error("Erro ao buscar anúncios BGP ativos do Wanguard:", error);
+      return [];
+    }
+  }
+
+  async getMitigatedPrefixes(): Promise<{ prefix: string; connector: string; announcedAt: string; expiresAt: string | null; anomalyId: number | null }[]> {
+    try {
+      const announcements = await this.getActiveBgpAnnouncements();
+      return announcements.map(a => ({
+        prefix: a.prefix,
+        connector: a.connector,
+        announcedAt: a.announced_at,
+        expiresAt: a.expires_at,
+        anomalyId: a.anomaly_id,
+      }));
+    } catch (error) {
+      console.error("Erro ao buscar prefixos mitigados:", error);
+      return [];
     }
   }
 }
