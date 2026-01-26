@@ -7,19 +7,22 @@ interface WanguardAnomalyRef {
 interface WanguardBgpAnnouncement {
   id: number;
   prefix: string;
-  next_hop: string;
-  origin: string;
-  as_path: string;
-  communities: string;
-  extended_communities: string;
-  local_pref: string;
-  med: string;
-  connector: string;
   status: string;
-  announced_at: string;
-  expires_at: string | null;
-  anomaly_id: number | null;
-  href: string;
+  anomaly_id: string | null;
+  bgp_connector?: {
+    bgp_connector_id: string;
+    bgp_connector_name: string;
+    href: string;
+  };
+  from?: {
+    iso_8601: string;
+    unixtime: string;
+  };
+  until?: {
+    iso_8601: string;
+    unixtime: string;
+  };
+  href?: string;
 }
 
 interface WanguardBgpAnnouncementRef {
@@ -312,12 +315,20 @@ export class WanguardService {
   async getMitigatedPrefixes(): Promise<{ prefix: string; connector: string; announcedAt: string; expiresAt: string | null; anomalyId: number | null }[]> {
     try {
       const announcements = await this.getActiveBgpAnnouncements();
-      return announcements.map(a => ({
+      
+      // Filtrar apenas anúncios ativos (status "Active" ou "Pending" são mitigações em andamento)
+      // Status "Finished" ou "Delayed" são mitigações finalizadas/históricas
+      const activeAnnouncements = announcements.filter(a => 
+        a.status === "Active" || a.status === "Pending" || a.status === "Announcing"
+      );
+      
+      
+      return activeAnnouncements.map(a => ({
         prefix: a.prefix,
-        connector: a.connector,
-        announcedAt: a.announced_at,
-        expiresAt: a.expires_at,
-        anomalyId: a.anomaly_id,
+        connector: a.bgp_connector?.bgp_connector_name || "-",
+        announcedAt: a.from?.iso_8601 || "",
+        expiresAt: a.until?.iso_8601 || null,
+        anomalyId: a.anomaly_id ? parseInt(a.anomaly_id, 10) : null,
       }));
     } catch (error) {
       console.error("Erro ao buscar prefixos mitigados:", error);
