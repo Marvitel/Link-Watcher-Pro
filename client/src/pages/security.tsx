@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { MetricCard } from "@/components/metric-card";
 import { DDoSPanel } from "@/components/ddos-panel";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useClientContext } from "@/lib/client-context";
 import {
   Table,
@@ -40,7 +41,7 @@ interface MitigatedPrefix {
   anomalyId: number | null;
 }
 
-export default function Security() {
+function Security() {
   const { selectedClientId } = useClientContext();
   const queryClient = useQueryClient();
   
@@ -51,17 +52,20 @@ export default function Security() {
     queryKey: [ddosUrl],
     refetchInterval: 10000,
     retry: false,
+    throwOnError: false,
   });
   
   const { data: clientSettings } = useQuery<ClientSettings>({
     queryKey: ["/api/clients", selectedClientId, "settings"],
     enabled: !!selectedClientId,
+    throwOnError: false,
   });
 
   const { data: mitigatedPrefixes } = useQuery<MitigatedPrefix[]>({
     queryKey: [mitigatedUrl],
     enabled: !!selectedClientId && !!clientSettings?.wanguardEnabled,
     refetchInterval: 30000,
+    throwOnError: false,
   });
 
   const activeAttacks = ddosEvents?.filter((e) => e.mitigationStatus !== "resolved") || [];
@@ -401,5 +405,13 @@ export default function Security() {
         <DDoSPanel events={ddosEvents || []} />
       )}
     </div>
+  );
+}
+
+export default function SecurityPage() {
+  return (
+    <ErrorBoundary>
+      <Security />
+    </ErrorBoundary>
   );
 }
