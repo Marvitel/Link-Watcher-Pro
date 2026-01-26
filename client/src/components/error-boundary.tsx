@@ -44,6 +44,11 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-muted-foreground text-center mb-4">
               Ocorreu um erro ao carregar esta seção. Por favor, tente novamente.
             </p>
+            {this.state.error && (
+              <p className="text-xs text-muted-foreground font-mono mb-4 max-w-md text-center break-all">
+                {this.state.error.message}
+              </p>
+            )}
             <Button onClick={this.handleRetry} variant="outline">
               <RefreshCw className="w-4 h-4 mr-2" />
               Tentar Novamente
