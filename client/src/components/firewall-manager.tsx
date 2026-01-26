@@ -319,7 +319,7 @@ export function FirewallManager() {
                       data-testid="input-ip-address"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Exemplo: 192.168.1.100 (IP único) ou 192.168.1.0/24 (rede)
+                      IPv4: 192.168.1.100 ou 192.168.1.0/24 | IPv6: 2001:db8::1 ou 2001:db8::/32
                     </p>
                   </div>
                   <div className="space-y-2">

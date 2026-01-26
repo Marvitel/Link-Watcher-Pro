@@ -89,7 +89,9 @@ Sistema de firewall baseado em whitelist para controle de acesso às áreas admi
 - **Tabelas**: `firewallSettings` (configurações globais) e `firewallWhitelist` (IPs/CIDRs permitidos)
 - **Middleware**: `server/firewall.ts` implementa cache de 30 segundos para performance
 - **Comportamento Default Deny**: Quando ativado com whitelist vazia, bloqueia TODOS os acessos
-- **Suporte CIDR**: Aceita IPs individuais (192.168.1.100) e notação CIDR (192.168.1.0/24)
+- **Suporte IPv4/IPv6**: Aceita endereços IPv4 e IPv6, individuais ou notação CIDR
+  - IPv4: `192.168.1.100` ou `192.168.1.0/24`
+  - IPv6: `2001:db8::1` ou `2001:db8::/32` (suporta abreviação com ::)
 - **Permissões granulares**: `allowAdmin` (porta admin), `allowSsh` (terminal SSH), `allowApi` (APIs - reservado)
 - **Interface**: Admin → Firewall para gerenciar configurações e whitelist
 - **Audit logs**: Todas as alterações são registradas com tipos `firewall_settings_update`, `firewall_whitelist_*`

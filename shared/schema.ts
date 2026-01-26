@@ -656,7 +656,7 @@ export const switches = pgTable("switches", {
 // Firewall - Whitelist de IPs para acesso administrativo e SSH
 export const firewallWhitelist = pgTable("firewall_whitelist", {
   id: serial("id").primaryKey(),
-  ipAddress: varchar("ip_address", { length: 45 }).notNull(), // IP ou CIDR (ex: 192.168.1.0/24)
+  ipAddress: varchar("ip_address", { length: 50 }).notNull(), // IPv4/IPv6 ou CIDR (ex: 192.168.1.0/24, 2001:db8::/32)
   description: text("description"), // Descrição do IP (ex: "Escritório Marvitel")
   allowAdmin: boolean("allow_admin").notNull().default(true), // Permitir acesso à porta admin (5001)
   allowSsh: boolean("allow_ssh").notNull().default(true), // Permitir acesso SSH
