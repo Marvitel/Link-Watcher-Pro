@@ -5615,6 +5615,7 @@ export async function registerRoutes(
   // Adicionar entrada na whitelist
   app.post("/api/firewall/whitelist", requireSuperAdmin, async (req, res) => {
     try {
+      console.log("[Firewall] POST whitelist - body:", JSON.stringify(req.body));
       const userId = req.user?.id;
       const parsed = insertFirewallWhitelistSchema.parse(req.body);
       
@@ -5632,13 +5633,41 @@ export async function registerRoutes(
         request: req,
       });
       
+      console.log("[Firewall] Entrada criada com sucesso:", entry.id);
       res.json(entry);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Firewall] Erro ao adicionar whitelist:", error);
-      if (error instanceof Error && error.name === "ZodError") {
-        return res.status(400).json({ error: "Dados inválidos", details: (error as any).errors });
+      
+      // Zod validation error
+      if (error?.name === "ZodError") {
+        const details = error.errors?.map((e: any) => `${e.path.join(".")}: ${e.message}`).join(", ");
+        return res.status(400).json({ 
+          error: "Dados inválidos", 
+          message: details || "Erro de validação",
+          details: error.errors 
+        });
       }
-      res.status(500).json({ error: "Erro ao adicionar entrada na whitelist" });
+      
+      // Unique constraint violation (IP duplicado)
+      if (error?.code === "23505") {
+        return res.status(409).json({ 
+          error: "IP já cadastrado", 
+          message: "Este endereço IP/CIDR já existe na whitelist" 
+        });
+      }
+      
+      // Generic database error
+      if (error?.code) {
+        return res.status(500).json({ 
+          error: "Erro de banco de dados", 
+          message: `Código: ${error.code}` 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Erro ao adicionar entrada na whitelist",
+        message: error?.message || "Erro desconhecido"
+      });
     }
   });
 

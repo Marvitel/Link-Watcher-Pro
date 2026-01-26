@@ -112,8 +112,14 @@ export function FirewallManager() {
       setNewEntry({ ipAddress: "", description: "", allowAdmin: true, allowSsh: true, allowApi: false, isActive: true });
       toast({ title: "Entrada adicionada com sucesso" });
     },
-    onError: () => {
-      toast({ title: "Erro ao adicionar entrada", variant: "destructive" });
+    onError: (error: any) => {
+      const message = error?.message || "Erro desconhecido";
+      console.error("[Firewall] Erro ao adicionar entrada:", error);
+      toast({ 
+        title: "Erro ao adicionar entrada", 
+        description: message,
+        variant: "destructive" 
+      });
     },
   });
 
