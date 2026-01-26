@@ -277,46 +277,50 @@ function Security() {
         </Card>
       )}
 
-      {mitigatedPrefixes && mitigatedPrefixes.length > 0 && (
-        <Card className="border-amber-500/30">
-          <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-            <ShieldBan className="w-5 h-5 text-amber-500" />
-            <CardTitle className="text-lg">Prefixos em Mitigação BGP</CardTitle>
-            <Badge variant="outline" className="ml-auto bg-amber-500/10 text-amber-600 border-amber-500/20">
-              {mitigatedPrefixes.length} ativo{mitigatedPrefixes.length > 1 ? "s" : ""}
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Prefixo IP</TableHead>
-                  <TableHead>Conector BGP</TableHead>
-                  <TableHead>Anunciado em</TableHead>
-                  <TableHead>Expira em</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mitigatedPrefixes.map((prefix, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-mono font-semibold">{prefix.prefix}</TableCell>
-                    <TableCell>{prefix.connector}</TableCell>
-                    <TableCell className="text-sm">
-                      {safeFormatDate(prefix.announcedAt)}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {prefix.expiresAt 
-                        ? safeFormatDate(prefix.expiresAt)
-                        : <span className="text-muted-foreground">Manual</span>
-                      }
-                    </TableCell>
+      {(() => {
+        const activeMitigations = mitigatedPrefixes?.filter(p => p.anomalyId !== null) || [];
+        if (activeMitigations.length === 0) return null;
+        return (
+          <Card className="border-amber-500/30">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0">
+              <ShieldBan className="w-5 h-5 text-amber-500" />
+              <CardTitle className="text-lg">Prefixos em Mitigação BGP</CardTitle>
+              <Badge variant="outline" className="ml-auto bg-amber-500/10 text-amber-600 border-amber-500/20">
+                {activeMitigations.length} ativo{activeMitigations.length > 1 ? "s" : ""}
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Prefixo IP</TableHead>
+                    <TableHead>Conector BGP</TableHead>
+                    <TableHead>Anunciado em</TableHead>
+                    <TableHead>Expira em</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                </TableHeader>
+                <TableBody>
+                  {activeMitigations.map((prefix, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-mono font-semibold">{prefix.prefix}</TableCell>
+                      <TableCell>{prefix.connector}</TableCell>
+                      <TableCell className="text-sm">
+                        {safeFormatDate(prefix.announcedAt)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {prefix.expiresAt 
+                          ? safeFormatDate(prefix.expiresAt)
+                          : <span className="text-muted-foreground">Manual</span>
+                        }
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
