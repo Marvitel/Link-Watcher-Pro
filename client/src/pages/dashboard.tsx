@@ -19,6 +19,7 @@ import {
   Gauge,
   Clock,
   Shield,
+  ShieldAlert,
   ArrowRight,
   RefreshCw,
   Building2,
@@ -724,6 +725,25 @@ function DashboardContent() {
 
   const showDdosCard = isSuperAdmin || clientSettings?.wanguardEnabled;
 
+  const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
+  const { data: ddosEvents } = useQuery<{ id: number; attackType: string; startTime: string; mitigationStatus: string; peakBandwidth: number | null; targetIp: string | null }[]>({
+    queryKey: [ddosUrl],
+    refetchInterval: 10000,
+    enabled: showDdosCard,
+  });
+
+  const activeDdosAttacks = useMemo(() => 
+    ddosEvents?.filter(e => e.mitigationStatus !== "resolved") || [], 
+    [ddosEvents]
+  );
+  
+  const recentDdosEvents = useMemo(() => {
+    if (!ddosEvents) return [];
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return ddosEvents.filter(e => new Date(e.startTime) >= last24h);
+  }, [ddosEvents]);
+
   const { data: links, isLoading: linksLoading } = useQuery<LinkType[]>({
     queryKey: [linksUrl],
     refetchInterval: 5000,
@@ -1147,11 +1167,20 @@ function DashboardContent() {
       </div>
 
       {showDdosCard && (
-        <Card>
+        <Card className={activeDdosAttacks.length > 0 ? "border-red-500/50" : ""}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-green-500" />
+              {activeDdosAttacks.length > 0 ? (
+                <ShieldAlert className="w-5 h-5 text-red-500" />
+              ) : (
+                <Shield className="w-5 h-5 text-green-500" />
+              )}
               <CardTitle className="text-lg">Proteção Anti-DDoS</CardTitle>
+              {activeDdosAttacks.length > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {activeDdosAttacks.length} ativo{activeDdosAttacks.length > 1 ? "s" : ""}
+                </Badge>
+              )}
             </div>
             <Link href="/security">
               <Button variant="outline" size="sm" data-testid="button-view-security">
@@ -1160,17 +1189,45 @@ function DashboardContent() {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-green-500" />
+            {activeDdosAttacks.length > 0 ? (
+              <div className="space-y-3">
+                {activeDdosAttacks.slice(0, 3).map((attack) => (
+                  <div key={attack.id} className="flex items-center justify-between p-3 rounded-md bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-center gap-3">
+                      <ShieldAlert className="w-5 h-5 text-red-500" />
+                      <div>
+                        <p className="font-medium text-red-600 dark:text-red-400">{attack.attackType}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {attack.targetIp || "IP não identificado"} - Pico: {attack.peakBandwidth?.toFixed(1) || 0} Gbps
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                      {attack.mitigationStatus === "mitigating" ? "Mitigando" : "Detectado"}
+                    </Badge>
+                  </div>
+                ))}
+                {activeDdosAttacks.length > 3 && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    + {activeDdosAttacks.length - 3} ataque(s) adicional(is)
+                  </p>
+                )}
               </div>
-              <div>
-                <p className="font-medium">Sistema operando normalmente</p>
-                <p className="text-sm text-muted-foreground">
-                  Monitoramento 24x7 ativo - Nenhum ataque detectado nas últimas 24h
-                </p>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="font-medium">Sistema operando normalmente</p>
+                  <p className="text-sm text-muted-foreground">
+                    Monitoramento 24x7 ativo - {recentDdosEvents.length > 0 
+                      ? `${recentDdosEvents.length} ataque(s) nas últimas 24h (resolvidos)`
+                      : "Nenhum ataque detectado nas últimas 24h"}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
