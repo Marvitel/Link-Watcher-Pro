@@ -653,6 +653,31 @@ export const switches = pgTable("switches", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Firewall - Whitelist de IPs para acesso administrativo e SSH
+export const firewallWhitelist = pgTable("firewall_whitelist", {
+  id: serial("id").primaryKey(),
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(), // IP ou CIDR (ex: 192.168.1.0/24)
+  description: text("description"), // Descrição do IP (ex: "Escritório Marvitel")
+  allowAdmin: boolean("allow_admin").notNull().default(true), // Permitir acesso à porta admin (5001)
+  allowSsh: boolean("allow_ssh").notNull().default(true), // Permitir acesso SSH
+  allowApi: boolean("allow_api").notNull().default(false), // Permitir acesso API (futuro)
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: integer("created_by"), // ID do usuário que criou
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Configurações globais do Firewall
+export const firewallSettings = pgTable("firewall_settings", {
+  id: serial("id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(false), // Firewall ativo/inativo
+  defaultDenyAdmin: boolean("default_deny_admin").notNull().default(true), // Negar por padrão acesso admin
+  defaultDenySsh: boolean("default_deny_ssh").notNull().default(true), // Negar por padrão acesso SSH
+  logBlockedAttempts: boolean("log_blocked_attempts").notNull().default(true), // Logar tentativas bloqueadas
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: integer("updated_by"), // ID do usuário que atualizou
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true, lastLoginAt: true });
 export const insertLinkSchema = createInsertSchema(links).omit({ id: true, lastUpdated: true, createdAt: true });
@@ -681,6 +706,8 @@ export const insertOpticalSettingsSchema = createInsertSchema(opticalSettings).o
 export const insertSplitterSchema = createInsertSchema(splitters).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCpeSchema = createInsertSchema(cpes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkCpeSchema = createInsertSchema(linkCpes).omit({ id: true, createdAt: true });
+export const insertFirewallWhitelistSchema = createInsertSchema(firewallWhitelist).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFirewallSettingsSchema = createInsertSchema(firewallSettings).omit({ id: true, updatedAt: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -712,6 +739,8 @@ export type InsertOpticalSettings = z.infer<typeof insertOpticalSettingsSchema>;
 export type InsertSplitter = z.infer<typeof insertSplitterSchema>;
 export type InsertCpe = z.infer<typeof insertCpeSchema>;
 export type InsertLinkCpe = z.infer<typeof insertLinkCpeSchema>;
+export type InsertFirewallWhitelist = z.infer<typeof insertFirewallWhitelistSchema>;
+export type InsertFirewallSettings = z.infer<typeof insertFirewallSettingsSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -743,6 +772,8 @@ export type OpticalSettings = typeof opticalSettings.$inferSelect;
 export type Splitter = typeof splitters.$inferSelect;
 export type Cpe = typeof cpes.$inferSelect;
 export type LinkCpe = typeof linkCpes.$inferSelect;
+export type FirewallWhitelist = typeof firewallWhitelist.$inferSelect;
+export type FirewallSettings = typeof firewallSettings.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {
