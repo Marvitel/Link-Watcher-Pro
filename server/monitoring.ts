@@ -2,10 +2,11 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes } from "@shared/schema";
-import { eq, and, not, like, gte } from "drizzle-orm";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents } from "@shared/schema";
+import { eq, and, not, like, gte, isNotNull } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { wanguardService } from "./wanguard";
 
 const execAsync = promisify(exec);
 
@@ -2208,18 +2209,149 @@ export async function collectAllCpesMetrics(): Promise<void> {
   }
 }
 
+// Sincronização automática do Wanguard para detecção de DDoS
+let wanguardSyncInterval: ReturnType<typeof setInterval> | null = null;
+
+async function syncWanguardForAllClients(): Promise<void> {
+  try {
+    // Buscar todos os clientes com Wanguard habilitado
+    const clientsWithWanguard = await db
+      .select({
+        clientId: clientSettings.clientId,
+        endpoint: clientSettings.wanguardApiEndpoint,
+        user: clientSettings.wanguardApiUser,
+        password: clientSettings.wanguardApiPassword,
+      })
+      .from(clientSettings)
+      .where(
+        and(
+          eq(clientSettings.wanguardEnabled, true),
+          isNotNull(clientSettings.wanguardApiEndpoint)
+        )
+      );
+
+    if (clientsWithWanguard.length === 0) {
+      return; // Nenhum cliente com Wanguard configurado
+    }
+
+    console.log(`[Wanguard Auto-Sync] Sincronizando ${clientsWithWanguard.length} cliente(s)...`);
+
+    for (const settings of clientsWithWanguard) {
+      if (!settings.endpoint || !settings.user || !settings.password) {
+        continue;
+      }
+
+      try {
+        // Configurar serviço Wanguard para este cliente
+        wanguardService.configure({
+          endpoint: settings.endpoint,
+          user: settings.user,
+          password: settings.password,
+        });
+
+        // Buscar anomalias ativas
+        const anomalies = await wanguardService.getActiveAnomalies();
+        
+        if (anomalies.length === 0) {
+          continue;
+        }
+
+        // Buscar links do cliente
+        const clientLinks = await db
+          .select()
+          .from(links)
+          .where(eq(links.clientId, settings.clientId));
+
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        for (const anomaly of anomalies) {
+          // Tentar encontrar link correspondente pelo IP
+          const matchingLink = clientLinks.find(link => 
+            link.ipBlock && anomaly.ip?.startsWith(link.ipBlock.split("/")[0].slice(0, -1))
+          );
+          
+          // Se não encontrar link, usar o primeiro link do cliente
+          const targetLink = matchingLink || clientLinks[0];
+          
+          if (targetLink) {
+            const eventData = wanguardService.mapAnomalyToEvent(anomaly, settings.clientId, targetLink.id);
+            
+            // Verificar se evento já existe
+            const [existingEvent] = await db
+              .select()
+              .from(ddosEvents)
+              .where(eq(ddosEvents.wanguardAnomalyId, anomaly.id))
+              .limit(1);
+            
+            if (existingEvent) {
+              // Atualizar evento existente
+              await db.update(ddosEvents)
+                .set({
+                  endTime: eventData.endTime,
+                  peakBandwidth: eventData.peakBandwidth,
+                  mitigationStatus: eventData.mitigationStatus,
+                  blockedPackets: eventData.blockedPackets,
+                })
+                .where(eq(ddosEvents.id, existingEvent.id));
+              updatedCount++;
+            } else {
+              // Criar novo evento DDoS
+              await db.insert(ddosEvents).values({
+                ...eventData,
+                startTime: eventData.startTime,
+              });
+              createdCount++;
+              
+              // Também criar evento no feed de eventos para visibilidade unificada
+              await db.insert(events).values({
+                linkId: targetLink.id,
+                clientId: settings.clientId,
+                type: "ddos_attack",
+                title: `Ataque DDoS: ${eventData.attackType}`,
+                description: `Ataque detectado em ${anomaly.ip} - Pico: ${Math.round(eventData.peakBandwidth || 0)} Gbps - Wanguard ID: ${anomaly.id}`,
+              });
+              
+              console.log(`[Wanguard Auto-Sync] NOVO ATAQUE DDoS detectado para cliente ${settings.clientId}: ${eventData.attackType} em ${anomaly.ip}`);
+            }
+          }
+        }
+
+        if (createdCount > 0 || updatedCount > 0) {
+          console.log(`[Wanguard Auto-Sync] Cliente ${settings.clientId}: ${createdCount} novos, ${updatedCount} atualizados`);
+        }
+      } catch (clientError) {
+        console.error(`[Wanguard Auto-Sync] Erro no cliente ${settings.clientId}:`, clientError);
+      }
+    }
+  } catch (error) {
+    console.error("[Wanguard Auto-Sync] Erro na sincronização automática:", error);
+  }
+}
+
 export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
+  }
+  if (wanguardSyncInterval) {
+    clearInterval(wanguardSyncInterval);
   }
 
   console.log(`[Monitor] Starting real-time monitoring with ${intervalSeconds}s interval`);
 
   collectAllLinksMetrics();
+  syncWanguardForAllClients(); // Sincronização inicial
 
   monitoringInterval = setInterval(() => {
     collectAllLinksMetrics();
   }, intervalSeconds * 1000);
+
+  // Sincronização do Wanguard a cada 60 segundos
+  wanguardSyncInterval = setInterval(() => {
+    syncWanguardForAllClients();
+  }, 60 * 1000);
+  
+  console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (60s)`);
 }
 
 export function stopMonitoring(): void {
@@ -2227,5 +2359,10 @@ export function stopMonitoring(): void {
     clearInterval(monitoringInterval);
     monitoringInterval = null;
     console.log("[Monitor] Monitoring stopped");
+  }
+  if (wanguardSyncInterval) {
+    clearInterval(wanguardSyncInterval);
+    wanguardSyncInterval = null;
+    console.log("[Wanguard Auto-Sync] Sincronização automática parada");
   }
 }
