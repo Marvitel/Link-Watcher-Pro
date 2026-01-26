@@ -5635,6 +5635,9 @@ export async function registerRoutes(
       res.json(entry);
     } catch (error) {
       console.error("[Firewall] Erro ao adicionar whitelist:", error);
+      if (error instanceof Error && error.name === "ZodError") {
+        return res.status(400).json({ error: "Dados inválidos", details: (error as any).errors });
+      }
       res.status(500).json({ error: "Erro ao adicionar entrada na whitelist" });
     }
   });
