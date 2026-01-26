@@ -2287,6 +2287,54 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/links/:linkId/mitigation-status", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link not found" });
+      }
+
+      const settings = await storage.getClientSettings(link.clientId);
+      if (!settings?.wanguardEnabled || !settings.wanguardApiEndpoint) {
+        return res.json({ 
+          isMitigated: false, 
+          mitigationInfo: null,
+          message: "Wanguard não configurado" 
+        });
+      }
+
+      wanguardService.configure({
+        endpoint: settings.wanguardApiEndpoint,
+        user: settings.wanguardApiUser || "",
+        password: settings.wanguardApiPassword || "",
+      });
+
+      const prefixes = await wanguardService.getMitigatedPrefixes();
+      
+      const linkIp = link.ipBlock?.split("/")[0];
+      const linkNetwork = link.ipBlock;
+      
+      const matchingMitigation = prefixes.find(p => {
+        const prefixNetwork = p.prefix;
+        if (linkNetwork && prefixNetwork === linkNetwork) return true;
+        if (linkIp && p.prefix.includes(linkIp)) return true;
+        const prefixBase = p.prefix.split("/")[0];
+        if (linkIp && prefixBase === linkIp) return true;
+        return false;
+      });
+
+      res.json({
+        isMitigated: !!matchingMitigation,
+        mitigationInfo: matchingMitigation || null,
+        linkIp: linkNetwork,
+      });
+    } catch (error) {
+      console.error("Erro ao verificar status de mitigação:", error);
+      res.status(500).json({ error: "Erro ao verificar status de mitigação" });
+    }
+  });
+
   // Voalle Integration Routes
   app.post("/api/clients/:clientId/voalle/test", async (req, res) => {
     try {

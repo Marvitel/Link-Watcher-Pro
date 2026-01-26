@@ -184,6 +184,23 @@ export default function LinkDetail() {
     refetchInterval: 5000,
   });
 
+  interface MitigationStatus {
+    isMitigated: boolean;
+    mitigationInfo: {
+      prefix: string;
+      connector: string;
+      announcedAt: string;
+      expiresAt: string | null;
+    } | null;
+    linkIp: string;
+  }
+
+  const { data: mitigationStatus } = useQuery<MitigationStatus>({
+    queryKey: ["/api/links", linkId, "mitigation-status"],
+    enabled: !isNaN(linkId),
+    refetchInterval: 30000,
+  });
+
   // Construir URL com base no modo (período pré-definido ou intervalo personalizado)
   const buildMetricsUrl = () => {
     const base = `/api/links/${linkId}/metrics`;
@@ -444,6 +461,33 @@ export default function LinkDetail() {
           Atualizar
         </Button>
       </div>
+
+      {mitigationStatus?.isMitigated && mitigationStatus.mitigationInfo && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardContent className="flex items-center gap-4 py-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+              <Shield className="w-6 h-6 text-amber-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-600 dark:text-amber-400" data-testid="text-mitigation-active">
+                Link em Mitigação DDoS
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Prefixo: <span className="font-mono">{mitigationStatus.mitigationInfo.prefix}</span> via {mitigationStatus.mitigationInfo.connector}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Mitigação ativa desde {format(new Date(mitigationStatus.mitigationInfo.announcedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                {mitigationStatus.mitigationInfo.expiresAt && (
+                  <> - Expira em {format(new Date(mitigationStatus.mitigationInfo.expiresAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
+                )}
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+              BGP Ativo
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
 
       {hasFailure && failureInfo && (
         <Card className="border-destructive bg-destructive/5">
