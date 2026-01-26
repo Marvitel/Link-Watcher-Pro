@@ -100,7 +100,9 @@ async function ensureCacheValid(): Promise<void> {
 export function isIpAllowedForAdmin(clientIp: string): boolean {
   if (!firewallConfig.enabled) return true;
   if (!firewallConfig.defaultDenyAdmin) return true;
-  if (whitelistCache.length === 0) return true;
+  
+  // Se whitelist está vazia e default deny está ativo, bloqueia todos
+  if (whitelistCache.length === 0) return false;
   
   const normalizedIp = normalizeIp(clientIp);
   
@@ -116,7 +118,9 @@ export function isIpAllowedForAdmin(clientIp: string): boolean {
 export function isIpAllowedForSsh(clientIp: string): boolean {
   if (!firewallConfig.enabled) return true;
   if (!firewallConfig.defaultDenySsh) return true;
-  if (whitelistCache.length === 0) return true;
+  
+  // Se whitelist está vazia e default deny está ativo, bloqueia todos
+  if (whitelistCache.length === 0) return false;
   
   const normalizedIp = normalizeIp(clientIp);
   

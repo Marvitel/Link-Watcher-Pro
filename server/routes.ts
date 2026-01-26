@@ -5591,10 +5591,9 @@ export async function registerRoutes(
       
       logAuditEvent({
         action: "firewall_settings_update",
-        userId: userId || null,
-        details: { settings: req.body },
-        ipAddress: req.ip || null,
-        userAgent: req.headers["user-agent"] || null,
+        actor: req.user || null,
+        metadata: { settings: req.body },
+        request: req,
       });
       
       res.json(updated);
@@ -5628,10 +5627,9 @@ export async function registerRoutes(
       
       logAuditEvent({
         action: "firewall_whitelist_create",
-        userId: userId || null,
-        details: { ipAddress: parsed.ipAddress, description: parsed.description },
-        ipAddress: req.ip || null,
-        userAgent: req.headers["user-agent"] || null,
+        actor: req.user || null,
+        metadata: { ipAddress: parsed.ipAddress, description: parsed.description },
+        request: req,
       });
       
       res.json(entry);
@@ -5663,10 +5661,9 @@ export async function registerRoutes(
       
       logAuditEvent({
         action: "firewall_whitelist_update",
-        userId: userId || null,
-        details: { id, changes: req.body },
-        ipAddress: req.ip || null,
-        userAgent: req.headers["user-agent"] || null,
+        actor: req.user || null,
+        metadata: { id, changes: req.body },
+        request: req,
       });
       
       res.json(updated);
@@ -5693,10 +5690,9 @@ export async function registerRoutes(
       
       logAuditEvent({
         action: "firewall_whitelist_delete",
-        userId: userId || null,
-        details: { ipAddress: deleted.ipAddress, description: deleted.description },
-        ipAddress: req.ip || null,
-        userAgent: req.headers["user-agent"] || null,
+        actor: req.user || null,
+        metadata: { ipAddress: deleted.ipAddress, description: deleted.description },
+        request: req,
       });
       
       res.json({ success: true });

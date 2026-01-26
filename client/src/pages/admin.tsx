@@ -74,9 +74,10 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers, Router, Monitor } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
+import { FirewallManager } from "@/components/firewall-manager";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -4330,6 +4331,10 @@ export default function Admin() {
             <Activity className="w-4 h-4" />
             Diagnóstico
           </TabsTrigger>
+          <TabsTrigger value="firewall" className="gap-2" data-testid="tab-firewall">
+            <ShieldCheck className="w-4 h-4" />
+            Firewall
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -4879,6 +4884,10 @@ export default function Admin() {
 
         <TabsContent value="diagnostics" className="space-y-4">
           <DiagnosticsTab />
+        </TabsContent>
+
+        <TabsContent value="firewall" className="space-y-4">
+          <FirewallManager />
         </TabsContent>
       </Tabs>
     </div>
