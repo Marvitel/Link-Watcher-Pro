@@ -910,7 +910,11 @@ export type AuditAction =
   | "system_update"
   | "backup_restore"
   | "password_change"
-  | "permission_change";
+  | "permission_change"
+  | "firewall_settings_update"
+  | "firewall_whitelist_create"
+  | "firewall_whitelist_update"
+  | "firewall_whitelist_delete";
 
 export type AuditEntity = 
   | "user" 

@@ -31,11 +31,16 @@ import {
   insertLinkGroupSchema,
   insertLinkGroupMemberSchema,
   insertExternalIntegrationSchema,
+  insertFirewallWhitelistSchema,
+  insertFirewallSettingsSchema,
   links,
   blacklistChecks,
+  firewallWhitelist,
+  firewallSettings,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
+import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
@@ -5520,6 +5525,183 @@ export async function registerRoutes(
       res.json({ success: true, message: "Métricas resetadas com sucesso" });
     } catch (error) {
       res.status(500).json({ error: "Erro ao resetar métricas" });
+    }
+  });
+
+  // =====================================================
+  // Firewall Routes - Gerenciamento de Whitelist
+  // =====================================================
+
+  // Obter status do firewall
+  app.get("/api/firewall/status", requireSuperAdmin, async (_req, res) => {
+    try {
+      const status = getFirewallStatus();
+      const [settings] = await db.select().from(firewallSettings).limit(1);
+      res.json({ ...status, settings: settings || null });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao obter status do firewall" });
+    }
+  });
+
+  // Obter configurações do firewall
+  app.get("/api/firewall/settings", requireSuperAdmin, async (_req, res) => {
+    try {
+      const [settings] = await db.select().from(firewallSettings).limit(1);
+      if (!settings) {
+        // Criar configuração padrão se não existir
+        const [newSettings] = await db.insert(firewallSettings).values({
+          enabled: false,
+          defaultDenyAdmin: true,
+          defaultDenySsh: true,
+          logBlockedAttempts: true,
+        }).returning();
+        return res.json(newSettings);
+      }
+      res.json(settings);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao obter configurações do firewall" });
+    }
+  });
+
+  // Atualizar configurações do firewall
+  app.patch("/api/firewall/settings", requireSuperAdmin, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const [existing] = await db.select().from(firewallSettings).limit(1);
+      
+      if (!existing) {
+        const [newSettings] = await db.insert(firewallSettings).values({
+          ...req.body,
+          updatedBy: userId,
+        }).returning();
+        invalidateCache();
+        return res.json(newSettings);
+      }
+      
+      const [updated] = await db.update(firewallSettings)
+        .set({ 
+          ...req.body, 
+          updatedAt: new Date(),
+          updatedBy: userId,
+        })
+        .where(eq(firewallSettings.id, existing.id))
+        .returning();
+      
+      invalidateCache();
+      
+      logAuditEvent({
+        action: "firewall_settings_update",
+        userId: userId || null,
+        details: { settings: req.body },
+        ipAddress: req.ip || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar configurações do firewall" });
+    }
+  });
+
+  // Listar entradas da whitelist
+  app.get("/api/firewall/whitelist", requireSuperAdmin, async (_req, res) => {
+    try {
+      const entries = await db.select().from(firewallWhitelist).orderBy(firewallWhitelist.createdAt);
+      res.json(entries);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao listar whitelist" });
+    }
+  });
+
+  // Adicionar entrada na whitelist
+  app.post("/api/firewall/whitelist", requireSuperAdmin, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const parsed = insertFirewallWhitelistSchema.parse(req.body);
+      
+      const [entry] = await db.insert(firewallWhitelist).values({
+        ...parsed,
+        createdBy: userId,
+      }).returning();
+      
+      invalidateCache();
+      
+      logAuditEvent({
+        action: "firewall_whitelist_create",
+        userId: userId || null,
+        details: { ipAddress: parsed.ipAddress, description: parsed.description },
+        ipAddress: req.ip || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      res.json(entry);
+    } catch (error) {
+      console.error("[Firewall] Erro ao adicionar whitelist:", error);
+      res.status(500).json({ error: "Erro ao adicionar entrada na whitelist" });
+    }
+  });
+
+  // Atualizar entrada da whitelist
+  app.patch("/api/firewall/whitelist/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const userId = req.user?.id;
+      
+      const [updated] = await db.update(firewallWhitelist)
+        .set({ 
+          ...req.body, 
+          updatedAt: new Date(),
+        })
+        .where(eq(firewallWhitelist.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Entrada não encontrada" });
+      }
+      
+      invalidateCache();
+      
+      logAuditEvent({
+        action: "firewall_whitelist_update",
+        userId: userId || null,
+        details: { id, changes: req.body },
+        ipAddress: req.ip || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao atualizar entrada da whitelist" });
+    }
+  });
+
+  // Remover entrada da whitelist
+  app.delete("/api/firewall/whitelist/:id", requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const userId = req.user?.id;
+      
+      const [deleted] = await db.delete(firewallWhitelist)
+        .where(eq(firewallWhitelist.id, id))
+        .returning();
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Entrada não encontrada" });
+      }
+      
+      invalidateCache();
+      
+      logAuditEvent({
+        action: "firewall_whitelist_delete",
+        userId: userId || null,
+        details: { ipAddress: deleted.ipAddress, description: deleted.description },
+        ipAddress: req.ip || null,
+        userAgent: req.headers["user-agent"] || null,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao remover entrada da whitelist" });
     }
   });
 
