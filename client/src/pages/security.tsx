@@ -47,9 +47,10 @@ export default function Security() {
   const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
   const mitigatedUrl = selectedClientId ? `/api/clients/${selectedClientId}/wanguard/mitigated-prefixes` : null;
   
-  const { data: ddosEvents, isLoading, refetch } = useQuery<DDoSEvent[]>({
+  const { data: ddosEvents, isLoading, refetch, isError } = useQuery<DDoSEvent[]>({
     queryKey: [ddosUrl],
     refetchInterval: 10000,
+    retry: false,
   });
   
   const { data: clientSettings } = useQuery<ClientSettings>({
@@ -106,6 +107,34 @@ export default function Security() {
       queryClient.invalidateQueries({ queryKey: [mitigatedUrl] });
     }
   };
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-semibold">Segurança</h1>
+            <p className="text-muted-foreground">
+              Proteção Anti-DDoS e monitoramento de segurança 24x7
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <ShieldCheck className="w-12 h-12 text-green-500 mb-3" />
+            <p className="text-lg font-medium">Nenhum dado disponível</p>
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar os dados de segurança
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
