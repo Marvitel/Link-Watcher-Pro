@@ -20,14 +20,12 @@ import {
   ShieldAlert,
   ShieldBan,
   Activity,
-  Globe,
   Server,
   RefreshCw,
   Network,
   Zap,
   Clock,
   TrendingUp,
-  AlertTriangle,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -47,7 +45,6 @@ export default function Security() {
   const queryClient = useQueryClient();
   
   const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
-  const settingsUrl = selectedClientId ? `/api/clients/${selectedClientId}/settings` : null;
   const mitigatedUrl = selectedClientId ? `/api/clients/${selectedClientId}/wanguard/mitigated-prefixes` : null;
   
   const { data: ddosEvents, isLoading, refetch } = useQuery<DDoSEvent[]>({
@@ -145,20 +142,9 @@ export default function Security() {
               title="Status"
               value={activeAttacksCount === 0 ? "Seguro" : "Em Ataque"}
               icon={activeAttacksCount === 0 ? ShieldCheck : ShieldAlert}
-              subtitle={activeAttacksCount === 0 ? "proteção ativa" : `${activeAttacksCount} ataque(s) em andamento`}
+              trend={activeAttacksCount > 0 ? { value: activeAttacksCount, direction: "up", isGood: false } : undefined}
+              subtitle={activeAttacksCount === 0 ? "proteção ativa" : `${activeAttacksCount} em mitigação`}
               testId="metric-status"
-            />
-            <MetricCard
-              title="Ataques Ativos"
-              value={activeAttacksCount}
-              icon={Shield}
-              trend={
-                activeAttacksCount > 0
-                  ? { value: activeAttacksCount, direction: "up", isGood: false }
-                  : undefined
-              }
-              subtitle="em mitigação"
-              testId="metric-active-attacks"
             />
             <MetricCard
               title="Últimos 7 Dias"
@@ -173,6 +159,13 @@ export default function Security() {
               icon={TrendingUp}
               subtitle="maior ataque registrado"
               testId="metric-peak"
+            />
+            <MetricCard
+              title="Pacotes Bloqueados"
+              value={totalBlocked > 1000000 ? `${(totalBlocked / 1000000).toFixed(1)}M` : totalBlocked.toLocaleString()}
+              icon={Shield}
+              subtitle="total acumulado"
+              testId="metric-blocked"
             />
           </>
         )}
@@ -302,8 +295,8 @@ export default function Security() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Tipos de Ataques Detectados
+              <Zap className="w-5 h-5" />
+              Tipos de Ataques ({Object.keys(attacksByType).length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -316,14 +309,13 @@ export default function Security() {
               <div className="space-y-3">
                 {Object.entries(attacksByType)
                   .sort((a, b) => b[1] - a[1])
-                  .slice(0, 6)
                   .map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-amber-500" />
                         <span className="text-sm font-medium">{type}</span>
                       </div>
-                      <Badge variant="secondary">{count} ocorrência{count > 1 ? "s" : ""}</Badge>
+                      <Badge variant="secondary">{count}</Badge>
                     </div>
                   ))}
               </div>
@@ -342,55 +334,23 @@ export default function Security() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { name: "White/Black Lists", desc: "Listas de IPs permitidos/bloqueados" },
-              { name: "Rate Limiting", desc: "Limite de requisições por IP" },
-              { name: "Challenge-Response", desc: "Verificação de bots" },
-              { name: "Packet Filtering", desc: "Filtragem de pacotes maliciosos" },
-              { name: "HTTP/S Protection", desc: "Proteção camada 7" },
-              { name: "DNS Protection", desc: "Proteção contra DNS amplification" },
-              { name: "BGP Flowspec", desc: "Mitigação via BGP" },
-              { name: "UDP/ICMP Filtering", desc: "Filtragem de floods" },
+              "White/Black Lists",
+              "Rate Limiting",
+              "Challenge-Response",
+              "Packet Filtering",
+              "HTTP/S Protection",
+              "DNS Protection",
+              "BGP Flowspec",
+              "UDP/ICMP Filtering",
             ].map((technique) => (
               <div
-                key={technique.name}
-                className="flex flex-col gap-1 p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400"
+                key={technique}
+                className="flex items-center gap-2 p-2 rounded-md bg-green-500/10 text-green-700 dark:text-green-400"
               >
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span className="text-sm font-medium">{technique.name}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{technique.desc}</span>
+                <ShieldCheck className="w-4 h-4" />
+                <span className="text-sm">{technique}</span>
               </div>
             ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Globe className="w-5 h-5" />
-            Estatísticas Gerais
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-md bg-muted/50 text-center">
-              <p className="text-3xl font-bold font-mono">{ddosEvents?.length || 0}</p>
-              <p className="text-sm text-muted-foreground">Total de Ataques</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50 text-center">
-              <p className="text-3xl font-bold font-mono">{totalBlocked.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">Pacotes Bloqueados</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50 text-center">
-              <p className="text-3xl font-bold font-mono">{peakBandwidth.toFixed(1)}</p>
-              <p className="text-sm text-muted-foreground">Pico Máximo (Gbps)</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50 text-center">
-              <p className="text-3xl font-bold font-mono">{Object.keys(attacksByType).length}</p>
-              <p className="text-sm text-muted-foreground">Tipos de Ataques</p>
-            </div>
           </div>
         </CardContent>
       </Card>
