@@ -28,10 +28,32 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DDoSEvent, ClientSettings } from "@shared/schema";
 import { useMemo } from "react";
+
+function safeFormatDate(dateValue: string | Date | null | undefined, formatStr: string = "dd/MM/yyyy HH:mm"): string {
+  if (!dateValue) return "-";
+  try {
+    const date = dateValue instanceof Date ? dateValue : parseISO(dateValue);
+    if (!isValid(date)) return "-";
+    return format(date, formatStr, { locale: ptBR });
+  } catch {
+    return "-";
+  }
+}
+
+function safeFormatDistanceToNow(dateValue: string | Date | null | undefined): string {
+  if (!dateValue) return "-";
+  try {
+    const date = dateValue instanceof Date ? dateValue : parseISO(dateValue);
+    if (!isValid(date)) return "-";
+    return formatDistanceToNow(date, { addSuffix: true, locale: ptBR });
+  } catch {
+    return "-";
+  }
+}
 
 interface MitigatedPrefix {
   prefix: string;
@@ -235,7 +257,7 @@ function Security() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {formatDistanceToNow(new Date(attack.startTime), { addSuffix: true, locale: ptBR })}
+                          {safeFormatDistanceToNow(attack.startTime)}
                         </span>
                       </div>
                     </div>
@@ -280,11 +302,11 @@ function Security() {
                     <TableCell className="font-mono font-semibold">{prefix.prefix}</TableCell>
                     <TableCell>{prefix.connector}</TableCell>
                     <TableCell className="text-sm">
-                      {format(new Date(prefix.announcedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      {safeFormatDate(prefix.announcedAt)}
                     </TableCell>
                     <TableCell className="text-sm">
                       {prefix.expiresAt 
-                        ? format(new Date(prefix.expiresAt), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                        ? safeFormatDate(prefix.expiresAt)
                         : <span className="text-muted-foreground">Manual</span>
                       }
                     </TableCell>

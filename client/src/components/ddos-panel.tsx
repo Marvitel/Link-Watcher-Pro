@@ -8,10 +8,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
 import { Shield, ShieldAlert, ShieldCheck, ShieldOff, Activity } from "lucide-react";
 import type { DDoSEvent } from "@shared/schema";
+
+function safeFormatDate(dateValue: string | Date | null | undefined, formatStr: string = "dd/MM/yyyy HH:mm"): string {
+  if (!dateValue) return "-";
+  try {
+    const date = dateValue instanceof Date ? dateValue : parseISO(dateValue);
+    if (!isValid(date)) return "-";
+    return format(date, formatStr, { locale: ptBR });
+  } catch {
+    return "-";
+  }
+}
 
 interface DDoSPanelProps {
   events: DDoSEvent[];
@@ -121,7 +133,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
                     <TableRow key={event.id}>
                       <TableCell className="font-medium">{event.attackType}</TableCell>
                       <TableCell className="font-mono text-sm">
-                        {format(new Date(event.startTime), "dd/MM HH:mm", { locale: ptBR })}
+                        {safeFormatDate(event.startTime, "dd/MM HH:mm")}
                       </TableCell>
                       <TableCell className="font-mono">
                         {safePeakBandwidth.toFixed(1)} Mbps
