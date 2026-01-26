@@ -941,13 +941,21 @@ function DashboardContent() {
             />
             <MetricCard
               title="Alertas Ativos"
-              value={stats?.activeAlerts || 0}
-              icon={AlertTriangle}
-              trend={{
+              value={(stats?.activeAlerts || 0) + activeDdosAttacks.length}
+              icon={activeDdosAttacks.length > 0 ? ShieldAlert : AlertTriangle}
+              trend={activeDdosAttacks.length > 0 ? {
+                value: activeDdosAttacks.length,
+                direction: "up",
+                isGood: false,
+              } : {
                 value: 0,
                 direction: "neutral",
               }}
-              subtitle={showDdosCard && stats?.ddosEventsToday ? `${stats.ddosEventsToday} DDoS hoje` : (showDdosCard ? "nenhum DDoS" : "alertas pendentes")}
+              subtitle={activeDdosAttacks.length > 0 
+                ? `${activeDdosAttacks.length} DDoS ativo${activeDdosAttacks.length > 1 ? "s" : ""}` 
+                : (recentDdosEvents.length > 0 
+                  ? `${recentDdosEvents.length} DDoS hoje (resolvido${recentDdosEvents.length > 1 ? "s" : ""})` 
+                  : "nenhum alerta")}
               testId="metric-alerts"
             />
           </>
