@@ -84,6 +84,16 @@ Features per-link optical signal monitoring with centralized OID configuration p
 ### Sistema de Auditoria
 A `audit_logs` table stores all system audit events. The `server/audit.ts` helper function `logAuditEvent` records events, automatically masking sensitive data. Events include authentication, CRUD operations on links, clients, and users. Security features include automatic masking of sensitive data (e.g., passwords), IP address capture, and User Agent logging. An interface allows filtering, pagination, and viewing details of audit logs.
 
+### Firewall de Aplicação
+Sistema de firewall baseado em whitelist para controle de acesso às áreas administrativas e SSH.
+- **Tabelas**: `firewallSettings` (configurações globais) e `firewallWhitelist` (IPs/CIDRs permitidos)
+- **Middleware**: `server/firewall.ts` implementa cache de 30 segundos para performance
+- **Comportamento Default Deny**: Quando ativado com whitelist vazia, bloqueia TODOS os acessos
+- **Suporte CIDR**: Aceita IPs individuais (192.168.1.100) e notação CIDR (192.168.1.0/24)
+- **Permissões granulares**: `allowAdmin` (porta admin), `allowSsh` (terminal SSH), `allowApi` (APIs - reservado)
+- **Interface**: Admin → Firewall para gerenciar configurações e whitelist
+- **Audit logs**: Todas as alterações são registradas com tipos `firewall_settings_update`, `firewall_whitelist_*`
+
 ### SLA Requirements
 - Availability: ≥99%
 - Latency: ≤80ms
