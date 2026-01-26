@@ -114,7 +114,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
               </TableHeader>
               <TableBody>
                 {activeEvents.map((event) => {
-                  const config = statusConfig[event.mitigationStatus] || statusConfig.detecting;
+                  const config = statusConfig[event.mitigationStatus] || statusConfig.detected;
                   const Icon = config.icon;
                   const safePeakBandwidth = event.peakBandwidth ?? 0;
                   return (
@@ -166,7 +166,7 @@ export function DDoSPanel({ events, compact = false }: DDoSPanelProps) {
             </TableHeader>
             <TableBody>
               {resolvedEvents.map((event) => {
-                const config = statusConfig[event.mitigationStatus] || statusConfig.mitigated;
+                const config = statusConfig[event.mitigationStatus] || statusConfig.resolved;
                 const Icon = config.icon;
                 const start = new Date(event.startTime);
                 const end = event.endTime ? new Date(event.endTime) : new Date();
