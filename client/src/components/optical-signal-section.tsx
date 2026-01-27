@@ -26,6 +26,7 @@ interface PortStatusResponse {
   ifIndex?: number;
   sourceName?: string;
   sourceIp?: string;
+  portName?: string;
   message?: string;
 }
 
@@ -407,6 +408,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>Fonte: {portStatus.sourceName}</p>
+                    {portStatus.portName && <p>Porta: {portStatus.portName}</p>}
                     <p>Interface Index: {portStatus.ifIndex}</p>
                   </div>
                 </div>

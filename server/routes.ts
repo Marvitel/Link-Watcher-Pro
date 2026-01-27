@@ -1123,13 +1123,48 @@ export async function registerRoutes(
       }
 
       // Importar funções SNMP
-      const { getInterfaceOperStatus } = await import("./snmp");
+      const { getInterfaceOperStatus, findInterfaceByName } = await import("./snmp");
       
       // Determinar fonte de status da porta
-      let portStatusSource: { ip: string; profileId: number; ifIndex: number; sourceName: string } | null = null;
+      let portStatusSource: { ip: string; profileId: number; ifIndex: number; sourceName: string; portName?: string } | null = null;
       
-      // Opção 1: Link usa ponto de acesso (accessPoint)
-      if (link.trafficSourceType === 'accessPoint' && link.accessPointId && link.accessPointInterfaceIndex) {
+      const isPtp = link.linkType === 'ptp';
+      const isL2 = (link as any).isL2Link === true;
+      
+      // Para links PTP: usar switch + switchPort (nome da porta física do SFP)
+      // Isso evita usar a VLAN que sempre mostra UP
+      if (isPtp && link.switchId && link.switchPort) {
+        const sw = await storage.getSwitch(link.switchId);
+        if (sw && sw.snmpProfileId) {
+          // Descobrir o ifIndex da porta física pelo nome
+          const profile = await storage.getSnmpProfile(sw.snmpProfileId);
+          if (profile) {
+            const interfaceSearch = await findInterfaceByName(sw.ipAddress, profile, link.switchPort);
+            if (interfaceSearch.found && interfaceSearch.ifIndex) {
+              portStatusSource = {
+                ip: sw.ipAddress,
+                profileId: sw.snmpProfileId,
+                ifIndex: interfaceSearch.ifIndex,
+                sourceName: `${sw.name} - ${link.switchPort}`,
+                portName: link.switchPort
+              };
+            } else {
+              // Fallback: tentar usando switchPortNumber se disponível
+              if (link.switchPortNumber) {
+                portStatusSource = {
+                  ip: sw.ipAddress,
+                  profileId: sw.snmpProfileId,
+                  ifIndex: link.switchPortNumber,
+                  sourceName: `${sw.name} - Porta ${link.switchPortNumber}`,
+                  portName: link.switchPort
+                };
+              }
+            }
+          }
+        }
+      }
+      // Para links L2 via ponto de acesso
+      else if (isL2 && link.trafficSourceType === 'accessPoint' && link.accessPointId && link.accessPointInterfaceIndex) {
         const accessSwitch = await storage.getSwitch(link.accessPointId);
         if (accessSwitch && accessSwitch.snmpProfileId) {
           portStatusSource = {
@@ -1140,8 +1175,8 @@ export async function registerRoutes(
           };
         }
       }
-      // Opção 2: Link tem switch configurado
-      else if (link.switchId && link.snmpInterfaceIndex) {
+      // Para links L2 via switch de acesso
+      else if (isL2 && link.switchId && link.snmpInterfaceIndex) {
         const sw = await storage.getSwitch(link.switchId);
         if (sw && sw.snmpProfileId) {
           portStatusSource = {
@@ -1156,7 +1191,9 @@ export async function registerRoutes(
       if (!portStatusSource) {
         return res.json({
           available: false,
-          message: "Switch ou ponto de acesso não configurado para este link"
+          message: isPtp 
+            ? "Switch ou porta física (switchPort) não configurado para este link PTP"
+            : "Switch ou ponto de acesso não configurado para este link"
         });
       }
       
@@ -1189,7 +1226,8 @@ export async function registerRoutes(
         adminStatus: portStatus.adminStatus,
         ifIndex: portStatusSource.ifIndex,
         sourceName: portStatusSource.sourceName,
-        sourceIp: portStatusSource.ip
+        sourceIp: portStatusSource.ip,
+        portName: portStatusSource.portName
       });
     } catch (error) {
       console.error("Error fetching port status:", error);
