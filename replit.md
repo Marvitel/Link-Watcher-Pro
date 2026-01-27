@@ -31,6 +31,12 @@ For production security, the system can run on two separate ports: Port 5000 for
 ### Key Design Patterns
 The system uses a monorepo structure (`client/`, `server/`, `shared/`), path aliases (`@/`, `@shared/`), and simulates real-time network metrics every 5 seconds. It includes automatic data cleanup (6 months retention), bandwidth direction inversion for concentrator interface monitoring, and a versioning system with auto-reload for frontend updates. Kiosk mode (`?kiosk=true`) supports 24/7 display screens with features like silent auto-reload and session persistence.
 
+### SNMP Traffic Collection Sources
+Links support three traffic data sources configured via `trafficSourceType`:
+- **Manual (IP)**: Direct SNMP collection from the link's router IP
+- **Concentrator**: Uses the associated concentrator's IP and profile
+- **Access Point (Switch/PE)**: For L2 links with RSTP where concentrator cannot identify which route is active. Traffic is collected from the access switch using `accessPointId` and `accessPointInterfaceIndex`
+
 ### Link Groups (Grupos de Links)
 Supports grouping links with different profiles:
 - **Redundancy (Ativo/Passivo)**: For failover scenarios, determining status based on active members.

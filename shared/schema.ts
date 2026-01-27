@@ -133,6 +133,11 @@ export const links = pgTable("links", {
   voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle
   voalleContractNumber: varchar("voalle_contract_number", { length: 50 }), // Número do contrato
   concentratorId: integer("concentrator_id"), // Concentrador SNMP para coleta de tráfego
+  // Origem dos dados de tráfego SNMP: 'manual' (IP direto), 'concentrator' (via concentrador), 'accessPoint' (via switch de acesso/PE)
+  trafficSourceType: varchar("traffic_source_type", { length: 20 }).notNull().default("manual"),
+  accessPointId: integer("access_point_id"), // ID do switch usado como ponto de acesso para coleta de tráfego (para links L2 com RSTP)
+  accessPointInterfaceIndex: integer("access_point_interface_index"), // ifIndex da interface no ponto de acesso
+  accessPointInterfaceName: varchar("access_point_interface_name", { length: 100 }), // Nome da interface no ponto de acesso
   slotOlt: integer("slot_olt"), // Slot na OLT
   portOlt: integer("port_olt"), // Porta na OLT  
   equipmentSerialNumber: varchar("equipment_serial_number", { length: 100 }), // Serial da ONU/ONT

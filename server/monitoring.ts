@@ -1168,16 +1168,34 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   let cpuUsage = 0;
   let memoryUsage = 0;
 
-  if (link.snmpProfileId && link.snmpRouterIp) {
-    const profile = await getSnmpProfile(link.snmpProfileId);
+  // Determine traffic source: manual (default), concentrator, or accessPoint
+  // For accessPoint mode, use the switch's IP and interface for traffic collection
+  let trafficSourceIp = link.snmpRouterIp;
+  let trafficSourceIfIndex = link.snmpInterfaceIndex;
+  let trafficSourceProfileId = link.snmpProfileId;
+  
+  if (link.trafficSourceType === 'accessPoint' && link.accessPointId) {
+    // Fetch switch data for access point mode
+    const accessPointSwitch = await db.select().from(switches).where(eq(switches.id, link.accessPointId)).limit(1);
+    if (accessPointSwitch.length > 0) {
+      const sw = accessPointSwitch[0];
+      trafficSourceIp = sw.ipAddress;
+      trafficSourceProfileId = sw.snmpProfileId;
+      trafficSourceIfIndex = link.accessPointInterfaceIndex || null;
+      console.log(`[Monitor] ${link.name}: Using access point (${sw.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}`);
+    }
+  }
+
+  if (trafficSourceProfileId && trafficSourceIp) {
+    const profile = await getSnmpProfile(trafficSourceProfileId);
 
     if (profile) {
       // Collect traffic data if interface index is configured
-      if (link.snmpInterfaceIndex) {
+      if (trafficSourceIfIndex) {
         const trafficData = await getInterfaceTraffic(
-          link.snmpRouterIp,
+          trafficSourceIp,
           profile,
-          link.snmpInterfaceIndex
+          trafficSourceIfIndex
         );
 
         const trafficDataSuccess = trafficData !== null;
@@ -1196,14 +1214,15 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         
         // Handle auto-discovery of ifIndex when collection fails
         // Skip auto-discovery if link is offline (ping failed) - device is unreachable
+        // Only do auto-discovery for manual/concentrator mode, not accessPoint mode
         const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
-        if (link.snmpInterfaceName && !isLinkOffline) {
+        if (link.snmpInterfaceName && !isLinkOffline && link.trafficSourceType !== 'accessPoint') {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
           // If ifIndex was updated, retry collection with new index
           if (discoveryResult.updated && discoveryResult.newIfIndex) {
             const retryTrafficData = await getInterfaceTraffic(
-              link.snmpRouterIp,
+              trafficSourceIp!,
               profile,
               discoveryResult.newIfIndex
             );
@@ -1255,9 +1274,11 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
 
       const hasMemoryOids = memoryConfig.memoryOid || (memoryConfig.memoryTotalOid && memoryConfig.memoryUsedOid);
-      if (cpuOid || hasMemoryOids) {
-        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${link.snmpRouterIp}, cpuOid: ${cpuOid}, cpuDivisor: ${cpuDivisor}, memConfig: ${JSON.stringify(memoryConfig)}`);
-        const systemResources = await getSystemResources(link.snmpRouterIp, profile, cpuOid, memoryConfig, cpuDivisor);
+      // CPU/Memory always collected from link's router IP (not traffic source)
+      const cpuMemIp = link.snmpRouterIp;
+      if ((cpuOid || hasMemoryOids) && cpuMemIp) {
+        console.log(`[Monitor] ${link.name} - Coletando CPU/Mem via SNMP: ${cpuMemIp}, cpuOid: ${cpuOid}, cpuDivisor: ${cpuDivisor}, memConfig: ${JSON.stringify(memoryConfig)}`);
+        const systemResources = await getSystemResources(cpuMemIp, profile, cpuOid, memoryConfig, cpuDivisor);
         console.log(`[Monitor] ${link.name} - Resultado CPU/Mem: cpu=${systemResources?.cpuUsage}, mem=${systemResources?.memoryUsage}`);
         if (systemResources) {
           cpuUsage = systemResources.cpuUsage;

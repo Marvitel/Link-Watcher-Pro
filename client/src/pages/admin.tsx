@@ -633,7 +633,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/olts"],
   });
 
-  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean; voalleId: number | null }>>({
+  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean; voalleId: number | null; snmpProfileId: number | null }>>({
     queryKey: ["/api/switches"],
   });
 
@@ -677,6 +677,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   // Concentradores ativos
   const activeConcentrators = concentrators?.filter(c => c.isActive);
   
+  // Switches ativos (para ponto de acesso)
+  const activeSwitches = switches?.filter((s: any) => s.isActive);
+  
   const [formData, setFormData] = useState({
     clientId: link?.clientId || 0,
     identifier: link?.identifier || "",
@@ -695,6 +698,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     switchId: (link as any)?.switchId || null,
     switchPort: (link as any)?.switchPort || "",
     concentratorId: (link as any)?.concentratorId || null,
+    trafficSourceType: (link as any)?.trafficSourceType || "manual",
+    accessPointId: (link as any)?.accessPointId || null,
+    accessPointInterfaceIndex: (link as any)?.accessPointInterfaceIndex || null,
+    accessPointInterfaceName: (link as any)?.accessPointInterfaceName || "",
     snmpInterfaceIndex: link?.snmpInterfaceIndex || null,
     snmpInterfaceName: link?.snmpInterfaceName || "",
     snmpInterfaceDescr: link?.snmpInterfaceDescr || "",
@@ -726,10 +733,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     sfpType: (link as any)?.sfpType || "",
   });
 
-  // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador
-  const [snmpCollectionMode, setSnmpCollectionMode] = useState<'ip' | 'concentrator'>(
-    (link as any)?.concentratorId ? 'concentrator' : 'ip'
-  );
+  // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador, 'accessPoint' para ponto de acesso
+  const [snmpCollectionMode, setSnmpCollectionMode] = useState<'ip' | 'concentrator' | 'accessPoint'>(() => {
+    const linkData = link as any;
+    if (linkData?.trafficSourceType === 'accessPoint' && linkData?.accessPointId) return 'accessPoint';
+    if (linkData?.concentratorId) return 'concentrator';
+    return 'ip';
+  });
 
   // OLTs são globais, filtrar apenas por isActive
   const filteredOlts = olts?.filter(olt => olt.isActive);
@@ -969,7 +979,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   // Incluir perfis do cliente E perfis globais (concentradores)
   const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId || p.clientId === null);
 
-  const handleDiscoverInterfaces = async (overrideIp?: string, overrideProfileId?: number) => {
+  // Estado para lembrar de qual modo a descoberta foi feita (para gravar no campo correto)
+  const [discoverMode, setDiscoverMode] = useState<'normal' | 'accessPoint'>('normal');
+  
+  const handleDiscoverInterfaces = async (overrideIp?: string, overrideProfileId?: number, mode: 'normal' | 'accessPoint' = 'normal') => {
+    setDiscoverMode(mode);
     const targetIp = overrideIp || formData.snmpRouterIp;
     const profileId = overrideProfileId || formData.snmpProfileId;
     
@@ -1022,7 +1036,18 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   const handleSelectInterface = (ifIndex: string) => {
     const iface = discoveredInterfaces.find(i => i.ifIndex.toString() === ifIndex);
     if (iface) {
-      if (formData.linkType === "ptp") {
+      // Se a descoberta foi feita para o ponto de acesso, gravar nos campos de accessPoint
+      if (discoverMode === 'accessPoint') {
+        setFormData({
+          ...formData,
+          accessPointInterfaceIndex: iface.ifIndex,
+          accessPointInterfaceName: iface.ifName || iface.ifDescr || ifIndex,
+        });
+        toast({
+          title: "Interface do Ponto de Acesso selecionada",
+          description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
+        });
+      } else if (formData.linkType === "ptp") {
         setFormData({
           ...formData,
           switchPort: iface.ifName || iface.ifDescr || ifIndex,
@@ -1426,15 +1451,18 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             )}
           </div>
           <div className="space-y-2">
-            <Label>Origem dos Dados</Label>
+            <Label>Origem dos Dados de Tráfego</Label>
             <Select
               value={snmpCollectionMode}
               onValueChange={(v) => {
-                setSnmpCollectionMode(v as 'ip' | 'concentrator');
-                if (v === 'ip') {
-                  setFormData({ ...formData, concentratorId: null });
+                const mode = v as 'ip' | 'concentrator' | 'accessPoint';
+                setSnmpCollectionMode(mode);
+                if (mode === 'ip') {
+                  setFormData({ ...formData, concentratorId: null, trafficSourceType: 'manual', accessPointId: null, accessPointInterfaceIndex: null, accessPointInterfaceName: null });
+                } else if (mode === 'concentrator') {
+                  setFormData({ ...formData, snmpRouterIp: "", trafficSourceType: 'concentrator', accessPointId: null, accessPointInterfaceIndex: null, accessPointInterfaceName: null });
                 } else {
-                  setFormData({ ...formData, snmpRouterIp: "" });
+                  setFormData({ ...formData, trafficSourceType: 'accessPoint', concentratorId: null });
                 }
               }}
             >
@@ -1444,11 +1472,17 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               <SelectContent>
                 <SelectItem value="ip">IP Manual</SelectItem>
                 <SelectItem value="concentrator">Concentrador</SelectItem>
+                <SelectItem value="accessPoint">Ponto de Acesso (Switch/PE)</SelectItem>
               </SelectContent>
             </Select>
+            {snmpCollectionMode === 'accessPoint' && (
+              <p className="text-xs text-muted-foreground">
+                Use para links L2 com RSTP onde o concentrador não identifica qual rota está ativa. A coleta será feita pelo switch de acesso/PE.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
-            {snmpCollectionMode === 'ip' ? (
+            {snmpCollectionMode === 'ip' && (
               <>
                 <Label htmlFor="snmpRouterIp">IP do Roteador/Switch</Label>
                 <div className="flex gap-2">
@@ -1475,7 +1509,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                   </Button>
                 </div>
               </>
-            ) : (
+            )}
+            {snmpCollectionMode === 'concentrator' && (
               <>
                 <Label htmlFor="concentratorId">Concentrador</Label>
                 <div className="flex gap-2">
@@ -1538,6 +1573,72 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     )}
                   </Button>
                 </div>
+              </>
+            )}
+            {snmpCollectionMode === 'accessPoint' && (
+              <>
+                <Label htmlFor="accessPointId">Switch de Acesso / PE</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.accessPointId?.toString() || "none"}
+                    onValueChange={(v) => {
+                      const swId = v === "none" ? null : parseInt(v, 10);
+                      const selectedSwitch = swId ? activeSwitches?.find((s: any) => s.id === swId) : null;
+                      setFormData({ 
+                        ...formData, 
+                        accessPointId: swId,
+                        snmpProfileId: selectedSwitch?.snmpProfileId || formData.snmpProfileId
+                      });
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-access-point" className="flex-1">
+                      <SelectValue placeholder="Selecione o switch..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {activeSwitches?.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id.toString()}>
+                          {s.name} ({s.ipAddress})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const selectedSwitch = activeSwitches?.find((s: any) => s.id === formData.accessPointId);
+                      if (selectedSwitch) {
+                        const profileId = selectedSwitch.snmpProfileId || formData.snmpProfileId;
+                        if (profileId) {
+                          handleDiscoverInterfaces(selectedSwitch.ipAddress, profileId, 'accessPoint');
+                        } else {
+                          toast({
+                            title: "Perfil SNMP não configurado",
+                            description: "Configure um perfil SNMP para o switch",
+                            variant: "destructive",
+                          });
+                        }
+                      }
+                    }}
+                    disabled={isDiscovering || !formData.accessPointId}
+                    data-testid="button-discover-interfaces-accesspoint"
+                  >
+                    {isDiscovering ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+                {formData.accessPointInterfaceName && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                    <span>Interface configurada:</span>
+                    <Badge variant="secondary">
+                      {formData.accessPointInterfaceName} (ifIndex: {formData.accessPointInterfaceIndex})
+                    </Badge>
+                  </div>
+                )}
               </>
             )}
           </div>
