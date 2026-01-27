@@ -1,0 +1,68 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor && git pull && npm run build && systemctl restart link-monitor
+remote: Enumerating objects: 7, done.
+remote: Counting objects: 100% (7/7), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 878 bytes | 46.00 KiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   4a2ef8fc..9506e4cb  main       -> origin/main
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read e28cc8b32f8cca063d36f39201cc84d6ca29b2ee
+fatal: Failed to traverse parents of commit dec8eaa45d4c995ad0912c2d90ae4154cdeef98c
+fatal: failed to run repack
+
+Updating 4a2ef8fc..9506e4cb
+Fast-forward
+Auto packing the repository in background for optimum performance.
+See "git help gc" for manual housekeeping.
+warning: The last gc run reported the following. Please correct the root cause
+and remove .git/gc.log
+Automatic cleanup will not be performed until the file is removed.
+
+error: Could not read e28cc8b32f8cca063d36f39201cc84d6ca29b2ee
+fatal: Failed to traverse parents of commit dec8eaa45d4c995ad0912c2d90ae4154cdeef98c
+fatal: failed to run repack
+
+ server/index.ts | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3468 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.48 kB
+../dist/public/assets/index-DA0au5yB.css              85.87 kB │ gzip:  14.14 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-BCfhxwyF.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-CSjRft0w.js            2,113.22 kB │ gzip: 579.27 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 30.20s
+building server...
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
+
+    server/snmp.ts:1042:19:
+      1042 │     const result = eval(formula);
+           ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+1 warning
+
+  dist/index.cjs  1.5mb ⚠️
+
+⚡ Done in 360ms
+root@link-monitor:/opt/link-monitor#
