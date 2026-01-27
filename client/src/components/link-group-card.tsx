@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BandwidthChart } from "./bandwidth-chart";
 import { Link } from "wouter";
-import { Layers, ArrowUpDown, Shield, Activity, AlertTriangle } from "lucide-react";
+import { Layers, ArrowUpDown, Shield, Activity, AlertTriangle, Share2 } from "lucide-react";
 import type { Link as LinkType, Metric } from "@shared/schema";
 
 interface LinkGroupMember {
@@ -73,7 +73,7 @@ function getStatusBadge(status: string, membersOnline: number, membersTotal: num
 }
 
 export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: LinkGroupCardProps) {
-  const profileIcon = group.groupType === "redundancy" ? Shield : ArrowUpDown;
+  const profileIcon = group.groupType === "redundancy" ? Shield : (group.groupType === "shared" ? Share2 : ArrowUpDown);
   const ProfileIcon = profileIcon;
   
   const membersOnline = aggregatedMetrics?.membersOnline ?? group.members?.filter(m => m.link?.status === "operational").length ?? 0;
@@ -110,7 +110,7 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
         status: onlineMembers.length > 0 ? "operational" : "offline"
       };
     } else {
-      // Aggregation: sum all members
+      // Aggregation or Shared: sum all members traffic
       // Invert: currentDownload is actually upload data, currentUpload is actually download data
       const download = members.reduce((sum, m) => sum + (m.link?.currentUpload || 0), 0);
       const upload = members.reduce((sum, m) => sum + (m.link?.currentDownload || 0), 0);
@@ -133,7 +133,15 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
   const { download, upload, latency, packetLoss, status } = calculatedMetrics;
 
   // bandwidth is stored in Mbps
-  const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  // For shared groups, use primary link bandwidth (contracted bandwidth)
+  // For other groups, sum all members' bandwidth
+  const totalBandwidth = (() => {
+    if (group.groupType === "shared") {
+      const primaryMember = group.members?.find(m => m.role === "primary");
+      return primaryMember?.link?.bandwidth || group.members?.[0]?.link?.bandwidth || 0;
+    }
+    return group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  })();
 
   return (
     <Link href={`/link-groups/${group.id}`}>
@@ -149,7 +157,7 @@ export function LinkGroupCard({ group, metricsHistory, aggregatedMetrics }: Link
                 <div className="flex items-center gap-2 mt-1">
                   <ProfileIcon className="w-3 h-3 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground">
-                    {group.groupType === "redundancy" ? "Redundância" : "Agregação"}
+                    {group.groupType === "redundancy" ? "Redundância" : (group.groupType === "shared" ? "Banda Compartilhada" : "Agregação")}
                   </span>
                 </div>
               </div>

@@ -355,6 +355,9 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
                         <SelectItem value="aggregation">
                           Agregação (Dual-Stack/Bonding)
                         </SelectItem>
+                        <SelectItem value="shared">
+                          Banda Compartilhada (Múltiplas VLANs)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -398,6 +401,8 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
                   <p className="text-xs text-muted-foreground mb-2">
                     {formData.groupType === "redundancy" 
                       ? "Selecione os links e defina qual é o primário e qual é o backup"
+                      : formData.groupType === "shared"
+                      ? "Selecione os links que compartilham a mesma banda contratada (VLANs/rotas L2). O link primário define a banda do grupo."
                       : "Selecione os links para agregar a banda (ex: IPv4 + IPv6)"
                     }
                   </p>
@@ -474,6 +479,15 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
                         A banda exibida é do link primário quando ativo.
                       </p>
                     </div>
+                  ) : formData.groupType === "shared" ? (
+                    <div className="space-y-1">
+                      <p className="font-medium">Perfil: Banda Compartilhada (Múltiplas VLANs)</p>
+                      <p className="text-muted-foreground">
+                        Múltiplos links/VLANs compartilham a mesma banda contratada. 
+                        A banda do grupo é definida pelo link primário. 
+                        Status degradado se qualquer membro estiver offline.
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-1">
                       <p className="font-medium">Perfil: Agregação (Dual-Stack/Bonding)</p>
@@ -522,7 +536,7 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
                     <p className="text-xs text-muted-foreground">{getClientName(group.clientId)}</p>
                   </div>
                   <Badge variant={group.groupType === "redundancy" ? "default" : "secondary"}>
-                    {group.groupType === "redundancy" ? "Redundância" : "Agregação"}
+                    {group.groupType === "redundancy" ? "Redundância" : (group.groupType === "shared" ? "Banda Compartilhada" : "Agregação")}
                   </Badge>
                 </div>
               </CardHeader>

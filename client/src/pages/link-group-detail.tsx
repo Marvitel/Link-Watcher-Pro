@@ -16,7 +16,8 @@ import {
   Clock,
   Gauge,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from "lucide-react";
 import type { Link as LinkType, Metric } from "@shared/schema";
 
@@ -156,12 +157,20 @@ export default function LinkGroupDetail() {
     );
   }
 
-  const ProfileIcon = group.groupType === "redundancy" ? Shield : ArrowUpDown;
+  const ProfileIcon = group.groupType === "redundancy" ? Shield : (group.groupType === "shared" ? Share2 : ArrowUpDown);
   const membersOnline = metrics?.membersOnline ?? group.members?.filter(m => m.link?.status === "operational").length ?? 0;
   const membersTotal = metrics?.membersTotal ?? group.members?.length ?? 0;
   const status = metrics?.status ?? "unknown";
   // bandwidth is stored in Mbps
-  const totalBandwidth = group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  // For shared groups, use primary link bandwidth (contracted bandwidth)
+  // For other groups, sum all members' bandwidth
+  const totalBandwidth = (() => {
+    if (group.groupType === "shared") {
+      const primaryMember = group.members?.find(m => m.role === "primary");
+      return primaryMember?.link?.bandwidth || group.members?.[0]?.link?.bandwidth || 0;
+    }
+    return group.members?.reduce((sum, m) => sum + (m.link?.bandwidth || 0), 0) || 0;
+  })();
 
   return (
     <div className="space-y-6">
@@ -183,7 +192,7 @@ export default function LinkGroupDetail() {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <ProfileIcon className="w-4 h-4" />
-                <span>{group.groupType === "redundancy" ? "Redundância" : "Agregação"}</span>
+                <span>{group.groupType === "redundancy" ? "Redundância" : (group.groupType === "shared" ? "Banda Compartilhada" : "Agregação")}</span>
                 <span>•</span>
                 <span>{membersOnline}/{membersTotal} links ativos</span>
               </div>
@@ -369,7 +378,7 @@ export default function LinkGroupDetail() {
             <div>
               <dt className="text-muted-foreground">Tipo de Grupo</dt>
               <dd className="font-medium">
-                {group.groupType === "redundancy" ? "Redundância (Ativo/Passivo)" : "Agregação (Dual-Stack/Bonding)"}
+                {group.groupType === "redundancy" ? "Redundância (Ativo/Passivo)" : (group.groupType === "shared" ? "Banda Compartilhada (Múltiplas VLANs)" : "Agregação (Dual-Stack/Bonding)")}
               </dd>
             </div>
             <div>
