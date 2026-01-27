@@ -196,12 +196,16 @@ export const hosts = pgTable("hosts", {
 // Link Groups - Agrupa links para visualização consolidada
 // Perfil "redundancy": Ativo/Passivo - foco no uptime, considera online se qualquer membro estiver online
 // Perfil "aggregation": Dual-Stack/Bonding - foco no volume, soma a banda de todos os membros
+// Perfil "shared": Banda Compartilhada - múltiplos links/VLANs compartilham a mesma banda contratada
+//   - Banda: usa a banda do link 'primary' (não soma)
+//   - Status: degradado se qualquer membro offline, online se todos online
+//   - Uso: soma o tráfego real de todos os membros (para análise de distribuição)
 export const linkGroups = pgTable("link_groups", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
-  // Tipo do grupo: 'redundancy' (ativo/passivo) ou 'aggregation' (soma de banda)
+  // Tipo do grupo: 'redundancy' (ativo/passivo), 'aggregation' (soma de banda) ou 'shared' (banda compartilhada)
   groupType: varchar("group_type", { length: 20 }).notNull().default("redundancy"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

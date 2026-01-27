@@ -1870,6 +1870,7 @@ export async function registerRoutes(
       // Note: currentDownload/currentUpload are already inverted in the database (monitor inverts by default)
       // So we need to swap them again to show correctly: download shows upload values, upload shows download values
       if (group.groupType === "aggregation") {
+        // Aggregation: sum bandwidth from all members
         for (const m of members) {
           if (m.link) {
             // Invert: currentDownload is actually upload data, currentUpload is actually download data
@@ -1882,6 +1883,22 @@ export async function registerRoutes(
           latency = onlineMembers.reduce((sum, m) => sum + (m.link?.latency || 0), 0) / onlineMembers.length;
           packetLoss = Math.max(...onlineMembers.map(m => m.link?.packetLoss || 0));
         }
+        status = membersOnline === membersTotal ? "operational" : (membersOnline > 0 ? "degraded" : "offline");
+      } else if (group.groupType === "shared") {
+        // Shared: bandwidth from primary (contracted), traffic sum for analysis, status degraded if any offline
+        // Sum actual traffic from all members (for distribution analysis)
+        for (const m of members) {
+          if (m.link) {
+            download += m.link.currentUpload || 0;
+            upload += m.link.currentDownload || 0;
+          }
+        }
+        const onlineMembers = members.filter(m => m.link?.status === "operational");
+        if (onlineMembers.length > 0) {
+          latency = onlineMembers.reduce((sum, m) => sum + (m.link?.latency || 0), 0) / onlineMembers.length;
+          packetLoss = Math.max(...onlineMembers.map(m => m.link?.packetLoss || 0));
+        }
+        // Status: degraded if any member offline, operational only if all online
         status = membersOnline === membersTotal ? "operational" : (membersOnline > 0 ? "degraded" : "offline");
       } else {
         // Redundancy: use primary or best available

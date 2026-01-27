@@ -2363,6 +2363,17 @@ export class DatabaseStorage {
         status = linkAverages.some(l => l.status === "offline" || l.status === "critical" || l.status === "down") 
           ? "degraded" 
           : "operational";
+      } else if (group.groupType === "shared") {
+        // Shared: sum actual traffic (for distribution analysis), use primary bandwidth for capacity
+        // Traffic is summed for visualization purposes
+        download = linkAverages.reduce((sum, l) => sum + l.download, 0);
+        upload = linkAverages.reduce((sum, l) => sum + l.upload, 0);
+        latency = linkAverages.reduce((sum, l) => sum + l.latency, 0) / linkAverages.length;
+        packetLoss = Math.max(...linkAverages.map(l => l.packetLoss));
+        // Status: degraded if any member is down, operational only if all online
+        const anyOffline = linkAverages.some(l => l.status === "offline" || l.status === "critical" || l.status === "down");
+        const allOperational = linkAverages.every(l => l.status === "operational");
+        status = allOperational ? "operational" : (anyOffline ? "degraded" : "operational");
       } else {
         // Redundancy: use best link values
         download = Math.max(...linkAverages.map(l => l.download));
