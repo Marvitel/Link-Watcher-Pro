@@ -1067,10 +1067,11 @@ export function calculateSwitchPortIndex(portIndexTemplate: string | null, switc
  * @param targetIp IP do switch
  * @param profile Perfil SNMP
  * @param switchPort Porta do switch (ex: "1/1/1")
- * @param opticalRxOidTemplate Template OID RX com {portIndex}
- * @param opticalTxOidTemplate Template OID TX com {portIndex}
+ * @param opticalRxOidTemplate Template OID RX com {portIndex} ou {ifIndex}
+ * @param opticalTxOidTemplate Template OID TX com {portIndex} ou {ifIndex}
  * @param portIndexTemplate Template para cálculo do índice da porta
- * @param divisor Divisor para conversão do valor SNMP para dBm (ex: 1000 para Mikrotik)
+ * @param divisor Divisor para conversão do valor SNMP para dBm (ex: 1000 para Mikrotik, 100 para Datacom)
+ * @param ifIndex Índice SNMP da interface (usado quando template contém {ifIndex})
  * @returns Dados de sinal óptico ou null se falhar
  */
 export async function getOpticalSignalFromSwitch(
@@ -1080,20 +1081,33 @@ export async function getOpticalSignalFromSwitch(
   opticalRxOidTemplate: string | null,
   opticalTxOidTemplate: string | null,
   portIndexTemplate: string | null,
-  divisor: number = 1000
+  divisor: number = 1000,
+  ifIndex: number | null = null
 ): Promise<OpticalSignalData | null> {
   if (!opticalRxOidTemplate && !opticalTxOidTemplate) {
     return null; // Sem OIDs configurados
   }
   
-  // Calcular índice da porta
-  const portIndex = calculateSwitchPortIndex(portIndexTemplate, switchPort);
-  if (portIndex === null) {
-    console.log(`[SNMP Switch Optical] Não foi possível calcular índice para porta '${switchPort}'`);
-    return null;
-  }
+  // Verificar se os templates usam {ifIndex} (ex: Datacom)
+  const usesIfIndex = (opticalRxOidTemplate?.includes('{ifIndex}') || opticalTxOidTemplate?.includes('{ifIndex}'));
   
-  console.log(`[SNMP Switch Optical] Porta ${switchPort} -> índice ${portIndex}`);
+  // Calcular índice da porta (para templates com {portIndex})
+  let portIndex: number | null = null;
+  if (!usesIfIndex) {
+    portIndex = calculateSwitchPortIndex(portIndexTemplate, switchPort);
+    if (portIndex === null) {
+      console.log(`[SNMP Switch Optical] Não foi possível calcular índice para porta '${switchPort}'`);
+      return null;
+    }
+    console.log(`[SNMP Switch Optical] Porta ${switchPort} -> índice ${portIndex}`);
+  } else {
+    // Para templates com {ifIndex}, o ifIndex é obrigatório
+    if (ifIndex === null) {
+      console.log(`[SNMP Switch Optical] Template usa {ifIndex} mas ifIndex não foi fornecido`);
+      return null;
+    }
+    console.log(`[SNMP Switch Optical] Porta ${switchPort} -> usando ifIndex ${ifIndex}`);
+  }
 
   const session = createSession(targetIp, profile);
   
@@ -1101,14 +1115,26 @@ export async function getOpticalSignalFromSwitch(
     const oidsToQuery: string[] = [];
     const oidMapping: Record<string, keyof OpticalSignalData> = {};
     
-    // Substituir {portIndex} nos templates de OID e limpar caracteres invisíveis
+    // Função para substituir placeholders no template
+    const replaceTemplateVars = (template: string): string => {
+      let result = template;
+      if (portIndex !== null) {
+        result = result.replace(/\{portIndex\}/gi, portIndex.toString());
+      }
+      if (ifIndex !== null) {
+        result = result.replace(/\{ifIndex\}/gi, ifIndex.toString());
+      }
+      return result;
+    };
+    
+    // Substituir placeholders nos templates de OID e limpar caracteres invisíveis
     // A biblioteca net-snmp requer OIDs SEM ponto inicial (ex: "1.3.6.1.2.1" não ".1.3.6.1.2.1")
     if (opticalRxOidTemplate) {
       let cleanTemplate = opticalRxOidTemplate.trim().replace(/[\s\u200B-\u200D\uFEFF]/g, '');
       if (cleanTemplate.startsWith('.')) {
         cleanTemplate = cleanTemplate.substring(1);
       }
-      const fullOid = cleanTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      const fullOid = replaceTemplateVars(cleanTemplate);
       oidsToQuery.push(fullOid);
       oidMapping[fullOid] = 'rxPower';
     }
@@ -1117,7 +1143,7 @@ export async function getOpticalSignalFromSwitch(
       if (cleanTemplate.startsWith('.')) {
         cleanTemplate = cleanTemplate.substring(1);
       }
-      const fullOid = cleanTemplate.replace(/\{portIndex\}/gi, portIndex.toString());
+      const fullOid = replaceTemplateVars(cleanTemplate);
       oidsToQuery.push(fullOid);
       oidMapping[fullOid] = 'txPower';
     }

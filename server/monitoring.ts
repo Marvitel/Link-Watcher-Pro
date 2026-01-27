@@ -1535,6 +1535,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           
           // Verificar se é Cisco (usa Entity MIB com discovery de sensores)
           const isCisco = vendorSlug.includes("cisco");
+          // Verificar se é Datacom (usa MIB proprietária com ifIndex)
+          const isDatacom = vendorSlug.includes("datacom");
+          
+          // Datacom: usar OIDs padrão se não configurados
+          // OID RX: 1.3.6.1.4.1.3709.3.6.8.2.1.1.2.{ifIndex}.1 (centésimos de dBm, divisor 100)
+          // OID TX: 1.3.6.1.4.1.3709.3.6.8.2.1.1.1.{ifIndex}.1 (centésimos de dBm, divisor 100)
+          if (isDatacom && !opticalRxOid && !opticalTxOid) {
+            opticalRxOid = "1.3.6.1.4.1.3709.3.6.8.2.1.1.2.{ifIndex}.1";
+            opticalTxOid = "1.3.6.1.4.1.3709.3.6.8.2.1.1.1.{ifIndex}.1";
+            opticalDivisor = 100; // Datacom retorna centésimos de dBm
+            console.log(`[Monitor] ${link.name} - Óptico PTP Datacom: usando OIDs padrão (divisor: 100)`);
+          }
           
           if (isCisco) {
             // Cisco usa Entity MIB - buscar índices de sensor no cache
@@ -1603,6 +1615,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             }
           } else if (opticalRxOid || opticalTxOid) {
             // Outros fabricantes (Mikrotik, Datacom, etc) - método tradicional com templates
+            // Para Datacom e outros que usam {ifIndex}, passar o snmpInterfaceIndex do link
+            const linkIfIndex = link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null;
             opticalSignal = await getOpticalSignalFromSwitch(
               sw.ipAddress,
               swProfile,
@@ -1610,7 +1624,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               opticalRxOid,
               opticalTxOid,
               portIndexTemplate,
-              opticalDivisor
+              opticalDivisor,
+              linkIfIndex
             );
             
             if (opticalSignal) {
