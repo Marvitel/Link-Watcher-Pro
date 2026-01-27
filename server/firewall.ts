@@ -245,6 +245,25 @@ export function isIpAllowedForSsh(clientIp: string): boolean {
   return false;
 }
 
+// Obtém o IP real do cliente considerando proxies reversos
+function getClientIp(req: Request): string {
+  // Prioridade: X-Forwarded-For > X-Real-IP > req.ip > remoteAddress
+  const xForwardedFor = req.headers["x-forwarded-for"];
+  if (xForwardedFor) {
+    // X-Forwarded-For pode ter múltiplos IPs separados por vírgula
+    const ips = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor;
+    const firstIp = ips.split(",")[0].trim();
+    if (firstIp) return firstIp;
+  }
+  
+  const xRealIp = req.headers["x-real-ip"];
+  if (xRealIp) {
+    return Array.isArray(xRealIp) ? xRealIp[0] : xRealIp;
+  }
+  
+  return req.ip || req.socket.remoteAddress || "";
+}
+
 export function createFirewallMiddleware(type: "admin" | "ssh") {
   return async (req: Request, res: Response, next: NextFunction) => {
     await ensureCacheValid();
@@ -253,7 +272,7 @@ export function createFirewallMiddleware(type: "admin" | "ssh") {
       return next();
     }
     
-    const clientIp = req.ip || req.socket.remoteAddress || "";
+    const clientIp = getClientIp(req);
     const isAllowed = type === "admin" 
       ? isIpAllowedForAdmin(clientIp) 
       : isIpAllowedForSsh(clientIp);
