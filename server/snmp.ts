@@ -1280,6 +1280,8 @@ export async function discoverCiscoSensors(
     // "Ethernet1/1 Transceiver Temperature Sensor" -> Temp para Ethernet1/1
     
     const portSensors = new Map<string, CiscoSensorMapping>();
+    // Rastrear portas pai que têm lanes (para criar entrada da porta 40G nativa)
+    const parentPortLane1 = new Map<string, { rx: string | null; tx: string | null; temp: string | null }>();
     
     for (const [index, name] of Array.from(entityNames.entries())) {
       const lowerName = name.toLowerCase();
@@ -1290,18 +1292,34 @@ export async function discoverCiscoSensors(
       if (!portMatch) continue;
       
       let portName = portMatch[1].replace(/^Eth(\d)/i, "Ethernet$1"); // Normalizar para "Ethernet..."
+      const originalPortName = portName; // Guardar nome original antes de adicionar lane
       
-      // Detectar Lane X para portas QSFP com breakout (40G→4x10G ou 100G→4x25G)
-      // "Ethernet1/22 Lane 1 ..." → Ethernet1/22/1
-      // "Ethernet1/22 Lane 2 ..." → Ethernet1/22/2
+      // Detectar Lane X para portas QSFP (40G ou 100G)
+      // "Ethernet1/29 Lane 1 ..." → para breakout: Ethernet1/29/1, para 40G nativo: Ethernet1/29
       const laneMatch = name.match(/Lane\s*(\d+)/i);
       const hasLane = laneMatch !== null;
       const laneNumber = laneMatch ? parseInt(laneMatch[1], 10) : 0;
       
-      // Se tem Lane, criar sub-porta apenas se a porta não tem breakout explícito
-      // Ex: "Ethernet1/22" + "Lane 1" → "Ethernet1/22/1"
+      // Se tem Lane e porta não tem breakout explícito no nome
       if (hasLane && !portName.match(/\/\d+\/\d+$/)) {
+        // Criar sub-porta para cenário de breakout
         portName = `${portName}/${laneNumber}`;
+        
+        // Se é Lane 1, também guardar para criar entrada da porta pai (40G nativo)
+        if (laneNumber === 1) {
+          if (!parentPortLane1.has(originalPortName)) {
+            parentPortLane1.set(originalPortName, { rx: null, tx: null, temp: null });
+          }
+          const parentSensor = parentPortLane1.get(originalPortName)!;
+          
+          if (lowerName.includes("receive power") && !parentSensor.rx) {
+            parentSensor.rx = index;
+          } else if (lowerName.includes("transmit power") && !parentSensor.tx) {
+            parentSensor.tx = index;
+          } else if (lowerName.includes("temperature") && !parentSensor.temp) {
+            parentSensor.temp = index;
+          }
+        }
       }
       
       // Criar entrada para a porta se não existir
@@ -1326,6 +1344,21 @@ export async function discoverCiscoSensors(
       } else if (lowerName.includes("temperature") && !sensor.tempSensorIndex) {
         sensor.tempSensorIndex = index;
         console.log(`[Cisco Discovery] ${portName} Temp Sensor: index ${index}`);
+      }
+    }
+    
+    // Adicionar entradas para portas pai (40G/100G nativo) usando sensores de Lane 1
+    // Isso permite monitorar portas como "Ethernet1/29" mesmo quando a Entity MIB só tem lanes
+    for (const [parentPort, sensors] of Array.from(parentPortLane1.entries())) {
+      // Só adicionar se a porta pai não existir ainda (não foi criada por sensor direto)
+      if (!portSensors.has(parentPort) && (sensors.rx || sensors.tx)) {
+        portSensors.set(parentPort, {
+          portName: parentPort,
+          rxSensorIndex: sensors.rx,
+          txSensorIndex: sensors.tx,
+          tempSensorIndex: sensors.temp,
+        });
+        console.log(`[Cisco Discovery] ${parentPort} (40G/100G nativo): usando sensores de Lane 1 - RX=${sensors.rx}, TX=${sensors.tx}`);
       }
     }
     
