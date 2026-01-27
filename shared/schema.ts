@@ -653,6 +653,20 @@ export const switches = pgTable("switches", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Cache de mapeamento de sensores ópticos para switches com Entity MIB (Cisco Nexus, etc)
+// Usado para armazenar o mapeamento entre porta física e entPhysicalIndex dos sensores
+export const switchSensorCache = pgTable("switch_sensor_cache", {
+  id: serial("id").primaryKey(),
+  switchId: integer("switch_id").notNull(), // FK para switches
+  portName: varchar("port_name", { length: 100 }).notNull(), // Nome da porta (ex: "Ethernet1/1")
+  rxSensorIndex: varchar("rx_sensor_index", { length: 50 }), // entPhysicalIndex do sensor RX Power
+  txSensorIndex: varchar("tx_sensor_index", { length: 50 }), // entPhysicalIndex do sensor TX Power
+  tempSensorIndex: varchar("temp_sensor_index", { length: 50 }), // entPhysicalIndex do sensor Temperatura (opcional)
+  lastDiscovery: timestamp("last_discovery").notNull().defaultNow(), // Última vez que o discovery foi executado
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Firewall - Whitelist de IPs para acesso administrativo e SSH
 export const firewallWhitelist = pgTable("firewall_whitelist", {
   id: serial("id").primaryKey(),
@@ -699,6 +713,7 @@ export const insertEventTypeSchema = createInsertSchema(eventTypes).omit({ id: t
 export const insertClientEventSettingSchema = createInsertSchema(clientEventSettings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOltSchema = createInsertSchema(olts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSwitchSchema = createInsertSchema(switches).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSwitchSensorCacheSchema = createInsertSchema(switchSensorCache).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSnmpConcentratorSchema = createInsertSchema(snmpConcentrators).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupSchema = createInsertSchema(linkGroups).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkGroupMemberSchema = createInsertSchema(linkGroupMembers).omit({ id: true, createdAt: true });
@@ -732,6 +747,7 @@ export type InsertEventType = z.infer<typeof insertEventTypeSchema>;
 export type InsertClientEventSetting = z.infer<typeof insertClientEventSettingSchema>;
 export type InsertOlt = z.infer<typeof insertOltSchema>;
 export type InsertSwitch = z.infer<typeof insertSwitchSchema>;
+export type InsertSwitchSensorCache = z.infer<typeof insertSwitchSensorCacheSchema>;
 export type InsertSnmpConcentrator = z.infer<typeof insertSnmpConcentratorSchema>;
 export type InsertLinkGroup = z.infer<typeof insertLinkGroupSchema>;
 export type InsertLinkGroupMember = z.infer<typeof insertLinkGroupMemberSchema>;
@@ -765,6 +781,7 @@ export type EventType = typeof eventTypes.$inferSelect;
 export type ClientEventSetting = typeof clientEventSettings.$inferSelect;
 export type Olt = typeof olts.$inferSelect;
 export type Switch = typeof switches.$inferSelect;
+export type SwitchSensorCache = typeof switchSensorCache.$inferSelect;
 export type SnmpConcentrator = typeof snmpConcentrators.$inferSelect;
 export type LinkGroup = typeof linkGroups.$inferSelect;
 export type LinkGroupMember = typeof linkGroupMembers.$inferSelect;

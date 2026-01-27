@@ -28,6 +28,21 @@ export interface SnmpProfile {
 // Standard MIB-II OIDs
 const IF_NUMBER_OID = "1.3.6.1.2.1.2.1.0"; // ifNumber - total interfaces count
 
+// Entity MIB OIDs (para Cisco Nexus e switches com Entity MIB)
+const ENTITY_MIB_OIDS = {
+  // entPhysicalDescr - Descrição do componente físico
+  entPhysicalDescr: "1.3.6.1.2.1.47.1.1.1.1.2",
+  // entPhysicalName - Nome do componente físico (mais útil para encontrar sensores)
+  entPhysicalName: "1.3.6.1.2.1.47.1.1.1.1.7",
+  // entPhysicalContainedIn - Componente pai (para mapear sensores a portas)
+  entPhysicalContainedIn: "1.3.6.1.2.1.47.1.1.1.1.4",
+  // entPhysicalClass - Tipo do componente (sensor=8, port=10, etc)
+  entPhysicalClass: "1.3.6.1.2.1.47.1.1.1.1.5",
+};
+
+// Cisco Entity Sensor MIB - OID para valores de sensores ópticos
+const CISCO_ENTITY_SENSOR_OID = "1.3.6.1.4.1.9.9.91.1.1.1.1.4"; // entSensorValue
+
 const IF_TABLE_OIDS = {
   ifIndex: "1.3.6.1.2.1.2.2.1.1",
   ifDescr: "1.3.6.1.2.1.2.2.1.2",
@@ -1179,6 +1194,257 @@ export async function getOpticalSignalFromSwitch(
   } catch (error) {
     try { session.close(); } catch {}
     console.log(`[SNMP Switch Optical] Erro: ${error instanceof Error ? error.message : "desconhecido"}`);
+    return null;
+  }
+}
+
+// ============================================================================
+// Cisco Entity MIB Discovery - Para switches Nexus e similares
+// ============================================================================
+
+export interface CiscoSensorMapping {
+  portName: string;           // Nome da porta (ex: "Ethernet1/1")
+  rxSensorIndex: string | null;   // entPhysicalIndex do sensor RX Power
+  txSensorIndex: string | null;   // entPhysicalIndex do sensor TX Power
+  tempSensorIndex: string | null; // entPhysicalIndex do sensor Temperature
+}
+
+/**
+ * Descobre os sensores ópticos de um switch Cisco via Entity MIB.
+ * Faz walk na tabela entPhysicalName para encontrar sensores de "Receive Power" e "Transmit Power"
+ * e mapeia-os para as portas correspondentes.
+ * 
+ * @param targetIp IP do switch
+ * @param profile Perfil SNMP
+ * @returns Mapeamento de portas para índices de sensores
+ */
+export async function discoverCiscoSensors(
+  targetIp: string,
+  profile: SnmpProfile
+): Promise<CiscoSensorMapping[]> {
+  console.log(`[Cisco Discovery] Iniciando discovery de sensores em ${targetIp}...`);
+  
+  const session = createSession(targetIp, profile);
+  const results: CiscoSensorMapping[] = [];
+  
+  try {
+    // Fazer walk na tabela entPhysicalName para encontrar todos os componentes
+    const entityNames = await new Promise<Map<string, string>>((resolve) => {
+      const names = new Map<string, string>();
+      let completed = false;
+      
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          console.log(`[Cisco Discovery] Timeout no walk de entPhysicalName`);
+          resolve(names);
+        }
+      }, 60000); // 60 segundos para discovery completo
+      
+      session.subtree(ENTITY_MIB_OIDS.entPhysicalName, (varbinds: any[]) => {
+        for (const varbind of varbinds) {
+          if ((varbind as any).type === 128 || (varbind as any).type === 129) continue;
+          // Extrair o entPhysicalIndex do OID (última parte)
+          const oid = varbind.oid;
+          const index = oid.substring(ENTITY_MIB_OIDS.entPhysicalName.length + 1);
+          const name = varbind.value?.toString() || "";
+          if (index && name) {
+            names.set(index, name);
+          }
+        }
+      }, (error: any) => {
+        clearTimeout(timeoutId);
+        if (!completed) {
+          completed = true;
+          if (error) {
+            console.log(`[Cisco Discovery] Erro no walk: ${error.message || error}`);
+          }
+          resolve(names);
+        }
+      });
+    });
+    
+    try { session.close(); } catch {}
+    
+    console.log(`[Cisco Discovery] Encontrados ${entityNames.size} componentes físicos`);
+    
+    if (entityNames.size === 0) {
+      return [];
+    }
+    
+    // Mapear sensores para portas
+    // Formato típico Cisco Nexus:
+    // "Ethernet1/1 Receive Power Sensor" -> RX para Ethernet1/1
+    // "Ethernet1/1 Transmit Power Sensor" -> TX para Ethernet1/1
+    // "Ethernet1/1 Lane 1 Receive Power Sensor" -> RX Lane 1 (para multi-lane)
+    // "Ethernet1/1 Transceiver Temperature Sensor" -> Temp para Ethernet1/1
+    
+    const portSensors = new Map<string, CiscoSensorMapping>();
+    
+    for (const [index, name] of Array.from(entityNames.entries())) {
+      const lowerName = name.toLowerCase();
+      
+      // Extrair nome da porta do sensor
+      // Padrão: "Ethernet1/1 ..." ou "Eth1/1 ..."
+      const portMatch = name.match(/^(Ethernet\d+\/\d+(?:\/\d+)?|Eth\d+\/\d+(?:\/\d+)?)/i);
+      if (!portMatch) continue;
+      
+      const portName = portMatch[1].replace(/^Eth(\d)/i, "Ethernet$1"); // Normalizar para "Ethernet..."
+      
+      // Criar entrada para a porta se não existir
+      if (!portSensors.has(portName)) {
+        portSensors.set(portName, {
+          portName,
+          rxSensorIndex: null,
+          txSensorIndex: null,
+          tempSensorIndex: null,
+        });
+      }
+      
+      const sensor = portSensors.get(portName)!;
+      
+      // Identificar tipo de sensor
+      // Priorizar sensores sem "Lane" para portas de lane única
+      // Para portas multi-lane, pegar o primeiro ou somar depois
+      if (lowerName.includes("receive power") && !sensor.rxSensorIndex) {
+        // Preferir sensor sem "lane" se disponível, ou primeiro lane encontrado
+        if (!lowerName.includes("lane") || sensor.rxSensorIndex === null) {
+          sensor.rxSensorIndex = index;
+          console.log(`[Cisco Discovery] ${portName} RX Sensor: index ${index}`);
+        }
+      } else if (lowerName.includes("transmit power") && !sensor.txSensorIndex) {
+        if (!lowerName.includes("lane") || sensor.txSensorIndex === null) {
+          sensor.txSensorIndex = index;
+          console.log(`[Cisco Discovery] ${portName} TX Sensor: index ${index}`);
+        }
+      } else if (lowerName.includes("temperature") && !sensor.tempSensorIndex) {
+        sensor.tempSensorIndex = index;
+        console.log(`[Cisco Discovery] ${portName} Temp Sensor: index ${index}`);
+      }
+    }
+    
+    // Converter Map para array
+    for (const sensor of Array.from(portSensors.values())) {
+      if (sensor.rxSensorIndex || sensor.txSensorIndex) {
+        results.push(sensor);
+      }
+    }
+    
+    console.log(`[Cisco Discovery] Discovery completo: ${results.length} portas com sensores`);
+    return results;
+    
+  } catch (error) {
+    try { session.close(); } catch {}
+    console.log(`[Cisco Discovery] Erro: ${error instanceof Error ? error.message : "desconhecido"}`);
+    return [];
+  }
+}
+
+/**
+ * Coleta sinal óptico de um switch Cisco usando índices de sensor descobertos.
+ * 
+ * @param targetIp IP do switch
+ * @param profile Perfil SNMP
+ * @param rxSensorIndex Índice do sensor RX (de switchSensorCache)
+ * @param txSensorIndex Índice do sensor TX (de switchSensorCache)
+ * @param divisor Divisor para conversão (Cisco geralmente usa 1, valor já em dBm)
+ * @returns Dados de sinal óptico
+ */
+export async function getCiscoOpticalSignal(
+  targetIp: string,
+  profile: SnmpProfile,
+  rxSensorIndex: string | null,
+  txSensorIndex: string | null,
+  divisor: number = 1
+): Promise<OpticalSignalData | null> {
+  if (!rxSensorIndex && !txSensorIndex) {
+    return null;
+  }
+  
+  const session = createSession(targetIp, profile);
+  
+  try {
+    const oidsToQuery: string[] = [];
+    const oidMapping: Record<string, keyof OpticalSignalData> = {};
+    
+    // Construir OIDs completos: base + índice do sensor
+    if (rxSensorIndex) {
+      const rxOid = `${CISCO_ENTITY_SENSOR_OID}.${rxSensorIndex}`;
+      oidsToQuery.push(rxOid);
+      oidMapping[rxOid] = 'rxPower';
+    }
+    if (txSensorIndex) {
+      const txOid = `${CISCO_ENTITY_SENSOR_OID}.${txSensorIndex}`;
+      oidsToQuery.push(txOid);
+      oidMapping[txOid] = 'txPower';
+    }
+    
+    console.log(`[Cisco Optical] Consultando sensores: RX=${rxSensorIndex}, TX=${txSensorIndex}`);
+    
+    return new Promise((resolve) => {
+      let completed = false;
+      
+      const timeoutId = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          try { session.close(); } catch {}
+          console.log(`[Cisco Optical] Timeout na consulta`);
+          resolve(null);
+        }
+      }, 10000);
+      
+      (session as any).get(oidsToQuery, (error: any, varbinds: any[]) => {
+        clearTimeout(timeoutId);
+        if (completed) return;
+        completed = true;
+        
+        try { session.close(); } catch {}
+        
+        if (error) {
+          console.log(`[Cisco Optical] Erro: ${error.message || error}`);
+          resolve(null);
+          return;
+        }
+        
+        if (!varbinds || varbinds.length === 0) {
+          resolve(null);
+          return;
+        }
+        
+        const result: OpticalSignalData = {
+          rxPower: null,
+          txPower: null,
+          oltRxPower: null
+        };
+        
+        for (const varbind of varbinds) {
+          if ((varbind as any).type === 128 || (varbind as any).type === 129) continue;
+          
+          const oid = varbind.oid;
+          const key = oidMapping[oid];
+          if (key && varbind.value !== undefined) {
+            const rawValue = Number(varbind.value);
+            if (!isNaN(rawValue)) {
+              // Cisco retorna valor em centésimos de dBm (ex: -1523 = -15.23 dBm)
+              // Usar divisor = 100 para converter
+              const dBmValue = divisor > 1 ? rawValue / divisor : rawValue;
+              result[key] = dBmValue;
+              console.log(`[Cisco Optical] ${key}: ${result[key]} dBm (raw: ${rawValue})`);
+            }
+          }
+        }
+        
+        if (result.rxPower === null && result.txPower === null) {
+          resolve(null);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+    
+  } catch (error) {
+    try { session.close(); } catch {}
+    console.log(`[Cisco Optical] Erro: ${error instanceof Error ? error.message : "desconhecido"}`);
     return null;
   }
 }

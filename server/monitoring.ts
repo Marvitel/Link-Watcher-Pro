@@ -5,7 +5,8 @@ import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents } from "@shared/schema";
 import { eq, and, not, like, gte, isNotNull } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
-import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
 
 const execAsync = promisify(exec);
@@ -1490,29 +1491,85 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           }
         }
         
-        if (swProfile && (opticalRxOid || opticalTxOid)) {
+        if (swProfile) {
           console.log(`[Monitor] ${link.name} - Óptico PTP: coletando via Switch ${sw.name} porta ${switchPort}`);
           
-          opticalSignal = await getOpticalSignalFromSwitch(
-            sw.ipAddress,
-            swProfile,
-            switchPort,
-            opticalRxOid,
-            opticalTxOid,
-            portIndexTemplate,
-            opticalDivisor
-          );
-          
-          if (opticalSignal) {
-            const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null;
-            if (hasValues) {
-              console.log(`[Monitor] ${link.name} - Óptico PTP OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm`);
-            } else {
-              console.log(`[Monitor] ${link.name} - Óptico PTP: SNMP respondeu mas sem valores`);
-              opticalSignal = null;
+          // Verificar se é Cisco (usa Entity MIB com discovery de sensores)
+          let vendorSlug = sw.vendor?.toLowerCase() || "";
+          if (sw.vendorId) {
+            const vendorData = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
+            if (vendorData.length > 0) {
+              vendorSlug = vendorData[0].slug?.toLowerCase() || "";
             }
           }
-        } else if (!opticalRxOid && !opticalTxOid) {
+          
+          const isCisco = vendorSlug.includes("cisco");
+          
+          if (isCisco) {
+            // Cisco usa Entity MIB - buscar índices de sensor no cache
+            console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: buscando sensores no cache...`);
+            
+            // Normalizar nome da porta para match (Ethernet1/1 ou Eth1/1)
+            const normalizedPort = switchPort.replace(/^Eth(\d)/i, "Ethernet$1");
+            
+            const sensorData = await db.select()
+              .from(switchSensorCache)
+              .where(and(
+                eq(switchSensorCache.switchId, sw.id),
+                eq(switchSensorCache.portName, normalizedPort)
+              ))
+              .limit(1);
+            
+            if (sensorData.length > 0 && (sensorData[0].rxSensorIndex || sensorData[0].txSensorIndex)) {
+              const sensor = sensorData[0];
+              console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: usando sensores RX=${sensor.rxSensorIndex} TX=${sensor.txSensorIndex}`);
+              
+              // Cisco retorna valores em centésimos de dBm (ex: -1523 = -15.23 dBm)
+              opticalSignal = await getCiscoOpticalSignal(
+                sw.ipAddress,
+                swProfile,
+                sensor.rxSensorIndex,
+                sensor.txSensorIndex,
+                100 // Divisor para Cisco: centésimos de dBm
+              );
+              
+              if (opticalSignal) {
+                const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null;
+                if (hasValues) {
+                  console.log(`[Monitor] ${link.name} - Óptico PTP Cisco OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm`);
+                } else {
+                  console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: SNMP respondeu mas sem valores`);
+                  opticalSignal = null;
+                }
+              }
+            } else {
+              console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: porta ${normalizedPort} não encontrada no cache. Execute discovery no switch.`);
+            }
+          } else if (opticalRxOid || opticalTxOid) {
+            // Outros fabricantes (Mikrotik, Datacom, etc) - método tradicional com templates
+            opticalSignal = await getOpticalSignalFromSwitch(
+              sw.ipAddress,
+              swProfile,
+              switchPort,
+              opticalRxOid,
+              opticalTxOid,
+              portIndexTemplate,
+              opticalDivisor
+            );
+            
+            if (opticalSignal) {
+              const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null;
+              if (hasValues) {
+                console.log(`[Monitor] ${link.name} - Óptico PTP OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm`);
+              } else {
+                console.log(`[Monitor] ${link.name} - Óptico PTP: SNMP respondeu mas sem valores`);
+                opticalSignal = null;
+              }
+            }
+          }
+        }
+        
+        if (!opticalRxOid && !opticalTxOid && !sw.vendorId) {
           console.log(`[Monitor] ${link.name} - Óptico PTP: OIDs não configurados no fabricante ou switch ${sw.name}`);
         } else {
           console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP não encontrado`);

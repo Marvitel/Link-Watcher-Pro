@@ -81,6 +81,27 @@ Features per-link optical signal monitoring with centralized OID configuration p
 - **Interface**: "Sinal Óptico" tab with visual meters and historical graphs. Link form allows baseline/delta configuration.
 - **Correlation**: `splitters` table groups ONUs for mass event detection.
 
+### Cisco Nexus Entity MIB Discovery
+Para switches Cisco Nexus, o monitoramento óptico SFP usa Entity MIB em vez de índices simples:
+- **Problema**: Cisco Nexus usa `entPhysicalIndex` (números grandes como 300049293) em vez de índices de porta simples
+- **Solução**: Sistema de discovery automático via SNMP walk na tabela `entPhysicalName` (.1.3.6.1.2.1.47.1.1.1.1.7)
+- **Cache de Sensores**: Tabela `switchSensorCache` armazena mapeamento porta → sensor descoberto
+- **OID de Coleta**: `1.3.6.1.4.1.9.9.91.1.1.1.1.4.{entPhysicalIndex}` (entSensorValue)
+- **Divisor**: Cisco retorna valores em centésimos de dBm (ex: -1523 = -15.23 dBm), divisor = 100
+- **Fluxo**:
+  1. Cadastrar switch com vendor "cisco" (equipmentVendors)
+  2. Executar discovery via API `POST /api/switches/:id/discover-sensors`
+  3. Sensores são mapeados automaticamente para portas (ex: "Ethernet1/1 Receive Power Sensor")
+  4. Monitoramento usa cache para coleta via `getCiscoOpticalSignal()`
+- **APIs**:
+  - `POST /api/switches/:id/discover-sensors` - Executa discovery e salva no cache
+  - `GET /api/switches/:id/sensor-cache` - Lista sensores descobertos
+  - `GET /api/switches/:id/sensor-cache/:portName` - Busca sensor específico
+- **Padrões de Nome de Sensor**: 
+  - "Ethernet1/1 Receive Power Sensor" → RX para Ethernet1/1
+  - "Ethernet1/1 Transmit Power Sensor" → TX para Ethernet1/1
+  - "Ethernet1/1 Transceiver Temperature Sensor" → Temperatura
+
 ### Sistema de Auditoria
 A `audit_logs` table stores all system audit events. The `server/audit.ts` helper function `logAuditEvent` records events, automatically masking sensitive data. Events include authentication, CRUD operations on links, clients, and users. Security features include automatic masking of sensitive data (e.g., passwords), IP address capture, and User Agent logging. An interface allows filtering, pagination, and viewing details of audit logs.
 

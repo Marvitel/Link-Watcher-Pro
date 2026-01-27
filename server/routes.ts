@@ -3903,7 +3903,7 @@ export async function registerRoutes(
       let session: any;
       if (profile.version === "3") {
         const user = {
-          name: profile.securityName || "admin",
+          name: profile.username || "admin",
           level: snmp.SecurityLevel.authPriv,
           authProtocol: profile.authProtocol === "SHA" ? snmp.AuthProtocols.sha : snmp.AuthProtocols.md5,
           authKey: profile.authPassword || "",
@@ -3938,6 +3938,125 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Erro ao testar SNMP do switch:", error);
       res.status(500).json({ error: "Falha ao testar conexão SNMP" });
+    }
+  });
+
+  // ============ Cisco Entity MIB Discovery Routes ============
+  
+  // Executar discovery de sensores Cisco para um switch
+  app.post("/api/switches/:id/discover-sensors", requireSuperAdmin, async (req, res) => {
+    try {
+      const switchId = parseInt(req.params.id, 10);
+      const sw = await storage.getSwitch(switchId);
+      if (!sw) {
+        return res.status(404).json({ error: "Switch não encontrado" });
+      }
+
+      if (!sw.snmpProfileId) {
+        return res.status(400).json({ error: "Switch sem perfil SNMP configurado" });
+      }
+
+      const profile = await storage.getSnmpProfile(sw.snmpProfileId);
+      if (!profile) {
+        return res.status(404).json({ error: "Perfil SNMP não encontrado" });
+      }
+
+      // Importar função de discovery
+      const { discoverCiscoSensors } = await import("./snmp");
+      
+      // Executar discovery
+      const sensors = await discoverCiscoSensors(sw.ipAddress, {
+        id: profile.id,
+        version: profile.version,
+        port: profile.port ?? 161,
+        community: profile.community,
+        securityLevel: profile.securityLevel,
+        authProtocol: profile.authProtocol,
+        authPassword: profile.authPassword,
+        privProtocol: profile.privProtocol,
+        privPassword: profile.privPassword,
+        username: profile.username,
+        timeout: profile.timeout ?? 5000,
+        retries: profile.retries ?? 1,
+      });
+
+      if (sensors.length === 0) {
+        return res.json({ 
+          success: false, 
+          message: "Nenhum sensor óptico encontrado. Verifique se o switch suporta Entity MIB.",
+          sensors: []
+        });
+      }
+
+      // Salvar no cache
+      const { switchSensorCache } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      // Remover entradas antigas deste switch
+      await db.delete(switchSensorCache).where(eq(switchSensorCache.switchId, switchId));
+      
+      // Inserir novas entradas
+      const now = new Date();
+      for (const sensor of sensors) {
+        await db.insert(switchSensorCache).values({
+          switchId,
+          portName: sensor.portName,
+          rxSensorIndex: sensor.rxSensorIndex,
+          txSensorIndex: sensor.txSensorIndex,
+          tempSensorIndex: sensor.tempSensorIndex,
+          lastDiscovery: now,
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Discovery concluído: ${sensors.length} portas com sensores encontradas`,
+        sensors 
+      });
+    } catch (error) {
+      console.error("Erro no discovery de sensores Cisco:", error);
+      res.status(500).json({ error: "Falha no discovery de sensores" });
+    }
+  });
+
+  // Buscar cache de sensores de um switch
+  app.get("/api/switches/:id/sensor-cache", requireAuth, async (req, res) => {
+    try {
+      const switchId = parseInt(req.params.id, 10);
+      const { switchSensorCache } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      const cache = await db.select().from(switchSensorCache).where(eq(switchSensorCache.switchId, switchId));
+      res.json(cache);
+    } catch (error) {
+      console.error("Erro ao buscar cache de sensores:", error);
+      res.status(500).json({ error: "Falha ao buscar cache de sensores" });
+    }
+  });
+
+  // Buscar sensor específico por porta
+  app.get("/api/switches/:id/sensor-cache/:portName", requireAuth, async (req, res) => {
+    try {
+      const switchId = parseInt(req.params.id, 10);
+      const portName = decodeURIComponent(req.params.portName);
+      const { switchSensorCache } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      
+      const sensor = await db.select().from(switchSensorCache).where(
+        and(
+          eq(switchSensorCache.switchId, switchId),
+          eq(switchSensorCache.portName, portName)
+        )
+      ).limit(1);
+      
+      if (sensor.length === 0) {
+        return res.status(404).json({ error: "Sensor não encontrado no cache" });
+      }
+      
+      res.json(sensor[0]);
+    } catch (error) {
+      console.error("Erro ao buscar sensor:", error);
+      res.status(500).json({ error: "Falha ao buscar sensor" });
     }
   });
 
