@@ -1530,13 +1530,14 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               ))
               .limit(1);
             
-            // Fallback para portas de breakout: Ethernet1/22/1 → Ethernet1/22
-            // Portas 40G divididas em 4x10G compartilham o sensor da porta física
+            // Fallback para portas de breakout QSFP (40G→4x10G ou 100G→4x25G)
+            // Se não encontrar Ethernet1/22/1 diretamente, tentar porta base Ethernet1/22
+            // Isso funciona quando o transceiver não reporta lanes separadas
             if (sensorData.length === 0) {
               const breakoutMatch = normalizedPort.match(/^(Ethernet\d+\/\d+)\/\d+$/);
               if (breakoutMatch) {
                 const basePort = breakoutMatch[1];
-                console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: porta breakout detectada, tentando porta base ${basePort}`);
+                console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: sub-porta não encontrada, tentando porta base ${basePort}`);
                 
                 sensorData = await db.select()
                   .from(switchSensorCache)
@@ -1547,7 +1548,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                   .limit(1);
                 
                 if (sensorData.length > 0) {
-                  normalizedPort = basePort; // Atualiza para log
+                  console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: usando sensor da porta base (sem lanes)`);
                 }
               }
             }

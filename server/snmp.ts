@@ -1289,7 +1289,20 @@ export async function discoverCiscoSensors(
       const portMatch = name.match(/^(Ethernet\d+\/\d+(?:\/\d+)?|Eth\d+\/\d+(?:\/\d+)?)/i);
       if (!portMatch) continue;
       
-      const portName = portMatch[1].replace(/^Eth(\d)/i, "Ethernet$1"); // Normalizar para "Ethernet..."
+      let portName = portMatch[1].replace(/^Eth(\d)/i, "Ethernet$1"); // Normalizar para "Ethernet..."
+      
+      // Detectar Lane X para portas QSFP com breakout (40G→4x10G ou 100G→4x25G)
+      // "Ethernet1/22 Lane 1 ..." → Ethernet1/22/1
+      // "Ethernet1/22 Lane 2 ..." → Ethernet1/22/2
+      const laneMatch = name.match(/Lane\s*(\d+)/i);
+      const hasLane = laneMatch !== null;
+      const laneNumber = laneMatch ? parseInt(laneMatch[1], 10) : 0;
+      
+      // Se tem Lane, criar sub-porta apenas se a porta não tem breakout explícito
+      // Ex: "Ethernet1/22" + "Lane 1" → "Ethernet1/22/1"
+      if (hasLane && !portName.match(/\/\d+\/\d+$/)) {
+        portName = `${portName}/${laneNumber}`;
+      }
       
       // Criar entrada para a porta se não existir
       if (!portSensors.has(portName)) {
@@ -1304,19 +1317,12 @@ export async function discoverCiscoSensors(
       const sensor = portSensors.get(portName)!;
       
       // Identificar tipo de sensor
-      // Priorizar sensores sem "Lane" para portas de lane única
-      // Para portas multi-lane, pegar o primeiro ou somar depois
       if (lowerName.includes("receive power") && !sensor.rxSensorIndex) {
-        // Preferir sensor sem "lane" se disponível, ou primeiro lane encontrado
-        if (!lowerName.includes("lane") || sensor.rxSensorIndex === null) {
-          sensor.rxSensorIndex = index;
-          console.log(`[Cisco Discovery] ${portName} RX Sensor: index ${index}`);
-        }
+        sensor.rxSensorIndex = index;
+        console.log(`[Cisco Discovery] ${portName} RX Sensor: index ${index}`);
       } else if (lowerName.includes("transmit power") && !sensor.txSensorIndex) {
-        if (!lowerName.includes("lane") || sensor.txSensorIndex === null) {
-          sensor.txSensorIndex = index;
-          console.log(`[Cisco Discovery] ${portName} TX Sensor: index ${index}`);
-        }
+        sensor.txSensorIndex = index;
+        console.log(`[Cisco Discovery] ${portName} TX Sensor: index ${index}`);
       } else if (lowerName.includes("temperature") && !sensor.tempSensorIndex) {
         sensor.tempSensorIndex = index;
         console.log(`[Cisco Discovery] ${portName} Temp Sensor: index ${index}`);
