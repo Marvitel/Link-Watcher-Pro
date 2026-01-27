@@ -1557,13 +1557,15 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               const sensor = sensorData[0];
               console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: usando sensores RX=${sensor.rxSensorIndex} TX=${sensor.txSensorIndex}`);
               
-              // Cisco retorna valores em centésimos de dBm (ex: -1523 = -15.23 dBm)
+              // Cisco Nexus retorna valores em milésimos de dBm (ex: -7304 = -7.304 dBm)
+              // Usar divisor do fabricante (switchOpticalDivisor) se configurado, senão 1000
+              const ciscoDivisor = opticalDivisor || 1000;
               opticalSignal = await getCiscoOpticalSignal(
                 sw.ipAddress,
                 swProfile,
                 sensor.rxSensorIndex,
                 sensor.txSensorIndex,
-                100 // Divisor para Cisco: centésimos de dBm
+                ciscoDivisor
               );
               
               if (opticalSignal) {
