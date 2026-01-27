@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupTerminalWebSocket } from "./terminal";
+import { initializeFirewall, createFirewallMiddleware } from "./firewall";
 
 const app = express();
 const httpServer = createServer(app);
@@ -175,6 +176,19 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const adminPort = parseInt(process.env.ADMIN_PORT || "5001", 10);
   const isSinglePortMode = adminPort === port;
+  
+  // Inicializar firewall do banco de dados
+  await initializeFirewall();
+  
+  // Aplicar middleware de firewall nas rotas admin
+  app.use("/admin", createFirewallMiddleware("admin"));
+  app.use("/api/admin", createFirewallMiddleware("admin"));
+  adminApp.use("/admin", createFirewallMiddleware("admin"));
+  adminApp.use("/api/admin", createFirewallMiddleware("admin"));
+  
+  // Aplicar middleware de firewall no terminal SSH
+  app.use("/ws/terminal", createFirewallMiddleware("ssh"));
+  adminApp.use("/ws/terminal", createFirewallMiddleware("ssh"));
   
   // Registrar rotas
   await registerRoutes(httpServer, app);
