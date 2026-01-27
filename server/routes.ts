@@ -3943,8 +3943,20 @@ export async function registerRoutes(
 
   // ============ Cisco Entity MIB Discovery Routes ============
   
+  // Helper para verificar se é chamada local (bypass auth)
+  const isLocalRequest = (req: Request): boolean => {
+    const ip = req.ip || req.socket.remoteAddress || "";
+    return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+  };
+  
   // Executar discovery de sensores Cisco para um switch
-  app.post("/api/switches/:id/discover-sensors", requireSuperAdmin, async (req, res) => {
+  // Permite chamadas locais (localhost) sem autenticação para scripts administrativos
+  app.post("/api/switches/:id/discover-sensors", async (req, res, next) => {
+    if (isLocalRequest(req)) {
+      return next(); // Bypass auth para localhost
+    }
+    return requireSuperAdmin(req, res, next);
+  }, async (req, res) => {
     try {
       const switchId = parseInt(req.params.id, 10);
       const sw = await storage.getSwitch(switchId);
