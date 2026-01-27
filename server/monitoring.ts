@@ -1464,45 +1464,55 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   
   if (link.opticalMonitoringEnabled && linkType === "ptp" && switchId && switchPort && !opticalSignal) {
     try {
-      // Buscar switch com perfil SNMP
+      // Buscar switch
       const switchData = await db.select().from(switches).where(eq(switches.id, switchId)).limit(1);
       
-      if (switchData.length > 0 && switchData[0].snmpProfileId) {
+      if (switchData.length > 0) {
         const sw = switchData[0];
-        const swProfile = await getSnmpProfile(sw.snmpProfileId!);
         
         // Buscar OIDs do vendor (preferencial) ou do switch individual (fallback/legado)
         let opticalRxOid = sw.opticalRxOidTemplate;
         let opticalTxOid = sw.opticalTxOidTemplate;
         let portIndexTemplate = sw.portIndexTemplate;
         let opticalDivisor = 1000; // Default: milésimos de dBm (Mikrotik)
+        let vendorSnmpProfileId: number | null = null;
+        let vendorName = "";
+        let vendorSlug = sw.vendor?.toLowerCase() || "";
         
-        // Se o switch tem vendorId, buscar OIDs do fabricante
+        // Se o switch tem vendorId, buscar dados do fabricante (incluindo snmpProfileId)
         if (sw.vendorId) {
           const vendorData = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
           if (vendorData.length > 0) {
             const vendor = vendorData[0];
+            vendorName = vendor.name;
+            vendorSlug = vendor.slug?.toLowerCase() || "";
+            vendorSnmpProfileId = vendor.snmpProfileId;
             // Usar OIDs do vendor se disponíveis
             if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
             if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
             if (vendor.switchPortIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
             if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
-            console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendor.name} (divisor: ${opticalDivisor})`);
+            console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendorName} (divisor: ${opticalDivisor})`);
           }
         }
+        
+        // Determinar perfil SNMP: switch > fabricante
+        const effectiveSnmpProfileId = sw.snmpProfileId || vendorSnmpProfileId;
+        
+        if (!effectiveSnmpProfileId) {
+          console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP não encontrado (nem no switch nem no fabricante)`);
+        } else {
+          const swProfile = await getSnmpProfile(effectiveSnmpProfileId);
+          if (sw.snmpProfileId) {
+            console.log(`[Monitor] ${link.name} - Óptico PTP: usando perfil SNMP do switch`);
+          } else {
+            console.log(`[Monitor] ${link.name} - Óptico PTP: usando perfil SNMP herdado do fabricante ${vendorName}`);
+          }
         
         if (swProfile) {
           console.log(`[Monitor] ${link.name} - Óptico PTP: coletando via Switch ${sw.name} porta ${switchPort}`);
           
           // Verificar se é Cisco (usa Entity MIB com discovery de sensores)
-          let vendorSlug = sw.vendor?.toLowerCase() || "";
-          if (sw.vendorId) {
-            const vendorData = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
-            if (vendorData.length > 0) {
-              vendorSlug = vendorData[0].slug?.toLowerCase() || "";
-            }
-          }
-          
           const isCisco = vendorSlug.includes("cisco");
           
           if (isCisco) {
@@ -1567,15 +1577,10 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               }
             }
           }
-        }
-        
-        if (!opticalRxOid && !opticalTxOid && !sw.vendorId) {
-          console.log(`[Monitor] ${link.name} - Óptico PTP: OIDs não configurados no fabricante ou switch ${sw.name}`);
         } else {
-          console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP não encontrado`);
+          console.log(`[Monitor] ${link.name} - Óptico PTP: Perfil SNMP inválido`);
         }
-      } else if (switchData.length > 0) {
-        console.log(`[Monitor] ${link.name} - Óptico PTP: Switch ${switchData[0].name} sem perfil SNMP`);
+        } // fecha o else do effectiveSnmpProfileId
       }
     } catch (error) {
       console.log(`[Monitor] ${link.name} - Óptico PTP: erro ${error instanceof Error ? error.message : "desconhecido"}`);
