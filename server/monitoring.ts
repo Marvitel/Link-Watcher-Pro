@@ -1520,15 +1520,37 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: buscando sensores no cache...`);
             
             // Normalizar nome da porta para match (Ethernet1/1 ou Eth1/1)
-            const normalizedPort = switchPort.replace(/^Eth(\d)/i, "Ethernet$1");
+            let normalizedPort = switchPort.replace(/^Eth(\d)/i, "Ethernet$1");
             
-            const sensorData = await db.select()
+            let sensorData = await db.select()
               .from(switchSensorCache)
               .where(and(
                 eq(switchSensorCache.switchId, sw.id),
                 eq(switchSensorCache.portName, normalizedPort)
               ))
               .limit(1);
+            
+            // Fallback para portas de breakout: Ethernet1/22/1 → Ethernet1/22
+            // Portas 40G divididas em 4x10G compartilham o sensor da porta física
+            if (sensorData.length === 0) {
+              const breakoutMatch = normalizedPort.match(/^(Ethernet\d+\/\d+)\/\d+$/);
+              if (breakoutMatch) {
+                const basePort = breakoutMatch[1];
+                console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: porta breakout detectada, tentando porta base ${basePort}`);
+                
+                sensorData = await db.select()
+                  .from(switchSensorCache)
+                  .where(and(
+                    eq(switchSensorCache.switchId, sw.id),
+                    eq(switchSensorCache.portName, basePort)
+                  ))
+                  .limit(1);
+                
+                if (sensorData.length > 0) {
+                  normalizedPort = basePort; // Atualiza para log
+                }
+              }
+            }
             
             if (sensorData.length > 0 && (sensorData[0].rxSensorIndex || sensorData[0].txSensorIndex)) {
               const sensor = sensorData[0];
