@@ -13,10 +13,21 @@ import {
   Area,
   ComposedChart,
 } from "recharts";
-import { Radio, TrendingDown, TrendingUp, AlertTriangle, CheckCircle, Info, Network, MapPin, Ruler, Clock } from "lucide-react";
+import { Radio, TrendingDown, TrendingUp, AlertTriangle, CheckCircle, Info, Network, MapPin, Ruler, Clock, Plug, PlugZap } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useQuery } from "@tanstack/react-query";
 import type { Link, Metric } from "@shared/schema";
+
+interface PortStatusResponse {
+  available: boolean;
+  operStatus?: string;
+  adminStatus?: string;
+  ifIndex?: number;
+  sourceName?: string;
+  sourceIp?: string;
+  message?: string;
+}
 
 interface OpticalSignalSectionProps {
   link: Link;
@@ -238,6 +249,13 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
   // Verificar se é link PTP (via switch)
   const isPtp = link.linkType === "ptp";
   
+  // Buscar status da porta para links PTP/L2
+  const { data: portStatus } = useQuery<PortStatusResponse>({
+    queryKey: ['/api/links', link.id, 'port-status'],
+    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    enabled: isPtp || (link as any).isL2Link,
+  });
+  
   // Obter thresholds baseados no tipo de SFP/tecnologia
   const thresholds = getThresholdsForLink(link);
   
@@ -348,6 +366,58 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
             )}
           </CardContent>
         </Card>
+
+        {/* Status da Porta - para links PTP/L2 */}
+        {(isPtp || (link as any).isL2Link) && portStatus && (
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
+              {portStatus.available && portStatus.operStatus === 'up' ? (
+                <PlugZap className="w-5 h-5 text-green-500" />
+              ) : (
+                <Plug className="w-5 h-5 text-red-500" />
+              )}
+              <CardTitle className="text-base">Status da Porta</CardTitle>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="w-4 h-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Status operacional da porta do switch (ifOperStatus via SNMP)</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardHeader>
+            <CardContent>
+              {portStatus.available ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={portStatus.operStatus === 'up' ? 'default' : 'destructive'}
+                      data-testid="badge-port-oper-status"
+                    >
+                      {portStatus.operStatus === 'up' && <CheckCircle className="w-3 h-3 mr-1" />}
+                      {portStatus.operStatus === 'down' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                      Operacional: {portStatus.operStatus?.toUpperCase()}
+                    </Badge>
+                    <Badge 
+                      variant="outline"
+                      data-testid="badge-port-admin-status"
+                    >
+                      Admin: {portStatus.adminStatus?.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>Fonte: {portStatus.sourceName}</p>
+                    <p>Interface Index: {portStatus.ifIndex}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  {portStatus.message || "Status não disponível"}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {!isPtp && (
           <Card>

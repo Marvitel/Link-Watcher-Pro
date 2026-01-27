@@ -1113,6 +1113,90 @@ export async function registerRoutes(
     }
   });
 
+  // Obter status da porta do switch para links PTP/L2
+  app.get("/api/links/:id/port-status", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link not found" });
+      }
+
+      // Importar funções SNMP
+      const { getInterfaceOperStatus } = await import("./snmp");
+      
+      // Determinar fonte de status da porta
+      let portStatusSource: { ip: string; profileId: number; ifIndex: number; sourceName: string } | null = null;
+      
+      // Opção 1: Link usa ponto de acesso (accessPoint)
+      if (link.trafficSourceType === 'accessPoint' && link.accessPointId && link.accessPointInterfaceIndex) {
+        const accessSwitch = await storage.getSwitch(link.accessPointId);
+        if (accessSwitch && accessSwitch.snmpProfileId) {
+          portStatusSource = {
+            ip: accessSwitch.ipAddress,
+            profileId: accessSwitch.snmpProfileId,
+            ifIndex: link.accessPointInterfaceIndex,
+            sourceName: `${accessSwitch.name} (Ponto de Acesso)`
+          };
+        }
+      }
+      // Opção 2: Link tem switch configurado
+      else if (link.switchId && link.snmpInterfaceIndex) {
+        const sw = await storage.getSwitch(link.switchId);
+        if (sw && sw.snmpProfileId) {
+          portStatusSource = {
+            ip: sw.ipAddress,
+            profileId: sw.snmpProfileId,
+            ifIndex: link.snmpInterfaceIndex,
+            sourceName: `${sw.name} (Switch)`
+          };
+        }
+      }
+      
+      if (!portStatusSource) {
+        return res.json({
+          available: false,
+          message: "Switch ou ponto de acesso não configurado para este link"
+        });
+      }
+      
+      // Buscar perfil SNMP
+      const profile = await storage.getSnmpProfile(portStatusSource.profileId);
+      if (!profile) {
+        return res.json({
+          available: false,
+          message: "Perfil SNMP não encontrado"
+        });
+      }
+      
+      // Coletar status da porta via SNMP
+      const portStatus = await getInterfaceOperStatus(
+        portStatusSource.ip,
+        profile,
+        portStatusSource.ifIndex
+      );
+      
+      if (!portStatus) {
+        return res.json({
+          available: false,
+          message: "Falha ao coletar status SNMP"
+        });
+      }
+      
+      res.json({
+        available: true,
+        operStatus: portStatus.operStatus,
+        adminStatus: portStatus.adminStatus,
+        ifIndex: portStatusSource.ifIndex,
+        sourceName: portStatusSource.sourceName,
+        sourceIp: portStatusSource.ip
+      });
+    } catch (error) {
+      console.error("Error fetching port status:", error);
+      res.status(500).json({ error: "Falha ao obter status da porta" });
+    }
+  });
+
   app.post("/api/links/:id/failure", requireAuth, async (req, res) => {
     try {
       const linkId = parseInt(req.params.id, 10);
