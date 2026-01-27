@@ -5,7 +5,7 @@ import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents } from "@shared/schema";
 import { eq, and, not, like, gte, isNotNull } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
-import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
 
@@ -1161,7 +1161,22 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 }> {
   const ipToMonitor = link.monitoredIp || link.snmpRouterIp || link.address;
 
-  const pingResult = await pingHost(ipToMonitor);
+  // Links L2 não têm IP para monitorar - status vem da porta do switch
+  const isL2Link = (link as any).isL2Link === true;
+  
+  // Para links L2, não fazer ping - status será determinado pelo sinal óptico/porta
+  let pingResult: { latency: number; packetLoss: number; status: string; failureReason: string | null; success?: boolean };
+  
+  // Variável para armazenar o status da porta para links L2
+  let l2PortStatus: { operStatus: string; adminStatus: string } | null = null;
+  
+  if (isL2Link) {
+    // Links L2: latência e perda de pacotes não se aplicam
+    pingResult = { latency: 0, packetLoss: 0, status: "operational", failureReason: null, success: true };
+    console.log(`[Monitor] ${link.name}: Link L2 - ignorando ping (sem IP monitorado)`);
+  } else {
+    pingResult = await pingHost(ipToMonitor);
+  }
 
   let downloadMbps = 0;
   let uploadMbps = 0;
@@ -1293,18 +1308,22 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   let status = "operational";
   let failureReason: string | null = null;
   
-  if (!pingResult.success || pingResult.packetLoss >= 50) {
-    status = "offline";
-    // Determine failure reason
-    if (pingResult.failureReason) {
-      failureReason = pingResult.failureReason;
-    } else if (pingResult.packetLoss >= 100) {
-      failureReason = "no_response";
-    } else if (pingResult.packetLoss >= 50) {
-      failureReason = "packet_loss";
+  // Links L2: status determinado depois, baseado no sinal óptico/tráfego
+  if (!isL2Link) {
+    // Links normais: status baseado no ping
+    if (!pingResult.success || pingResult.packetLoss >= 50) {
+      status = "offline";
+      // Determine failure reason
+      if (pingResult.failureReason) {
+        failureReason = pingResult.failureReason;
+      } else if (pingResult.packetLoss >= 100) {
+        failureReason = "no_response";
+      } else if (pingResult.packetLoss >= 50) {
+        failureReason = "packet_loss";
+      }
+    } else if (pingResult.latency > link.latencyThreshold || pingResult.packetLoss > link.packetLossThreshold) {
+      status = "degraded";
     }
-  } else if (pingResult.latency > link.latencyThreshold || pingResult.packetLoss > link.packetLossThreshold) {
-    status = "degraded";
   }
 
   // Coleta de sinal óptico (se habilitado e configurado)
@@ -1645,6 +1664,112 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
     } catch (error) {
       console.log(`[Monitor] ${link.name} - Óptico PTP: erro ${error instanceof Error ? error.message : "desconhecido"}`);
+    }
+  }
+
+  // Links L2: Determinar status baseado no status da porta, sinal óptico ou tráfego
+  if (isL2Link) {
+    // Coletar status da porta via SNMP (fonte primária para links L2)
+    // Usa o switch/concentrador configurado para o link
+    let portStatusSource: { ip: string; profileId: number; ifIndex: number } | null = null;
+    
+    // Determinar fonte de status da porta
+    if (link.trafficSourceType === 'accessPoint' && link.accessPointId && link.accessPointInterfaceIndex) {
+      // Link L2 via ponto de acesso
+      const accessSwitch = await db.select().from(switches).where(eq(switches.id, link.accessPointId)).limit(1);
+      if (accessSwitch.length > 0 && accessSwitch[0].snmpProfileId) {
+        portStatusSource = {
+          ip: accessSwitch[0].ipAddress,
+          profileId: accessSwitch[0].snmpProfileId,
+          ifIndex: link.accessPointInterfaceIndex
+        };
+      }
+    } else if (link.switchId && link.snmpInterfaceIndex) {
+      // Link L2 via switch de acesso
+      const sw = await db.select().from(switches).where(eq(switches.id, link.switchId)).limit(1);
+      if (sw.length > 0 && sw[0].snmpProfileId) {
+        portStatusSource = {
+          ip: sw[0].ipAddress,
+          profileId: sw[0].snmpProfileId,
+          ifIndex: link.snmpInterfaceIndex
+        };
+      }
+    }
+    
+    // Coletar status da porta se tiver fonte configurada
+    if (portStatusSource) {
+      const portProfile = await getSnmpProfile(portStatusSource.profileId);
+      if (portProfile) {
+        l2PortStatus = await getInterfaceOperStatus(
+          portStatusSource.ip,
+          portProfile,
+          portStatusSource.ifIndex
+        );
+      }
+    }
+    
+    // Prioridade 1: Status da porta via SNMP (ifOperStatus)
+    if (l2PortStatus) {
+      if (l2PortStatus.operStatus === 'down') {
+        status = "offline";
+        failureReason = "port_down";
+        console.log(`[Monitor] ${link.name}: Link L2 OFFLINE - Porta down (adminStatus: ${l2PortStatus.adminStatus})`);
+      } else if (l2PortStatus.operStatus === 'up') {
+        // Porta up - verificar sinal óptico se disponível para determinar degradação
+        if (opticalSignal && opticalSignal.rxPower !== null && link.opticalMonitoringEnabled) {
+          const rxPower = opticalSignal.rxPower;
+          if (rxPower < -28) {
+            status = "degraded";
+            failureReason = "optical_low_signal";
+            console.log(`[Monitor] ${link.name}: Link L2 DEGRADED - Porta up, sinal óptico crítico (${rxPower} dBm)`);
+          } else if (rxPower < -25) {
+            status = "degraded";
+            failureReason = "optical_warning";
+            console.log(`[Monitor] ${link.name}: Link L2 DEGRADED - Porta up, sinal óptico em warning (${rxPower} dBm)`);
+          } else {
+            status = "operational";
+            failureReason = null;
+            console.log(`[Monitor] ${link.name}: Link L2 operacional - Porta up, sinal OK (${rxPower} dBm)`);
+          }
+        } else {
+          status = "operational";
+          failureReason = null;
+          console.log(`[Monitor] ${link.name}: Link L2 operacional - Porta up`);
+        }
+      } else {
+        // Status desconhecido/testing/dormant
+        status = "degraded";
+        failureReason = `port_${l2PortStatus.operStatus}`;
+        console.log(`[Monitor] ${link.name}: Link L2 DEGRADED - Porta em estado ${l2PortStatus.operStatus}`);
+      }
+    }
+    // Prioridade 2: Sinal óptico (se configurado e sem status da porta)
+    else if (opticalSignal && opticalSignal.rxPower !== null && link.opticalMonitoringEnabled) {
+      const rxPower = opticalSignal.rxPower;
+      
+      if (rxPower < -30) {
+        status = "offline";
+        failureReason = "optical_no_signal";
+        console.log(`[Monitor] ${link.name}: Link L2 OFFLINE - Sinal óptico muito baixo (${rxPower} dBm)`);
+      } else if (rxPower < -28) {
+        status = "degraded";
+        failureReason = "optical_low_signal";
+        console.log(`[Monitor] ${link.name}: Link L2 DEGRADED - Sinal óptico crítico (${rxPower} dBm)`);
+      } else if (rxPower < -25) {
+        status = "degraded";
+        failureReason = "optical_warning";
+        console.log(`[Monitor] ${link.name}: Link L2 DEGRADED - Sinal óptico em warning (${rxPower} dBm)`);
+      } else {
+        status = "operational";
+        failureReason = null;
+        console.log(`[Monitor] ${link.name}: Link L2 operacional - Sinal óptico OK (${rxPower} dBm)`);
+      }
+    }
+    // Prioridade 3: Sem status de porta nem sinal - considerar offline (não há forma de verificar)
+    else {
+      status = "offline";
+      failureReason = "snmp_unreachable";
+      console.log(`[Monitor] ${link.name}: Link L2 OFFLINE - Sem status de porta ou sinal óptico disponível`);
     }
   }
 

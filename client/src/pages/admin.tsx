@@ -725,6 +725,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
+    isL2Link: (link as any)?.isL2Link ?? false,
     // Campos de monitoramento óptico (OIDs vêm do fabricante)
     opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
@@ -2147,6 +2148,21 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
               data-testid="switch-invert-bandwidth"
             />
           </div>
+        </div>
+        
+        {/* Link L2 - Sem IP monitorado */}
+        <div className="flex items-center justify-between p-3 rounded-md border bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+          <div className="space-y-0.5">
+            <p className="font-medium text-sm">Link L2 (Sem IP)</p>
+            <p className="text-xs text-muted-foreground">
+              Link não possui IP monitorado. Status será determinado pela porta do switch/concentrador.
+            </p>
+          </div>
+          <Switch
+            checked={formData.isL2Link}
+            onCheckedChange={(checked) => setFormData({ ...formData, isL2Link: checked })}
+            data-testid="switch-is-l2-link"
+          />
         </div>
       </div>
 

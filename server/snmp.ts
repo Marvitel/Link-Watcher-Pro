@@ -419,6 +419,64 @@ export function formatSpeed(speedBps: number): string {
   return `${speedBps} bps`;
 }
 
+// Coletar status operacional de uma interface via SNMP
+// Retorna: 'up', 'down', 'testing', 'unknown', 'dormant', 'notPresent', 'lowerLayerDown' ou null se erro
+export async function getInterfaceOperStatus(
+  targetIp: string,
+  profile: SnmpProfile,
+  ifIndex: number
+): Promise<{ operStatus: string; adminStatus: string } | null> {
+  let session: any = null;
+  try {
+    session = createSession(targetIp, profile);
+    
+    const operStatusOid = `${IF_TABLE_OIDS.ifOperStatus}.${ifIndex}`;
+    const adminStatusOid = `${IF_TABLE_OIDS.ifAdminStatus}.${ifIndex}`;
+    
+    const results = await new Promise<Array<{ oid: string; value: any }>>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("SNMP timeout"));
+      }, profile.timeout * 1000);
+      
+      session.get([operStatusOid, adminStatusOid], (error: Error | null, varbinds: any[]) => {
+        clearTimeout(timeout);
+        if (error) {
+          reject(error);
+        } else {
+          resolve(varbinds.map((vb) => ({ oid: vb.oid, value: vb.value })));
+        }
+      });
+    });
+    
+    let operStatusNum = 4; // unknown
+    let adminStatusNum = 3; // testing
+    
+    for (const result of results) {
+      if (result.oid === operStatusOid) {
+        operStatusNum = Number(result.value) || 4;
+      } else if (result.oid === adminStatusOid) {
+        adminStatusNum = Number(result.value) || 3;
+      }
+    }
+    
+    return {
+      operStatus: OPER_STATUS_MAP[operStatusNum] || "unknown",
+      adminStatus: ADMIN_STATUS_MAP[adminStatusNum] || "testing",
+    };
+  } catch (error) {
+    console.log(`[SNMP] Failed to get interface status for ${targetIp} ifIndex ${ifIndex}:`, error instanceof Error ? error.message : error);
+    return null;
+  } finally {
+    if (session) {
+      try {
+        session.close();
+      } catch (e) {
+        // Ignore close errors
+      }
+    }
+  }
+}
+
 export interface InterfaceSearchResult {
   found: boolean;
   ifIndex: number | null;

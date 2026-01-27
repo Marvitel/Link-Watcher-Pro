@@ -174,6 +174,8 @@ export const links = pgTable("links", {
   cpeWebProtocol: varchar("cpe_web_protocol", { length: 10 }).default("http"), // http ou https
   cpeSshPort: integer("cpe_ssh_port").default(22), // Porta SSH
   cpeWinboxPort: integer("cpe_winbox_port").default(8291), // Porta Winbox (Mikrotik)
+  // Link L2: Sem IP monitorado, status baseado na porta do switch/concentrador
+  isL2Link: boolean("is_l2_link").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
