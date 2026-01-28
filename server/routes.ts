@@ -5740,14 +5740,19 @@ export async function registerRoutes(
         
         if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
           console.log(`[OZmap] Link ${linkId}: Processando ${potencyItem.elements.length} elementos`);
+          // Percorrer todos os elementos para encontrar o ÚLTIMO splitter (mais próximo do cliente)
           for (const elem of potencyItem.elements) {
             // Procurar por splitter - verificar múltiplas estruturas possíveis
             if (elem.element?.kind === 'Splitter') {
+              // Usar parent.name primeiro, depois element.name
               splitterName = elem.parent?.name || elem.element?.name || null;
-              if (elem.element?.port !== undefined) {
+              // Porta pode estar em port ou label
+              if (elem.element?.port !== undefined && elem.element?.port !== null) {
                 splitterPort = String(elem.element.port);
+              } else if (elem.element?.label) {
+                splitterPort = String(elem.element.label);
               }
-              console.log(`[OZmap] Link ${linkId}: Splitter encontrado - Nome: ${splitterName}, Porta: ${splitterPort}`);
+              console.log(`[OZmap] Link ${linkId}: Splitter encontrado - Nome: ${splitterName}, Porta: ${splitterPort}, Label: ${elem.element?.label}`);
             }
             // Procurar por OLT (geralmente o último elemento da rota ou marcado como OLT)
             if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase()?.includes('olt')) {

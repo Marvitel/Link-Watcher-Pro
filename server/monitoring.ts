@@ -2844,17 +2844,21 @@ async function syncOzmapForAllLinks(): Promise<void> {
         if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
           console.log(`[OZmap Auto-Sync] Link ${link.name}: ${potencyItem.elements.length} elementos na rota`);
           
+          // Percorrer todos os elementos para encontrar o ÚLTIMO splitter (mais próximo do cliente)
           for (const elem of potencyItem.elements) {
             // Detectar Splitter pelo kind do elemento
             if (elem.element?.kind === 'Splitter') {
               splitterName = elem.parent?.name || elem.element?.name || null;
-              if (elem.element?.port !== undefined) {
+              // Porta pode estar em port ou label
+              if (elem.element?.port !== undefined && elem.element?.port !== null) {
                 splitterPort = String(elem.element.port);
+              } else if (elem.element?.label) {
+                splitterPort = String(elem.element.label);
               }
-              console.log(`[OZmap Auto-Sync] Link ${link.name}: Splitter encontrado: ${splitterName}, porta: ${splitterPort}`);
+              console.log(`[OZmap Auto-Sync] Link ${link.name}: Splitter: ${splitterName}, Porta: ${splitterPort}, Label: ${elem.element?.label}`);
             }
             // Detectar OLT pelo kind ou nome
-            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase().includes('olt')) {
+            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase()?.includes('olt')) {
               oltName = elem.parent?.name || elem.element?.name || null;
               if (elem.element?.slot !== undefined) {
                 oltSlot = parseInt(String(elem.element.slot), 10);
