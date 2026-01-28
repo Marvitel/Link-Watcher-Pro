@@ -2756,6 +2756,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
       .limit(1);
     
     if (integration.length === 0 || !integration[0].apiKey || !integration[0].apiUrl || !integration[0].isActive) {
+      console.log("[OZmap Auto-Sync] Integração não configurada ou inativa");
       return; // OZmap não configurado ou inativo
     }
     
@@ -2771,6 +2772,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
     }
 
     const ozmapConfig = integration[0];
+    console.log("[OZmap Auto-Sync] Iniciando sincronização...");
     
     // Normalizar URL base
     let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
@@ -2791,8 +2793,11 @@ async function syncOzmapForAllLinks(): Promise<void> {
       );
 
     if (linksWithOzmap.length === 0) {
+      console.log("[OZmap Auto-Sync] Nenhum link com tag OZmap configurada");
       return;
     }
+
+    console.log(`[OZmap Auto-Sync] Processando ${linksWithOzmap.length} link(s)...`);
 
     let syncedCount = 0;
     let errorCount = 0;
@@ -2815,18 +2820,21 @@ async function syncOzmapForAllLinks(): Promise<void> {
         });
 
         if (!response.ok) {
+          console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" não encontrada (HTTP ${response.status})`);
           continue; // Link não encontrado no OZmap, pular
         }
 
         const data = await response.json();
         
         if (!Array.isArray(data) || data.length === 0) {
+          console.log(`[OZmap Auto-Sync] Link ${link.name}: Sem dados de potência`);
           continue;
         }
 
         const potencyItem = data[0];
         
         // Extrair informações de splitter e OLT dos elementos da rota
+        // Pegar o ÚLTIMO splitter da rota (mais próximo do cliente)
         let splitterName: string | null = null;
         let splitterPort: string | null = null;
         let oltName: string | null = null;
@@ -2834,13 +2842,18 @@ async function syncOzmapForAllLinks(): Promise<void> {
         let oltPort: number | null = null;
         
         if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
+          console.log(`[OZmap Auto-Sync] Link ${link.name}: ${potencyItem.elements.length} elementos na rota`);
+          
           for (const elem of potencyItem.elements) {
+            // Detectar Splitter pelo kind do elemento
             if (elem.element?.kind === 'Splitter') {
               splitterName = elem.parent?.name || elem.element?.name || null;
-              if (elem.element?.port) {
+              if (elem.element?.port !== undefined) {
                 splitterPort = String(elem.element.port);
               }
+              console.log(`[OZmap Auto-Sync] Link ${link.name}: Splitter encontrado: ${splitterName}, porta: ${splitterPort}`);
             }
+            // Detectar OLT pelo kind ou nome
             if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase().includes('olt')) {
               oltName = elem.parent?.name || elem.element?.name || null;
               if (elem.element?.slot !== undefined) {
@@ -2882,15 +2895,15 @@ async function syncOzmapForAllLinks(): Promise<void> {
           .set(ozmapUpdate)
           .where(eq(links.id, link.id));
         
+        console.log(`[OZmap Auto-Sync] Link ${link.name}: Salvo - Splitter: ${splitterName || 'N/A'}, Porta: ${splitterPort || 'N/A'}, Potência: ${potencyItem.arriving_potency || 'N/A'}`);
         syncedCount++;
       } catch (linkError) {
+        console.error(`[OZmap Auto-Sync] Link ${link.name}: Erro -`, linkError);
         errorCount++;
       }
     }
 
-    if (syncedCount > 0 || errorCount > 0) {
-      console.log(`[OZmap Auto-Sync] Sincronizados: ${syncedCount} links, Erros: ${errorCount}`);
-    }
+    console.log(`[OZmap Auto-Sync] Concluído: ${syncedCount} sincronizados, ${errorCount} erros`);
   } catch (error) {
     console.error("[OZmap Auto-Sync] Erro na sincronização automática:", error);
   }

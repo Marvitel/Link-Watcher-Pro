@@ -5739,16 +5739,18 @@ export async function registerRoutes(
         let oltPort: number | null = null;
         
         if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
+          console.log(`[OZmap] Link ${linkId}: Processando ${potencyItem.elements.length} elementos`);
           for (const elem of potencyItem.elements) {
-            // Procurar por splitter
+            // Procurar por splitter - verificar múltiplas estruturas possíveis
             if (elem.element?.kind === 'Splitter') {
               splitterName = elem.parent?.name || elem.element?.name || null;
-              if (elem.element?.port) {
+              if (elem.element?.port !== undefined) {
                 splitterPort = String(elem.element.port);
               }
+              console.log(`[OZmap] Link ${linkId}: Splitter encontrado - Nome: ${splitterName}, Porta: ${splitterPort}`);
             }
             // Procurar por OLT (geralmente o último elemento da rota ou marcado como OLT)
-            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase().includes('olt')) {
+            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase()?.includes('olt')) {
               oltName = elem.parent?.name || elem.element?.name || null;
               if (elem.element?.slot !== undefined) {
                 oltSlot = parseInt(String(elem.element.slot), 10);
@@ -5758,6 +5760,7 @@ export async function registerRoutes(
               }
             }
           }
+          console.log(`[OZmap] Link ${linkId}: Final - Splitter: ${splitterName || 'N/A'}, Porta: ${splitterPort || 'N/A'}`);
         }
         
         // Se a resposta tiver dados de OLT no nível superior
