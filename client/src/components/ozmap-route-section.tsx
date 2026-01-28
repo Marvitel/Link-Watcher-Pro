@@ -87,6 +87,15 @@ function getPowerStatus(power: number): { status: 'good' | 'warning' | 'critical
 export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   // Usa a tag do contrato Voalle como identificador para OZmap
   const ozmapTag = (link as any).voalleContractTagServiceTag || (link as any).ozmapTag;
+  
+  // Debug temporário - remover após diagnóstico
+  console.log('[OZmap Debug]', {
+    linkId: link.id,
+    linkName: link.name,
+    voalleContractTagServiceTag: (link as any).voalleContractTagServiceTag,
+    ozmapTag: (link as any).ozmapTag,
+    resolvedTag: ozmapTag
+  });
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ 
     linkId: number; 
