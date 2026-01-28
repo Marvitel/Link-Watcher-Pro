@@ -102,10 +102,10 @@ export function MultiTrafficChart({
       metricsIndex.set(iface.id, ifaceMetrics);
     });
     
-    // Função para encontrar métrica mais próxima dentro de 90 segundos
+    // Função para encontrar métrica mais próxima dentro de 180 segundos
     const findClosestMetric = (metrics: Array<{ts: number; download: number; upload: number}>, targetTs: number) => {
       if (!metrics || metrics.length === 0) return null;
-      const tolerance = 90000; // 90 segundos de tolerância
+      const tolerance = 180000; // 180 segundos de tolerância (3 minutos)
       
       let closest = null;
       let minDiff = Infinity;
@@ -223,7 +223,7 @@ export function MultiTrafficChart({
             stroke={safeColor}
             strokeWidth={2}
             fill={`url(#gradient_iface_${iface.id})`}
-            connectNulls={false}
+            connectNulls={true}
           />
         );
       }
@@ -238,7 +238,7 @@ export function MultiTrafficChart({
             strokeWidth={1.5}
             strokeDasharray="4 2"
             fill="none"
-            connectNulls={false}
+            connectNulls={true}
           />
         );
       }
