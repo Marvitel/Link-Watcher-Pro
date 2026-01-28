@@ -5791,11 +5791,20 @@ export async function registerRoutes(
         if (potencyItem.olt_name) {
           oltName = potencyItem.olt_name;
         }
+        // Slot e port no nível superior também podem ser objetos
         if (potencyItem.slot !== undefined) {
-          oltSlot = potencyItem.slot;
+          if (typeof potencyItem.slot === 'object' && potencyItem.slot?.number !== undefined) {
+            oltSlot = parseInt(String(potencyItem.slot.number), 10);
+          } else if (typeof potencyItem.slot !== 'object') {
+            oltSlot = parseInt(String(potencyItem.slot), 10);
+          }
         }
         if (potencyItem.port !== undefined) {
-          oltPort = potencyItem.port;
+          if (typeof potencyItem.port === 'object' && potencyItem.port?.number !== undefined) {
+            oltPort = parseInt(String(potencyItem.port.number), 10);
+          } else if (typeof potencyItem.port !== 'object') {
+            oltPort = parseInt(String(potencyItem.port), 10);
+          }
         }
         
         // Atualizar o link com os dados do OZmap

@@ -2891,8 +2891,21 @@ async function syncOzmapForAllLinks(): Promise<void> {
         
         // Dados do nível superior
         if (potencyItem.olt_name) oltName = potencyItem.olt_name;
-        if (potencyItem.slot !== undefined) oltSlot = potencyItem.slot;
-        if (potencyItem.port !== undefined) oltPort = potencyItem.port;
+        // Slot e port no nível superior também podem ser objetos
+        if (potencyItem.slot !== undefined) {
+          if (typeof potencyItem.slot === 'object' && potencyItem.slot?.number !== undefined) {
+            oltSlot = parseInt(String(potencyItem.slot.number), 10);
+          } else if (typeof potencyItem.slot !== 'object') {
+            oltSlot = parseInt(String(potencyItem.slot), 10);
+          }
+        }
+        if (potencyItem.port !== undefined) {
+          if (typeof potencyItem.port === 'object' && potencyItem.port?.number !== undefined) {
+            oltPort = parseInt(String(potencyItem.port.number), 10);
+          } else if (typeof potencyItem.port !== 'object') {
+            oltPort = parseInt(String(potencyItem.port), 10);
+          }
+        }
         
         // Preparar update
         const ozmapUpdate: any = {

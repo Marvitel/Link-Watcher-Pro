@@ -1,0 +1,67 @@
+an 28 18:52:36 link-monitor npm[3290262]: [Monitor] RP PARK SHOP - 50M - Óptico Zabbix: OLT_RX=-40.00dBm
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: 32 elementos na rota
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 120, Porta: 2
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 109, Porta: 1
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 109, Porta: 8
+jan 28 18:52:36 link-monitor npm[3290262]: [Monitor] Link 10 - Splitter atualizado: (vazio) porta (vazio) dist 8
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Erro - error: invalid input syntax for type integer: "{"id":"60cdf7440fa0d50013384175","label":"","number":"1"}"
+jan 28 18:52:36 link-monitor npm[3290262]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 28 18:52:36 link-monitor npm[3290262]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 28 18:52:36 link-monitor npm[3290262]:     at async Xx (/opt/link-monitor/dist/index.cjs:218:73042) {
+jan 28 18:52:36 link-monitor npm[3290262]:   length: 195,
+jan 28 18:52:36 link-monitor npm[3290262]:   severity: 'ERROR',
+jan 28 18:52:36 link-monitor npm[3290262]:   code: '22P02',
+jan 28 18:52:36 link-monitor npm[3290262]:   detail: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   hint: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   position: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   internalPosition: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   internalQuery: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   where: "unnamed portal parameter $6 = '...'",
+jan 28 18:52:36 link-monitor npm[3290262]:   schema: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   table: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   column: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   dataType: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   constraint: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   file: 'numutils.c',
+jan 28 18:52:36 link-monitor npm[3290262]:   line: '232',
+jan 28 18:52:36 link-monitor npm[3290262]:   routine: 'pg_strtoint32'
+jan 28 18:52:36 link-monitor npm[3290262]: }
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: 32 elementos na rota
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 120, Porta: 2
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 109, Porta: 1
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Splitter: CEO MVT 109, Porta: 8
+jan 28 18:52:36 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP TANCREDO - 100M: Erro - error: invalid input syntax for type integer: "{"id":"60cdf7440fa0d50013384175","label":"","number":"1"}"
+jan 28 18:52:36 link-monitor npm[3290262]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 28 18:52:36 link-monitor npm[3290262]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 28 18:52:36 link-monitor npm[3290262]:     at async Xx (/opt/link-monitor/dist/index.cjs:218:73042) {
+jan 28 18:52:36 link-monitor npm[3290262]:   length: 195,
+jan 28 18:52:36 link-monitor npm[3290262]:   severity: 'ERROR',
+jan 28 18:52:36 link-monitor npm[3290262]:   code: '22P02',
+jan 28 18:52:36 link-monitor npm[3290262]:   detail: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   hint: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   position: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   internalPosition: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   internalQuery: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   where: "unnamed portal parameter $6 = '...'",
+jan 28 18:52:36 link-monitor npm[3290262]:   schema: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   table: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   column: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   dataType: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   constraint: undefined,
+jan 28 18:52:36 link-monitor npm[3290262]:   file: 'numutils.c',
+jan 28 18:52:36 link-monitor npm[3290262]:   line: '232',
+jan 28 18:52:36 link-monitor npm[3290262]:   routine: 'pg_strtoint32'
+jan 28 18:52:36 link-monitor npm[3290262]: }
+jan 28 18:52:36 link-monitor npm[3290262]: [Monitor] RP MAIS QUERIDO - 50M: lat=1.6ms, loss=0.0%, status=operational
+jan 28 18:52:37 link-monitor npm[3290262]: [Monitor]  Hotel Aquarios - IP Dedicado 400M - LINK PRINCIPAL: lat=2.9ms, loss=0.0%, status=operational
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link Emgetis - Link IP BGP 20G: Tag "Emgetis" não encontrada (HTTP 404)
+jan 28 18:52:37 link-monitor npm[3290262]: [Monitor]  Hotel Aquarios - IP Dedicado 400M - LINK PRINCIPAL: lat=3.0ms, loss=0.0%, status=operational
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link Emgetis - Link IP BGP 20G: Tag "Emgetis" não encontrada (HTTP 404)
+jan 28 18:52:37 link-monitor npm[3290262]: [Monitor] RP PARK SHOP - 50M: lat=2.5ms, loss=0.0%, status=operational
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP DIA - 100M: 3 elementos na rota
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP DIA - 100M: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.18221225021091034
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP DIA - 100M: 3 elementos na rota
+jan 28 18:52:37 link-monitor npm[3290262]: [OZmap Auto-Sync] Link RP DIA - 100M: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.18221225021091034
+jan 28 18:52:37 link-monitor npm[3290262]: [Monitor] RP TANCREDO - 100M - Resultado CPU/Mem: cpu=6, mem=0
+jan 28 18:52:37 link-monitor npm[3290262]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+jan 28 18:52:37 link-monitor npm[3290262]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
