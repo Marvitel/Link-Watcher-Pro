@@ -1484,7 +1484,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 } else if (mode === 'concentrator') {
                   setFormData({ ...formData, snmpRouterIp: "", trafficSourceType: 'concentrator', accessPointId: null, accessPointInterfaceIndex: null, accessPointInterfaceName: null });
                 } else {
-                  setFormData({ ...formData, trafficSourceType: 'accessPoint', concentratorId: null });
+                  setFormData({ ...formData, trafficSourceType: 'accessPoint' });
                 }
               }}
             >
@@ -1661,6 +1661,31 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     </Badge>
                   </div>
                 )}
+                <div className="mt-3">
+                  <Label htmlFor="concentratorIdAccessPoint">Concentrador (opcional)</Label>
+                  <Select
+                    value={formData.concentratorId?.toString() || "none"}
+                    onValueChange={(v) => {
+                      const concId = v === "none" ? null : parseInt(v, 10);
+                      setFormData({ ...formData, concentratorId: concId });
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-concentrator-accesspoint" className="mt-1">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {activeConcentrators?.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.name} ({c.ipAddress})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Associe um concentrador para diagnóstico OLT/ONU mesmo com coleta pelo switch.
+                  </p>
+                </div>
               </>
             )}
           </div>
