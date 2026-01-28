@@ -2252,7 +2252,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       
       if (additionalInterfaces.length > 0) {
         console.log(`[Monitor] ${link.name}: Coletando ${additionalInterfaces.length} interfaces adicionais`);
-        const metricsToInsert: Array<{linkId: number; trafficInterfaceId: number; download: number; upload: number}> = [];
+        const metricsToInsert: Array<{linkId: number; trafficInterfaceId: number; download: number; upload: number; timestamp: Date}> = [];
         
         for (const iface of additionalInterfaces) {
           try {
@@ -2307,13 +2307,15 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
                 [download, upload] = [upload, download];
               }
               
-              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Download=${download.toFixed(2)}Mbps, Upload=${upload.toFixed(2)}Mbps`);
+              const now = new Date();
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Download=${download.toFixed(2)}Mbps, Upload=${upload.toFixed(2)}Mbps, timestamp=${now.toISOString()}`);
               
               metricsToInsert.push({
                 linkId: link.id,
                 trafficInterfaceId: iface.id,
                 download: download * 1000000, // Converter Mbps para bps
                 upload: upload * 1000000,
+                timestamp: now, // Timestamp explícito
               });
             } else {
               console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Primeira coleta, aguardando próxima para calcular bandwidth`);
