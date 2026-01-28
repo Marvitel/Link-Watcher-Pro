@@ -5512,12 +5512,159 @@ export async function registerRoutes(
         });
 
         res.json(result);
+      } else if (integration.provider === "ozmap") {
+        // Testar conexão com OZmap
+        try {
+          const apiUrl = integration.apiUrl || "";
+          const apiKey = integration.apiKey || "";
+          
+          if (!apiUrl || !apiKey) {
+            throw new Error("URL ou Token não configurados");
+          }
+
+          // Testa buscando informações básicas da API
+          const response = await fetch(`${apiUrl}/api/v2/users/me`, {
+            method: "GET",
+            headers: {
+              "Accept": "application/json",
+              "Authorization": apiKey,
+            },
+          });
+
+          if (response.ok) {
+            await storage.updateExternalIntegration(id, {
+              lastTestedAt: new Date(),
+              lastTestStatus: "success",
+              lastTestError: null,
+            });
+            res.json({ success: true });
+          } else {
+            const errorText = await response.text();
+            await storage.updateExternalIntegration(id, {
+              lastTestedAt: new Date(),
+              lastTestStatus: "error",
+              lastTestError: `HTTP ${response.status}: ${errorText.substring(0, 200)}`,
+            });
+            res.json({ success: false, error: `HTTP ${response.status}` });
+          }
+        } catch (error: any) {
+          await storage.updateExternalIntegration(id, {
+            lastTestedAt: new Date(),
+            lastTestStatus: "error",
+            lastTestError: error.message || "Erro desconhecido",
+          });
+          res.json({ success: false, error: error.message });
+        }
       } else {
         res.status(400).json({ error: "Provider não suportado para teste" });
       }
     } catch (error) {
       console.error("[External Integrations] Error testing:", error);
       res.status(500).json({ error: "Erro ao testar integração" });
+    }
+  });
+
+  // ========== OZmap Integration API ==========
+
+  // Buscar dados de potência/rota de fibra do OZmap
+  app.get("/api/ozmap/potency/:tag", requireAuth, async (req, res) => {
+    try {
+      const { tag } = req.params;
+      
+      const integration = await storage.getExternalIntegrationByProvider("ozmap");
+      if (!integration || !integration.apiKey || !integration.apiUrl) {
+        return res.status(400).json({ error: "OZmap não configurado" });
+      }
+
+      if (!integration.isActive) {
+        return res.status(400).json({ error: "Integração OZmap está desativada" });
+      }
+
+      const response = await fetch(
+        `${integration.apiUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`,
+        {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": integration.apiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[OZmap] Error fetching potency:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Erro ao consultar OZmap: HTTP ${response.status}`,
+          details: errorText.substring(0, 200)
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("[OZmap] Error:", error);
+      res.status(500).json({ error: "Erro ao consultar OZmap", details: error.message });
+    }
+  });
+
+  // Buscar dados de potência para um link específico (usando ozmapTag do link)
+  app.get("/api/links/:linkId/ozmap-potency", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const link = await storage.getLink(linkId);
+      
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      if (req.user && !req.user.isSuperAdmin && req.user.clientId !== link.clientId) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      const ozmapTag = (link as any).ozmapTag;
+      if (!ozmapTag) {
+        return res.status(400).json({ error: "Link não possui etiqueta OZmap configurada" });
+      }
+
+      const integration = await storage.getExternalIntegrationByProvider("ozmap");
+      if (!integration || !integration.apiKey || !integration.apiUrl) {
+        return res.status(400).json({ error: "OZmap não configurado" });
+      }
+
+      if (!integration.isActive) {
+        return res.status(400).json({ error: "Integração OZmap está desativada" });
+      }
+
+      const response = await fetch(
+        `${integration.apiUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`,
+        {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": integration.apiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[OZmap] Error fetching potency for link:", response.status, errorText);
+        return res.status(response.status).json({ 
+          error: `Erro ao consultar OZmap: HTTP ${response.status}`,
+          details: errorText.substring(0, 200)
+        });
+      }
+
+      const data = await response.json();
+      res.json({
+        linkId,
+        ozmapTag,
+        potencyData: data
+      });
+    } catch (error: any) {
+      console.error("[OZmap] Error:", error);
+      res.status(500).json({ error: "Erro ao consultar OZmap", details: error.message });
     }
   });
 

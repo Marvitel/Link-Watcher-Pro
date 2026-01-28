@@ -74,7 +74,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3 } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3, Map } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 import { FirewallManager } from "@/components/firewall-manager";
@@ -727,6 +727,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
     isL2Link: (link as any)?.isL2Link ?? false,
+    ozmapTag: (link as any)?.ozmapTag || "",
     // Campos de monitoramento óptico (OIDs vêm do fabricante)
     opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
@@ -1333,7 +1334,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           Vincule este link a uma etiqueta para filtrar solicitações do Voalle
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="identifier">Identificador</Label>
           <Input
@@ -1352,6 +1353,16 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="Nome do link"
             data-testid="input-link-name"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ozmapTag">Etiqueta OZmap</Label>
+          <Input
+            id="ozmapTag"
+            value={formData.ozmapTag}
+            onChange={(e) => setFormData({ ...formData, ozmapTag: e.target.value })}
+            placeholder="Ex: 1SHZLQLX"
+            data-testid="input-ozmap-tag"
           />
         </div>
       </div>
@@ -3333,6 +3344,213 @@ function HetrixToolsIntegration() {
   );
 }
 
+function OZmapIntegration() {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  const { data: integrations, refetch } = useQuery<ExternalIntegration[]>({
+    queryKey: ["/api/external-integrations"],
+  });
+
+  const ozmapIntegration = integrations?.find(i => i.provider === "ozmap");
+
+  const [formData, setFormData] = useState({
+    name: "OZmap",
+    provider: "ozmap",
+    isActive: true,
+    apiKey: "",
+    apiUrl: "https://marvitel.ozmap.com.br:9994",
+  });
+
+  useEffect(() => {
+    if (ozmapIntegration) {
+      setFormData({
+        name: ozmapIntegration.name,
+        provider: "ozmap",
+        isActive: ozmapIntegration.isActive,
+        apiKey: "",
+        apiUrl: ozmapIntegration.apiUrl || "https://marvitel.ozmap.com.br:9994",
+      });
+    }
+  }, [ozmapIntegration]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest("POST", "/api/external-integrations", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração OZmap criada com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar integração", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<typeof formData> }) => {
+      return await apiRequest("PATCH", `/api/external-integrations/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração OZmap atualizada" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar integração", variant: "destructive" });
+    },
+  });
+
+  const testConnection = async () => {
+    if (!ozmapIntegration) return;
+    setTesting(true);
+    try {
+      const response = await apiRequest("POST", `/api/external-integrations/${ozmapIntegration.id}/test`);
+      const result = await response.json() as { success: boolean; error?: string };
+      if (result.success) {
+        toast({ title: "Conexão com OZmap bem-sucedida!" });
+      } else {
+        toast({ title: "Falha na conexão", description: result.error, variant: "destructive" });
+      }
+      refetch();
+    } catch (error) {
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (!formData.name.trim()) {
+      toast({ title: "Nome é obrigatório", variant: "destructive" });
+      return;
+    }
+    if (!formData.apiUrl.trim()) {
+      toast({ title: "URL da API é obrigatória", variant: "destructive" });
+      return;
+    }
+    if (!ozmapIntegration && !formData.apiKey.trim()) {
+      toast({ title: "Token é obrigatório para nova integração", variant: "destructive" });
+      return;
+    }
+    
+    if (ozmapIntegration) {
+      const updateData: Partial<typeof formData> = {
+        name: formData.name,
+        isActive: formData.isActive,
+        apiUrl: formData.apiUrl,
+      };
+      if (formData.apiKey) {
+        updateData.apiKey = formData.apiKey;
+      }
+      updateMutation.mutate({ id: ozmapIntegration.id, data: updateData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+  
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Map className="w-5 h-5" />
+          OZmap - Documentação de Fibra Óptica
+        </CardTitle>
+        <CardDescription>
+          Integração com OZmap para rastreamento de rota de fibra, splitters, caixas e cálculo de potência óptica
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="ozmap-name">Nome da Integração</Label>
+            <Input
+              id="ozmap-name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="OZmap"
+              data-testid="input-ozmap-name"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ozmap-url">URL da API</Label>
+            <Input
+              id="ozmap-url"
+              value={formData.apiUrl}
+              onChange={(e) => setFormData({ ...formData, apiUrl: e.target.value })}
+              placeholder="https://empresa.ozmap.com.br:9994"
+              data-testid="input-ozmap-url"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ozmap-token">Token de Autenticação (JWT)</Label>
+          <div className="flex gap-2">
+            <Input
+              id="ozmap-token"
+              type={showApiKey ? "text" : "password"}
+              value={formData.apiKey}
+              onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+              placeholder={(ozmapIntegration as unknown as { hasApiKey?: boolean })?.hasApiKey ? "••••••••••••••••" : "Cole seu token JWT aqui"}
+              data-testid="input-ozmap-token"
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowApiKey(!showApiKey)}
+              data-testid="button-toggle-ozmap-token"
+            >
+              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="ozmap-active"
+            checked={formData.isActive}
+            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+            data-testid="switch-ozmap-active"
+          />
+          <Label htmlFor="ozmap-active">Integração Ativa</Label>
+        </div>
+
+        {ozmapIntegration && (
+          <div className="text-sm text-muted-foreground space-y-1">
+            {ozmapIntegration.lastTestedAt && (
+              <p>
+                Último teste: {new Date(ozmapIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                <Badge variant={ozmapIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
+                  {ozmapIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
+                </Badge>
+              </p>
+            )}
+            {ozmapIntegration.lastTestError && (
+              <p className="text-destructive">Erro: {ozmapIntegration.lastTestError}</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-ozmap">
+            {isSaving ? "Salvando..." : "Salvar"}
+          </Button>
+          {ozmapIntegration && (
+            <Button variant="outline" onClick={testConnection} disabled={testing} data-testid="button-test-ozmap">
+              {testing ? "Testando..." : "Testar Conexão"}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const ERP_PROVIDERS = [
   { value: "voalle", label: "Voalle" },
   { value: "ixc", label: "IXC Soft" },
@@ -5160,6 +5378,7 @@ export default function Admin() {
           </div>
 
           <HetrixToolsIntegration />
+          <OZmapIntegration />
           <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
         </TabsContent>

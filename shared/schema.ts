@@ -176,6 +176,8 @@ export const links = pgTable("links", {
   cpeWinboxPort: integer("cpe_winbox_port").default(8291), // Porta Winbox (Mikrotik)
   // Link L2: Sem IP monitorado, status baseado na porta do switch/concentrador
   isL2Link: boolean("is_l2_link").notNull().default(false),
+  // Integração OZmap - Etiqueta do cliente no OZmap para rastreamento de fibra
+  ozmapTag: varchar("ozmap_tag", { length: 100 }),
   // Modo do gráfico principal: 'primary' (coleta atual), 'single' (uma interface), 'aggregate' (soma de interfaces)
   mainGraphMode: varchar("main_graph_mode", { length: 20 }).notNull().default("primary"),
   // IDs das interfaces adicionais para agregação (usado quando mainGraphMode = 'aggregate' ou 'single')
