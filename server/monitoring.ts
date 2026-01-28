@@ -2240,7 +2240,6 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     });
 
     // Coletar métricas de interfaces de tráfego adicionais
-    console.log(`[Monitor] ${link.name}: Verificando interfaces de tráfego adicionais para link ${link.id}...`);
     try {
       const additionalInterfaces = await db.select()
         .from(linkTrafficInterfaces)
@@ -2248,7 +2247,6 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           eq(linkTrafficInterfaces.linkId, link.id),
           eq(linkTrafficInterfaces.isEnabled, true)
         ));
-      console.log(`[Monitor] ${link.name}: Encontradas ${additionalInterfaces.length} interfaces adicionais`);
       
       if (additionalInterfaces.length > 0) {
         console.log(`[Monitor] ${link.name}: Coletando ${additionalInterfaces.length} interfaces adicionais`);
@@ -2308,7 +2306,6 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
               }
               
               const now = new Date();
-              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Download=${download.toFixed(2)}Mbps, Upload=${upload.toFixed(2)}Mbps, timestamp=${now.toISOString()}`);
               
               metricsToInsert.push({
                 linkId: link.id,

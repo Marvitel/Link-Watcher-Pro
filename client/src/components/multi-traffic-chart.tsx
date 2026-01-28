@@ -94,10 +94,6 @@ export function MultiTrafficChart({
     
     const filtered = mainData.filter((item) => item && item.timestamp);
     
-    // DEBUG: Log para entender os dados
-    console.log('[MultiTrafficChart] additionalInterfaces:', additionalInterfaces.length, additionalInterfaces.map(i => ({ id: i.id, label: i.label })));
-    console.log('[MultiTrafficChart] additionalMetrics total:', additionalMetrics.length);
-    
     // Pré-processar métricas adicionais por interface
     // Usar múltiplas janelas de tempo para matching mais tolerante
     const metricsIndex: Map<number, Array<{ts: number; download: number; upload: number}>> = new Map();
@@ -112,7 +108,6 @@ export function MultiTrafficChart({
         }))
         .sort((a, b) => a.ts - b.ts);
       metricsIndex.set(iface.id, ifaceMetrics);
-      console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${ifaceMetrics.length} métricas`);
     });
     
     // Função para encontrar métrica mais próxima dentro de 180 segundos
@@ -173,24 +168,6 @@ export function MultiTrafficChart({
       
       return point;
     });
-
-    // Debug: contar quantos pontos têm dados de interfaces adicionais
-    if (additionalInterfaces.length > 0) {
-      additionalInterfaces.forEach((iface) => {
-        const pointsWithData = result.filter((p: Record<string, unknown>) => p[`iface_${iface.id}_download`] !== null).length;
-        console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${pointsWithData}/${result.length} pontos com dados`);
-        
-        // Mostrar exemplo de ponto com dados
-        const examplePoint = result.find((p: Record<string, unknown>) => p[`iface_${iface.id}_download`] !== null);
-        if (examplePoint) {
-          console.log(`[MultiTrafficChart] Exemplo Interface ${iface.id}:`, {
-            time: examplePoint.time,
-            download: examplePoint[`iface_${iface.id}_download`],
-            upload: examplePoint[`iface_${iface.id}_upload`]
-          });
-        }
-      });
-    }
     
     return result;
   }, [mainData, additionalInterfaces, additionalMetrics, invertMainBandwidth]);
