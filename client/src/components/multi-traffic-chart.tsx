@@ -46,9 +46,12 @@ const isDownStatus = (s: string | undefined) =>
   s === "offline" || s === "critical" || s === "down";
 
 function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#') || hex.length < 7) {
+    return `rgba(128, 128, 128, ${alpha})`;
+  }
+  const r = parseInt(hex.slice(1, 3), 16) || 128;
+  const g = parseInt(hex.slice(3, 5), 16) || 128;
+  const b = parseInt(hex.slice(5, 7), 16) || 128;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
@@ -206,14 +209,18 @@ export function MultiTrafficChart({
     }
     
     additionalInterfaces.forEach((iface) => {
+      if (!iface || !iface.id) return;
+      const safeColor = ensureValidColor(iface.color);
+      const safeLabel = iface.label || `Interface ${iface.id}`;
+      
       if (!hiddenSeries.has(`iface_${iface.id}_download`)) {
         areas.push(
           <Area
             key={`iface_${iface.id}_download`}
             type="monotone"
             dataKey={`iface_${iface.id}_download`}
-            name={`${iface.label} (Download)`}
-            stroke={iface.color}
+            name={`${safeLabel} (Download)`}
+            stroke={safeColor}
             strokeWidth={2}
             fill={`url(#gradient_iface_${iface.id})`}
             connectNulls={false}
@@ -226,8 +233,8 @@ export function MultiTrafficChart({
             key={`iface_${iface.id}_upload`}
             type="monotone"
             dataKey={`iface_${iface.id}_upload`}
-            name={`${iface.label} (Upload)`}
-            stroke={iface.color}
+            name={`${safeLabel} (Upload)`}
+            stroke={safeColor}
             strokeWidth={1.5}
             strokeDasharray="4 2"
             fill="none"
@@ -240,19 +247,30 @@ export function MultiTrafficChart({
     return areas;
   };
 
+  // Função para garantir cor válida (duplicada para uso em renderGradients antes da declaração)
+  const ensureValidColorForGradient = (color: string | undefined | null): string => {
+    if (!color || typeof color !== 'string' || !color.startsWith('#') || color.length < 7) {
+      return '#808080';
+    }
+    return color;
+  };
+
   const renderGradients = () => {
+    const safeMainColor = ensureValidColorForGradient(mainColor);
     const gradients: JSX.Element[] = [
       <linearGradient key="gradient_main_download" id="gradient_main_download" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="5%" stopColor={mainColor} stopOpacity={0.3} />
-        <stop offset="95%" stopColor={mainColor} stopOpacity={0} />
+        <stop offset="5%" stopColor={safeMainColor} stopOpacity={0.3} />
+        <stop offset="95%" stopColor={safeMainColor} stopOpacity={0} />
       </linearGradient>
     ];
     
     additionalInterfaces.forEach((iface) => {
+      if (!iface || !iface.id) return;
+      const safeColor = ensureValidColorForGradient(iface.color);
       gradients.push(
         <linearGradient key={`gradient_iface_${iface.id}`} id={`gradient_iface_${iface.id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor={iface.color} stopOpacity={0.3} />
-          <stop offset="95%" stopColor={iface.color} stopOpacity={0} />
+          <stop offset="5%" stopColor={safeColor} stopOpacity={0.3} />
+          <stop offset="95%" stopColor={safeColor} stopOpacity={0} />
         </linearGradient>
       );
     });
@@ -260,18 +278,30 @@ export function MultiTrafficChart({
     return gradients;
   };
 
+  // Função para garantir cor válida
+  const ensureValidColor = (color: string | undefined | null): string => {
+    if (!color || typeof color !== 'string' || !color.startsWith('#') || color.length < 7) {
+      return '#808080';
+    }
+    return color;
+  };
+
   // Construir itens da legenda
   const legendItems = useMemo(() => {
     const items: Array<{key: string; label: string; color: string; isDashed: boolean}> = [];
     
     // Principal
-    items.push({ key: "main_download", label: `${mainLabel} (Download)`, color: mainColor, isDashed: false });
-    items.push({ key: "main_upload", label: `${mainLabel} (Upload)`, color: mainColor, isDashed: true });
+    const safeMainColor = ensureValidColor(mainColor);
+    items.push({ key: "main_download", label: `${mainLabel || 'Principal'} (Download)`, color: safeMainColor, isDashed: false });
+    items.push({ key: "main_upload", label: `${mainLabel || 'Principal'} (Upload)`, color: safeMainColor, isDashed: true });
     
     // Interfaces adicionais
     additionalInterfaces.forEach((iface) => {
-      items.push({ key: `iface_${iface.id}_download`, label: `${iface.label} (Download)`, color: iface.color, isDashed: false });
-      items.push({ key: `iface_${iface.id}_upload`, label: `${iface.label} (Upload)`, color: iface.color, isDashed: true });
+      if (!iface || !iface.id) return;
+      const safeColor = ensureValidColor(iface.color);
+      const safeLabel = iface.label || `Interface ${iface.id}`;
+      items.push({ key: `iface_${iface.id}_download`, label: `${safeLabel} (Download)`, color: safeColor, isDashed: false });
+      items.push({ key: `iface_${iface.id}_upload`, label: `${safeLabel} (Upload)`, color: safeColor, isDashed: true });
     });
     
     return items;
