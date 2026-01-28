@@ -164,8 +164,8 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
       return;
     }
 
-    if (!editingInterface.ifIndex) {
-      toast({ title: "Erro", description: "O índice da interface (ifIndex) é obrigatório", variant: "destructive" });
+    if (editingInterface.ifIndex === null || editingInterface.ifIndex === undefined || editingInterface.ifIndex < 0) {
+      toast({ title: "Erro", description: "O índice da interface (ifIndex) é obrigatório e deve ser um número válido", variant: "destructive" });
       return;
     }
 
