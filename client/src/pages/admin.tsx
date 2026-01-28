@@ -727,7 +727,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
     isL2Link: (link as any)?.isL2Link ?? false,
-    ozmapTag: (link as any)?.ozmapTag || "",
     // Campos de monitoramento óptico (OIDs vêm do fabricante)
     opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
@@ -1334,7 +1333,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           Vincule este link a uma etiqueta para filtrar solicitações do Voalle
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="identifier">Identificador</Label>
           <Input
@@ -1353,16 +1352,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="Nome do link"
             data-testid="input-link-name"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ozmapTag">Etiqueta OZmap</Label>
-          <Input
-            id="ozmapTag"
-            value={formData.ozmapTag}
-            onChange={(e) => setFormData({ ...formData, ozmapTag: e.target.value })}
-            placeholder="Ex: 1SHZLQLX"
-            data-testid="input-ozmap-tag"
           />
         </div>
       </div>
