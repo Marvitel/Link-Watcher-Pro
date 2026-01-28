@@ -184,10 +184,10 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || "Falha na descoberta");
       }
-      const data = await res.json();
-      setDiscoveredInterfaces(data.interfaces || []);
-      if (!data.interfaces?.length) {
-        toast({ title: "Aviso", description: "Nenhuma interface encontrada", variant: "default" });
+      const interfaces: SnmpInterface[] = await res.json();
+      setDiscoveredInterfaces(interfaces);
+      if (interfaces.length === 0) {
+        toast({ title: "Nenhuma interface encontrada", description: "O dispositivo não retornou interfaces SNMP", variant: "default" });
       }
     } catch (error: any) {
       toast({ title: "Erro", description: error.message || "Falha ao descobrir interfaces SNMP", variant: "destructive" });
