@@ -10,12 +10,27 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Plus, Trash2, Settings2, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import type { LinkTrafficInterface, SnmpConcentrator, Switch as SwitchType } from "@shared/schema";
+import type { LinkTrafficInterface } from "@shared/schema";
+
+// Tipos simplificados para concentradores e switches
+interface SimpleConcentrator {
+  id: number;
+  name: string;
+  ipAddress: string;
+  snmpProfileId: number | null;
+}
+
+interface SimpleSwitch {
+  id: number;
+  name: string;
+  ipAddress: string;
+  snmpProfileId: number | null;
+}
 
 interface TrafficInterfacesManagerProps {
   linkId: number;
-  concentrators: SnmpConcentrator[];
-  switches: SwitchType[];
+  concentrators: SimpleConcentrator[];
+  switches: SimpleSwitch[];
 }
 
 interface TrafficInterfaceForm {

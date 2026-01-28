@@ -2244,9 +2244,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       </div>
 
       {/* Interfaces de Tráfego Adicionais - só mostra para links existentes */}
-      {editingLink?.id && (
+      {link?.id && (
         <TrafficInterfacesManager
-          linkId={editingLink.id}
+          linkId={link.id}
           concentrators={activeConcentrators || []}
           switches={activeSwitches || []}
         />
