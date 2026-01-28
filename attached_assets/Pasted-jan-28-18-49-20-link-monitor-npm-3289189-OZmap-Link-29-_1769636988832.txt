@@ -1,0 +1,45 @@
+jan 28 18:49:20 link-monitor npm[3289189]: [OZmap] Link 29: Processando 37 elementos
+jan 28 18:49:20 link-monitor npm[3289189]: [OZmap] Link 29: Splitter encontrado - Nome: CEO MVT 150, Porta: 5, Label: null
+jan 28 18:49:20 link-monitor npm[3289189]: [OZmap] Link 29: Splitter encontrado - Nome: CEO MVT 147, Porta: 1, Label: null
+jan 28 18:49:20 link-monitor npm[3289189]: [OZmap] Link 29: Final - Splitter: CEO MVT 147, Porta: 1
+jan 28 18:49:20 link-monitor npm[3289189]: [OZmap] Erro ao atualizar link 29: error: invalid input syntax for type integer: "{"id":"60cdf7440fa0d50013384175","label":"","number":"1"}"
+jan 28 18:49:20 link-monitor npm[3289189]:     at /opt/link-monitor/dist/index.cjs:92:13330
+jan 28 18:49:20 link-monitor npm[3289189]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+jan 28 18:49:20 link-monitor npm[3289189]:     at async rw.updateLink (/opt/link-monitor/dist/index.cjs:287:5768)
+jan 28 18:49:20 link-monitor npm[3289189]:     at async /opt/link-monitor/dist/index.cjs:319:22453 {
+jan 28 18:49:20 link-monitor npm[3289189]:   length: 195,
+jan 28 18:49:20 link-monitor npm[3289189]:   severity: 'ERROR',
+jan 28 18:49:20 link-monitor npm[3289189]:   code: '22P02',
+jan 28 18:49:20 link-monitor npm[3289189]:   detail: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   hint: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   position: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   internalPosition: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   internalQuery: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   where: "unnamed portal parameter $8 = '...'",
+jan 28 18:49:20 link-monitor npm[3289189]:   schema: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   table: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   column: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   dataType: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   constraint: undefined,
+jan 28 18:49:20 link-monitor npm[3289189]:   file: 'numutils.c',
+jan 28 18:49:20 link-monitor npm[3289189]:   line: '232',
+jan 28 18:49:20 link-monitor npm[3289189]:   routine: 'pg_strtoint32'
+jan 28 18:49:20 link-monitor npm[3289189]: }
+jan 28 18:49:21 link-monitor npm[3289189]: [Monitor] RP MARANHAO - 50M - Óptico OK: RX=-21dBm TX=2dBm OLT_RX=nulldBm
+jan 28 18:49:21 link-monitor npm[3289189]: [Monitor] RP MARANHAO - 50M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLGE7BD7930...
+jan 28 18:49:21 link-monitor npm[3289189]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial TPLGE7BD7930...
+jan 28 18:49:21 link-monitor npm[3289189]: [OLT Zabbix Optical] ONU TPLGE7BD7930 encontrada: RX=-21.87dBm TX=2.22dBm OLT_RX=-40.00dBm
+jan 28 18:49:21 link-monitor npm[3289189]: [Monitor] RP MARANHAO - 50M - Óptico Zabbix: OLT_RX=-40.00dBm
+jan 28 18:49:21 link-monitor npm[3289189]: [Monitor] Link 21 - Splitter atualizado: (vazio) porta (vazio) dist 9
+jan 28 18:49:22 link-monitor npm[3289189]: [Firewall] Acesso ADMIN bloqueado de IP: 13.36.68.218
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor] RP MARANHAO - 50M: lat=3.0ms, loss=0.0%, status=operational
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor] Collection complete: 32 ok, 0 failed, 12421ms elapsed
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] CPEs ativos encontrados: 3, instâncias para coleta: 3
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] EDD CLIENTE: IP=172.26.254.10 (fonte: override)
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] EDD CLIENTE: IP=172.26.254.114 (fonte: override)
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] RB 2011: IP=191.52.250.52 (fonte: override)
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] Coletando métricas de 3 instâncias...
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] RB 2011 (191.52.250.52) [linkCpe=14]: CPU=14.0%, Mem=20.5%
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] EDD CLIENTE (172.26.254.114) [linkCpe=13]: CPU=18.5%, Mem=66.0%
+jan 28 18:49:22 link-monitor npm[3289189]: [Monitor/CPE] EDD CLIENTE (172.26.254.10) [linkCpe=9]: CPU=26.5%, Mem=68.0%

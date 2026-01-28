@@ -5746,22 +5746,41 @@ export async function registerRoutes(
             if (elem.element?.kind === 'Splitter') {
               // Usar parent.name primeiro, depois element.name
               splitterName = elem.parent?.name || elem.element?.name || null;
-              // Porta pode estar em port ou label
-              if (elem.element?.port !== undefined && elem.element?.port !== null) {
-                splitterPort = String(elem.element.port);
+              // Porta pode ser um objeto {id, label, number} ou um valor simples
+              const portData = elem.element?.port;
+              if (portData !== undefined && portData !== null) {
+                if (typeof portData === 'object' && portData.number !== undefined) {
+                  splitterPort = String(portData.number);
+                } else if (typeof portData === 'object' && portData.label) {
+                  splitterPort = String(portData.label);
+                } else if (typeof portData !== 'object') {
+                  splitterPort = String(portData);
+                }
               } else if (elem.element?.label) {
                 splitterPort = String(elem.element.label);
               }
-              console.log(`[OZmap] Link ${linkId}: Splitter encontrado - Nome: ${splitterName}, Porta: ${splitterPort}, Label: ${elem.element?.label}`);
+              console.log(`[OZmap] Link ${linkId}: Splitter encontrado - Nome: ${splitterName}, Porta: ${splitterPort}`);
             }
             // Procurar por OLT (geralmente o último elemento da rota ou marcado como OLT)
             if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase()?.includes('olt')) {
               oltName = elem.parent?.name || elem.element?.name || null;
-              if (elem.element?.slot !== undefined) {
-                oltSlot = parseInt(String(elem.element.slot), 10);
+              // Slot pode ser objeto ou número
+              const slotData = elem.element?.slot;
+              if (slotData !== undefined) {
+                if (typeof slotData === 'object' && slotData.number !== undefined) {
+                  oltSlot = parseInt(String(slotData.number), 10);
+                } else if (typeof slotData !== 'object') {
+                  oltSlot = parseInt(String(slotData), 10);
+                }
               }
-              if (elem.element?.port !== undefined) {
-                oltPort = parseInt(String(elem.element.port), 10);
+              // Port pode ser objeto ou número
+              const portData = elem.element?.port;
+              if (portData !== undefined) {
+                if (typeof portData === 'object' && portData.number !== undefined) {
+                  oltPort = parseInt(String(portData.number), 10);
+                } else if (typeof portData !== 'object') {
+                  oltPort = parseInt(String(portData), 10);
+                }
               }
             }
           }
