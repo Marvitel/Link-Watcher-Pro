@@ -90,7 +90,7 @@ interface SnmpInterface {
   ifAdminStatus: string;
 }
 
-// Componente de seção colapsável para o formulário de link
+// Componente de seção colapsável para organizar formulários
 function FormSection({ 
   title, 
   icon: Icon, 
@@ -1164,9 +1164,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
   const selectedClientName = clients?.find(c => c.id === formData.clientId)?.name;
 
-  // Renderiza seção de identificação do cliente
-  const renderClientSection = () => (
-    <>
+  return (
+    <div className="space-y-4">
       {clients && clients.length > 0 && (
         <div className="space-y-2">
           <Label htmlFor="clientId">Cliente *</Label>
@@ -1240,19 +1239,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           )}
         </div>
       )}
-    </>
-  );
-
-  return (
-    <div className="space-y-3">
-      {/* SEÇÃO 1: IDENTIFICAÇÃO (sempre visível) */}
-      <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-        <div className="flex items-center gap-2 mb-2">
-          <Building2 className="w-4 h-4 text-primary" />
-          <span className="font-medium text-sm">Identificação</span>
-        </div>
-        
-        {renderClientSection()}
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
