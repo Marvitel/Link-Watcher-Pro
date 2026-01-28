@@ -66,6 +66,14 @@ export function MultiTrafficChart({
   showLegend = true,
 }: MultiTrafficChartProps) {
   
+  // Função para garantir cor válida (definida no topo para evitar hoisting issues)
+  const ensureValidColor = (color: string | undefined | null): string => {
+    if (!color || typeof color !== 'string' || !color.startsWith('#') || color.length < 7) {
+      return '#808080';
+    }
+    return color;
+  };
+  
   // Estado para controlar visibilidade das séries
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   
@@ -252,16 +260,8 @@ export function MultiTrafficChart({
     return areas;
   };
 
-  // Função para garantir cor válida (duplicada para uso em renderGradients antes da declaração)
-  const ensureValidColorForGradient = (color: string | undefined | null): string => {
-    if (!color || typeof color !== 'string' || !color.startsWith('#') || color.length < 7) {
-      return '#808080';
-    }
-    return color;
-  };
-
   const renderGradients = () => {
-    const safeMainColor = ensureValidColorForGradient(mainColor);
+    const safeMainColor = ensureValidColor(mainColor);
     const gradients: JSX.Element[] = [
       <linearGradient key="gradient_main_download" id="gradient_main_download" x1="0" y1="0" x2="0" y2="1">
         <stop offset="5%" stopColor={safeMainColor} stopOpacity={0.3} />
@@ -271,7 +271,7 @@ export function MultiTrafficChart({
     
     additionalInterfaces.forEach((iface) => {
       if (!iface || !iface.id) return;
-      const safeColor = ensureValidColorForGradient(iface.color);
+      const safeColor = ensureValidColor(iface.color);
       gradients.push(
         <linearGradient key={`gradient_iface_${iface.id}`} id={`gradient_iface_${iface.id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="5%" stopColor={safeColor} stopOpacity={0.3} />
@@ -281,14 +281,6 @@ export function MultiTrafficChart({
     });
     
     return gradients;
-  };
-
-  // Função para garantir cor válida
-  const ensureValidColor = (color: string | undefined | null): string => {
-    if (!color || typeof color !== 'string' || !color.startsWith('#') || color.length < 7) {
-      return '#808080';
-    }
-    return color;
   };
 
   // Construir itens da legenda
