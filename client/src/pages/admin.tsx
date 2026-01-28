@@ -90,6 +90,52 @@ interface SnmpInterface {
   ifAdminStatus: string;
 }
 
+// Componente de seção colapsável para o formulário de link
+function FormSection({ 
+  title, 
+  icon: Icon, 
+  children, 
+  defaultOpen = false,
+  badge,
+  description
+}: { 
+  title: string; 
+  icon?: React.ComponentType<{ className?: string }>; 
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  badge?: React.ReactNode;
+  description?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border rounded-lg">
+      <CollapsibleTrigger asChild>
+        <button 
+          type="button"
+          className="flex items-center justify-between w-full p-3 hover-elevate rounded-lg text-left"
+          data-testid={`section-${title.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          <div className="flex items-center gap-2">
+            {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
+            <span className="font-medium text-sm">{title}</span>
+            {badge}
+          </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="px-3 pb-3 pt-1 border-t space-y-3">
+          {description && (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          )}
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function formatSpeed(speedBps: number): string {
   if (speedBps >= 1000000000) {
     return `${(speedBps / 1000000000).toFixed(0)} Gbps`;
@@ -1118,8 +1164,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
   const selectedClientName = clients?.find(c => c.id === formData.clientId)?.name;
 
-  return (
-    <div className="space-y-4">
+  // Renderiza seção de identificação do cliente
+  const renderClientSection = () => (
+    <>
       {clients && clients.length > 0 && (
         <div className="space-y-2">
           <Label htmlFor="clientId">Cliente *</Label>
@@ -1193,6 +1240,19 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           )}
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* SEÇÃO 1: IDENTIFICAÇÃO (sempre visível) */}
+      <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+        <div className="flex items-center gap-2 mb-2">
+          <Building2 className="w-4 h-4 text-primary" />
+          <span className="font-medium text-sm">Identificação</span>
+        </div>
+        
+        {renderClientSection()}
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
