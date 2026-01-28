@@ -90,52 +90,6 @@ interface SnmpInterface {
   ifAdminStatus: string;
 }
 
-// Componente de seção colapsável para organizar formulários
-function FormSection({ 
-  title, 
-  icon: Icon, 
-  children, 
-  defaultOpen = false,
-  badge,
-  description
-}: { 
-  title: string; 
-  icon?: React.ComponentType<{ className?: string }>; 
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  badge?: React.ReactNode;
-  description?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border rounded-lg">
-      <CollapsibleTrigger asChild>
-        <button 
-          type="button"
-          className="flex items-center justify-between w-full p-3 hover-elevate rounded-lg text-left"
-          data-testid={`section-${title.toLowerCase().replace(/\s+/g, '-')}`}
-        >
-          <div className="flex items-center gap-2">
-            {Icon && <Icon className="w-4 h-4 text-muted-foreground" />}
-            <span className="font-medium text-sm">{title}</span>
-            {badge}
-          </div>
-          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="px-3 pb-3 pt-1 border-t space-y-3">
-          {description && (
-            <p className="text-xs text-muted-foreground">{description}</p>
-          )}
-          {children}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 function formatSpeed(speedBps: number): string {
   if (speedBps >= 1000000000) {
     return `${(speedBps / 1000000000).toFixed(0)} Gbps`;
@@ -1166,6 +1120,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
   return (
     <div className="space-y-4">
+      {/* Seção: Identificação */}
+      <h4 className="font-medium mb-3 flex items-center gap-2">
+        <Building2 className="w-4 h-4 text-blue-500" />
+        Identificação
+      </h4>
+      
       {clients && clients.length > 0 && (
         <div className="space-y-2">
           <Label htmlFor="clientId">Cliente *</Label>
@@ -1415,6 +1375,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           data-testid="input-link-address"
         />
       </div>
+      
+      {/* Seção: Contrato */}
+      <div className="border-t pt-4 mt-4">
+        <h4 className="font-medium mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-green-500" />
+          Contrato
+        </h4>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="ipBlock">Bloco IP</Label>
@@ -1464,9 +1431,13 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           />
         </div>
       </div>
+      </div>
       
       <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Configuração SNMP para Tráfego</h4>
+        <h4 className="font-medium mb-3 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-500" />
+          Coleta de Tráfego SNMP
+        </h4>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="snmpProfileId">Perfil SNMP</Label>
@@ -1802,7 +1773,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       </div>
 
       <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Tipo de Conexao</h4>
+        <h4 className="font-medium mb-3 flex items-center gap-2">
+          <Network className="w-4 h-4 text-green-500" />
+          Tipo de Conexão
+        </h4>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="space-y-2">
             <Label htmlFor="linkType">Tipo de Link</Label>
@@ -1823,7 +1797,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
         {formData.linkType === "gpon" && (
           <>
-            <h4 className="font-medium mb-3">Diagnostico OLT/ONU</h4>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <Radio className="w-4 h-4 text-purple-500" />
+              Diagnóstico OLT/ONU
+            </h4>
             <p className="text-sm text-muted-foreground mb-3">
               Configure a OLT e ONU para diagnostico automatico de causa raiz em alarmes criticos
             </p>
@@ -2019,7 +1996,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
 
         {formData.linkType === "ptp" && (
           <>
-            <h4 className="font-medium mb-3">Configuracao Switch PTP</h4>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <Server className="w-4 h-4 text-orange-500" />
+              Configuração Switch PTP
+            </h4>
             <p className="text-sm text-muted-foreground mb-3">
               Configure o switch e porta para monitoramento do link ponto-a-ponto
             </p>
@@ -2116,7 +2096,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       </div>
 
       <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3">Monitoramento de Conectividade</h4>
+        <h4 className="font-medium mb-3 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-red-500" />
+          Monitoramento de Conectividade
+        </h4>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="monitoredIp">IP para Monitoramento</Label>
