@@ -18,18 +18,23 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import type { Link } from "@shared/schema";
 
-interface OzmapPotencyElement {
-  name: string;
-  type: string;
-  loss?: number;
-  length?: number;
-  splitterRatio?: string;
+interface OzmapPotencyItem {
+  id: string;
+  potency: number;
+  pon_reached: boolean;
+  distance: number;
+  box_id?: string;
+  box_name?: string;
+  olt_id?: string;
+  olt_name?: string;
+  slot?: number;
+  port?: number;
 }
 
 interface OzmapPotencyData {
-  totalLength: number;
-  totalLoss: number;
-  elements: OzmapPotencyElement[];
+  totalLength?: number;
+  totalLoss?: number;
+  elements?: any[];
   calculatedPower?: number;
   oltPower?: number;
 }
@@ -91,7 +96,7 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   const { data, isLoading, error, refetch, isFetching } = useQuery<{ 
     linkId: number; 
     ozmapTag: string; 
-    potencyData: OzmapPotencyData 
+    potencyData: OzmapPotencyItem[] | OzmapPotencyData
   }>({
     queryKey: ['/api/links', link.id, 'ozmap-potency'],
     enabled: !!ozmapTag,
@@ -141,9 +146,9 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
     );
   }
 
-  const potencyData = data?.potencyData;
+  const rawPotencyData = data?.potencyData;
 
-  if (!potencyData) {
+  if (!rawPotencyData || (Array.isArray(rawPotencyData) && rawPotencyData.length === 0)) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -162,8 +167,16 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
     );
   }
 
-  const powerStatus = potencyData.calculatedPower 
-    ? getPowerStatus(potencyData.calculatedPower) 
+  // A API retorna um array de itens de potência - pegamos o primeiro
+  const potencyItem = Array.isArray(rawPotencyData) ? rawPotencyData[0] as OzmapPotencyItem : null;
+  
+  // Converter distância de km para metros
+  const distanceMeters = potencyItem ? potencyItem.distance * 1000 : 0;
+  const calculatedPower = potencyItem ? potencyItem.potency : null;
+  const ponReached = potencyItem ? potencyItem.pon_reached : false;
+
+  const powerStatus = calculatedPower !== null
+    ? getPowerStatus(calculatedPower) 
     : null;
 
   return (
@@ -189,34 +202,28 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" data-testid="ozmap-stats-grid">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4" data-testid="ozmap-stats-grid">
           <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50" data-testid="ozmap-stat-length">
             <Ruler className="h-5 w-5 text-blue-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Comprimento Total</p>
-              <p className="font-semibold" data-testid="text-ozmap-length">{formatLength(potencyData.totalLength || 0)}</p>
+              <p className="text-xs text-muted-foreground">Distância até OLT</p>
+              <p className="font-semibold" data-testid="text-ozmap-length">{formatLength(distanceMeters)}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50" data-testid="ozmap-stat-loss">
-            <Zap className="h-5 w-5 text-orange-500" />
+          <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50" data-testid="ozmap-stat-pon">
+            {ponReached ? (
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            )}
             <div>
-              <p className="text-xs text-muted-foreground">Atenuação Total</p>
-              <p className="font-semibold" data-testid="text-ozmap-loss">{formatLoss(potencyData.totalLoss || 0)}</p>
+              <p className="text-xs text-muted-foreground">PON Alcançada</p>
+              <p className="font-semibold" data-testid="text-ozmap-pon">{ponReached ? "Sim" : "Não"}</p>
             </div>
           </div>
 
-          {potencyData.oltPower && (
-            <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50" data-testid="ozmap-stat-olt-power">
-              <Network className="h-5 w-5 text-purple-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Potência OLT</p>
-                <p className="font-semibold" data-testid="text-ozmap-olt-power">{potencyData.oltPower.toFixed(2)} dBm</p>
-              </div>
-            </div>
-          )}
-
-          {potencyData.calculatedPower && powerStatus && (
+          {calculatedPower !== null && powerStatus && (
             <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50" data-testid="ozmap-stat-calculated-power">
               {powerStatus.status === 'good' ? (
                 <CheckCircle className="h-5 w-5 text-green-500" />
@@ -227,7 +234,7 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
               )}
               <div>
                 <p className="text-xs text-muted-foreground">Potência Calculada</p>
-                <p className="font-semibold" data-testid="text-ozmap-calculated-power">{potencyData.calculatedPower.toFixed(2)} dBm</p>
+                <p className="font-semibold" data-testid="text-ozmap-calculated-power">{calculatedPower.toFixed(2)} dBm</p>
                 <Badge 
                   variant={powerStatus.status === 'good' ? 'default' : powerStatus.status === 'warning' ? 'secondary' : 'destructive'}
                   className="text-xs mt-1"
@@ -240,13 +247,44 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
           )}
         </div>
 
-        {potencyData.elements && potencyData.elements.length > 0 && (
+        {/* Informações adicionais do OZmap */}
+        {potencyItem && (potencyItem.olt_name || potencyItem.box_name) && (
           <div className="space-y-2" data-testid="ozmap-route-elements">
+            <h4 className="text-sm font-medium text-muted-foreground">Informações da Rota</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {potencyItem.olt_name && (
+                <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                  <Network className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">OLT</p>
+                    <p className="text-sm font-medium">{potencyItem.olt_name}</p>
+                    {potencyItem.slot !== undefined && potencyItem.port !== undefined && (
+                      <p className="text-xs text-muted-foreground">Slot {potencyItem.slot} / Porta {potencyItem.port}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {potencyItem.box_name && (
+                <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                  <Box className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Caixa/CTO</p>
+                    <p className="text-sm font-medium">{potencyItem.box_name}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Elementos da rota - formato antigo para compatibilidade */}
+        {Array.isArray(rawPotencyData) === false && (rawPotencyData as OzmapPotencyData).elements && (rawPotencyData as OzmapPotencyData).elements!.length > 0 && (
+          <div className="space-y-2" data-testid="ozmap-route-elements-legacy">
             <h4 className="text-sm font-medium text-muted-foreground">Elementos da Rota</h4>
             <div className="relative">
               <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
               <div className="space-y-3">
-                {potencyData.elements.map((element, index) => {
+                {(rawPotencyData as OzmapPotencyData).elements!.map((element: any, index: number) => {
                   const Icon = getElementIcon(element.type);
                   return (
                     <div key={index} className="relative flex items-start gap-3 pl-8" data-testid={`ozmap-route-element-${index}`}>
