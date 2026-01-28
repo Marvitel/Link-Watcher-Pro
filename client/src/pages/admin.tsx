@@ -1753,39 +1753,41 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         )}
         
-        <div className="grid grid-cols-3 gap-4 mt-3">
-          <div className="space-y-2">
-            <Label htmlFor="snmpInterfaceIndex">Índice da Interface (ifIndex)</Label>
-            <Input
-              id="snmpInterfaceIndex"
-              type="number"
-              value={formData.snmpInterfaceIndex || ""}
-              onChange={(e) => setFormData({ ...formData, snmpInterfaceIndex: e.target.value ? parseInt(e.target.value, 10) : null })}
-              placeholder="1, 2, 3..."
-              data-testid="input-snmp-interface-index"
-            />
+        {snmpCollectionMode !== 'accessPoint' && (
+          <div className="grid grid-cols-3 gap-4 mt-3">
+            <div className="space-y-2">
+              <Label htmlFor="snmpInterfaceIndex">Índice da Interface (ifIndex)</Label>
+              <Input
+                id="snmpInterfaceIndex"
+                type="number"
+                value={formData.snmpInterfaceIndex || ""}
+                onChange={(e) => setFormData({ ...formData, snmpInterfaceIndex: e.target.value ? parseInt(e.target.value, 10) : null })}
+                placeholder="1, 2, 3..."
+                data-testid="input-snmp-interface-index"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="snmpInterfaceName">Nome da Interface</Label>
+              <Input
+                id="snmpInterfaceName"
+                value={formData.snmpInterfaceName}
+                onChange={(e) => setFormData({ ...formData, snmpInterfaceName: e.target.value })}
+                placeholder="GigabitEthernet0/1"
+                data-testid="input-snmp-interface-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="snmpInterfaceDescr">Descrição</Label>
+              <Input
+                id="snmpInterfaceDescr"
+                value={formData.snmpInterfaceDescr}
+                onChange={(e) => setFormData({ ...formData, snmpInterfaceDescr: e.target.value })}
+                placeholder="Uplink para Internet"
+                data-testid="input-snmp-interface-descr"
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="snmpInterfaceName">Nome da Interface</Label>
-            <Input
-              id="snmpInterfaceName"
-              value={formData.snmpInterfaceName}
-              onChange={(e) => setFormData({ ...formData, snmpInterfaceName: e.target.value })}
-              placeholder="GigabitEthernet0/1"
-              data-testid="input-snmp-interface-name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="snmpInterfaceDescr">Descrição</Label>
-            <Input
-              id="snmpInterfaceDescr"
-              value={formData.snmpInterfaceDescr}
-              onChange={(e) => setFormData({ ...formData, snmpInterfaceDescr: e.target.value })}
-              placeholder="Uplink para Internet"
-              data-testid="input-snmp-interface-descr"
-            />
-          </div>
-        </div>
+        )}
 
       </div>
 
