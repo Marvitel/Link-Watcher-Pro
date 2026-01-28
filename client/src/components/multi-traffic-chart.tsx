@@ -69,11 +69,20 @@ export function MultiTrafficChart({
     
     const filtered = mainData.filter((item) => item && item.timestamp);
     
+    // DEBUG: Log dados recebidos
+    console.log("[MultiTrafficChart] additionalInterfaces:", additionalInterfaces);
+    console.log("[MultiTrafficChart] additionalMetrics count:", additionalMetrics.length);
+    console.log("[MultiTrafficChart] mainData count:", mainData.length);
+    if (additionalMetrics.length > 0) {
+      console.log("[MultiTrafficChart] Sample additionalMetric:", additionalMetrics[0]);
+    }
+    
     // Pré-processar métricas adicionais por interface e indexá-las por timestamp aproximado
     const metricsIndex: Map<number, Map<number, {download: number; upload: number}>> = new Map();
     
     additionalInterfaces.forEach((iface) => {
       const ifaceMetrics = additionalMetrics.filter(m => m.trafficInterfaceId === iface.id);
+      console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${ifaceMetrics.length} metrics`);
       const timestampMap = new Map<number, {download: number; upload: number}>();
       ifaceMetrics.forEach(m => {
         // Usar timestamp truncado para minuto para alinhamento aproximado
