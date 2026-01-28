@@ -86,6 +86,10 @@ export function MultiTrafficChart({
     
     const filtered = mainData.filter((item) => item && item.timestamp);
     
+    // DEBUG: Log para entender os dados
+    console.log('[MultiTrafficChart] additionalInterfaces:', additionalInterfaces.length, additionalInterfaces.map(i => ({ id: i.id, label: i.label })));
+    console.log('[MultiTrafficChart] additionalMetrics total:', additionalMetrics.length);
+    
     // Pré-processar métricas adicionais por interface
     // Usar múltiplas janelas de tempo para matching mais tolerante
     const metricsIndex: Map<number, Array<{ts: number; download: number; upload: number}>> = new Map();
@@ -100,6 +104,7 @@ export function MultiTrafficChart({
         }))
         .sort((a, b) => a.ts - b.ts);
       metricsIndex.set(iface.id, ifaceMetrics);
+      console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${ifaceMetrics.length} métricas`);
     });
     
     // Função para encontrar métrica mais próxima dentro de 180 segundos
