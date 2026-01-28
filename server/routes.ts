@@ -5677,11 +5677,61 @@ export async function registerRoutes(
       }
 
       const data = await response.json();
-      console.log("[OZmap] Response data:", JSON.stringify(data).substring(0, 500));
+      console.log("[OZmap] Potency Response data:", JSON.stringify(data));
+      
+      // Agora buscar dados completos da rota
+      let routeData = null;
+      try {
+        // Buscar dados do cliente FTTH para obter a rota completa
+        const clientUrl = `${baseUrl}/api/v2/ftth-clients?code=${encodeURIComponent(ozmapTag)}&populate=property,connectorType&select=implanted,certified,onu,tags,potpiData`;
+        console.log("[OZmap] Fetching client data:", clientUrl);
+        
+        const clientResponse = await fetch(clientUrl, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": integration.apiKey,
+          },
+        });
+        
+        if (clientResponse.ok) {
+          const clientData = await clientResponse.json();
+          console.log("[OZmap] Client data:", JSON.stringify(clientData).substring(0, 1000));
+          
+          if (clientData.rows && clientData.rows.length > 0) {
+            const client = clientData.rows[0];
+            
+            // Buscar detalhes da rota se disponível
+            if (client.id) {
+              const routeUrl = `${baseUrl}/api/v2/ftth-clients/${client.id}/route`;
+              console.log("[OZmap] Fetching route:", routeUrl);
+              
+              const routeResponse = await fetch(routeUrl, {
+                method: "GET",
+                headers: {
+                  "Accept": "application/json",
+                  "Authorization": integration.apiKey,
+                },
+              });
+              
+              if (routeResponse.ok) {
+                routeData = await routeResponse.json();
+                console.log("[OZmap] Route data:", JSON.stringify(routeData).substring(0, 2000));
+              } else {
+                console.log("[OZmap] Route endpoint returned:", routeResponse.status);
+              }
+            }
+          }
+        }
+      } catch (routeError) {
+        console.log("[OZmap] Could not fetch route data:", routeError);
+      }
+      
       res.json({
         linkId,
         ozmapTag,
-        potencyData: data
+        potencyData: data,
+        routeData: routeData
       });
     } catch (error: any) {
       console.error("[OZmap] Error:", error);
