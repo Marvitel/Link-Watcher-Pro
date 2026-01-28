@@ -1,0 +1,1292 @@
+[
+    {
+        "id": "67e2ac5fe8875b3cddbe6a28",
+        "potency": null,
+        "pon_reached": false,
+        "distance": 10.147041798747475,
+        "attenuation": 4.117452510351588,
+        "box_id": null,
+        "arriving_potency": -4.117452510351588,
+        "elements": [
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "663e0db28848a6001343c31d",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "FIBRA  12 FO SAO BRAS-A-A",
+                    "id": "663e0db28848a6001343c30b",
+                    "length": 1.045434396727136,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.4181494850998796,
+                "distance": 1.045434396727136,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1045.434397,
+                        "km": 1.045434,
+                        "ft": 3429.902986,
+                        "mi": 0.649603
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 1.045434396727136,
+                "element": {
+                    "id": "663e0db28848a6001343c31c",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662bf32e42447c00146e46ff",
+                    "name": "CEO MVT 232"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1045.434397,
+                        "km": 1.045434,
+                        "ft": 3429.902986,
+                        "mi": 0.649603
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "663e0db28848a6001343c31e",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "FIBRA  12 FO SAO BRAS-A-B",
+                    "id": "663e0db28848a6001343c30c",
+                    "length": 0.38163286509663796,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.1526268390045825,
+                "distance": 1.4270672618237739,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1427.067262,
+                        "km": 1.427067,
+                        "ft": 4681.979355,
+                        "mi": 0.886739
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 1.4270672618237739,
+                "element": {
+                    "id": "63ea95417adb77002190fc5a",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "63ea953517b8ef0015c3a498",
+                    "name": "CEO MVT 70"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1427.067262,
+                        "km": 1.427067,
+                        "ft": 4681.979355,
+                        "mi": 0.886739
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "66d60e45149dff0020914f00",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "FIBRA  12 FO SAO BRAS-B-A-A",
+                    "id": "66d60e45149dff0020914eec",
+                    "length": 0.10661044712836537,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.04263607586841152,
+                "distance": 1.5336777089521392,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1533.677709,
+                        "km": 1.533678,
+                        "ft": 5031.751175,
+                        "mi": 0.952983
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 1.5336777089521392,
+                "element": {
+                    "id": "66d60e45149dff0020914eff",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "66a1438e10c26f0014c382db",
+                    "name": "CEO MVT 295"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1533.677709,
+                        "km": 1.533678,
+                        "ft": 5031.751175,
+                        "mi": 0.952983
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "66d60e45149dff0020914f01",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "FIBRA  12 FO SAO BRAS-B-A-B",
+                    "id": "66d60e45149dff0020914eed",
+                    "length": 0.05965718197048553,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.023854458882294455,
+                "distance": 1.5933348909226246,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1593.334891,
+                        "km": 1.593335,
+                        "ft": 5227.476844,
+                        "mi": 0.990052
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 1.5933348909226246,
+                "element": {
+                    "id": "66b2779610c26f0014c53cd7",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662f835f88f86b001fcc66cd",
+                    "name": "CEO MVT 245"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 1593.334891,
+                        "km": 1.593335,
+                        "ft": 5227.476844,
+                        "mi": 0.990052
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "66b2779610c26f0014c53cd9",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "FIBRA  12 FO SAO BRAS-B-B",
+                    "id": "66b2779610c26f0014c53cc7",
+                    "length": 0.4580065099639301,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.18311477732093961,
+                "distance": 2.051341400886555,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2051.341401,
+                        "km": 2.051341,
+                        "ft": 6730.122922,
+                        "mi": 1.274644
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.051341400886555,
+                "element": {
+                    "id": "63cae5b02b3e1146ed00001b",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "63cae2f0b82677001401ff1d",
+                    "name": "CEO MVT 69"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2051.341401,
+                        "km": 2.051341,
+                        "ft": 6730.122922,
+                        "mi": 1.274644
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "65f332569c1d06001465df5e",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-A-A",
+                    "id": "65f332569c1d06001465df4c",
+                    "length": 0.23234301803136842,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.09289237510127638,
+                "distance": 2.2836844189179235,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2283.684419,
+                        "km": 2.283684,
+                        "ft": 7492.403189,
+                        "mi": 1.419016
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.2836844189179235,
+                "element": {
+                    "id": "65f332569c1d06001465df5d",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "65f332471b066c0020006db6",
+                    "name": "CEO MVT 74"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2283.684419,
+                        "km": 2.283684,
+                        "ft": 7492.403189,
+                        "mi": 1.419016
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "65f332669c1d06001465e00a",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-A-B-A",
+                    "id": "65f332669c1d06001465dff8",
+                    "length": 0.08120888085901481,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.03246611660089872,
+                "distance": 2.3648932997769383,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2364.8933,
+                        "km": 2.364893,
+                        "ft": 7758.836534,
+                        "mi": 1.469477
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.3648932997769383,
+                "element": {
+                    "id": "65f332669c1d06001465e009",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "65f3322f9c1d06001465df03",
+                    "name": "CEO MVT 75"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2364.8933,
+                        "km": 2.364893,
+                        "ft": 7758.836534,
+                        "mi": 1.469477
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "694bf79245f5d12e51920a37",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-A-B-B-A-A",
+                    "id": "694bf79245f5d12e51920a22",
+                    "length": 0.2757036259948728,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.11027884947865735,
+                "distance": 2.640596925771811,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2640.596926,
+                        "km": 2.640597,
+                        "ft": 8663.376018,
+                        "mi": 1.640791
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.640596925771811,
+                "element": {
+                    "id": "694bf79245f5d12e51920a36",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "68ae2055077fca87d31d9e4f",
+                    "name": "CEO 24FO - 211"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2640.596926,
+                        "km": 2.640597,
+                        "ft": 8663.376018,
+                        "mi": 1.640791
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "694bf79245f5d12e51920a38",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-A-B-B-A-B",
+                    "id": "694bf79245f5d12e51920a23",
+                    "length": 0.11116347041380101,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.04446245597845895,
+                "distance": 2.7517603961856123,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2751.760396,
+                        "km": 2.75176,
+                        "ft": 9028.085578,
+                        "mi": 1.709865
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.7517603961856123,
+                "element": {
+                    "id": "68ae1f67d2658bf30419cc96",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "68ae1f60077fca87d31d984e",
+                    "name": "CEO MVT 210"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2751.760396,
+                        "km": 2.75176,
+                        "ft": 9028.085578,
+                        "mi": 1.709865
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "68ae1f67d2658bf30419cc98",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-A-B-B-B",
+                    "id": "68ae1f67d2658bf30419cc83",
+                    "length": 0.19367128392587782,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.0774602637146587,
+                "distance": 2.94543168011149,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2945.43168,
+                        "km": 2.945432,
+                        "ft": 9663.490073,
+                        "mi": 1.830206
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 2.94543168011149,
+                "element": {
+                    "id": "642ddd82ea78ef00206bfd56",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "642ddd74ea78ef00206bfd2b",
+                    "name": "CEO MVT 68"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 2945.43168,
+                        "km": 2.945432,
+                        "ft": 9663.490073,
+                        "mi": 1.830206
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "642ddd82ea78ef00206bfd58",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-B",
+                    "id": "642ddd82ea78ef00206bfd46",
+                    "length": 0.2713714242739771,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.10852037892137044,
+                "distance": 3.216803104385467,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 3216.803104,
+                        "km": 3.216803,
+                        "ft": 10553.816297,
+                        "mi": 1.998829
+                    }
+                }
+            },
+            {
+                "attenuation": 0.03,
+                "distance": 3.216803104385467,
+                "element": {
+                    "id": "65d88bee7fd58c1697000005",
+                    "name": "Fusão 6",
+                    "kind": "Fusion",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "63cae3f4b826770014020021",
+                    "name": "CEO MVT 67"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 3216.803104,
+                        "km": 3.216803,
+                        "ft": 10553.816297,
+                        "mi": 1.998829
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "65f2e1201b066c0020005dd9",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CTO - 15-CE - 30-B",
+                    "id": "65f2e1201b066c0020005dc7",
+                    "length": 0.38332634054349285,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.1533288558212335,
+                "distance": 3.60012944492896,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 3600.129445,
+                        "km": 3.600129,
+                        "ft": 11811.448688,
+                        "mi": 2.237017
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 3.60012944492896,
+                "element": {
+                    "id": "65f2e1201b066c0020005dd7",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "65f2e1149c1d06001465d4c0",
+                    "name": "CEO MVT 63"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 3600.129445,
+                        "km": 3.600129,
+                        "ft": 11811.448688,
+                        "mi": 2.237017
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "65f2e1201b066c0020005dd8",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CTO - 15-CE - 30-A",
+                    "id": "65f2e1201b066c0020005dc6",
+                    "length": 0.8606042592989799,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.3441661955592921,
+                "distance": 4.460733704227939,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 4460.733704,
+                        "km": 4.460734,
+                        "ft": 14634.953566,
+                        "mi": 2.771772
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 4.460733704227939,
+                "element": {
+                    "id": "65eb07c01cf95e389d000021",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "64b6eb06b164a20014e2ddb9",
+                    "name": "CEO MVT 66"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 4460.733704,
+                        "km": 4.460734,
+                        "ft": 14634.953566,
+                        "mi": 2.771772
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "65f2e3971b066c002000605a",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "BACKBONE SOCORRO-B-B",
+                    "id": "65f2e3961b066c0020006048",
+                    "length": 0.5339934178461384,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.21357746311652034,
+                "distance": 4.994727122074078,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 4994.727122,
+                        "km": 4.994727,
+                        "ft": 16386.900531,
+                        "mi": 3.10358
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 4.994727122074078,
+                "element": {
+                    "id": "67f3d36a18d4b046c1000004",
+                    "name": "L1-F6",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "65f2e3741b066c002000602a",
+                    "name": "CEO MVT 73"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 4994.727122,
+                        "km": 4.994727,
+                        "ft": 16386.900531,
+                        "mi": 3.10358
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "669822c910c26f0014c268e9",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 228-CEO MVT 73",
+                    "id": "669822c910c26f0014c268d7",
+                    "length": 1.3737969203087195,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.5494252284843663,
+                "distance": 6.368524042382798,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6368.524042,
+                        "km": 6.368524,
+                        "ft": 20894.108419,
+                        "mi": 3.957218
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 6.368524042382798,
+                "element": {
+                    "id": "669822c910c26f0014c268e7",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662bf03542447c00146e4553",
+                    "name": "CEO MVT 228"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6368.524042,
+                        "km": 6.368524,
+                        "ft": 20894.108419,
+                        "mi": 3.957218
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "671f8b3587bcdaf90ffa7d48",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 301-CEO MVT 228",
+                    "id": "671f8b3587bcdaf90ffa7d34",
+                    "length": 0.4617484623415403,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.18463966503735302,
+                "distance": 6.830272504724338,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6830.272505,
+                        "km": 6.830273,
+                        "ft": 22409.031244,
+                        "mi": 4.244135
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 6.830272504724338,
+                "element": {
+                    "id": "671f8b3587bcdaf90ffa7d46",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "66eb2683149dff0020958210",
+                    "name": "CEO MVT 301"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6830.272505,
+                        "km": 6.830273,
+                        "ft": 22409.031244,
+                        "mi": 4.244135
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "671f8b456007ab9c6b510936",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 325-CEO MVT 301",
+                    "id": "671f8b456007ab9c6b510922",
+                    "length": 0.098996343907829,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.03958087532245959,
+                "distance": 6.929268848632167,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6929.268849,
+                        "km": 6.929269,
+                        "ft": 22733.822409,
+                        "mi": 4.305648
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 6.929268848632167,
+                "element": {
+                    "id": "671f8b456007ab9c6b510934",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "66eb332889cd7800141d3d32",
+                    "name": "CEO MVT 325"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6929.268849,
+                        "km": 6.929269,
+                        "ft": 22733.822409,
+                        "mi": 4.305648
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "671f8b456007ab9c6b510935",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 236-CEO MVT 325",
+                    "id": "671f8b456007ab9c6b510921",
+                    "length": 0.052216214410435904,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.020850448164707464,
+                "distance": 6.981485063042602,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6981.485063,
+                        "km": 6.981485,
+                        "ft": 22905.135454,
+                        "mi": 4.338094
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 6.981485063042602,
+                "element": {
+                    "id": "66a13db5c39e660020d2e833",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662bf3894f29fe00204be36b",
+                    "name": "CEO MVT 236"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 6981.485063,
+                        "km": 6.981485,
+                        "ft": 22905.135454,
+                        "mi": 4.338094
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "66a13db5c39e660020d2e834",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 240-CEO MVT 236",
+                    "id": "66a13db5c39e660020d2e822",
+                    "length": 0.5050901403363457,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.20195702208770996,
+                "distance": 7.486575203378948,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 7486.575203,
+                        "km": 7.486575,
+                        "ft": 24562.25539,
+                        "mi": 4.651942
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 7.486575203378948,
+                "element": {
+                    "id": "67f3d05818d4b046c1000000",
+                    "name": "L1-F6",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662f82808848a6001342730f",
+                    "name": "CEO MVT 240"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 7486.575203,
+                        "km": 7.486575,
+                        "ft": 24562.25539,
+                        "mi": 4.651942
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "66981e34c39e660020d1c864",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 57-CEO MVT 241-A-B",
+                    "id": "66981e34c39e660020d1c852",
+                    "length": 0.35337995697180624,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.14119981095002837,
+                "distance": 7.839955160350754,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 7839.95516,
+                        "km": 7.839955,
+                        "ft": 25721.638488,
+                        "mi": 4.871522
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 7.839955160350754,
+                "element": {
+                    "id": "668d95378c07fa6014000026",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662be4f24f29fe00204bdd55",
+                    "name": "CEO MVT 222"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 7839.95516,
+                        "km": 7.839955,
+                        "ft": 25721.638488,
+                        "mi": 4.871522
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F6",
+                    "kind": "Fiber",
+                    "id": "668d953d10c26f0014c12328",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 241-CEO MVT 223-B",
+                    "id": "668d953d10c26f0014c12316",
+                    "length": 1.2083759421495874,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.48298844614528047,
+                "distance": 9.048331102500342,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9048.331103,
+                        "km": 9.048331,
+                        "ft": 29686.126614,
+                        "mi": 5.622372
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 9.048331102500342,
+                "element": {
+                    "id": "67f3b2bc18d4b01d58000009",
+                    "name": "L1-F6 | L1-F4",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "662be4ca42447c00146e4117",
+                    "name": "CEO MVT 223"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9048.331103,
+                        "km": 9.048331,
+                        "ft": 29686.126614,
+                        "mi": 5.622372
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F4",
+                    "kind": "Fiber",
+                    "id": "6953ee5eb011d3c21c59978d",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 223-CEO MVT Rede Presid. Euclides",
+                    "id": "6953ee5eb011d3c21c59977e",
+                    "length": 0.5567496723259876,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.22262085359846925,
+                "distance": 9.605080774826328,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9605.080775,
+                        "km": 9.605081,
+                        "ft": 31512.733209,
+                        "mi": 5.968321
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 9.605080774826328,
+                "element": {
+                    "id": "6953ee5eb011d3c21c59978c",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "674dfe25fa72af160e5886d7",
+                    "name": "CEO MVT Rede Presid. Euclides"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9605.080775,
+                        "km": 9.605081,
+                        "ft": 31512.733209,
+                        "mi": 5.968321
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F4",
+                    "kind": "Fiber",
+                    "id": "6953ee5eb011d3c21c59978e",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT Rede Presid. Euclides-CEO MVT 352",
+                    "id": "6953ee5eb011d3c21c59977f",
+                    "length": 0.3538990279499742,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.1414902440943679,
+                "distance": 9.958979802776303,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9958.979803,
+                        "km": 9.95898,
+                        "ft": 32673.819296,
+                        "mi": 6.188223
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 9.958979802776303,
+                "element": {
+                    "id": "67c1b30761cf9cfa7926d3ca",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "674da693fa72af160e55fd45",
+                    "name": "CEO MVT 352"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 9958.979803,
+                        "km": 9.95898,
+                        "ft": 32673.819296,
+                        "mi": 6.188223
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F4",
+                    "kind": "Fiber",
+                    "id": "67c1b30761cf9cfa7926d3cc",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 352-CEO MVT 363",
+                    "id": "67c1b30761cf9cfa7926d3be",
+                    "length": 0.06194067491759625,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.0247540218104385,
+                "distance": 10.020920477693899,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 10020.920478,
+                        "km": 10.02092,
+                        "ft": 32877.03674,
+                        "mi": 6.226712
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 10.020920477693899,
+                "element": {
+                    "id": "67c1b2c161cf9cfa7926c4a8",
+                    "name": "",
+                    "kind": "Passing",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "674da694fa72af160e55fdbe",
+                    "name": "CEO MVT 363"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 10020.920478,
+                        "km": 10.02092,
+                        "ft": 32877.03674,
+                        "mi": 6.226712
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "REDUDANCIA PROVEDOR CONEXAO ZN",
+                    "kind": "Fiber",
+                    "id": "67c1b2c161cf9cfa7926c4aa",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "C-CEO MVT 363-CEO MVT 340",
+                    "id": "67c1b2c161cf9cfa7926c49c",
+                    "length": 0.11810036862441431,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.04721554958928601,
+                "distance": 10.139020846318314,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 10139.020846,
+                        "km": 10.139021,
+                        "ft": 33264.505153,
+                        "mi": 6.300096
+                    }
+                }
+            },
+            {
+                "attenuation": 0.03,
+                "distance": 10.139020846318314,
+                "element": {
+                    "id": "67e1429b18d4b04c7700000c",
+                    "name": "Fusão 1",
+                    "kind": "Fusion",
+                    "label": null,
+                    "tray": null,
+                    "port": null,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "674da693fa72af160e55fcc1",
+                    "name": "CEO MVT 340"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 10139.020846,
+                        "km": 10.139021,
+                        "ft": 33264.505153,
+                        "mi": 6.300096
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F1",
+                    "kind": "Fiber",
+                    "id": "67e2ac5fe8875b3cddbe6a50",
+                    "observation": null
+                },
+                "parent": {
+                    "id": "67e2ac5fe8875b3cddbe6a43",
+                    "length": 0.00802095242916175,
+                    "kind": "Drop"
+                },
+                "attenuation": 0.0031957545986465545,
+                "distance": 10.147041798747475,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 10147.041799,
+                        "km": 10.147042,
+                        "ft": 33290.820615,
+                        "mi": 6.30508
+                    }
+                }
+            }
+        ],
+        "fiberNumber": 1,
+        "_convertedValues": {
+            "distance": {
+                "m": 10147.041799,
+                "km": 10.147042,
+                "ft": 33290.820615,
+                "mi": 6.30508
+            }
+        }
+    }
+]
