@@ -1337,12 +1337,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="identifier">Identificador</Label>
+          <Label htmlFor="identifier">Etiqueta</Label>
           <Input
             id="identifier"
             value={formData.identifier}
             onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
-            placeholder="sede, central, etc."
+            placeholder="Ex: G9BVKELT"
             data-testid="input-link-identifier"
           />
         </div>

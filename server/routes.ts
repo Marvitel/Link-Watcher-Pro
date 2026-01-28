@@ -5634,10 +5634,10 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
 
-      // Usa a tag do contrato Voalle como identificador para OZmap (prioridade) ou campo separado
-      const ozmapTag = link.voalleContractTagServiceTag || (link as any).ozmapTag;
+      // Usa a tag do contrato Voalle, identificador do link, ou campo separado para OZmap
+      const ozmapTag = link.voalleContractTagServiceTag || link.identifier || (link as any).ozmapTag;
       if (!ozmapTag) {
-        return res.status(400).json({ error: "Link não possui etiqueta do contrato Voalle configurada" });
+        return res.status(400).json({ error: "Link não possui identificador ou etiqueta do contrato Voalle configurada" });
       }
 
       const integration = await storage.getExternalIntegrationByProvider("ozmap");
