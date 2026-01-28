@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -6,7 +6,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -63,6 +62,21 @@ export function MultiTrafficChart({
   height = 250,
   showLegend = true,
 }: MultiTrafficChartProps) {
+  
+  // Estado para controlar visibilidade das séries
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  
+  const toggleSeries = (seriesKey: string) => {
+    setHiddenSeries(prev => {
+      const next = new Set(prev);
+      if (next.has(seriesKey)) {
+        next.delete(seriesKey);
+      } else {
+        next.add(seriesKey);
+      }
+      return next;
+    });
+  };
   
   const chartData = useMemo(() => {
     if (!mainData || !Array.isArray(mainData)) return [];
@@ -160,54 +174,67 @@ export function MultiTrafficChart({
   const renderAreas = () => {
     const areas: JSX.Element[] = [];
     
-    areas.push(
-      <Area
-        key="main_download"
-        type="monotone"
-        dataKey="main_download"
-        name={`${mainLabel} (Download)`}
-        stroke={mainColor}
-        strokeWidth={2}
-        fill={`url(#gradient_main_download)`}
-        connectNulls={false}
-      />,
-      <Area
-        key="main_upload"
-        type="monotone"
-        dataKey="main_upload"
-        name={`${mainLabel} (Upload)`}
-        stroke={mainColor}
-        strokeWidth={1.5}
-        strokeDasharray="4 2"
-        fill="none"
-        connectNulls={false}
-      />
-    );
-    
-    additionalInterfaces.forEach((iface) => {
+    // Só renderiza se não estiver oculto
+    if (!hiddenSeries.has("main_download")) {
       areas.push(
         <Area
-          key={`iface_${iface.id}_download`}
+          key="main_download"
           type="monotone"
-          dataKey={`iface_${iface.id}_download`}
-          name={`${iface.label} (Download)`}
-          stroke={iface.color}
+          dataKey="main_download"
+          name={`${mainLabel} (Download)`}
+          stroke={mainColor}
           strokeWidth={2}
-          fill={`url(#gradient_iface_${iface.id})`}
+          fill={`url(#gradient_main_download)`}
           connectNulls={false}
-        />,
+        />
+      );
+    }
+    if (!hiddenSeries.has("main_upload")) {
+      areas.push(
         <Area
-          key={`iface_${iface.id}_upload`}
+          key="main_upload"
           type="monotone"
-          dataKey={`iface_${iface.id}_upload`}
-          name={`${iface.label} (Upload)`}
-          stroke={iface.color}
+          dataKey="main_upload"
+          name={`${mainLabel} (Upload)`}
+          stroke={mainColor}
           strokeWidth={1.5}
           strokeDasharray="4 2"
           fill="none"
           connectNulls={false}
         />
       );
+    }
+    
+    additionalInterfaces.forEach((iface) => {
+      if (!hiddenSeries.has(`iface_${iface.id}_download`)) {
+        areas.push(
+          <Area
+            key={`iface_${iface.id}_download`}
+            type="monotone"
+            dataKey={`iface_${iface.id}_download`}
+            name={`${iface.label} (Download)`}
+            stroke={iface.color}
+            strokeWidth={2}
+            fill={`url(#gradient_iface_${iface.id})`}
+            connectNulls={false}
+          />
+        );
+      }
+      if (!hiddenSeries.has(`iface_${iface.id}_upload`)) {
+        areas.push(
+          <Area
+            key={`iface_${iface.id}_upload`}
+            type="monotone"
+            dataKey={`iface_${iface.id}_upload`}
+            name={`${iface.label} (Upload)`}
+            stroke={iface.color}
+            strokeWidth={1.5}
+            strokeDasharray="4 2"
+            fill="none"
+            connectNulls={false}
+          />
+        );
+      }
     });
     
     return areas;
@@ -233,68 +260,104 @@ export function MultiTrafficChart({
     return gradients;
   };
 
+  // Construir itens da legenda
+  const legendItems = useMemo(() => {
+    const items: Array<{key: string; label: string; color: string; isDashed: boolean}> = [];
+    
+    // Principal
+    items.push({ key: "main_download", label: `${mainLabel} (Download)`, color: mainColor, isDashed: false });
+    items.push({ key: "main_upload", label: `${mainLabel} (Upload)`, color: mainColor, isDashed: true });
+    
+    // Interfaces adicionais
+    additionalInterfaces.forEach((iface) => {
+      items.push({ key: `iface_${iface.id}_download`, label: `${iface.label} (Download)`, color: iface.color, isDashed: false });
+      items.push({ key: `iface_${iface.id}_upload`, label: `${iface.label} (Upload)`, color: iface.color, isDashed: true });
+    });
+    
+    return items;
+  }, [mainLabel, mainColor, additionalInterfaces]);
+
   return (
-    <ResponsiveContainer width="100%" height={height} data-testid="multi-traffic-chart">
-      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: showLegend ? 5 : 4 }}>
-        <defs>
-          {renderGradients()}
-        </defs>
-        <XAxis
-          dataKey="time"
-          axisLine={false}
-          tickLine={false}
-          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          axisLine={false}
-          tickLine={false}
-          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-          tickFormatter={(value) => {
-            if (value >= 1000) return `${(value / 1000).toFixed(1)}G`;
-            return `${value.toFixed(0)}M`;
-          }}
-          width={45}
-        />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "8px",
-            fontSize: "12px",
-            padding: "8px 12px",
-          }}
-          labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
-          formatter={(value, name: string) => {
-            if (value === null || value === undefined) return [null, null];
-            const numVal = typeof value === 'number' ? value : 0;
-            const formattedValue = numVal >= 1000 
-              ? `${(numVal / 1000).toFixed(2)} Gbps` 
-              : `${numVal.toFixed(1)} Mbps`;
-            
-            const parts = name.split(" (");
-            const label = parts[0];
-            const type = parts[1]?.replace(")", "") || "";
-            
-            return [formattedValue, `${label} ${type}`];
-          }}
-          labelFormatter={(label) => `Horário: ${label}`}
-        />
-        {showLegend && (
-          <Legend 
-            verticalAlign="bottom"
-            height={36}
-            wrapperStyle={{ fontSize: "11px" }}
-            formatter={(value) => {
-              if (value.includes("Upload")) {
-                return <span style={{ color: "hsl(var(--muted-foreground))" }}>{value}</span>;
-              }
-              return value;
-            }}
+    <div className="flex flex-col" data-testid="multi-traffic-chart">
+      <ResponsiveContainer width="100%" height={height}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 4 }}>
+          <defs>
+            {renderGradients()}
+          </defs>
+          <XAxis
+            dataKey="time"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            interval="preserveStartEnd"
           />
-        )}
-        {renderAreas()}
-      </AreaChart>
-    </ResponsiveContainer>
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(value) => {
+              if (value >= 1000) return `${(value / 1000).toFixed(1)}G`;
+              return `${value.toFixed(0)}M`;
+            }}
+            width={45}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "8px",
+              fontSize: "12px",
+              padding: "8px 12px",
+            }}
+            labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
+            formatter={(value, name: string) => {
+              if (value === null || value === undefined) return [null, null];
+              const numVal = typeof value === 'number' ? value : 0;
+              const formattedValue = numVal >= 1000 
+                ? `${(numVal / 1000).toFixed(2)} Gbps` 
+                : `${numVal.toFixed(1)} Mbps`;
+              
+              const parts = name.split(" (");
+              const label = parts[0];
+              const type = parts[1]?.replace(")", "") || "";
+              
+              return [formattedValue, `${label} ${type}`];
+            }}
+            labelFormatter={(label) => `Horário: ${label}`}
+          />
+          {renderAreas()}
+        </AreaChart>
+      </ResponsiveContainer>
+      
+      {showLegend && (
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2 px-3 py-2 text-xs">
+          {legendItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => toggleSeries(item.key)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded hover-elevate transition-opacity cursor-pointer ${
+                hiddenSeries.has(item.key) ? "opacity-30" : ""
+              }`}
+              data-testid={`legend-${item.key}`}
+            >
+              {item.isDashed ? (
+                <span 
+                  className="w-4 border-t-2 border-dashed" 
+                  style={{ borderColor: item.color }}
+                />
+              ) : (
+                <span 
+                  className="w-3 h-1.5 rounded-sm" 
+                  style={{ backgroundColor: item.color }}
+                />
+              )}
+              <span className={item.isDashed ? "text-muted-foreground" : ""}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
