@@ -718,6 +718,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     oltId: link?.oltId || null,
     onuId: link?.onuId || "",
     voalleContractTagId: link?.voalleContractTagId || null,
+    voalleContractTagServiceTag: (link as any)?.voalleContractTagServiceTag || "",
     voalleConnectionId: (link as any)?.voalleConnectionId || null,
     voalleContractNumber: (link as any)?.voalleContractNumber || "",
     slotOlt: (link as any)?.slotOlt || null,
@@ -779,7 +780,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
   // Função para preencher dados quando uma etiqueta for selecionada
   const handleSelectContractTag = (tagId: string) => {
     if (tagId === "none") {
-      setFormData(prev => ({ ...prev, voalleContractTagId: null }));
+      setFormData(prev => ({ ...prev, voalleContractTagId: null, voalleContractTagServiceTag: "" }));
       return;
     }
     
@@ -826,6 +827,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     setFormData(prev => ({
       ...prev,
       voalleContractTagId: tag.id,
+      voalleContractTagServiceTag: tag.serviceTag || "",
       name: prev.name || tag.description || tag.serviceTag || "",
       identifier: prev.identifier || tag.serviceTag || "",
       monitoredIp: prev.monitoredIp || tag.ip || "",
