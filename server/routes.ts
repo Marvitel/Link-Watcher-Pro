@@ -5522,8 +5522,14 @@ export async function registerRoutes(
             throw new Error("URL ou Token não configurados");
           }
 
+          // Normalizar URL base - remover /api/v2 se existir para evitar duplicação
+          let baseUrl = apiUrl.replace(/\/+$/, ""); // Remove trailing slashes
+          if (baseUrl.endsWith("/api/v2")) {
+            baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
+          }
+
           // Testa buscando informações básicas da API
-          const response = await fetch(`${apiUrl}/api/v2/users/me`, {
+          const response = await fetch(`${baseUrl}/api/v2/users/me`, {
             method: "GET",
             headers: {
               "Accept": "application/json",
@@ -5580,8 +5586,14 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Integração OZmap está desativada" });
       }
 
+      // Normalizar URL base - remover /api/v2 se existir para evitar duplicação
+      let baseUrl = integration.apiUrl.replace(/\/+$/, ""); // Remove trailing slashes
+      if (baseUrl.endsWith("/api/v2")) {
+        baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
+      }
+
       const response = await fetch(
-        `${integration.apiUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`,
+        `${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`,
         {
           method: "GET",
           headers: {
@@ -5636,8 +5648,14 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Integração OZmap está desativada" });
       }
 
+      // Normalizar URL base - remover /api/v2 se existir para evitar duplicação
+      let baseUrl = integration.apiUrl.replace(/\/+$/, ""); // Remove trailing slashes
+      if (baseUrl.endsWith("/api/v2")) {
+        baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
+      }
+
       const response = await fetch(
-        `${integration.apiUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`,
+        `${baseUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`,
         {
           method: "GET",
           headers: {
