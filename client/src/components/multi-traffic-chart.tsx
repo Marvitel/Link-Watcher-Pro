@@ -136,7 +136,7 @@ export function MultiTrafficChart({
       return closest;
     };
     
-    return filtered.map((item) => {
+    const result = filtered.map((item) => {
       const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
       const mainTs = new Date(item.timestamp).getTime();
       const rawDl = item.download ?? 0;
@@ -173,6 +173,16 @@ export function MultiTrafficChart({
       
       return point;
     });
+
+    // Debug: contar quantos pontos têm dados de interfaces adicionais
+    if (additionalInterfaces.length > 0) {
+      additionalInterfaces.forEach((iface) => {
+        const pointsWithData = result.filter((p: Record<string, unknown>) => p[`iface_${iface.id}_download`] !== null).length;
+        console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${pointsWithData}/${result.length} pontos com dados`);
+      });
+    }
+    
+    return result;
   }, [mainData, additionalInterfaces, additionalMetrics, invertMainBandwidth]);
 
   // Construir itens da legenda (deve estar antes de qualquer return para regras de hooks)
