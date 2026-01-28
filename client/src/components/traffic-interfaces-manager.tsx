@@ -92,39 +92,37 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<TrafficInterfaceForm, "id">) => {
+      console.log("[TrafficInterfacesManager] Creating interface:", data);
       const res = await apiRequest("POST", `/api/links/${linkId}/traffic-interfaces`, data);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Falha ao criar interface");
-      }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("[TrafficInterfacesManager] Created successfully:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "traffic-interfaces"] });
       setIsAdding(false);
       setEditingInterface(null);
       toast({ title: "Interface adicionada", description: "Interface de tráfego criada com sucesso" });
     },
     onError: (error: Error) => {
+      console.error("[TrafficInterfacesManager] Create error:", error);
       toast({ title: "Erro", description: error.message || "Falha ao criar interface de tráfego", variant: "destructive" });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: TrafficInterfaceForm) => {
+      console.log("[TrafficInterfacesManager] Updating interface:", id, data);
       const res = await apiRequest("PATCH", `/api/links/${linkId}/traffic-interfaces/${id}`, data);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Falha ao atualizar interface");
-      }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("[TrafficInterfacesManager] Updated successfully:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "traffic-interfaces"] });
       setEditingInterface(null);
       toast({ title: "Interface atualizada", description: "Interface de tráfego atualizada com sucesso" });
     },
     onError: (error: Error) => {
+      console.error("[TrafficInterfacesManager] Update error:", error);
       toast({ title: "Erro", description: error.message || "Falha ao atualizar interface de tráfego", variant: "destructive" });
     },
   });
@@ -274,6 +272,7 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
   };
 
   const handleSave = () => {
+    console.log("[TrafficInterfacesManager] handleSave called, editingInterface:", editingInterface, "isAdding:", isAdding);
     if (!editingInterface) return;
 
     if (!editingInterface.label.trim()) {
@@ -287,9 +286,13 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
     }
 
     if (isAdding) {
+      console.log("[TrafficInterfacesManager] Calling createMutation.mutate");
       createMutation.mutate(editingInterface);
     } else if (editingInterface.id) {
+      console.log("[TrafficInterfacesManager] Calling updateMutation.mutate");
       updateMutation.mutate(editingInterface as TrafficInterfaceForm);
+    } else {
+      console.log("[TrafficInterfacesManager] No mutation called - isAdding:", isAdding, "id:", editingInterface.id);
     }
   };
 
