@@ -2,8 +2,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators } from "@shared/schema";
-import { eq, and, not, like, gte, isNotNull, desc } from "drizzle-orm";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators, externalIntegrations } from "@shared/schema";
+import { eq, and, not, like, gte, isNotNull, desc, or } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { switchSensorCache } from "@shared/schema";
@@ -2726,6 +2726,148 @@ async function syncWanguardForAllClients(): Promise<void> {
   }
 }
 
+// Sincronização automática do OZmap para dados de splitter, OLT e rota de fibra
+let ozmapSyncInterval: ReturnType<typeof setInterval> | null = null;
+
+async function syncOzmapForAllLinks(): Promise<void> {
+  try {
+    // Buscar integração OZmap global
+    const integration = await db
+      .select()
+      .from(externalIntegrations)
+      .where(eq(externalIntegrations.provider, "ozmap"))
+      .limit(1);
+    
+    if (integration.length === 0 || !integration[0].apiKey || !integration[0].apiUrl || !integration[0].isActive) {
+      return; // OZmap não configurado ou inativo
+    }
+
+    const ozmapConfig = integration[0];
+    
+    // Normalizar URL base
+    let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    if (baseUrl.endsWith("/api/v2")) {
+      baseUrl = baseUrl.slice(0, -7);
+    }
+
+    // Buscar todos os links com tag OZmap configurada
+    const linksWithOzmap = await db
+      .select()
+      .from(links)
+      .where(
+        or(
+          isNotNull(links.ozmapTag),
+          isNotNull(links.identifier),
+          isNotNull(links.voalleContractTagServiceTag)
+        )
+      );
+
+    if (linksWithOzmap.length === 0) {
+      return;
+    }
+
+    let syncedCount = 0;
+    let errorCount = 0;
+
+    for (const link of linksWithOzmap) {
+      // Determinar a tag a usar (prioridade: voalle > identifier > ozmapTag)
+      const ozmapTag = link.voalleContractTagServiceTag || link.identifier || link.ozmapTag;
+      
+      if (!ozmapTag) continue;
+
+      try {
+        const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`;
+        
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Authorization": ozmapConfig.apiKey!,
+          },
+        });
+
+        if (!response.ok) {
+          continue; // Link não encontrado no OZmap, pular
+        }
+
+        const data = await response.json();
+        
+        if (!Array.isArray(data) || data.length === 0) {
+          continue;
+        }
+
+        const potencyItem = data[0];
+        
+        // Extrair informações de splitter e OLT dos elementos da rota
+        let splitterName: string | null = null;
+        let splitterPort: string | null = null;
+        let oltName: string | null = null;
+        let oltSlot: number | null = null;
+        let oltPort: number | null = null;
+        
+        if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
+          for (const elem of potencyItem.elements) {
+            if (elem.element?.kind === 'Splitter') {
+              splitterName = elem.parent?.name || elem.element?.name || null;
+              if (elem.element?.port) {
+                splitterPort = String(elem.element.port);
+              }
+            }
+            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase().includes('olt')) {
+              oltName = elem.parent?.name || elem.element?.name || null;
+              if (elem.element?.slot !== undefined) {
+                oltSlot = parseInt(String(elem.element.slot), 10);
+              }
+              if (elem.element?.port !== undefined) {
+                oltPort = parseInt(String(elem.element.port), 10);
+              }
+            }
+          }
+        }
+        
+        // Dados do nível superior
+        if (potencyItem.olt_name) oltName = potencyItem.olt_name;
+        if (potencyItem.slot !== undefined) oltSlot = potencyItem.slot;
+        if (potencyItem.port !== undefined) oltPort = potencyItem.port;
+        
+        // Preparar update
+        const ozmapUpdate: any = {
+          ozmapDistance: potencyItem.distance || null,
+          ozmapArrivingPotency: potencyItem.arriving_potency || null,
+          ozmapAttenuation: potencyItem.attenuation || null,
+          ozmapPonReached: potencyItem.pon_reached || false,
+          ozmapLastSync: new Date(),
+        };
+        
+        if (splitterName) ozmapUpdate.ozmapSplitterName = splitterName;
+        if (splitterPort) ozmapUpdate.ozmapSplitterPort = splitterPort;
+        if (oltName) ozmapUpdate.ozmapOltName = oltName;
+        if (oltSlot !== null) ozmapUpdate.ozmapSlot = oltSlot;
+        if (oltPort !== null) ozmapUpdate.ozmapPort = oltPort;
+        
+        // Usar potência do OZmap como baseline se não tiver
+        if (potencyItem.arriving_potency && !link.opticalRxBaseline) {
+          ozmapUpdate.opticalRxBaseline = potencyItem.arriving_potency;
+        }
+        
+        await db.update(links)
+          .set(ozmapUpdate)
+          .where(eq(links.id, link.id));
+        
+        syncedCount++;
+      } catch (linkError) {
+        errorCount++;
+      }
+    }
+
+    if (syncedCount > 0 || errorCount > 0) {
+      console.log(`[OZmap Auto-Sync] Sincronizados: ${syncedCount} links, Erros: ${errorCount}`);
+    }
+  } catch (error) {
+    console.error("[OZmap Auto-Sync] Erro na sincronização automática:", error);
+  }
+}
+
 export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
@@ -2733,11 +2875,15 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
   if (wanguardSyncInterval) {
     clearInterval(wanguardSyncInterval);
   }
+  if (ozmapSyncInterval) {
+    clearInterval(ozmapSyncInterval);
+  }
 
   console.log(`[Monitor] Starting real-time monitoring with ${intervalSeconds}s interval`);
 
   collectAllLinksMetrics();
   syncWanguardForAllClients(); // Sincronização inicial
+  syncOzmapForAllLinks(); // Sincronização inicial do OZmap
 
   monitoringInterval = setInterval(() => {
     collectAllLinksMetrics();
@@ -2748,7 +2894,13 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
     syncWanguardForAllClients();
   }, 60 * 1000);
   
+  // Sincronização do OZmap a cada 5 minutos (dados de fibra não mudam frequentemente)
+  ozmapSyncInterval = setInterval(() => {
+    syncOzmapForAllLinks();
+  }, 5 * 60 * 1000);
+  
   console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (60s)`);
+  console.log(`[OZmap Auto-Sync] Sincronização automática iniciada (5min)`);
 }
 
 export function stopMonitoring(): void {
@@ -2761,5 +2913,10 @@ export function stopMonitoring(): void {
     clearInterval(wanguardSyncInterval);
     wanguardSyncInterval = null;
     console.log("[Wanguard Auto-Sync] Sincronização automática parada");
+  }
+  if (ozmapSyncInterval) {
+    clearInterval(ozmapSyncInterval);
+    ozmapSyncInterval = null;
+    console.log("[OZmap Auto-Sync] Sincronização automática parada");
   }
 }
