@@ -69,32 +69,46 @@ export function MultiTrafficChart({
     
     const filtered = mainData.filter((item) => item && item.timestamp);
     
-    // DEBUG: Log dados recebidos
-    console.log("[MultiTrafficChart] additionalInterfaces:", additionalInterfaces);
-    console.log("[MultiTrafficChart] additionalMetrics count:", additionalMetrics.length);
-    console.log("[MultiTrafficChart] mainData count:", mainData.length);
-    if (additionalMetrics.length > 0) {
-      console.log("[MultiTrafficChart] Sample additionalMetric:", additionalMetrics[0]);
-    }
-    
-    // Pré-processar métricas adicionais por interface e indexá-las por timestamp aproximado
-    const metricsIndex: Map<number, Map<number, {download: number; upload: number}>> = new Map();
+    // Pré-processar métricas adicionais por interface
+    // Usar múltiplas janelas de tempo para matching mais tolerante
+    const metricsIndex: Map<number, Array<{ts: number; download: number; upload: number}>> = new Map();
     
     additionalInterfaces.forEach((iface) => {
-      const ifaceMetrics = additionalMetrics.filter(m => m.trafficInterfaceId === iface.id);
-      console.log(`[MultiTrafficChart] Interface ${iface.id} (${iface.label}): ${ifaceMetrics.length} metrics`);
-      const timestampMap = new Map<number, {download: number; upload: number}>();
-      ifaceMetrics.forEach(m => {
-        // Usar timestamp truncado para minuto para alinhamento aproximado
-        const ts = Math.floor(new Date(m.timestamp).getTime() / 60000) * 60000;
-        timestampMap.set(ts, { download: m.download, upload: m.upload });
-      });
-      metricsIndex.set(iface.id, timestampMap);
+      const ifaceMetrics = additionalMetrics
+        .filter(m => m.trafficInterfaceId === iface.id)
+        .map(m => ({
+          ts: new Date(m.timestamp).getTime(),
+          download: m.download,
+          upload: m.upload,
+        }))
+        .sort((a, b) => a.ts - b.ts);
+      metricsIndex.set(iface.id, ifaceMetrics);
     });
+    
+    // Função para encontrar métrica mais próxima dentro de 90 segundos
+    const findClosestMetric = (metrics: Array<{ts: number; download: number; upload: number}>, targetTs: number) => {
+      if (!metrics || metrics.length === 0) return null;
+      const tolerance = 90000; // 90 segundos de tolerância
+      
+      let closest = null;
+      let minDiff = Infinity;
+      
+      for (const m of metrics) {
+        const diff = Math.abs(m.ts - targetTs);
+        if (diff < minDiff && diff <= tolerance) {
+          minDiff = diff;
+          closest = m;
+        }
+        // Como está ordenado, se passamos do target por muito, podemos parar
+        if (m.ts > targetTs + tolerance) break;
+      }
+      
+      return closest;
+    };
     
     return filtered.map((item) => {
       const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
-      const mainTs = Math.floor(new Date(item.timestamp).getTime() / 60000) * 60000;
+      const mainTs = new Date(item.timestamp).getTime();
       const rawDl = item.download ?? 0;
       const rawUl = item.upload ?? 0;
       const shouldInvert = !invertMainBandwidth;
@@ -110,8 +124,8 @@ export function MultiTrafficChart({
       };
       
       additionalInterfaces.forEach((iface) => {
-        const ifaceMetricsMap = metricsIndex.get(iface.id);
-        const matchingMetric = ifaceMetricsMap?.get(mainTs);
+        const ifaceMetricsArray = metricsIndex.get(iface.id) || [];
+        const matchingMetric = findClosestMetric(ifaceMetricsArray, mainTs);
         
         if (matchingMetric) {
           const rawDlAdd = (matchingMetric.download ?? 0) / 1000000;
