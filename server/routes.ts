@@ -3759,17 +3759,23 @@ export async function registerRoutes(
       const interfaces = await storage.getEnabledLinkTrafficInterfaces(linkId);
       const metricsData = await storage.getTrafficInterfaceMetrics(linkId, startTime, endTime);
       
+      console.log(`[API] traffic-interface-metrics link=${linkId}: ${interfaces.length} interfaces, ${metricsData.length} métricas (${startTime.toISOString()} - ${endTime.toISOString()})`);
+      
       // Agrupar métricas por interface
-      const result = interfaces.map((iface) => ({
-        interface: {
-          id: iface.id,
-          label: iface.label,
-          color: iface.color,
-          displayOrder: iface.displayOrder,
-          invertBandwidth: iface.invertBandwidth,
-        },
-        metrics: metricsData.filter((m) => m.trafficInterfaceId === iface.id),
-      }));
+      const result = interfaces.map((iface) => {
+        const ifaceMetrics = metricsData.filter((m) => m.trafficInterfaceId === iface.id);
+        console.log(`[API] Interface ${iface.id} (${iface.label}): ${ifaceMetrics.length} métricas`);
+        return {
+          interface: {
+            id: iface.id,
+            label: iface.label,
+            color: iface.color,
+            displayOrder: iface.displayOrder,
+            invertBandwidth: iface.invertBandwidth,
+          },
+          metrics: ifaceMetrics,
+        };
+      });
       
       res.json(result);
     } catch (error) {
