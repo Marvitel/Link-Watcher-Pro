@@ -201,11 +201,15 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
     setEditingInterface({
       ...editingInterface,
       ifIndex: iface.ifIndex,
-      ifName: iface.ifName,
-      ifDescr: iface.ifDescr,
+      ifName: iface.ifName || "",
+      ifDescr: iface.ifDescr || "",
     });
     setDiscoveredInterfaces([]);
     setInterfaceSearchTerm("");
+    toast({
+      title: "Interface selecionada",
+      description: `${iface.ifName || iface.ifDescr || `Interface ${iface.ifIndex}`} (index: ${iface.ifIndex}) - Clique em Salvar para confirmar`,
+    });
   };
   
   const filteredDiscoveredInterfaces = discoveredInterfaces.filter(iface => {
