@@ -1497,11 +1497,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                 <SelectItem value="accessPoint">Ponto de Acesso (Switch/PE)</SelectItem>
               </SelectContent>
             </Select>
-            {snmpCollectionMode === 'accessPoint' && (
-              <p className="text-xs text-muted-foreground">
-                Use para links L2 com RSTP onde o concentrador não identifica qual rota está ativa. A coleta será feita pelo switch de acesso/PE.
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             {snmpCollectionMode === 'ip' && (
@@ -1682,9 +1677,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Associe um concentrador para diagnóstico OLT/ONU mesmo com coleta pelo switch.
-                  </p>
                 </div>
               </>
             )}
@@ -2196,9 +2188,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           <div className="col-span-2 flex items-center justify-between p-3 rounded-md bg-muted/50">
             <div>
               <p className="font-medium text-sm">Manter Direção Original</p>
-              <p className="text-xs text-muted-foreground">
-                Desativa a inversão automática de banda (por padrão, download ↔ upload são invertidos para concentradores)
-              </p>
             </div>
             <Switch
               checked={formData.invertBandwidth}
@@ -2212,9 +2201,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         <div className="flex items-center justify-between p-3 rounded-md border bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
           <div className="space-y-0.5">
             <p className="font-medium text-sm">Link L2 (Sem IP)</p>
-            <p className="text-xs text-muted-foreground">
-              Link não possui IP monitorado. Status será determinado pela porta do switch/concentrador.
-            </p>
           </div>
           <Switch
             checked={formData.isL2Link}
@@ -2236,13 +2222,6 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         
         {formData.opticalMonitoringEnabled && (
           <div className="space-y-4">
-            <div className="p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Os OIDs de sinal óptico são obtidos automaticamente do fabricante da OLT associada ao link.
-                Configure slot, porta e ID da ONU, e selecione a OLT na aba "Diagnóstico ONU".
-              </p>
-            </div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="opticalRxBaseline">Baseline RX (dBm)</Label>
