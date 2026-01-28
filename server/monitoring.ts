@@ -3,7 +3,7 @@ import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators } from "@shared/schema";
-import { eq, and, not, like, gte, isNotNull } from "drizzle-orm";
+import { eq, and, not, like, gte, isNotNull, desc } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { switchSensorCache } from "@shared/schema";
@@ -2328,6 +2328,57 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         if (metricsToInsert.length > 0) {
           await db.insert(trafficInterfaceMetrics).values(metricsToInsert);
           console.log(`[Monitor] ${link.name}: Inseridas ${metricsToInsert.length} métricas de interfaces adicionais`);
+        }
+        
+        // Processar mainGraphMode: aggregate ou single
+        // Usa as métricas das interfaces adicionais para gerar métricas principais
+        if ((link.mainGraphMode === 'aggregate' || link.mainGraphMode === 'single') && 
+            link.mainGraphInterfaceIds && link.mainGraphInterfaceIds.length > 0 && 
+            metricsToInsert.length > 0) {
+          
+          const selectedIds = link.mainGraphInterfaceIds;
+          const selectedMetrics = metricsToInsert.filter(m => selectedIds.includes(m.trafficInterfaceId));
+          
+          if (selectedMetrics.length > 0) {
+            let mainDownload = 0;
+            let mainUpload = 0;
+            
+            if (link.mainGraphMode === 'aggregate') {
+              // Somar todas as interfaces selecionadas
+              mainDownload = selectedMetrics.reduce((sum, m) => sum + m.download, 0) / 1000000; // bps -> Mbps
+              mainUpload = selectedMetrics.reduce((sum, m) => sum + m.upload, 0) / 1000000;
+              console.log(`[Monitor] ${link.name}: Gráfico principal agregado de ${selectedMetrics.length} interfaces: DL=${mainDownload.toFixed(2)}Mbps, UL=${mainUpload.toFixed(2)}Mbps`);
+            } else if (link.mainGraphMode === 'single') {
+              // Usar apenas a primeira interface selecionada
+              const singleMetric = selectedMetrics[0];
+              mainDownload = singleMetric.download / 1000000;
+              mainUpload = singleMetric.upload / 1000000;
+              console.log(`[Monitor] ${link.name}: Gráfico principal usando interface ${singleMetric.trafficInterfaceId}: DL=${mainDownload.toFixed(2)}Mbps, UL=${mainUpload.toFixed(2)}Mbps`);
+            }
+            
+            // Atualizar link com valores do gráfico principal
+            await db.update(links).set({
+              currentDownload: mainDownload,
+              currentUpload: mainUpload,
+              lastUpdated: new Date(),
+            }).where(eq(links.id, link.id));
+            
+            // Atualizar a métrica mais recente com os valores agregados/single
+            const recentMetrics = await db.select({ id: metrics.id })
+              .from(metrics)
+              .where(eq(metrics.linkId, link.id))
+              .orderBy(desc(metrics.timestamp))
+              .limit(1);
+            
+            if (recentMetrics.length > 0) {
+              await db.update(metrics)
+                .set({
+                  download: mainDownload,
+                  upload: mainUpload,
+                })
+                .where(eq(metrics.id, recentMetrics[0].id));
+            }
+          }
         }
       }
     } catch (additionalError) {
