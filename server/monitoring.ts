@@ -2249,6 +2249,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         ));
       
       if (additionalInterfaces.length > 0) {
+        console.log(`[Monitor] ${link.name}: Coletando ${additionalInterfaces.length} interfaces adicionais`);
         const metricsToInsert: Array<{linkId: number; trafficInterfaceId: number; download: number; upload: number}> = [];
         
         for (const iface of additionalInterfaces) {
@@ -2274,13 +2275,22 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
               }
             }
             
-            if (!ifaceIp || !ifaceProfileId || !iface.ifIndex) continue;
+            if (!ifaceIp || !ifaceProfileId || !iface.ifIndex) {
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Dados incompletos: IP=${ifaceIp}, profileId=${ifaceProfileId}, ifIndex=${iface.ifIndex}`);
+              continue;
+            }
             
             const profile = await getSnmpProfile(ifaceProfileId);
-            if (!profile) continue;
+            if (!profile) {
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Perfil SNMP ${ifaceProfileId} não encontrado`);
+              continue;
+            }
             
             const trafficData = await getInterfaceTraffic(ifaceIp, profile, iface.ifIndex);
-            if (!trafficData) continue;
+            if (!trafficData) {
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Sem dados de tráfego de ${ifaceIp}`);
+              continue;
+            }
             
             const cacheKey = `${link.id}-${iface.id}`;
             const previousData = previousAdditionalTrafficData.get(cacheKey);
@@ -2295,23 +2305,28 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
                 [download, upload] = [upload, download];
               }
               
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Download=${download.toFixed(2)}Mbps, Upload=${upload.toFixed(2)}Mbps`);
+              
               metricsToInsert.push({
                 linkId: link.id,
                 trafficInterfaceId: iface.id,
                 download: download * 1000000, // Converter Mbps para bps
                 upload: upload * 1000000,
               });
+            } else {
+              console.log(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Primeira coleta, aguardando próxima para calcular bandwidth`);
             }
             
             previousAdditionalTrafficData.set(cacheKey, trafficData);
           } catch (ifaceError) {
-            // Silently continue with next interface
+            console.error(`[Monitor] ${link.name}: Interface ${iface.id} (${iface.label}) - Erro:`, ifaceError);
           }
         }
         
         // Inserir métricas em batch
         if (metricsToInsert.length > 0) {
           await db.insert(trafficInterfaceMetrics).values(metricsToInsert);
+          console.log(`[Monitor] ${link.name}: Inseridas ${metricsToInsert.length} métricas de interfaces adicionais`);
         }
       }
     } catch (additionalError) {
