@@ -38,6 +38,7 @@ import {
   blacklistChecks,
   firewallWhitelist,
   firewallSettings,
+  trafficInterfaceMetrics,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -3760,6 +3761,20 @@ export async function registerRoutes(
       const metricsData = await storage.getTrafficInterfaceMetrics(linkId, startTime, endTime);
       
       console.log(`[API] traffic-interface-metrics link=${linkId}: ${interfaces.length} interfaces, ${metricsData.length} métricas (${startTime.toISOString()} - ${endTime.toISOString()})`);
+      
+      // Debug: mostrar métricas mais recentes se houver
+      if (metricsData.length > 0) {
+        const latestMetric = metricsData[metricsData.length - 1];
+        console.log(`[API] Métrica mais recente: timestamp=${latestMetric.timestamp}, interfaceId=${latestMetric.trafficInterfaceId}, download=${latestMetric.download}, upload=${latestMetric.upload}`);
+      } else {
+        // Buscar última métrica geral para debug
+        const allMetrics = await db.select().from(trafficInterfaceMetrics).where(eq(trafficInterfaceMetrics.linkId, linkId)).orderBy(trafficInterfaceMetrics.timestamp).limit(5);
+        if (allMetrics.length > 0) {
+          console.log(`[API] Últimas 5 métricas do link (fora do período):`, allMetrics.map(m => ({ ts: m.timestamp, id: m.trafficInterfaceId })));
+        } else {
+          console.log(`[API] Nenhuma métrica encontrada para link ${linkId} em qualquer período`);
+        }
+      }
       
       // Agrupar métricas por interface
       const result = interfaces.map((iface) => {
