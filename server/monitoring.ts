@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators } from "@shared/schema";
 import { eq, and, not, like, gte, isNotNull } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
@@ -492,6 +492,8 @@ interface SystemResourceResult {
 }
 
 const previousTrafficData = new Map<number, TrafficResult>();
+// Cache para interfaces de tráfego adicionais - chave: "linkId-interfaceId"
+const previousAdditionalTrafficData = new Map<string, TrafficResult>();
 
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
@@ -2236,6 +2238,86 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         ? getOpticalStatus(collectedMetrics.opticalSignal.rxPower, link.opticalRxBaseline, link.opticalDeltaThreshold ?? 3)
         : null,
     });
+
+    // Coletar métricas de interfaces de tráfego adicionais
+    try {
+      const additionalInterfaces = await db.select()
+        .from(linkTrafficInterfaces)
+        .where(and(
+          eq(linkTrafficInterfaces.linkId, link.id),
+          eq(linkTrafficInterfaces.isEnabled, true)
+        ));
+      
+      if (additionalInterfaces.length > 0) {
+        const metricsToInsert: Array<{linkId: number; trafficInterfaceId: number; download: number; upload: number}> = [];
+        
+        for (const iface of additionalInterfaces) {
+          try {
+            let ifaceIp: string | null = null;
+            let ifaceProfileId: number | null = null;
+            
+            // Determinar IP e perfil SNMP baseado no sourceType
+            if (iface.sourceType === 'manual' && iface.ipAddress) {
+              ifaceIp = iface.ipAddress;
+              ifaceProfileId = iface.snmpProfileId;
+            } else if (iface.sourceType === 'concentrator' && iface.sourceEquipmentId) {
+              const conc = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, iface.sourceEquipmentId)).limit(1);
+              if (conc.length > 0) {
+                ifaceIp = conc[0].ipAddress;
+                ifaceProfileId = conc[0].snmpProfileId;
+              }
+            } else if (iface.sourceType === 'switch' && iface.sourceEquipmentId) {
+              const sw = await db.select().from(switches).where(eq(switches.id, iface.sourceEquipmentId)).limit(1);
+              if (sw.length > 0) {
+                ifaceIp = sw[0].ipAddress;
+                ifaceProfileId = sw[0].snmpProfileId;
+              }
+            }
+            
+            if (!ifaceIp || !ifaceProfileId || !iface.ifIndex) continue;
+            
+            const profile = await getSnmpProfile(ifaceProfileId);
+            if (!profile) continue;
+            
+            const trafficData = await getInterfaceTraffic(ifaceIp, profile, iface.ifIndex);
+            if (!trafficData) continue;
+            
+            const cacheKey = `${link.id}-${iface.id}`;
+            const previousData = previousAdditionalTrafficData.get(cacheKey);
+            
+            if (previousData) {
+              const bandwidth = calculateBandwidth(trafficData, previousData);
+              let download = bandwidth.downloadMbps;
+              let upload = bandwidth.uploadMbps;
+              
+              // Inverter se configurado
+              if (iface.invertBandwidth) {
+                [download, upload] = [upload, download];
+              }
+              
+              metricsToInsert.push({
+                linkId: link.id,
+                trafficInterfaceId: iface.id,
+                download: download * 1000000, // Converter Mbps para bps
+                upload: upload * 1000000,
+              });
+            }
+            
+            previousAdditionalTrafficData.set(cacheKey, trafficData);
+          } catch (ifaceError) {
+            // Silently continue with next interface
+          }
+        }
+        
+        // Inserir métricas em batch
+        if (metricsToInsert.length > 0) {
+          await db.insert(trafficInterfaceMetrics).values(metricsToInsert);
+        }
+      }
+    } catch (additionalError) {
+      // Não falhar a coleta principal por erro nas interfaces adicionais
+      console.error(`[Monitor] ${link.name}: Erro ao coletar interfaces adicionais:`, additionalError);
+    }
 
     console.log(
       `[Monitor] ${link.name}: lat=${safeLatency.toFixed(1)}ms, loss=${safePacketLoss.toFixed(1)}%, status=${collectedMetrics.status}`

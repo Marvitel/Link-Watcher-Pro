@@ -78,6 +78,7 @@ import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck } f
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 import { FirewallManager } from "@/components/firewall-manager";
+import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
 interface SnmpInterface {
   ifIndex: number;
@@ -2241,6 +2242,15 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
           </div>
         )}
       </div>
+
+      {/* Interfaces de Tráfego Adicionais - só mostra para links existentes */}
+      {editingLink?.id && (
+        <TrafficInterfacesManager
+          linkId={editingLink.id}
+          concentrators={activeConcentrators || []}
+          switches={activeSwitches || []}
+        />
+      )}
 
       {/* Seção de CPEs */}
       <div className="border-t pt-4 mt-4">

@@ -23,6 +23,7 @@ import {
   insertClientEventSettingSchema,
   insertCpeSchema,
   insertLinkCpeSchema,
+  insertLinkTrafficInterfaceSchema,
   insertOltSchema,
   insertSwitchSchema,
   insertSnmpConcentratorSchema,
@@ -3652,6 +3653,128 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing CPE from link:", error);
       res.status(500).json({ error: "Falha ao remover CPE do link" });
+    }
+  });
+
+  // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link
+  app.get("/api/links/:linkId/traffic-interfaces", requireAuth, async (req, res) => {
+    try {
+      const { allowed } = await validateLinkAccess(req, parseInt(req.params.linkId, 10));
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const interfaces = await storage.getLinkTrafficInterfaces(linkId);
+      res.json(interfaces);
+    } catch (error) {
+      console.error("Error fetching link traffic interfaces:", error);
+      res.status(500).json({ error: "Falha ao buscar interfaces de tráfego" });
+    }
+  });
+
+  app.post("/api/links/:linkId/traffic-interfaces", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem adicionar interfaces de tráfego" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const data = insertLinkTrafficInterfaceSchema.parse({ ...req.body, linkId });
+      const iface = await storage.createLinkTrafficInterface(data);
+      res.json(iface);
+    } catch (error) {
+      console.error("Error creating link traffic interface:", error);
+      res.status(400).json({ error: "Falha ao criar interface de tráfego" });
+    }
+  });
+
+  app.patch("/api/links/:linkId/traffic-interfaces/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem editar interfaces de tráfego" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getLinkTrafficInterface(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Interface de tráfego não encontrada" });
+      }
+      // Verificar se a interface pertence ao link especificado
+      if (existing.linkId !== linkId) {
+        return res.status(403).json({ error: "Interface não pertence ao link especificado" });
+      }
+      const iface = await storage.updateLinkTrafficInterface(id, req.body);
+      res.json(iface);
+    } catch (error) {
+      console.error("Error updating link traffic interface:", error);
+      res.status(400).json({ error: "Falha ao atualizar interface de tráfego" });
+    }
+  });
+
+  app.delete("/api/links/:linkId/traffic-interfaces/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem excluir interfaces de tráfego" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      const id = parseInt(req.params.id, 10);
+      const existing = await storage.getLinkTrafficInterface(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Interface de tráfego não encontrada" });
+      }
+      // Verificar se a interface pertence ao link especificado
+      if (existing.linkId !== linkId) {
+        return res.status(403).json({ error: "Interface não pertence ao link especificado" });
+      }
+      await storage.deleteLinkTrafficInterface(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting link traffic interface:", error);
+      res.status(500).json({ error: "Falha ao excluir interface de tráfego" });
+    }
+  });
+
+  // Métricas das interfaces de tráfego adicionais
+  app.get("/api/links/:linkId/traffic-interface-metrics", requireAuth, async (req, res) => {
+    try {
+      const { allowed } = await validateLinkAccess(req, parseInt(req.params.linkId, 10));
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const linkId = parseInt(req.params.linkId, 10);
+      
+      // Suportar período via hours ou intervalo personalizado via from/to
+      let startTime: Date;
+      let endTime: Date;
+      
+      if (req.query.from && req.query.to) {
+        startTime = new Date(req.query.from as string);
+        endTime = new Date(req.query.to as string);
+      } else {
+        const hours = req.query.hours ? parseInt(req.query.hours as string, 10) : 1;
+        endTime = new Date();
+        startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+      }
+      
+      // Buscar interfaces configuradas e suas métricas
+      const interfaces = await storage.getEnabledLinkTrafficInterfaces(linkId);
+      const metricsData = await storage.getTrafficInterfaceMetrics(linkId, startTime, endTime);
+      
+      // Agrupar métricas por interface
+      const result = interfaces.map((iface) => ({
+        interface: {
+          id: iface.id,
+          label: iface.label,
+          color: iface.color,
+          displayOrder: iface.displayOrder,
+          invertBandwidth: iface.invertBandwidth,
+        },
+        metrics: metricsData.filter((m) => m.trafficInterfaceId === iface.id),
+      }));
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching traffic interface metrics:", error);
+      res.status(500).json({ error: "Falha ao buscar métricas de interfaces de tráfego" });
     }
   });
 

@@ -36,6 +36,8 @@ import {
   blacklistChecks,
   cpes,
   linkCpes,
+  linkTrafficInterfaces,
+  trafficInterfaceMetrics,
   type Client,
   type User,
   type Link,
@@ -92,6 +94,10 @@ import {
   type InsertLinkCpe,
   type Cpe,
   type LinkCpe,
+  type LinkTrafficInterface,
+  type InsertLinkTrafficInterface,
+  type TrafficInterfaceMetric,
+  type InsertTrafficInterfaceMetric,
   type RadiusGroupMapping,
   type InsertRadiusGroupMapping,
   type SLAIndicator,
@@ -2624,6 +2630,73 @@ export class DatabaseStorage {
   async updateLinkCpe(id: number, data: Partial<InsertLinkCpe>): Promise<LinkCpe | undefined> {
     const [assoc] = await db.update(linkCpes).set(data).where(eq(linkCpes.id, id)).returning();
     return assoc;
+  }
+
+  // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link
+  async getLinkTrafficInterfaces(linkId: number): Promise<LinkTrafficInterface[]> {
+    return await db.select()
+      .from(linkTrafficInterfaces)
+      .where(eq(linkTrafficInterfaces.linkId, linkId))
+      .orderBy(linkTrafficInterfaces.displayOrder);
+  }
+
+  async getLinkTrafficInterface(id: number): Promise<LinkTrafficInterface | undefined> {
+    const [iface] = await db.select().from(linkTrafficInterfaces).where(eq(linkTrafficInterfaces.id, id));
+    return iface;
+  }
+
+  async createLinkTrafficInterface(data: InsertLinkTrafficInterface): Promise<LinkTrafficInterface> {
+    const [iface] = await db.insert(linkTrafficInterfaces).values(data).returning();
+    return iface;
+  }
+
+  async updateLinkTrafficInterface(id: number, data: Partial<InsertLinkTrafficInterface>): Promise<LinkTrafficInterface | undefined> {
+    const [iface] = await db.update(linkTrafficInterfaces)
+      .set(data)
+      .where(eq(linkTrafficInterfaces.id, id))
+      .returning();
+    return iface;
+  }
+
+  async deleteLinkTrafficInterface(id: number): Promise<void> {
+    await db.delete(linkTrafficInterfaces).where(eq(linkTrafficInterfaces.id, id));
+  }
+
+  async getEnabledLinkTrafficInterfaces(linkId: number): Promise<LinkTrafficInterface[]> {
+    return await db.select()
+      .from(linkTrafficInterfaces)
+      .where(and(
+        eq(linkTrafficInterfaces.linkId, linkId),
+        eq(linkTrafficInterfaces.isEnabled, true)
+      ))
+      .orderBy(linkTrafficInterfaces.displayOrder);
+  }
+
+  // Traffic Interface Metrics - Métricas das interfaces de tráfego adicionais
+  async createTrafficInterfaceMetric(data: InsertTrafficInterfaceMetric): Promise<TrafficInterfaceMetric> {
+    const [metric] = await db.insert(trafficInterfaceMetrics).values(data).returning();
+    return metric;
+  }
+
+  async createTrafficInterfaceMetrics(data: InsertTrafficInterfaceMetric[]): Promise<void> {
+    if (data.length === 0) return;
+    await db.insert(trafficInterfaceMetrics).values(data);
+  }
+
+  async getTrafficInterfaceMetrics(linkId: number, startTime: Date, endTime: Date): Promise<TrafficInterfaceMetric[]> {
+    return await db.select()
+      .from(trafficInterfaceMetrics)
+      .where(and(
+        eq(trafficInterfaceMetrics.linkId, linkId),
+        gte(trafficInterfaceMetrics.timestamp, startTime),
+        lte(trafficInterfaceMetrics.timestamp, endTime)
+      ))
+      .orderBy(trafficInterfaceMetrics.timestamp);
+  }
+
+  async deleteOldTrafficInterfaceMetrics(olderThan: Date): Promise<void> {
+    await db.delete(trafficInterfaceMetrics)
+      .where(lt(trafficInterfaceMetrics.timestamp, olderThan));
   }
 }
 

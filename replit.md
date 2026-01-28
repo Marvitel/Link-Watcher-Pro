@@ -37,6 +37,14 @@ Links support three traffic data sources configured via `trafficSourceType`:
 - **Concentrator**: Uses the associated concentrator's IP and profile
 - **Access Point (Switch/PE)**: For L2 links with RSTP where concentrator cannot identify which route is active. Traffic is collected from the access switch using `accessPointId` and `accessPointInterfaceIndex`
 
+### Multiple Traffic Interfaces per Link
+Links can have additional traffic interfaces for composite monitoring (e.g., L2+L3 on same chart):
+- **Table**: `linkTrafficInterfaces` stores additional interfaces with label, color, source type (manual/concentrator/switch), SNMP settings
+- **Metrics**: `trafficInterfaceMetrics` stores collected metrics (download/upload in bps) per interface
+- **Collection**: Monitoring collects metrics from additional interfaces in parallel with main metrics, using per-minute timestamp alignment
+- **Visualization**: `MultiTrafficChart` component renders multiple series with custom colors and legends when additional interfaces exist
+- **Security**: CRUD endpoints validate that interfaces belong to specified link before update/delete operations
+
 ### Link Groups (Grupos de Links)
 Supports grouping links with different profiles:
 - **Redundancy (Ativo/Passivo)**: For failover scenarios, determining status based on active members.

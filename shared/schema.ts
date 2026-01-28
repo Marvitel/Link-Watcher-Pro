@@ -179,6 +179,30 @@ export const links = pgTable("links", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Múltiplas interfaces de tráfego por link para gráficos compostos (ex: L2 + L3 no mesmo gráfico)
+export const linkTrafficInterfaces = pgTable("link_traffic_interfaces", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  label: varchar("label", { length: 100 }).notNull(), // Legenda no gráfico (ex: "L2 Físico", "L3 IPv4")
+  // Tipo de origem: 'manual' (IP+perfil), 'concentrator' (via concentrador), 'switch' (via switch de acesso)
+  sourceType: varchar("source_type", { length: 20 }).notNull().default("manual"),
+  // Para sourceType = 'manual': usar estes campos
+  ipAddress: varchar("ip_address", { length: 45 }), // IP do equipamento para coleta SNMP
+  snmpProfileId: integer("snmp_profile_id"), // Perfil SNMP para coleta
+  // Para sourceType = 'concentrator' ou 'switch': usar este campo
+  sourceEquipmentId: integer("source_equipment_id"), // ID do concentrador ou switch
+  // Dados da interface
+  ifIndex: integer("if_index").notNull(), // Índice da interface SNMP
+  ifName: varchar("if_name", { length: 100 }), // Nome da interface (para referência)
+  ifDescr: text("if_descr"), // Descrição da interface
+  // Configurações de exibição
+  color: varchar("color", { length: 7 }).notNull().default("#3b82f6"), // Cor hex no gráfico
+  displayOrder: integer("display_order").notNull().default(0), // Ordem de exibição
+  invertBandwidth: boolean("invert_bandwidth").notNull().default(false), // Inverter download/upload
+  isEnabled: boolean("is_enabled").notNull().default(true), // Ativar/desativar coleta
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const hosts = pgTable("hosts", {
   id: serial("id").primaryKey(),
   linkId: integer("link_id").notNull(),
@@ -416,6 +440,16 @@ export const metrics = pgTable("metrics", {
   opticalTxPower: real("optical_tx_power"), // Potência TX na ONU
   opticalOltRxPower: real("optical_olt_rx_power"), // Potência RX na OLT (upstream do cliente)
   opticalStatus: varchar("optical_status", { length: 20 }), // normal, warning, critical
+});
+
+// Métricas de interfaces de tráfego adicionais (para gráficos compostos L2+L3)
+export const trafficInterfaceMetrics = pgTable("traffic_interface_metrics", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  trafficInterfaceId: integer("traffic_interface_id").notNull(), // FK para linkTrafficInterfaces
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  download: real("download").notNull(), // bps
+  upload: real("upload").notNull(), // bps
 });
 
 export const metricsHourly = pgTable("metrics_hourly", {
@@ -734,6 +768,8 @@ export const insertCpeSchema = createInsertSchema(cpes).omit({ id: true, created
 export const insertLinkCpeSchema = createInsertSchema(linkCpes).omit({ id: true, createdAt: true });
 export const insertFirewallWhitelistSchema = createInsertSchema(firewallWhitelist).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFirewallSettingsSchema = createInsertSchema(firewallSettings).omit({ id: true, updatedAt: true });
+export const insertLinkTrafficInterfaceSchema = createInsertSchema(linkTrafficInterfaces).omit({ id: true, createdAt: true });
+export const insertTrafficInterfaceMetricSchema = createInsertSchema(trafficInterfaceMetrics).omit({ id: true, timestamp: true });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -768,6 +804,8 @@ export type InsertCpe = z.infer<typeof insertCpeSchema>;
 export type InsertLinkCpe = z.infer<typeof insertLinkCpeSchema>;
 export type InsertFirewallWhitelist = z.infer<typeof insertFirewallWhitelistSchema>;
 export type InsertFirewallSettings = z.infer<typeof insertFirewallSettingsSchema>;
+export type InsertLinkTrafficInterface = z.infer<typeof insertLinkTrafficInterfaceSchema>;
+export type InsertTrafficInterfaceMetric = z.infer<typeof insertTrafficInterfaceMetricSchema>;
 
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
@@ -802,6 +840,8 @@ export type Cpe = typeof cpes.$inferSelect;
 export type LinkCpe = typeof linkCpes.$inferSelect;
 export type FirewallWhitelist = typeof firewallWhitelist.$inferSelect;
 export type FirewallSettings = typeof firewallSettings.$inferSelect;
+export type LinkTrafficInterface = typeof linkTrafficInterfaces.$inferSelect;
+export type TrafficInterfaceMetric = typeof trafficInterfaceMetrics.$inferSelect;
 
 // ERP Integrations - Global configuration for ERP systems (Voalle, IXC, SGP)
 export const erpIntegrations = pgTable("erp_integrations", {

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart, ChartSeriesVisibility } from "@/components/bandwidth-chart";
+import { MultiTrafficChart } from "@/components/multi-traffic-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
@@ -228,6 +229,70 @@ export default function LinkDetail() {
     enabled: !isNaN(linkId),
     refetchInterval: isCustomRange ? false : 5000, // Não atualizar automaticamente em modo personalizado
   });
+
+  // Query para interfaces de tráfego adicionais
+  interface TrafficInterfaceApiResponse {
+    interface: {
+      id: number;
+      label: string;
+      color: string;
+      displayOrder: number;
+      invertBandwidth: boolean;
+    };
+    metrics: Array<{
+      timestamp: string;
+      download: number;
+      upload: number;
+    }>;
+  }
+
+  interface TrafficInterfaceWithMetrics {
+    id: number;
+    label: string;
+    color: string;
+    invertBandwidth: boolean;
+    metrics: Array<{
+      timestamp: string;
+      download: number;
+      upload: number;
+    }>;
+  }
+
+  const { data: trafficInterfacesData } = useQuery<TrafficInterfaceWithMetrics[]>({
+    queryKey: ["/api/links", linkId, "traffic-interface-metrics", { hours: selectedPeriod, dateRange, isCustomRange }],
+    queryFn: async () => {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      let url = `/api/links/${linkId}/traffic-interface-metrics`;
+      if (isCustomRange && dateRange?.from && dateRange?.to) {
+        url += `?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`;
+      } else {
+        url += `?hours=${selectedPeriod}`;
+      }
+      const res = await fetch(url, {
+        credentials: "include",
+        headers,
+      });
+      if (!res.ok) throw new Error("Failed to fetch traffic interface metrics");
+      const rawData: TrafficInterfaceApiResponse[] = await res.json();
+      // Transform API response to expected format
+      return rawData.map(item => ({
+        id: item.interface.id,
+        label: item.interface.label,
+        color: item.interface.color,
+        invertBandwidth: item.interface.invertBandwidth,
+        metrics: item.metrics,
+      }));
+    },
+    enabled: !isNaN(linkId),
+    refetchInterval: isCustomRange ? false : 5000,
+  });
+
+  const additionalInterfaces = trafficInterfacesData || [];
+  const hasAdditionalInterfaces = additionalInterfaces.length > 0;
 
   // Query de eventos com paginação
   interface LinkEventsResponse {
@@ -817,6 +882,29 @@ export default function LinkDetail() {
                     </span>
                   </div>
                 </>
+              ) : hasAdditionalInterfaces ? (
+                <MultiTrafficChart
+                  mainData={bandwidthData}
+                  mainLabel="Principal"
+                  mainColor="#3b82f6"
+                  invertMainBandwidth={(link as any)?.invertBandwidth}
+                  additionalInterfaces={additionalInterfaces.map(iface => ({
+                    id: iface.id,
+                    label: iface.label,
+                    color: iface.color,
+                    invertBandwidth: iface.invertBandwidth,
+                  }))}
+                  additionalMetrics={additionalInterfaces.flatMap(iface => 
+                    (iface.metrics || []).map(m => ({
+                      trafficInterfaceId: iface.id,
+                      timestamp: m.timestamp,
+                      download: m.download,
+                      upload: m.upload,
+                    }))
+                  )}
+                  height={300}
+                  showLegend={true}
+                />
               ) : (
                 <BandwidthChart data={bandwidthData} height={300} showAxes invertBandwidth={(link as any)?.invertBandwidth} />
               )}
