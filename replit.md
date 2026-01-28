@@ -91,3 +91,26 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 ### Fonts
 - **Inter**: Primary UI font.
 - **JetBrains Mono**: Monospace font.
+
+## Histórico de Versões (Deploy)
+
+### Versão Atual para Deploy
+- **Commit**: `498e8d14` (498e8d1)
+- **Data**: 2026-01-28
+- **Descrição**: Prevent version checks from causing page reloads during development
+
+### Mudanças desde produção (5f1095bb):
+1. Reorganização visual do formulário de cadastro de link (títulos de seção coloridos)
+2. Sistema de gráfico principal configurável (modo primary/single/aggregate)
+3. Correção de loops de reload no sistema de verificação de versão
+4. Remoção de logs de debug em monitoring e charts
+5. **Schema**: Novos campos `mainGraphMode` e `mainGraphInterfaceIds` na tabela links
+
+### Versão em Produção
+- **Commit**: `5f1095bb`
+- **Status**: Estável
+
+### Instruções de Deploy
+1. Fazer backup do banco de dados
+2. Executar `npm run db:push` para aplicar novos campos
+3. Realizar deploy via Replit
