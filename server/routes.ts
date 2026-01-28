@@ -924,6 +924,10 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
+      // Forçar mainGraphMode='primary' na criação (interfaces são adicionadas depois)
+      validatedData.mainGraphMode = 'primary';
+      validatedData.mainGraphInterfaceIds = [];
+      
       const link = await storage.createLink(validatedData);
       
       await logAuditEvent({
@@ -953,6 +957,22 @@ export async function registerRoutes(
       const { allowed } = await validateLinkAccess(req, linkId);
       if (!allowed) {
         return res.status(403).json({ error: "Acesso negado" });
+      }
+      
+      // Validar mainGraphMode e mainGraphInterfaceIds
+      if (req.body.mainGraphMode) {
+        if (req.body.mainGraphMode === 'primary') {
+          // Limpar interfaces quando modo é primary
+          req.body.mainGraphInterfaceIds = [];
+        } else if ((req.body.mainGraphMode === 'single' || req.body.mainGraphMode === 'aggregate')) {
+          // Validar que há pelo menos uma interface selecionada
+          const interfaceIds = req.body.mainGraphInterfaceIds || [];
+          if (!Array.isArray(interfaceIds) || interfaceIds.length === 0) {
+            return res.status(400).json({ 
+              error: `Modo "${req.body.mainGraphMode}" requer pelo menos uma interface selecionada` 
+            });
+          }
+        }
       }
       
       const previousLink = await storage.getLink(linkId);

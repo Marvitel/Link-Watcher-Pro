@@ -74,7 +74,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3 } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 import { FirewallManager } from "@/components/firewall-manager";
@@ -733,6 +733,9 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     opticalTxBaseline: (link as any)?.opticalTxBaseline || "",
     opticalDeltaThreshold: (link as any)?.opticalDeltaThreshold ?? 3,
     sfpType: (link as any)?.sfpType || "",
+    // Configuração do gráfico principal
+    mainGraphMode: (link as any)?.mainGraphMode || "primary",
+    mainGraphInterfaceIds: (link as any)?.mainGraphInterfaceIds || [],
   });
 
   // Modo de coleta SNMP: 'ip' para IP manual, 'concentrator' para concentrador, 'accessPoint' para ponto de acesso
@@ -2252,6 +2255,16 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         />
       )}
 
+      {/* Configuração do Gráfico Principal - só mostra para links existentes */}
+      {link?.id && (
+        <MainGraphConfigSection
+          linkId={link.id}
+          mainGraphMode={formData.mainGraphMode}
+          mainGraphInterfaceIds={formData.mainGraphInterfaceIds}
+          onChange={(mode, ids) => setFormData({ ...formData, mainGraphMode: mode, mainGraphInterfaceIds: ids })}
+        />
+      )}
+
       {/* Seção de CPEs */}
       <div className="border-t pt-4 mt-4">
         <div className="flex items-center justify-between mb-3">
@@ -3301,6 +3314,135 @@ const DB_TYPES = [
   { value: "postgresql", label: "PostgreSQL" },
   { value: "sqlserver", label: "SQL Server" },
 ];
+
+// Componente para configurar a fonte do gráfico principal
+function MainGraphConfigSection({ 
+  linkId, 
+  mainGraphMode, 
+  mainGraphInterfaceIds,
+  onChange 
+}: { 
+  linkId: number; 
+  mainGraphMode: string;
+  mainGraphInterfaceIds: number[];
+  onChange: (mode: string, ids: number[]) => void;
+}) {
+  // Buscar interfaces de tráfego disponíveis para este link
+  const { data: trafficInterfaces } = useQuery<Array<{id: number; label: string; sourceType: string; isEnabled: boolean}>>({
+    queryKey: ['/api/link-traffic-interfaces', linkId],
+    enabled: !!linkId,
+  });
+
+  const enabledInterfaces = trafficInterfaces?.filter(i => i.isEnabled) || [];
+
+  // Se não há interfaces adicionais, não mostra a seção
+  if (enabledInterfaces.length === 0) {
+    return null;
+  }
+
+  const handleModeChange = (mode: string) => {
+    if (mode === 'primary') {
+      onChange(mode, []);
+    } else {
+      onChange(mode, mainGraphInterfaceIds);
+    }
+  };
+
+  const handleInterfaceToggle = (interfaceId: number) => {
+    const newIds = mainGraphInterfaceIds.includes(interfaceId)
+      ? mainGraphInterfaceIds.filter(id => id !== interfaceId)
+      : [...mainGraphInterfaceIds, interfaceId];
+    onChange(mainGraphMode, newIds);
+  };
+
+  return (
+    <div className="border-t pt-4 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-medium flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" />
+          Gráfico Principal
+        </h4>
+        <Badge variant="secondary">
+          {mainGraphMode === 'primary' ? 'Coleta Padrão' : 
+           mainGraphMode === 'single' ? 'Interface Única' : 'Agregação'}
+        </Badge>
+      </div>
+
+      <div className="space-y-3">
+        <div className="text-sm text-muted-foreground mb-2">
+          Define a fonte de dados do gráfico principal do link.
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={mainGraphMode === 'primary' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleModeChange('primary')}
+            data-testid="btn-mode-primary"
+          >
+            Coleta Padrão
+          </Button>
+          <Button
+            type="button"
+            variant={mainGraphMode === 'single' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleModeChange('single')}
+            data-testid="btn-mode-single"
+          >
+            Interface Única
+          </Button>
+          <Button
+            type="button"
+            variant={mainGraphMode === 'aggregate' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleModeChange('aggregate')}
+            data-testid="btn-mode-aggregate"
+          >
+            Agregação
+          </Button>
+        </div>
+
+        {/* Seleção de interfaces - só mostra se não for 'primary' */}
+        {mainGraphMode !== 'primary' && (
+          <div className="mt-3 p-3 bg-muted/50 rounded-md space-y-2">
+            <div className="text-sm font-medium mb-2">
+              {mainGraphMode === 'single' ? 'Selecione a interface:' : 'Selecione as interfaces para agregar:'}
+            </div>
+            {enabledInterfaces.map(iface => (
+              <div key={iface.id} className="flex items-center justify-between py-1">
+                <Label className="cursor-pointer flex-1">
+                  {iface.label}
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({iface.sourceType === 'manual' ? 'IP Manual' : 
+                      iface.sourceType === 'concentrator' ? 'Concentrador' : 'Switch'})
+                  </span>
+                </Label>
+                <Switch
+                  checked={mainGraphInterfaceIds.includes(iface.id)}
+                  onCheckedChange={() => {
+                    if (mainGraphMode === 'single') {
+                      onChange(mainGraphMode, mainGraphInterfaceIds.includes(iface.id) ? [] : [iface.id]);
+                    } else {
+                      handleInterfaceToggle(iface.id);
+                    }
+                  }}
+                  data-testid={`switch-iface-${iface.id}`}
+                />
+              </div>
+            ))}
+            
+            {mainGraphInterfaceIds.length === 0 && mainGraphMode !== 'primary' && (
+              <div className="text-xs text-amber-600 mt-2">
+                Selecione pelo menos uma interface.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
   const { toast } = useToast();
