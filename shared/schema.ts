@@ -178,6 +178,17 @@ export const links = pgTable("links", {
   isL2Link: boolean("is_l2_link").notNull().default(false),
   // Integração OZmap - Etiqueta do cliente no OZmap para rastreamento de fibra
   ozmapTag: varchar("ozmap_tag", { length: 100 }),
+  // Dados de splitter e rota vindos do OZmap (auto-preenchidos, prioridade sobre Zabbix)
+  ozmapSplitterName: varchar("ozmap_splitter_name", { length: 150 }), // Nome do splitter do OZmap
+  ozmapSplitterPort: varchar("ozmap_splitter_port", { length: 20 }), // Porta do splitter do OZmap
+  ozmapDistance: real("ozmap_distance"), // Distância total em km (do OZmap)
+  ozmapArrivingPotency: real("ozmap_arriving_potency"), // Potência de chegada calculada (dBm)
+  ozmapAttenuation: real("ozmap_attenuation"), // Atenuação total (dB)
+  ozmapOltName: varchar("ozmap_olt_name", { length: 150 }), // Nome da OLT do OZmap
+  ozmapSlot: integer("ozmap_slot"), // Slot da OLT
+  ozmapPort: integer("ozmap_port"), // Porta da OLT
+  ozmapPonReached: boolean("ozmap_pon_reached"), // Se a PON foi alcançada
+  ozmapLastSync: timestamp("ozmap_last_sync"), // Última sincronização com OZmap
   // Modo do gráfico principal: 'primary' (coleta atual), 'single' (uma interface), 'aggregate' (soma de interfaces)
   mainGraphMode: varchar("main_graph_mode", { length: 20 }).notNull().default("primary"),
   // IDs das interfaces adicionais para agregação (usado quando mainGraphMode = 'aggregate' ou 'single')

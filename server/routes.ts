@@ -5727,6 +5727,79 @@ export async function registerRoutes(
         console.log("[OZmap] Could not fetch route data:", routeError);
       }
       
+      // Extrair e salvar dados do OZmap no link (prioridade sobre Zabbix)
+      if (Array.isArray(data) && data.length > 0) {
+        const potencyItem = data[0];
+        
+        // Extrair informações de splitter e OLT dos elementos da rota
+        let splitterName: string | null = null;
+        let splitterPort: string | null = null;
+        let oltName: string | null = null;
+        let oltSlot: number | null = null;
+        let oltPort: number | null = null;
+        
+        if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
+          for (const elem of potencyItem.elements) {
+            // Procurar por splitter
+            if (elem.element?.kind === 'Splitter') {
+              splitterName = elem.parent?.name || elem.element?.name || null;
+              if (elem.element?.port) {
+                splitterPort = String(elem.element.port);
+              }
+            }
+            // Procurar por OLT (geralmente o último elemento da rota ou marcado como OLT)
+            if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase().includes('olt')) {
+              oltName = elem.parent?.name || elem.element?.name || null;
+              if (elem.element?.slot !== undefined) {
+                oltSlot = parseInt(String(elem.element.slot), 10);
+              }
+              if (elem.element?.port !== undefined) {
+                oltPort = parseInt(String(elem.element.port), 10);
+              }
+            }
+          }
+        }
+        
+        // Se a resposta tiver dados de OLT no nível superior
+        if (potencyItem.olt_name) {
+          oltName = potencyItem.olt_name;
+        }
+        if (potencyItem.slot !== undefined) {
+          oltSlot = potencyItem.slot;
+        }
+        if (potencyItem.port !== undefined) {
+          oltPort = potencyItem.port;
+        }
+        
+        // Atualizar o link com os dados do OZmap
+        const ozmapUpdate: any = {
+          ozmapDistance: potencyItem.distance || null,
+          ozmapArrivingPotency: potencyItem.arriving_potency || null,
+          ozmapAttenuation: potencyItem.attenuation || null,
+          ozmapPonReached: potencyItem.pon_reached || false,
+          ozmapLastSync: new Date(),
+        };
+        
+        // Só atualizar se tiver dados
+        if (splitterName) ozmapUpdate.ozmapSplitterName = splitterName;
+        if (splitterPort) ozmapUpdate.ozmapSplitterPort = splitterPort;
+        if (oltName) ozmapUpdate.ozmapOltName = oltName;
+        if (oltSlot !== null) ozmapUpdate.ozmapSlot = oltSlot;
+        if (oltPort !== null) ozmapUpdate.ozmapPort = oltPort;
+        
+        // Usar potência de chegada do OZmap como baseline se não tiver
+        if (potencyItem.arriving_potency && !link.opticalRxBaseline) {
+          ozmapUpdate.opticalRxBaseline = potencyItem.arriving_potency;
+        }
+        
+        try {
+          await storage.updateLink(linkId, ozmapUpdate);
+          console.log(`[OZmap] Link ${linkId} atualizado:`, ozmapUpdate);
+        } catch (updateError) {
+          console.error(`[OZmap] Erro ao atualizar link ${linkId}:`, updateError);
+        }
+      }
+      
       res.json({
         linkId,
         ozmapTag,

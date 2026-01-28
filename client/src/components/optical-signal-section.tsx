@@ -449,28 +449,40 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
         )}
       </div>
 
-      {(link.zabbixSplitterName || link.zabbixSplitterPort || link.zabbixOnuDistance) && (
+      {/* Dados de Splitter - Prioridade OZmap > Zabbix */}
+      {((link as any).ozmapSplitterName || (link as any).ozmapDistance || link.zabbixSplitterName || link.zabbixSplitterPort || link.zabbixOnuDistance) && (
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-2">
             <Network className="w-5 h-5 text-orange-500" />
             <CardTitle className="text-base">Dados do Splitter</CardTitle>
+            {/* Badge indicando fonte dos dados */}
+            {(link as any).ozmapSplitterName || (link as any).ozmapDistance ? (
+              <Badge variant="default" className="text-xs bg-green-600">OZmap</Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs">Zabbix</Badge>
+            )}
             <Tooltip>
               <TooltipTrigger>
                 <Info className="w-4 h-4 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Informações do splitter obtidas automaticamente do Zabbix</p>
+                <p>
+                  {(link as any).ozmapSplitterName || (link as any).ozmapDistance 
+                    ? "Informações do splitter obtidas automaticamente do OZmap (prioridade)"
+                    : "Informações do splitter obtidas automaticamente do Zabbix"
+                  }
+                </p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Splitter</p>
                   <p className="text-sm font-medium" data-testid="text-splitter-name">
-                    {link.zabbixSplitterName || "—"}
+                    {(link as any).ozmapSplitterName || link.zabbixSplitterName || "—"}
                   </p>
                 </div>
               </div>
@@ -479,7 +491,7 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                 <div>
                   <p className="text-xs text-muted-foreground">Porta</p>
                   <p className="text-sm font-medium" data-testid="text-splitter-port">
-                    {link.zabbixSplitterPort || "—"}
+                    {(link as any).ozmapSplitterPort || link.zabbixSplitterPort || "—"}
                   </p>
                 </div>
               </div>
@@ -488,16 +500,41 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                 <div>
                   <p className="text-xs text-muted-foreground">Distância</p>
                   <p className="text-sm font-medium" data-testid="text-onu-distance">
-                    {link.zabbixOnuDistance ? `${link.zabbixOnuDistance} km` : "—"}
+                    {(link as any).ozmapDistance 
+                      ? `${((link as any).ozmapDistance as number).toFixed(2)} km` 
+                      : (link.zabbixOnuDistance ? `${link.zabbixOnuDistance} km` : "—")
+                    }
                   </p>
                 </div>
               </div>
+              {/* OLT info do OZmap */}
+              {(link as any).ozmapOltName && (
+                <div className="flex items-center gap-2">
+                  <Radio className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">OLT</p>
+                    <p className="text-sm font-medium" data-testid="text-olt-name">
+                      {(link as any).ozmapOltName}
+                      {(link as any).ozmapSlot !== undefined && (link as any).ozmapPort !== undefined && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          (S{(link as any).ozmapSlot}/P{(link as any).ozmapPort})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            {link.zabbixLastSync && (
+            {/* Timestamp de sincronização */}
+            {((link as any).ozmapLastSync || link.zabbixLastSync) && (
               <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
                 <Clock className="w-3 h-3" />
                 <span>
-                  Última sincronização: {format(new Date(link.zabbixLastSync), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                  Última sincronização: {format(
+                    new Date((link as any).ozmapLastSync || link.zabbixLastSync), 
+                    "dd/MM/yyyy HH:mm", 
+                    { locale: ptBR }
+                  )}
                 </span>
               </div>
             )}
