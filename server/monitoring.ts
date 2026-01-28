@@ -2728,6 +2728,23 @@ async function syncWanguardForAllClients(): Promise<void> {
 
 // Sincronização automática do OZmap para dados de splitter, OLT e rota de fibra
 let ozmapSyncInterval: ReturnType<typeof setInterval> | null = null;
+let currentOzmapIntervalMinutes: number = 5;
+
+async function getOzmapSyncInterval(): Promise<number> {
+  try {
+    const integration = await db
+      .select({ syncIntervalMinutes: externalIntegrations.syncIntervalMinutes })
+      .from(externalIntegrations)
+      .where(eq(externalIntegrations.provider, "ozmap"))
+      .limit(1);
+    
+    return integration.length > 0 && integration[0].syncIntervalMinutes 
+      ? integration[0].syncIntervalMinutes 
+      : 5;
+  } catch {
+    return 5;
+  }
+}
 
 async function syncOzmapForAllLinks(): Promise<void> {
   try {
@@ -2740,6 +2757,17 @@ async function syncOzmapForAllLinks(): Promise<void> {
     
     if (integration.length === 0 || !integration[0].apiKey || !integration[0].apiUrl || !integration[0].isActive) {
       return; // OZmap não configurado ou inativo
+    }
+    
+    // Verificar se o intervalo mudou
+    const newInterval = integration[0].syncIntervalMinutes || 5;
+    if (newInterval !== currentOzmapIntervalMinutes && ozmapSyncInterval) {
+      currentOzmapIntervalMinutes = newInterval;
+      clearInterval(ozmapSyncInterval);
+      ozmapSyncInterval = setInterval(() => {
+        syncOzmapForAllLinks();
+      }, currentOzmapIntervalMinutes * 60 * 1000);
+      console.log(`[OZmap Auto-Sync] Intervalo atualizado para ${currentOzmapIntervalMinutes} minutos`);
     }
 
     const ozmapConfig = integration[0];
@@ -2894,13 +2922,16 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
     syncWanguardForAllClients();
   }, 60 * 1000);
   
-  // Sincronização do OZmap a cada 5 minutos (dados de fibra não mudam frequentemente)
-  ozmapSyncInterval = setInterval(() => {
-    syncOzmapForAllLinks();
-  }, 5 * 60 * 1000);
+  // Sincronização do OZmap - intervalo configurável
+  getOzmapSyncInterval().then((intervalMinutes) => {
+    currentOzmapIntervalMinutes = intervalMinutes;
+    ozmapSyncInterval = setInterval(() => {
+      syncOzmapForAllLinks();
+    }, intervalMinutes * 60 * 1000);
+    console.log(`[OZmap Auto-Sync] Sincronização automática iniciada (${intervalMinutes}min)`);
+  });
   
   console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (60s)`);
-  console.log(`[OZmap Auto-Sync] Sincronização automática iniciada (5min)`);
 }
 
 export function stopMonitoring(): void {

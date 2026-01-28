@@ -3352,6 +3352,7 @@ function OZmapIntegration() {
     isActive: true,
     apiKey: "",
     apiUrl: "https://marvitel.ozmap.com.br:9994",
+    syncIntervalMinutes: 5,
   });
 
   useEffect(() => {
@@ -3362,6 +3363,7 @@ function OZmapIntegration() {
         isActive: ozmapIntegration.isActive,
         apiKey: "",
         apiUrl: ozmapIntegration.apiUrl || "https://marvitel.ozmap.com.br:9994",
+        syncIntervalMinutes: ozmapIntegration.syncIntervalMinutes || 5,
       });
     }
   }, [ozmapIntegration]);
@@ -3430,6 +3432,7 @@ function OZmapIntegration() {
         name: formData.name,
         isActive: formData.isActive,
         apiUrl: formData.apiUrl,
+        syncIntervalMinutes: formData.syncIntervalMinutes,
       };
       if (formData.apiKey) {
         updateData.apiKey = formData.apiKey;
@@ -3498,6 +3501,25 @@ function OZmapIntegration() {
             >
               {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ozmap-sync-interval">Intervalo de Sincronização Automática (minutos)</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="ozmap-sync-interval"
+              type="number"
+              min="1"
+              max="60"
+              value={formData.syncIntervalMinutes}
+              onChange={(e) => setFormData({ ...formData, syncIntervalMinutes: parseInt(e.target.value) || 5 })}
+              className="w-24"
+              data-testid="input-ozmap-sync-interval"
+            />
+            <span className="text-sm text-muted-foreground">
+              Os dados de splitter, OLT e rota serão sincronizados automaticamente
+            </span>
           </div>
         </div>
 

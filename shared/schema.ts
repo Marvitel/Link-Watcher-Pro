@@ -1161,11 +1161,12 @@ export interface LinkDashboardSummary {
 export const externalIntegrations = pgTable("external_integrations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  provider: varchar("provider", { length: 50 }).notNull(), // hetrixtools, etc.
+  provider: varchar("provider", { length: 50 }).notNull(), // hetrixtools, ozmap, etc.
   isActive: boolean("is_active").notNull().default(true),
   apiKey: text("api_key"),
   apiUrl: text("api_url"),
-  checkIntervalHours: integer("check_interval_hours").notNull().default(12), // Intervalo de verificação automática em horas
+  checkIntervalHours: integer("check_interval_hours").notNull().default(12), // Intervalo de verificação automática em horas (HetrixTools)
+  syncIntervalMinutes: integer("sync_interval_minutes").notNull().default(5), // Intervalo de sincronização em minutos (OZmap)
   lastTestedAt: timestamp("last_tested_at"),
   lastTestStatus: varchar("last_test_status", { length: 20 }),
   lastTestError: text("last_test_error"),
