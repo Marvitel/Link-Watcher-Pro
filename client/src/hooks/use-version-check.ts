@@ -7,6 +7,8 @@ const VERSION_STORAGE_KEY = "link_monitor_app_version";
 const ROUTE_RESTORE_KEY = "link_monitor_restore_route";
 const KIOSK_RELOAD_KEY = "link_monitor_kiosk_last_reload";
 const KIOSK_RELOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 horas em ms
+const RELOAD_COOLDOWN_KEY = "link_monitor_last_reload_time";
+const RELOAD_COOLDOWN_MS = 10000; // Mínimo 10 segundos entre reloads
 
 // Verifica se está em modo kiosk via URL param
 export function isKioskMode(): boolean {
@@ -38,8 +40,24 @@ interface VersionResponse {
   message: string;
 }
 
+// Verifica se estamos em período de cooldown para evitar loops de reload
+function isInReloadCooldown(): boolean {
+  const lastReload = localStorage.getItem(RELOAD_COOLDOWN_KEY);
+  if (!lastReload) return false;
+  const elapsed = Date.now() - parseInt(lastReload, 10);
+  return elapsed < RELOAD_COOLDOWN_MS;
+}
+
 // Função para limpar todo o cache e forçar reload limpo
 function performCleanReload(newVersion: string) {
+  // Proteção contra loops de reload
+  if (isInReloadCooldown()) {
+    console.log(`[Version] Reload bloqueado - cooldown ativo`);
+    // Apenas salvar a nova versão sem recarregar
+    localStorage.setItem(VERSION_STORAGE_KEY, newVersion);
+    return;
+  }
+  
   console.log(`[Version] Limpando cache e recarregando para versão ${newVersion}`);
   
   // 1. Salvar rota atual antes do reload (para restauração)
@@ -51,12 +69,15 @@ function performCleanReload(newVersion: string) {
   // 3. Salvar nova versão no localStorage
   localStorage.setItem(VERSION_STORAGE_KEY, newVersion);
   
-  // 4. Atualizar timestamp do último reload em modo kiosk
+  // 4. Registrar timestamp do reload para cooldown
+  localStorage.setItem(RELOAD_COOLDOWN_KEY, Date.now().toString());
+  
+  // 5. Atualizar timestamp do último reload em modo kiosk
   if (isKioskMode()) {
     localStorage.setItem(KIOSK_RELOAD_KEY, Date.now().toString());
   }
   
-  // 5. Forçar reload completo (bypass browser cache)
+  // 6. Forçar reload completo (bypass browser cache)
   window.location.reload();
 }
 

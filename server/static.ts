@@ -27,6 +27,13 @@ export function getBuildVersion(): string {
   // Retorna versão cacheada se já calculada (estável durante sessão do servidor)
   if (cachedBuildVersion) return cachedBuildVersion;
   
+  // Em desenvolvimento, usar versão fixa para evitar reloads em loop
+  if (process.env.NODE_ENV === 'development') {
+    cachedBuildVersion = 'dev-stable';
+    console.log(`[Version] Build version (dev): ${cachedBuildVersion}`);
+    return cachedBuildVersion;
+  }
+  
   // Em produção, calcula do hash do index.html
   const distPath = path.resolve(_dirname, "public");
   try {
@@ -35,9 +42,8 @@ export function getBuildVersion(): string {
     const content = fs.readFileSync(indexPath, 'utf-8');
     cachedBuildVersion = crypto.createHash('md5').update(content).digest('hex').substring(0, 8);
   } catch {
-    // Em desenvolvimento ou se arquivo não existe, usa timestamp do start do servidor
-    // Isso é estável durante a sessão, mas muda quando o servidor reinicia
-    cachedBuildVersion = Date.now().toString(36);
+    // Fallback: usar versão fixa
+    cachedBuildVersion = 'build-unknown';
   }
   
   console.log(`[Version] Build version: ${cachedBuildVersion}`);
