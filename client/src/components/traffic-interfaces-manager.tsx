@@ -168,17 +168,23 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
     setDiscoveredInterfaces([]);
     
     try {
-      const res = await fetch(`/api/snmp/discover-interfaces?ip=${encodeURIComponent(ip)}&profileId=${profileId}`, {
+      const res = await fetch(`/api/snmp/discover-interfaces`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ targetIp: ip, snmpProfileId: profileId }),
       });
-      if (!res.ok) throw new Error("Falha na descoberta");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Falha na descoberta");
+      }
       const data = await res.json();
       setDiscoveredInterfaces(data.interfaces || []);
       if (!data.interfaces?.length) {
         toast({ title: "Aviso", description: "Nenhuma interface encontrada", variant: "default" });
       }
-    } catch (error) {
-      toast({ title: "Erro", description: "Falha ao descobrir interfaces SNMP", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message || "Falha ao descobrir interfaces SNMP", variant: "destructive" });
     } finally {
       setIsDiscovering(false);
     }
