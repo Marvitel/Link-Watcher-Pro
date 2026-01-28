@@ -76,6 +76,7 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 - **Wanguard (Andrisoft)**: For DDoS detection and mitigation, integrated via a REST API.
 - **HetrixTools**: For IP/CIDR blacklist monitoring, storing results in `blacklistChecks` and influencing link status.
 - **Voalle ERP**: Dual API integration for ticket/incident management, contract tag retrieval, and client authentication/auto-registration. Voalle Portal passwords are encrypted.
+- **OZmap**: Fiber optic route tracking integration. Uses `ozmapTag` field in links to query OZmap API for potency/route data including splitters, fusions, cables, boxes, DIOs, total length, and calculated optical power. Configuration via Global Integrations (provider "ozmap" in `externalIntegrations` table).
 
 ### Third-Party Libraries
 - **Radix UI**: Accessible component primitives.
@@ -104,7 +105,8 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 2. Sistema de gráfico principal configurável (modo primary/single/aggregate)
 3. Correção de loops de reload no sistema de verificação de versão
 4. Remoção de logs de debug em monitoring e charts
-5. **Schema**: Novos campos `mainGraphMode` e `mainGraphInterfaceIds` na tabela links
+5. **Integração OZmap**: Configuração global + campo ozmapTag no link + visualização de rota de fibra
+6. **Schema**: Novos campos `mainGraphMode`, `mainGraphInterfaceIds`, e `ozmapTag` na tabela links
 
 ### Versão em Produção
 - **Commit**: `5f1095bb`

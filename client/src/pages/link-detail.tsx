@@ -15,6 +15,7 @@ import { MultiTrafficChart } from "@/components/multi-traffic-chart";
 import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
+import { OzmapRouteSection } from "@/components/ozmap-route-section";
 import { XtermTerminal } from "@/components/xterm-terminal";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1357,6 +1358,7 @@ export default function LinkDetail() {
 
         <TabsContent value="optical" className="space-y-4">
           <OpticalSignalSection link={link} metrics={metrics || []} />
+          <OzmapRouteSection link={link} />
         </TabsContent>
 
         <TabsContent value="blacklist" className="space-y-4">
