@@ -175,6 +175,27 @@ export function MultiTrafficChart({
     });
   }, [mainData, additionalInterfaces, additionalMetrics, invertMainBandwidth]);
 
+  // Construir itens da legenda (deve estar antes de qualquer return para regras de hooks)
+  const legendItems = useMemo(() => {
+    const items: Array<{key: string; label: string; color: string; isDashed: boolean}> = [];
+    
+    // Principal
+    const safeMainColor = ensureValidColor(mainColor);
+    items.push({ key: "main_download", label: `${mainLabel || 'Principal'} (Download)`, color: safeMainColor, isDashed: false });
+    items.push({ key: "main_upload", label: `${mainLabel || 'Principal'} (Upload)`, color: safeMainColor, isDashed: true });
+    
+    // Interfaces adicionais
+    additionalInterfaces.forEach((iface) => {
+      if (!iface || !iface.id) return;
+      const safeColor = ensureValidColor(iface.color);
+      const safeLabel = iface.label || `Interface ${iface.id}`;
+      items.push({ key: `iface_${iface.id}_download`, label: `${safeLabel} (Download)`, color: safeColor, isDashed: false });
+      items.push({ key: `iface_${iface.id}_upload`, label: `${safeLabel} (Upload)`, color: safeColor, isDashed: true });
+    });
+    
+    return items;
+  }, [mainLabel, mainColor, additionalInterfaces, ensureValidColor]);
+
   if (!mainData || mainData.length === 0 || chartData.length === 0) {
     return (
       <div 
@@ -282,27 +303,6 @@ export function MultiTrafficChart({
     
     return gradients;
   };
-
-  // Construir itens da legenda
-  const legendItems = useMemo(() => {
-    const items: Array<{key: string; label: string; color: string; isDashed: boolean}> = [];
-    
-    // Principal
-    const safeMainColor = ensureValidColor(mainColor);
-    items.push({ key: "main_download", label: `${mainLabel || 'Principal'} (Download)`, color: safeMainColor, isDashed: false });
-    items.push({ key: "main_upload", label: `${mainLabel || 'Principal'} (Upload)`, color: safeMainColor, isDashed: true });
-    
-    // Interfaces adicionais
-    additionalInterfaces.forEach((iface) => {
-      if (!iface || !iface.id) return;
-      const safeColor = ensureValidColor(iface.color);
-      const safeLabel = iface.label || `Interface ${iface.id}`;
-      items.push({ key: `iface_${iface.id}_download`, label: `${safeLabel} (Download)`, color: safeColor, isDashed: false });
-      items.push({ key: `iface_${iface.id}_upload`, label: `${safeLabel} (Upload)`, color: safeColor, isDashed: true });
-    });
-    
-    return items;
-  }, [mainLabel, mainColor, additionalInterfaces]);
 
   return (
     <div className="flex flex-col" data-testid="multi-traffic-chart">
