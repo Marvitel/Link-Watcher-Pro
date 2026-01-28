@@ -5528,8 +5528,8 @@ export async function registerRoutes(
             baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
           }
 
-          // Testa buscando informações básicas da API
-          const response = await fetch(`${baseUrl}/api/v2/users/me`, {
+          // Testa buscando lista de tipos de caixas (endpoint simples que requer autenticação)
+          const response = await fetch(`${baseUrl}/api/v2/box-types?page=1&limit=1`, {
             method: "GET",
             headers: {
               "Accept": "application/json",
