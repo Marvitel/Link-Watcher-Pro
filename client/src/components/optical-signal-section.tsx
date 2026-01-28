@@ -498,12 +498,9 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
               <div className="flex items-center gap-2">
                 <Ruler className="w-4 h-4 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Distância</p>
+                  <p className="text-xs text-muted-foreground">Distância OLT</p>
                   <p className="text-sm font-medium" data-testid="text-onu-distance">
-                    {(link as any).ozmapDistance 
-                      ? `${((link as any).ozmapDistance as number).toFixed(2)} km` 
-                      : (link.zabbixOnuDistance ? `${link.zabbixOnuDistance} km` : "—")
-                    }
+                    {link.zabbixOnuDistance ? `${link.zabbixOnuDistance} km` : "—"}
                   </p>
                 </div>
               </div>
