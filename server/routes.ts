@@ -5655,9 +5655,10 @@ export async function registerRoutes(
         baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
       }
 
-      const response = await fetch(
-        `${baseUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`,
-        {
+      const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`;
+      console.log("[OZmap] Fetching potency:", { linkId, ozmapTag, url });
+      
+      const response = await fetch(url, {
           method: "GET",
           headers: {
             "Accept": "application/json",
@@ -5676,6 +5677,7 @@ export async function registerRoutes(
       }
 
       const data = await response.json();
+      console.log("[OZmap] Response data:", JSON.stringify(data).substring(0, 500));
       res.json({
         linkId,
         ozmapTag,
