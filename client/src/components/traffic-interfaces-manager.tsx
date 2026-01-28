@@ -92,7 +92,12 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<TrafficInterfaceForm, "id">) => {
-      return apiRequest("POST", `/api/links/${linkId}/traffic-interfaces`, data);
+      const res = await apiRequest("POST", `/api/links/${linkId}/traffic-interfaces`, data);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Falha ao criar interface");
+      }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "traffic-interfaces"] });
@@ -100,22 +105,27 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
       setEditingInterface(null);
       toast({ title: "Interface adicionada", description: "Interface de tráfego criada com sucesso" });
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Falha ao criar interface de tráfego", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message || "Falha ao criar interface de tráfego", variant: "destructive" });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: TrafficInterfaceForm) => {
-      return apiRequest("PATCH", `/api/links/${linkId}/traffic-interfaces/${id}`, data);
+      const res = await apiRequest("PATCH", `/api/links/${linkId}/traffic-interfaces/${id}`, data);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Falha ao atualizar interface");
+      }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "traffic-interfaces"] });
       setEditingInterface(null);
       toast({ title: "Interface atualizada", description: "Interface de tráfego atualizada com sucesso" });
     },
-    onError: () => {
-      toast({ title: "Erro", description: "Falha ao atualizar interface de tráfego", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message || "Falha ao atualizar interface de tráfego", variant: "destructive" });
     },
   });
 
