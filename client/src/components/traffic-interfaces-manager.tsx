@@ -7,10 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Plus, Trash2, Settings2, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Plus, Trash2, Settings2, ChevronDown, ChevronUp, Loader2, Search } from "lucide-react";
 import type { LinkTrafficInterface } from "@shared/schema";
+
+interface SnmpInterface {
+  ifIndex: number;
+  ifName: string;
+  ifDescr: string;
+  ifAlias?: string;
+  ifOperStatus?: string;
+  ifSpeed?: number;
+}
 
 // Tipos simplificados para concentradores e switches
 interface SimpleConcentrator {
@@ -65,6 +75,9 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
   const [isExpanded, setIsExpanded] = useState(false);
   const [editingInterface, setEditingInterface] = useState<TrafficInterfaceForm | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveredInterfaces, setDiscoveredInterfaces] = useState<SnmpInterface[]>([]);
+  const [interfaceSearchTerm, setInterfaceSearchTerm] = useState("");
 
   const { data: interfaces = [], isLoading } = useQuery<LinkTrafficInterface[]>({
     queryKey: ["/api/links", linkId, "traffic-interfaces"],
@@ -118,8 +131,86 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
     },
   });
 
+  const handleDiscoverInterfaces = async () => {
+    if (!editingInterface) return;
+    
+    let ip = "";
+    let profileId: number | null = null;
+    
+    if (editingInterface.sourceType === "manual") {
+      ip = editingInterface.ipAddress;
+      profileId = editingInterface.snmpProfileId;
+    } else if (editingInterface.sourceType === "concentrator" && editingInterface.sourceEquipmentId) {
+      const conc = concentrators.find(c => c.id === editingInterface.sourceEquipmentId);
+      if (conc) {
+        ip = conc.ipAddress;
+        profileId = conc.snmpProfileId;
+      }
+    } else if (editingInterface.sourceType === "switch" && editingInterface.sourceEquipmentId) {
+      const sw = switches.find(s => s.id === editingInterface.sourceEquipmentId);
+      if (sw) {
+        ip = sw.ipAddress;
+        profileId = sw.snmpProfileId;
+      }
+    }
+    
+    if (!ip) {
+      toast({ title: "Erro", description: "Informe o IP ou selecione um equipamento primeiro", variant: "destructive" });
+      return;
+    }
+    
+    if (!profileId) {
+      toast({ title: "Erro", description: "Perfil SNMP não configurado para este equipamento", variant: "destructive" });
+      return;
+    }
+    
+    setIsDiscovering(true);
+    setDiscoveredInterfaces([]);
+    
+    try {
+      const res = await fetch(`/api/snmp/discover-interfaces?ip=${encodeURIComponent(ip)}&profileId=${profileId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Falha na descoberta");
+      const data = await res.json();
+      setDiscoveredInterfaces(data.interfaces || []);
+      if (!data.interfaces?.length) {
+        toast({ title: "Aviso", description: "Nenhuma interface encontrada", variant: "default" });
+      }
+    } catch (error) {
+      toast({ title: "Erro", description: "Falha ao descobrir interfaces SNMP", variant: "destructive" });
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+  
+  const handleSelectInterface = (iface: SnmpInterface) => {
+    if (!editingInterface) return;
+    setEditingInterface({
+      ...editingInterface,
+      ifIndex: iface.ifIndex,
+      ifName: iface.ifName,
+      ifDescr: iface.ifDescr,
+    });
+    setDiscoveredInterfaces([]);
+    setInterfaceSearchTerm("");
+  };
+  
+  const filteredDiscoveredInterfaces = discoveredInterfaces.filter(iface => {
+    if (!interfaceSearchTerm) return true;
+    const term = interfaceSearchTerm.toLowerCase();
+    return (
+      iface.ifName?.toLowerCase().includes(term) ||
+      iface.ifDescr?.toLowerCase().includes(term) ||
+      iface.ifAlias?.toLowerCase().includes(term) ||
+      iface.ifIndex.toString().includes(term)
+    );
+  });
+
   const handleStartAdd = () => {
     setIsAdding(true);
+    setDiscoveredInterfaces([]);
+    setInterfaceSearchTerm("");
     setEditingInterface({
       label: "",
       sourceType: "manual",
@@ -441,6 +532,65 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
                       </Select>
                     </div>
                   )}
+
+                  {/* Botão de descoberta de interfaces */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Interface SNMP *</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDiscoverInterfaces}
+                        disabled={isDiscovering}
+                        data-testid="button-discover-interfaces"
+                      >
+                        {isDiscovering ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4 mr-1" />
+                        )}
+                        Buscar Interfaces
+                      </Button>
+                    </div>
+                    
+                    {/* Lista de interfaces descobertas */}
+                    {discoveredInterfaces.length > 0 && (
+                      <div className="border rounded-md p-2 space-y-2">
+                        <Input
+                          placeholder="Filtrar interfaces..."
+                          value={interfaceSearchTerm}
+                          onChange={(e) => setInterfaceSearchTerm(e.target.value)}
+                          className="h-8"
+                          data-testid="input-filter-interfaces"
+                        />
+                        <ScrollArea className="h-40">
+                          <div className="space-y-1">
+                            {filteredDiscoveredInterfaces.map((iface) => (
+                              <div
+                                key={iface.ifIndex}
+                                className="flex items-center justify-between p-2 rounded hover:bg-muted cursor-pointer text-sm"
+                                onClick={() => handleSelectInterface(iface)}
+                                data-testid={`interface-option-${iface.ifIndex}`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium truncate">
+                                    {iface.ifName || `Interface ${iface.ifIndex}`}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    {iface.ifDescr} {iface.ifAlias && `(${iface.ifAlias})`}
+                                  </div>
+                                </div>
+                                <Badge variant="secondary" className="ml-2 shrink-0">
+                                  #{iface.ifIndex}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
