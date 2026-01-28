@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { getAuthToken } from "@/lib/auth";
 import { Plus, Trash2, Settings2, ChevronDown, ChevronUp, Loader2, Search } from "lucide-react";
 import type { LinkTrafficInterface } from "@shared/schema";
 
@@ -168,9 +169,14 @@ export function TrafficInterfacesManager({ linkId, concentrators, switches }: Tr
     setDiscoveredInterfaces([]);
     
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const token = getAuthToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const res = await fetch(`/api/snmp/discover-interfaces`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         credentials: "include",
         body: JSON.stringify({ targetIp: ip, snmpProfileId: profileId }),
       });
