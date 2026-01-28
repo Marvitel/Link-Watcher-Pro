@@ -2922,8 +2922,8 @@ async function syncOzmapForAllLinks(): Promise<void> {
         if (oltSlot !== null) ozmapUpdate.ozmapSlot = oltSlot;
         if (oltPort !== null) ozmapUpdate.ozmapPort = oltPort;
         
-        // Usar potência do OZmap como baseline se não tiver
-        if (potencyItem.arriving_potency && !link.opticalRxBaseline) {
+        // Usar potência de chegada do OZmap como baseline RX automaticamente
+        if (potencyItem.arriving_potency !== undefined && potencyItem.arriving_potency !== null) {
           ozmapUpdate.opticalRxBaseline = potencyItem.arriving_potency;
         }
         
