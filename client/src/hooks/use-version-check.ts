@@ -102,6 +102,11 @@ export function useVersionCheck() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkVersion = useCallback(async () => {
+    // Em desenvolvimento, desabilitar verificação de versão para evitar reloads
+    if (import.meta.env.DEV) {
+      return;
+    }
+    
     try {
       const kioskMode = isKioskMode();
       
