@@ -65,10 +65,33 @@ interface OzmapPotencyData {
   box_id: string | null;
   arriving_potency: number;
   elements: OzmapRouteElement[];
+  // Estrutura real da API OZmap
+  olt?: {
+    id: string;
+    name: string;
+    label?: string;
+    port?: number;
+    ip?: string;
+  };
+  shelf?: {
+    id: string;
+    name: string;
+    label?: string;
+  };
+  slot?: {
+    id: string;
+    label?: string;
+    number?: string;
+  };
+  pon?: {
+    id: string;
+    name: string;
+    number?: string;
+    maximumClients?: number;
+  };
+  // Campos legados (para compatibilidade)
   olt_id?: string;
   olt_name?: string;
-  slot?: number;
-  port?: number;
 }
 
 interface OzmapRouteSectionProps {
@@ -291,19 +314,27 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   let groupedElements: any[] = [];
   
   // Adicionar OLT como primeiro elemento se existir nos dados do nível superior
-  if (potencyItem.olt_name) {
+  const oltData = potencyItem.olt;
+  const slotData = potencyItem.slot;
+  const ponData = potencyItem.pon;
+  const shelfData = potencyItem.shelf;
+  
+  if (oltData?.name) {
     groupedElements.push({
       type: 'olt',
-      id: potencyItem.olt_id || 'olt-origin',
-      name: potencyItem.olt_name,
-      slot: potencyItem.slot,
-      port: potencyItem.port,
+      id: oltData.id || 'olt-origin',
+      name: oltData.name,
+      slot: slotData?.number,
+      port: ponData?.number || oltData.port,
+      shelf: shelfData?.name,
+      ip: oltData.ip,
       attenuation: 0,
       distance: 0,
     });
   }
 
-  // Processar elementos da rota
+  // Processar elementos da rota (adicionando ao array existente que pode ter OLT)
+  const initialElements = [...groupedElements];
   groupedElements = elements.reduce((acc: any[], element, index) => {
     const kind = element.element.kind;
     
@@ -357,6 +388,9 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
         distance: element.distance,
         port: element.element.port,
       });
+    } else if (kind === 'PON') {
+      // PON - Porta da OLT (não duplicar se já adicionamos OLT)
+      // Geralmente já está representada pela OLT do nível superior
     } else if (kind === 'Passing' || kind === 'Splitter' || kind === 'Fusion' || kind === 'Connector') {
       // Elementos de passagem, splitters, fusões e conectores
       acc.push({
@@ -371,7 +405,7 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
       });
     }
     return acc;
-  }, []);
+  }, initialElements);
 
   const cableCount = groupedElements.filter(e => e.type === 'cable').length;
   const boxCount = groupedElements.filter(e => e.type === 'passing').length;
@@ -562,12 +596,19 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                               Porta {typeof item.port === 'object' ? item.port.number || item.port.label : item.port}
                             </Badge>
                           )}
-                          {item.type === 'olt' && (item.slot !== undefined || item.port !== undefined) && (
-                            <Badge variant="destructive" className="text-xs shrink-0">
-                              {item.slot !== undefined && `Slot ${typeof item.slot === 'object' ? item.slot.number : item.slot}`}
-                              {item.slot !== undefined && item.port !== undefined && ' / '}
-                              {item.port !== undefined && `Porta ${typeof item.port === 'object' ? item.port.number : item.port}`}
-                            </Badge>
+                          {item.type === 'olt' && (item.slot || item.port || item.shelf) && (
+                            <>
+                              {item.shelf && (
+                                <Badge variant="outline" className="text-xs shrink-0">
+                                  {item.shelf}
+                                </Badge>
+                              )}
+                              <Badge variant="destructive" className="text-xs shrink-0">
+                                {item.slot && `Slot ${item.slot}`}
+                                {item.slot && item.port && ' / '}
+                                {item.port && `Porta ${item.port}`}
+                              </Badge>
+                            </>
                           )}
                           {item.type === 'dio' && (item.tray || item.port) && (
                             <Badge variant="secondary" className="text-xs shrink-0">
@@ -609,14 +650,18 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
           </div>
         )}
 
-        {potencyItem.olt_name && (
+        {potencyItem.olt?.name && !oltCount && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
             <Radio className="h-4 w-4 text-red-500" />
             <div>
               <p className="text-xs text-muted-foreground">OLT de Origem</p>
-              <p className="text-sm font-medium">{potencyItem.olt_name}</p>
-              {potencyItem.slot !== undefined && potencyItem.port !== undefined && (
-                <p className="text-xs text-muted-foreground">Slot {potencyItem.slot} / Porta {potencyItem.port}</p>
+              <p className="text-sm font-medium">{potencyItem.olt.name}</p>
+              {(potencyItem.slot?.number || potencyItem.pon?.number) && (
+                <p className="text-xs text-muted-foreground">
+                  {potencyItem.slot?.number && `Slot ${potencyItem.slot.number}`}
+                  {potencyItem.slot?.number && potencyItem.pon?.number && ' / '}
+                  {potencyItem.pon?.number && `Porta ${potencyItem.pon.number}`}
+                </p>
               )}
             </div>
           </div>
