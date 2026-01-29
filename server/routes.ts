@@ -5739,7 +5739,9 @@ export async function registerRoutes(
         let oltPort: number | null = null;
         
         if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
-          console.log(`[OZmap] Link ${linkId}: Processando ${potencyItem.elements.length} elementos`);
+          // Log tipos únicos de elementos para debug
+          const kinds = [...new Set(potencyItem.elements.map((e: any) => e.element?.kind))];
+          console.log(`[OZmap] Link ${linkId}: ${potencyItem.elements.length} elementos, tipos: ${kinds.join(', ')}`);
           // Percorrer todos os elementos para encontrar o ÚLTIMO splitter (mais próximo do cliente)
           for (const elem of potencyItem.elements) {
             // Procurar por splitter - verificar múltiplas estruturas possíveis

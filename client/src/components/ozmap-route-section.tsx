@@ -287,7 +287,24 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
 
   const powerStatus = arrivingPotency ? getPowerStatus(arrivingPotency) : null;
 
-  const groupedElements = elements.reduce((acc: any[], element, index) => {
+  // Criar lista de elementos agrupados
+  let groupedElements: any[] = [];
+  
+  // Adicionar OLT como primeiro elemento se existir nos dados do nível superior
+  if (potencyItem.olt_name) {
+    groupedElements.push({
+      type: 'olt',
+      id: potencyItem.olt_id || 'olt-origin',
+      name: potencyItem.olt_name,
+      slot: potencyItem.slot,
+      port: potencyItem.port,
+      attenuation: 0,
+      distance: 0,
+    });
+  }
+
+  // Processar elementos da rota
+  groupedElements = elements.reduce((acc: any[], element, index) => {
     const kind = element.element.kind;
     
     if (kind === 'Fiber' && element.parent.kind === 'Cable') {

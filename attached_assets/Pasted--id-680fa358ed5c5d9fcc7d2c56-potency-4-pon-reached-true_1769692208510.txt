@@ -1,0 +1,116 @@
+[
+    {
+        "id": "680fa358ed5c5d9fcc7d2c56",
+        "potency": 4,
+        "pon_reached": true,
+        "distance": 7.939024857988229,
+        "box_id": "5ff86d40b1cb1d0014547aa0",
+        "attenuation": 24.585901669097925,
+        "arriving_potency": -20.585901669097925,
+        "olt": {
+            "id": "60db00c8550e160013e017d6",
+            "label": "",
+            "port": 22,
+            "name": "OLT DATACOM 8 PON - POP FABISE",
+            "user": "",
+            "password": "",
+            "ip": "172.26.253.42"
+        },
+        "shelf": {
+            "id": "5ff86d40b1cb1d0014547aa9",
+            "name": "GC20",
+            "label": ""
+        },
+        "slot": {
+            "id": "60db00c8550e160013e017d9",
+            "label": "",
+            "number": "1"
+        },
+        "pon": {
+            "id": "60db00c8550e160013e017dd",
+            "maximumClients": 64,
+            "name": "GC20 - OLT DATACOM 8 PON - POP FABISE - Slot 1 - Porta 2",
+            "number": "2"
+        },
+        "elements": [
+            {
+                "parent": {
+                    "id": "5ff86d40b1cb1d0014547aa0",
+                    "name": "Fabise"
+                },
+                "attenuation": null,
+                "distance": 0,
+                "element": {
+                    "id": "60db00c8550e160013e017dd",
+                    "index": "2",
+                    "name": "GC20 - OLT DATACOM 8 PON - POP FABISE - Slot 1 - Porta 2",
+                    "kind": "PON",
+                    "connectables": [
+                        "60db00c8550e160013e017de",
+                        "60facf749f1e5a0014b59d2c"
+                    ]
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 0,
+                        "km": 0,
+                        "ft": 0,
+                        "mi": 0
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 0,
+                "element": {
+                    "id": "5ff8aa05b1cb1d0014559cf4",
+                    "name": "POP FABISE | DIO 24FO",
+                    "kind": "DIO",
+                    "label": "",
+                    "tray": 1,
+                    "port": 5,
+                    "connectables": null,
+                    "shelf": null
+                },
+                "parent": {
+                    "id": "5ff86d40b1cb1d0014547aa0",
+                    "name": "Fabise"
+                },
+                "_convertedValues": {
+                    "distance": {
+                        "m": 0,
+                        "km": 0,
+                        "ft": 0,
+                        "mi": 0
+                    }
+                }
+            },
+            {
+                "element": {
+                    "name": "L1-F5",
+                    "kind": "Fiber",
+                    "id": "5ff87142b1cb1d0014548dd8",
+                    "observation": null
+                },
+                "parent": {
+                    "name": "24FO - POP FABISE",
+                    "id": "5ff87142b1cb1d0014548dd3",
+                    "length": 0.31740489832174457,
+                    "kind": "Cable"
+                },
+                "attenuation": 0.1263677174466878,
+                "distance": 0.31740489832174457,
+                "_convertedValues": {
+                    "distance": {
+                        "m": 317.404898,
+                        "km": 0.317405,
+                        "ft": 1041.354687,
+                        "mi": 0.197226
+                    }
+                }
+            },
+            {
+                "attenuation": 0,
+                "distance": 0.31740489832174457,
+                "element": {
+                    "id": "5ff8ac3db1cb1d001455aefe",
