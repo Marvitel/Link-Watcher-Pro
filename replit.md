@@ -107,6 +107,7 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 4. Remoção de logs de debug em monitoring e charts
 5. **Integração OZmap**: Configuração global + campo ozmapTag no link + visualização de rota de fibra
 6. **Schema**: Novos campos `mainGraphMode`, `mainGraphInterfaceIds`, e `ozmapTag` na tabela links
+7. **RADIUS para Dispositivos**: Novo campo `useRadiusForDevices` permite usar credenciais RADIUS do operador para acessar dispositivos de rede (OLT, switch, concentrador, CPE) via SSH, com fallback automático para credenciais locais
 
 ### Versão em Produção
 - **Commit**: `5f1095bb`
