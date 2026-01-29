@@ -33,7 +33,8 @@ interface OzmapRouteElement {
     observation?: string | null;
     label?: string | null;
     tray?: string | null;
-    port?: string | null;
+    port?: any | null;
+    slot?: any | null;
     connectables?: any | null;
     shelf?: string | null;
   };
@@ -166,12 +167,14 @@ function getKindLabel(kind: string): string {
     case 'fiber': return 'Fibra';
     case 'cable': return 'Cabo';
     case 'splitter': return 'Splitter';
-    case 'passing': return 'Passagem';
+    case 'passing': return 'Caixa';
     case 'box': return 'Caixa';
     case 'fusion': return 'Fusão';
     case 'connector': return 'Conector';
     case 'dio': return 'DIO';
     case 'olt': return 'OLT';
+    case 'switch': return 'Switch';
+    case 'shelf': return 'Shelf';
     default: return kind;
   }
 }
@@ -285,7 +288,10 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   const powerStatus = arrivingPotency ? getPowerStatus(arrivingPotency) : null;
 
   const groupedElements = elements.reduce((acc: any[], element, index) => {
-    if (element.element.kind === 'Fiber' && element.parent.kind === 'Cable') {
+    const kind = element.element.kind;
+    
+    if (kind === 'Fiber' && element.parent.kind === 'Cable') {
+      // Agrupar fibras por cabo
       const existingCable = acc.find(g => g.type === 'cable' && g.id === element.parent.id);
       if (!existingCable) {
         acc.push({
@@ -298,9 +304,46 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
           distance: element.distance,
         });
       }
-    } else if (element.element.kind === 'Passing' || element.element.kind === 'Splitter' || element.element.kind === 'Fusion' || element.element.kind === 'Connector') {
+    } else if (kind === 'OLT') {
+      // OLT - equipamento de origem
       acc.push({
-        type: element.element.kind.toLowerCase(),
+        type: 'olt',
+        id: element.element.id,
+        name: element.parent.name || element.element.name || 'OLT',
+        elementName: element.element.name,
+        attenuation: element.attenuation,
+        distance: element.distance,
+        slot: element.element.slot,
+        port: element.element.port,
+      });
+    } else if (kind === 'DIO') {
+      // DIO - Distribuidor Interno Óptico
+      acc.push({
+        type: 'dio',
+        id: element.element.id,
+        name: element.parent.name || element.element.name || 'DIO',
+        elementName: element.element.name,
+        attenuation: element.attenuation,
+        distance: element.distance,
+        port: element.element.port,
+        tray: element.element.tray,
+        shelf: element.element.shelf,
+      });
+    } else if (kind === 'Switch' || kind === 'Shelf') {
+      // Switch ou Shelf - equipamento de rede
+      acc.push({
+        type: 'switch',
+        id: element.element.id,
+        name: element.parent.name || element.element.name || 'Switch',
+        elementName: element.element.name,
+        attenuation: element.attenuation,
+        distance: element.distance,
+        port: element.element.port,
+      });
+    } else if (kind === 'Passing' || kind === 'Splitter' || kind === 'Fusion' || kind === 'Connector') {
+      // Elementos de passagem, splitters, fusões e conectores
+      acc.push({
+        type: kind.toLowerCase(),
         id: element.element.id,
         name: element.parent.name || element.element.name || 'Elemento',
         elementName: element.element.name,
@@ -316,6 +359,10 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   const cableCount = groupedElements.filter(e => e.type === 'cable').length;
   const boxCount = groupedElements.filter(e => e.type === 'passing').length;
   const splitterCount = groupedElements.filter(e => e.type === 'splitter').length;
+  const dioCount = groupedElements.filter(e => e.type === 'dio').length;
+  const oltCount = groupedElements.filter(e => e.type === 'olt').length;
+  const switchCount = groupedElements.filter(e => e.type === 'switch').length;
+  const fusionCount = groupedElements.filter(e => e.type === 'fusion').length;
 
   return (
     <Card>
@@ -412,7 +459,25 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          {oltCount > 0 && (
+            <div className="flex items-center gap-1">
+              <Radio className="h-4 w-4 text-red-500" />
+              <span>{oltCount} OLT</span>
+            </div>
+          )}
+          {dioCount > 0 && (
+            <div className="flex items-center gap-1">
+              <Network className="h-4 w-4 text-indigo-500" />
+              <span>{dioCount} DIOs</span>
+            </div>
+          )}
+          {switchCount > 0 && (
+            <div className="flex items-center gap-1">
+              <Network className="h-4 w-4 text-cyan-500" />
+              <span>{switchCount} switches</span>
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <Cable className="h-4 w-4 text-blue-500" />
             <span>{cableCount} cabos</span>
@@ -427,6 +492,12 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
               <span>{splitterCount} splitters</span>
             </div>
           )}
+          {fusionCount > 0 && (
+            <div className="flex items-center gap-1">
+              <Zap className="h-4 w-4 text-orange-500" />
+              <span>{fusionCount} fusões</span>
+            </div>
+          )}
         </div>
 
         {isExpanded && groupedElements.length > 0 && (
@@ -439,12 +510,18 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                                item.type === 'passing' ? Box : 
                                item.type === 'splitter' ? Split :
                                item.type === 'fusion' ? Zap :
-                               item.type === 'connector' ? CircleDot : MapPin;
+                               item.type === 'connector' ? CircleDot :
+                               item.type === 'olt' ? Radio :
+                               item.type === 'dio' ? Network :
+                               item.type === 'switch' ? Network : MapPin;
                   
                   const colorClass = item.type === 'cable' ? 'text-blue-500' : 
                                      item.type === 'passing' ? 'text-green-500' : 
                                      item.type === 'splitter' ? 'text-purple-500' :
-                                     item.type === 'fusion' ? 'text-orange-500' : 'text-gray-500';
+                                     item.type === 'fusion' ? 'text-orange-500' :
+                                     item.type === 'olt' ? 'text-red-500' :
+                                     item.type === 'dio' ? 'text-indigo-500' :
+                                     item.type === 'switch' ? 'text-cyan-500' : 'text-gray-500';
 
                   return (
                     <div 
@@ -456,7 +533,7 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-medium truncate">{item.name}</p>
                           {item.type === 'cable' && item.fiber && (
                             <Badge variant="outline" className="text-xs shrink-0">
@@ -465,7 +542,26 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                           )}
                           {item.type === 'splitter' && item.port && (
                             <Badge variant="secondary" className="text-xs shrink-0">
-                              Porta {item.port}
+                              Porta {typeof item.port === 'object' ? item.port.number || item.port.label : item.port}
+                            </Badge>
+                          )}
+                          {item.type === 'olt' && (item.slot !== undefined || item.port !== undefined) && (
+                            <Badge variant="destructive" className="text-xs shrink-0">
+                              {item.slot !== undefined && `Slot ${typeof item.slot === 'object' ? item.slot.number : item.slot}`}
+                              {item.slot !== undefined && item.port !== undefined && ' / '}
+                              {item.port !== undefined && `Porta ${typeof item.port === 'object' ? item.port.number : item.port}`}
+                            </Badge>
+                          )}
+                          {item.type === 'dio' && (item.tray || item.port) && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {item.tray && `Bandeja ${item.tray}`}
+                              {item.tray && item.port && ' / '}
+                              {item.port && `Porta ${typeof item.port === 'object' ? item.port.number : item.port}`}
+                            </Badge>
+                          )}
+                          {item.type === 'switch' && item.port && (
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              Porta {typeof item.port === 'object' ? item.port.number : item.port}
                             </Badge>
                           )}
                         </div>
