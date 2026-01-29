@@ -1617,9 +1617,6 @@ export async function registerRoutes(
       
       console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${useOperatorCreds}, sshUser=${concentrator?.sshUser}`);
       console.log(`[Devices] User logado: id=${user?.id}, name=${user?.name}`);
-      
-      // Verificar credenciais RADIUS na sessão (autenticação via RADIUS armazena username/password)
-      const radiusCredentials = (req.session as any)?.radiusCredentials;
       console.log(`[Devices] Credenciais RADIUS na sessão: ${radiusCredentials ? `user=${radiusCredentials.username}` : 'não disponível'}`);
       
       // Se não há concentrador definido OU useOperatorCredentials está ativo, usar credenciais do operador
@@ -5165,6 +5162,7 @@ export async function registerRoutes(
         timeout: settings.timeout,
         retries: settings.retries,
         allowLocalFallback: settings.allowLocalFallback,
+        useRadiusForDevices: settings.useRadiusForDevices,
         lastHealthCheck: settings.lastHealthCheck,
         lastHealthStatus: settings.lastHealthStatus,
       });
@@ -5190,6 +5188,7 @@ export async function registerRoutes(
         timeout,
         retries,
         allowLocalFallback,
+        useRadiusForDevices,
       } = req.body;
 
       if (!primaryHost) {
@@ -5216,6 +5215,7 @@ export async function registerRoutes(
         timeout: timeout || 5000,
         retries: retries || 3,
         allowLocalFallback: allowLocalFallback ?? true,
+        useRadiusForDevices: useRadiusForDevices ?? false,
       });
 
       await logAuditEvent({

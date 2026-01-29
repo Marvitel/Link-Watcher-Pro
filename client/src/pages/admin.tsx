@@ -7130,6 +7130,7 @@ interface RadiusSettingsData {
   timeout: number;
   retries: number;
   allowLocalFallback: boolean;
+  useRadiusForDevices: boolean;
   lastHealthCheck?: string | null;
   lastHealthStatus?: string | null;
 }
@@ -7152,6 +7153,7 @@ function RadiusSettingsCard() {
     timeout: 5000,
     retries: 3,
     allowLocalFallback: true,
+    useRadiusForDevices: false,
   });
 
   const { data: radiusSettings, isLoading, refetch } = useQuery<RadiusSettingsData>({
@@ -7171,6 +7173,7 @@ function RadiusSettingsCard() {
         timeout: radiusSettings.timeout || 5000,
         retries: radiusSettings.retries || 3,
         allowLocalFallback: radiusSettings.allowLocalFallback ?? true,
+        useRadiusForDevices: radiusSettings.useRadiusForDevices ?? false,
       }));
     }
   }, [radiusSettings]);
@@ -7410,6 +7413,20 @@ function RadiusSettingsCard() {
             checked={formData.allowLocalFallback}
             onCheckedChange={(checked) => setFormData({ ...formData, allowLocalFallback: checked })}
             data-testid="switch-radius-fallback"
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium">Usar RADIUS para dispositivos de rede</p>
+            <p className="text-sm text-muted-foreground">
+              Tenta autenticar em concentradores, APs e CPEs usando RADIUS primeiro, depois credenciais locais
+            </p>
+          </div>
+          <Switch
+            checked={formData.useRadiusForDevices}
+            onCheckedChange={(checked) => setFormData({ ...formData, useRadiusForDevices: checked })}
+            data-testid="switch-radius-devices"
           />
         </div>
 
