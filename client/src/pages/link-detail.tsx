@@ -1588,12 +1588,20 @@ interface CpeDeviceInfo extends DeviceInfo {
   lastMonitoredAt?: string | null;
 }
 
+interface RadiusAuthInfo {
+  enabled: boolean;
+  hasCredentials: boolean;
+  username: string | null;
+  password: string | null;
+}
+
 interface DevicesInfo {
   olt: DeviceInfo | null;
   switch: DeviceInfo | null;
   concentrator: DeviceInfo;
   cpe: DeviceInfo;
   cpes?: CpeDeviceInfo[];
+  radiusAuth?: RadiusAuthInfo;
 }
 
 interface PingResult {
@@ -1727,15 +1735,22 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const device = deviceMap[type];
     if (!device?.ip) return {};
     
-    const user = device.sshUser || "admin";
+    // Verificar se deve usar credenciais RADIUS (quando habilitado e disponível)
+    const radiusAuth = devices?.radiusAuth;
+    const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
+    
+    // Se RADIUS está habilitado para dispositivos, usar credenciais RADIUS primeiro
+    const user = useRadius ? radiusAuth.username! : (device.sshUser || "admin");
+    const password = useRadius ? radiusAuth.password! : device.sshPassword;
+    
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
     // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
     const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
-    if (device.sshPassword) {
+    if (password) {
       return {
         command: `sshpass -e ssh ${legacyOpts} ${portArg}${user}@${device.ip}`,
-        password: device.sshPassword,
+        password: password,
       };
     }
     return { command: `ssh ${legacyOpts} ${portArg}${user}@${device.ip}` };
@@ -1987,10 +2002,15 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
             // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
             const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
-            const sshCommand = cpe.ip && cpe.sshUser 
-              ? (cpe.sshPassword 
-                  ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`
-                  : `ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${cpe.sshUser}@${cpe.ip}`)
+            // Verificar se deve usar credenciais RADIUS (quando habilitado e disponível)
+            const radiusAuth = devices?.radiusAuth;
+            const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
+            const sshUser = useRadius ? radiusAuth.username! : (cpe.sshUser || "admin");
+            const sshPassword = useRadius ? radiusAuth.password! : cpe.sshPassword;
+            const sshCommand = cpe.ip 
+              ? (sshPassword 
+                  ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`
+                  : `ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
             return (
@@ -2033,7 +2053,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                       <XtermTerminal 
                         key={cpeKey} 
                         initialCommand={sshCommand} 
-                        sshPassword={cpe.sshPassword || undefined}
+                        sshPassword={sshPassword || undefined}
                       />
                     </div>
                   </CardContent>
