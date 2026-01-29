@@ -1084,6 +1084,8 @@ export const radiusSettings = pgTable("radius_settings", {
   timeout: integer("timeout").notNull().default(5000),
   retries: integer("retries").notNull().default(3),
   allowLocalFallback: boolean("allow_local_fallback").notNull().default(true),
+  // RADIUS para autenticação em dispositivos de rede (concentradores, APs, CPEs)
+  useRadiusForDevices: boolean("use_radius_for_devices").notNull().default(false),
   lastHealthCheck: timestamp("last_health_check"),
   lastHealthStatus: varchar("last_health_status", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),

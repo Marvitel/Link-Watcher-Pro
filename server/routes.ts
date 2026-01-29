@@ -1588,6 +1588,11 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link não encontrado" });
       }
       
+      // Verificar configurações RADIUS para dispositivos
+      const radiusSettings = await storage.getRadiusSettings();
+      const useRadiusForDevices = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
+      const radiusCredentials = (req.session as any)?.radiusCredentials;
+      
       let olt = null;
       if (link.oltId) {
         olt = await storage.getOlt(link.oltId);
@@ -1762,6 +1767,19 @@ export async function registerRoutes(
           vendor: (link as any).cpeVendor || null,
         },
         cpes: cpes, // Lista completa de CPEs associados
+        // Configurações de autenticação RADIUS para dispositivos
+        radiusAuth: useRadiusForDevices ? {
+          enabled: true,
+          hasCredentials: !!radiusCredentials?.username,
+          username: radiusCredentials?.username || null,
+          // Senha é passada apenas se disponível na sessão (login via RADIUS)
+          password: radiusCredentials?.password || null,
+        } : {
+          enabled: false,
+          hasCredentials: false,
+          username: null,
+          password: null,
+        },
       };
       
       return res.json(devices);
