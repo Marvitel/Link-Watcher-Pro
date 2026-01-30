@@ -282,14 +282,12 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
               const sshCmd = initialCommand;
               // Configura alias SSH com timeout menor para resposta rápida
               const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
-              term.writeln("\x1b[90m[DEBUG] Preparando execução automática...\x1b[0m");
               setTimeout(() => {
                 if (ws.readyState === WebSocket.OPEN) {
                   ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
                   // Executa o comando SSH após o alias
                   setTimeout(() => {
                     if (ws.readyState === WebSocket.OPEN) {
-                      term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
                       ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
                       markSshSent(); // Marcar quando o SSH foi enviado
                     } else {
@@ -342,14 +340,12 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
           const sshCmd = initialCommand;
           // Configura alias SSH com timeout menor para resposta rápida
           const sshAliasCmd = "alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'";
-          term.writeln("\x1b[90m[DEBUG] Preparando execução automática...\x1b[0m");
           setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: "input", data: sshAliasCmd + "\n" }));
               // Executa o comando SSH após o alias
               setTimeout(() => {
                 if (ws.readyState === WebSocket.OPEN) {
-                  term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
                   ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
                   markSshSent(); // Marcar quando o SSH foi enviado para fallback
                 } else {
