@@ -177,22 +177,22 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
         // Atualizar a senha de ambiente para a senha de fallback
         currentPasswordRef.current = fallbackPassword;
         
-        // Enviar Ctrl+C para cancelar o prompt atual, depois reconfigurar e reconectar
+        // Aguardar a sessão SSH anterior terminar completamente antes de iniciar o fallback
+        // Enviar Ctrl+C e matar processos SSH pendentes
         setTimeout(() => {
           if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
+            // Enviar múltiplos Ctrl+C para garantir que qualquer processo pendente seja cancelado
+            socket.send(JSON.stringify({ type: "input", data: "\x03\x03" })); // Ctrl+C x2
             
-            // Usar read -s para ler a senha silenciosamente via heredoc
-            // Isso evita que a senha apareça no histórico ou no terminal
+            // Aguardar processos terminarem completamente
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
-                // Primeiro limpar a linha atual
-                socket.send(JSON.stringify({ type: "input", data: "\n" }));
+                // Matar qualquer processo sshpass/ssh pendente e limpar o terminal
+                socket.send(JSON.stringify({ type: "input", data: "pkill -9 sshpass 2>/dev/null; sleep 0.5\n" }));
                 
                 setTimeout(() => {
                   if (socket.readyState === WebSocket.OPEN) {
                     // Escapar caracteres especiais na senha para uso em shell
-                    // Usar aspas duplas com escape de $, `, \, !, e "
                     const escapedPassword = fallbackPassword
                       .replace(/\\/g, '\\\\')
                       .replace(/"/g, '\\"')
@@ -209,13 +209,13 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
                         recentOutputBuffer = ""; // Limpar buffer para nova tentativa
                         socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
                       }
-                    }, 300);
+                    }, 800); // Delay maior para garantir que pkill e sleep terminaram
                   }
-                }, 100);
+                }, 600); // Aguardar pkill executar
               }
-            }, 200);
+            }, 500); // Aguardar Ctrl+C fazer efeito
           }
-        }, 100);
+        }, 300); // Delay inicial maior
       }
     };
 
