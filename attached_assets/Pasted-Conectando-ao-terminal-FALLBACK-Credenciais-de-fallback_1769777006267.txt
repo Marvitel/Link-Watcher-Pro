@@ -1,0 +1,28 @@
+Conectando ao terminal...
+[FALLBACK] Credenciais de fallback disponíveis: user=mvtel_marvitel
+Autenticando...
+Conectado!
+
+[DEBUG] Preparando execução automática...
+bash: impossível definir grupo do processo do terminal (-1): ioctl inapropriado para dispositivo
+bash: nenhum controle de trabalho neste shell
+[linkmonitor@linkmonitor]$ [FALLBACK-DBG] Skip: sshSentTime=0, hasFallback=true, attempted=false, hasCmd=true
+alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ [FALLBACK-DBG] Skip: sshSentTime=0, hasFallback=true, attempted=false, hasCmd=true
+alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ [FALLBACK-DBG] Skip: sshSentTime=0, hasFallback=true, attempted=false, hasCmd=true
+[DEBUG] Executando SSH...
+sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 22 marcus.melo@172.26.254.10
+Warning: Permanently added '172.26.254.10' (DSA) to the list of known hosts.
+[linkmonitor@linkmonitor]$ 
+                           [SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...
+
+Sessão terminada, matando o shell...
+[linkmonitor@linkmonitor]$ [FALLBACK-DBG] Skip: sshSentTime=1769776981459, hasFallback=true, attempted=true, hasCmd=true
+export SSHPASS="SWTDTC.c73l" 2>/dev/null
+[linkmonitor@linkmonitor]$ [FALLBACK-DBG] Skip: sshSentTime=1769776981459, hasFallback=true, attempted=true, hasCmd=true
+sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 22 mvtel_marvitel@172.26.254.10
+Warning: Permanently added '172.26.254.10' (DSA) to the list of known hosts.
+[FALLBACK-DBG] Skip: sshSentTime=1769776982864, hasFallback=true, attempted=true, hasCmd=true
+ ...morto.
+          Conexão encerrada.
