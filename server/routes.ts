@@ -3894,6 +3894,216 @@ export async function registerRoutes(
     }
   });
 
+  // CPE Command Templates - Biblioteca de comandos SSH
+  app.get("/api/cpe-command-templates", requireAuth, async (req, res) => {
+    try {
+      const vendorId = req.query.vendorId ? parseInt(req.query.vendorId as string, 10) : undefined;
+      const model = req.query.model as string | undefined;
+      const templates = await storage.getCpeCommandTemplates(vendorId, model);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching CPE command templates:", error);
+      res.status(500).json({ error: "Falha ao buscar templates de comandos" });
+    }
+  });
+
+  app.get("/api/admin/cpe-command-templates", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const templates = await storage.getAllCpeCommandTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching all CPE command templates:", error);
+      res.status(500).json({ error: "Falha ao buscar templates de comandos" });
+    }
+  });
+
+  app.post("/api/admin/cpe-command-templates", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem criar templates" });
+      }
+      const template = await storage.createCpeCommandTemplate(req.body);
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating CPE command template:", error);
+      res.status(400).json({ error: "Falha ao criar template de comando" });
+    }
+  });
+
+  app.patch("/api/admin/cpe-command-templates/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem editar templates" });
+      }
+      const id = parseInt(req.params.id, 10);
+      const template = await storage.updateCpeCommandTemplate(id, req.body);
+      if (!template) {
+        return res.status(404).json({ error: "Template não encontrado" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating CPE command template:", error);
+      res.status(400).json({ error: "Falha ao atualizar template de comando" });
+    }
+  });
+
+  app.delete("/api/admin/cpe-command-templates/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem excluir templates" });
+      }
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteCpeCommandTemplate(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting CPE command template:", error);
+      res.status(500).json({ error: "Falha ao excluir template de comando" });
+    }
+  });
+
+  // CPE Command History - Histórico de execução de comandos
+  app.get("/api/cpe/:cpeId/command-history", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      const linkId = req.query.linkId ? parseInt(req.query.linkId as string, 10) : undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      
+      // Validar acesso ao CPE se não for super admin
+      if (!req.user?.isSuperAdmin && linkId) {
+        const { allowed } = await validateLinkAccess(req, linkId);
+        if (!allowed) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+      }
+      
+      const history = await storage.getCpeCommandHistory(cpeId, linkId, limit);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching CPE command history:", error);
+      res.status(500).json({ error: "Falha ao buscar histórico de comandos" });
+    }
+  });
+
+  app.post("/api/cpe/:cpeId/command-history", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      const { linkId, linkCpeId, templateId, command, status, output } = req.body;
+      
+      // Validar acesso ao CPE se não for super admin
+      if (!req.user?.isSuperAdmin && linkId) {
+        const { allowed } = await validateLinkAccess(req, linkId);
+        if (!allowed) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+      }
+      
+      if (!command) {
+        return res.status(400).json({ error: "Comando é obrigatório" });
+      }
+      
+      const history = await storage.createCpeCommandHistory({
+        cpeId,
+        linkId,
+        linkCpeId,
+        templateId,
+        command,
+        userId: req.user!.id,
+        status: status || "pending",
+        output,
+      });
+      res.json(history);
+    } catch (error) {
+      console.error("Error creating CPE command history:", error);
+      res.status(400).json({ error: "Falha ao registrar comando" });
+    }
+  });
+
+  app.patch("/api/cpe/:cpeId/command-history/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const history = await storage.updateCpeCommandHistory(id, req.body);
+      if (!history) {
+        return res.status(404).json({ error: "Registro não encontrado" });
+      }
+      res.json(history);
+    } catch (error) {
+      console.error("Error updating CPE command history:", error);
+      res.status(400).json({ error: "Falha ao atualizar histórico" });
+    }
+  });
+
+  // Diagnostic Targets - IPs de diagnóstico configuráveis
+  app.get("/api/diagnostic-targets", requireAuth, async (req, res) => {
+    try {
+      const clientId = req.user?.isSuperAdmin ? undefined : (req.user?.clientId ?? undefined);
+      const targets = await storage.getDiagnosticTargets(clientId);
+      res.json(targets);
+    } catch (error) {
+      console.error("Error fetching diagnostic targets:", error);
+      res.status(500).json({ error: "Falha ao buscar IPs de diagnóstico" });
+    }
+  });
+
+  app.get("/api/admin/diagnostic-targets", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+      const targets = await storage.getAllDiagnosticTargets();
+      res.json(targets);
+    } catch (error) {
+      console.error("Error fetching all diagnostic targets:", error);
+      res.status(500).json({ error: "Falha ao buscar IPs de diagnóstico" });
+    }
+  });
+
+  app.post("/api/admin/diagnostic-targets", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem criar IPs de diagnóstico" });
+      }
+      const target = await storage.createDiagnosticTarget(req.body);
+      res.json(target);
+    } catch (error) {
+      console.error("Error creating diagnostic target:", error);
+      res.status(400).json({ error: "Falha ao criar IP de diagnóstico" });
+    }
+  });
+
+  app.patch("/api/admin/diagnostic-targets/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem editar IPs de diagnóstico" });
+      }
+      const id = parseInt(req.params.id, 10);
+      const target = await storage.updateDiagnosticTarget(id, req.body);
+      if (!target) {
+        return res.status(404).json({ error: "IP de diagnóstico não encontrado" });
+      }
+      res.json(target);
+    } catch (error) {
+      console.error("Error updating diagnostic target:", error);
+      res.status(400).json({ error: "Falha ao atualizar IP de diagnóstico" });
+    }
+  });
+
+  app.delete("/api/admin/diagnostic-targets/:id", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem excluir IPs de diagnóstico" });
+      }
+      const id = parseInt(req.params.id, 10);
+      await storage.deleteDiagnosticTarget(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting diagnostic target:", error);
+      res.status(500).json({ error: "Falha ao excluir IP de diagnóstico" });
+    }
+  });
+
   // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link
   app.get("/api/links/:linkId/traffic-interfaces", requireAuth, async (req, res) => {
     try {
