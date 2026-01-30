@@ -84,11 +84,11 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
     
-    // Debug: mostrar se há credenciais de fallback
+    // Debug: mostrar se há credenciais de fallback (amarelo para ser visível)
     if (fallbackPassword) {
-      term.writeln(`\x1b[90m[DEBUG] Fallback disponível: user=${fallbackUser || 'N/A'}, pass=***\x1b[0m`);
+      term.writeln(`\x1b[33m[FALLBACK] Credenciais de fallback disponíveis: user=${fallbackUser || 'N/A'}\x1b[0m`);
     } else {
-      term.writeln("\x1b[90m[DEBUG] Sem credenciais de fallback\x1b[0m");
+      term.writeln("\x1b[31m[FALLBACK] NENHUMA credencial de fallback disponível!\x1b[0m");
     }
 
     // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
