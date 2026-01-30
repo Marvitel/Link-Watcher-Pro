@@ -81,6 +81,7 @@ import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 import { CommandTemplatesTab } from "@/components/admin/command-templates-tab";
 import { DiagnosticTargetsTab } from "@/components/admin/diagnostic-targets-tab";
+import { VoalleImportTab } from "@/components/admin/voalle-import-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
@@ -4896,6 +4897,10 @@ export default function Admin() {
             <ShieldCheck className="w-4 h-4" />
             Firewall
           </TabsTrigger>
+          <TabsTrigger value="voalle-import" className="gap-2" data-testid="tab-voalle-import">
+            <FileText className="w-4 h-4" />
+            Importar Voalle
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -5458,6 +5463,10 @@ export default function Admin() {
 
         <TabsContent value="firewall" className="space-y-4">
           <FirewallManager />
+        </TabsContent>
+
+        <TabsContent value="voalle-import" className="space-y-4">
+          <VoalleImportTab />
         </TabsContent>
       </Tabs>
     </div>

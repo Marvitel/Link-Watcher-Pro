@@ -4108,6 +4108,195 @@ export async function registerRoutes(
     }
   });
 
+  // Voalle CSV Import - Importação em lote de links via CSV do Voalle
+  app.post("/api/admin/voalle-import", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem importar links do Voalle" });
+      }
+
+      const { links, targetClientId } = req.body as {
+        links: Array<{
+          id: string;
+          serviceTag: string;
+          title: string;
+          clientName: string;
+          bandwidth: number | null;
+          address: string;
+          city: string;
+          lat: string | null;
+          lng: string | null;
+          slotOlt: number | null;
+          portOlt: number | null;
+          equipmentSerial: string | null;
+          concentratorIp: string | null;
+          oltIp: string | null;
+          cpeUser: string | null;
+          cpePassword: string | null;
+          linkType: 'gpon' | 'ptp';
+        }>;
+        targetClientId: number | null;
+      };
+
+      if (!links || !Array.isArray(links) || links.length === 0) {
+        return res.status(400).json({ error: "Nenhum link para importar" });
+      }
+
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as Array<{ serviceTag: string; error: string }>,
+      };
+
+      // Get or create client
+      let clientId = targetClientId;
+      if (!clientId) {
+        // Create a new client for this import batch
+        const existingClients = await storage.getClients();
+        const clientName = links[0]?.clientName || "Cliente Voalle Import";
+        
+        // Check if client already exists
+        const existing = existingClients.find(c => c.name === clientName);
+        if (existing) {
+          clientId = existing.id;
+        } else {
+          const newClient = await storage.createClient({
+            name: clientName,
+            slug: clientName.toLowerCase().replace(/\s+/g, '-'),
+          });
+          clientId = newClient.id;
+        }
+      }
+
+      // Get existing links to check for duplicates
+      const existingLinks = await storage.getLinks();
+      const existingIdentifiers = new Set(existingLinks.map(l => l.identifier?.toLowerCase()));
+      
+      // Track duplicates within this import batch
+      const batchIdentifiers = new Set<string>();
+
+      for (const link of links) {
+        try {
+          // Validate required fields
+          if (!link.serviceTag || link.serviceTag.trim() === '') {
+            results.errors.push({
+              serviceTag: link.serviceTag || '(vazio)',
+              error: "Etiqueta de serviço (service_tag) é obrigatória",
+            });
+            results.failed++;
+            continue;
+          }
+
+          if (!link.title || link.title.trim() === '') {
+            results.errors.push({
+              serviceTag: link.serviceTag,
+              error: "Nome/título do link é obrigatório",
+            });
+            results.failed++;
+            continue;
+          }
+
+          const normalizedTag = link.serviceTag.toLowerCase().trim();
+
+          // Check for duplicate by service tag in existing links
+          if (existingIdentifiers.has(normalizedTag)) {
+            results.errors.push({
+              serviceTag: link.serviceTag,
+              error: "Link já existe com este identificador",
+            });
+            results.failed++;
+            continue;
+          }
+
+          // Check for duplicate within this import batch
+          if (batchIdentifiers.has(normalizedTag)) {
+            results.errors.push({
+              serviceTag: link.serviceTag,
+              error: "Etiqueta duplicada neste lote de importação",
+            });
+            results.failed++;
+            continue;
+          }
+          
+          batchIdentifiers.add(normalizedTag);
+
+          // Prepare link data with safe type coercion
+          const rawLinkData = {
+            clientId: clientId!,
+            identifier: String(link.serviceTag || '').trim(),
+            name: String(link.title || '').trim(),
+            location: String(link.city || '').trim(),
+            address: String(link.address || '').trim(),
+            ipBlock: "",
+            totalIps: 1,
+            usableIps: 1,
+            bandwidth: typeof link.bandwidth === 'number' && link.bandwidth > 0 ? link.bandwidth : 100,
+            linkType: link.linkType === 'ptp' ? 'ptp' : 'gpon',
+            monitoringEnabled: true,
+            // OLT fields for GPON
+            slotOlt: typeof link.slotOlt === 'number' ? link.slotOlt : null,
+            portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
+            onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
+            equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
+            // CPE credentials
+            cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
+            cpePassword: link.cpePassword ? String(link.cpePassword) : null,
+            // Location - ensure strings
+            latitude: link.lat ? String(link.lat).trim() : null,
+            longitude: link.lng ? String(link.lng).trim() : null,
+            // Voalle tracking
+            voalleContractTagServiceTag: String(link.serviceTag || '').trim(),
+            voalleContractTagDescription: String(link.title || '').trim(),
+          };
+
+          // Validate with schema (partial validation for Voalle import)
+          const parseResult = insertLinkSchema.safeParse(rawLinkData);
+          if (!parseResult.success) {
+            const errorMessages = parseResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+            results.errors.push({
+              serviceTag: link.serviceTag,
+              error: `Dados inválidos: ${errorMessages}`,
+            });
+            results.failed++;
+            continue;
+          }
+
+          await storage.createLink(parseResult.data);
+          results.success++;
+
+          // Log audit event
+          await logAuditEvent({
+            actor: req.user,
+            action: "create",
+            entity: "link",
+            entityName: link.serviceTag,
+            status: "success",
+            metadata: {
+              source: "voalle_import",
+              serviceTag: link.serviceTag,
+              title: link.title,
+            },
+            request: req,
+          });
+
+        } catch (linkError) {
+          console.error(`Error importing link ${link.serviceTag}:`, linkError);
+          results.errors.push({
+            serviceTag: link.serviceTag,
+            error: linkError instanceof Error ? linkError.message : "Erro desconhecido",
+          });
+          results.failed++;
+        }
+      }
+
+      res.json(results);
+
+    } catch (error) {
+      console.error("Error in Voalle import:", error);
+      res.status(500).json({ error: "Falha na importação do Voalle" });
+    }
+  });
+
   // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link
   app.get("/api/links/:linkId/traffic-interfaces", requireAuth, async (req, res) => {
     try {
