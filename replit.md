@@ -84,7 +84,7 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 ### Third-Party Integrations
 - **Wanguard (Andrisoft)**: For DDoS detection and mitigation, integrated via a REST API.
 - **HetrixTools**: For IP/CIDR blacklist monitoring, storing results in `blacklistChecks` and influencing link status.
-- **Voalle ERP**: Dual API integration for ticket/incident management, contract tag retrieval, and client authentication/auto-registration. Voalle Portal passwords are encrypted.
+- **Voalle ERP**: Dual API integration for ticket/incident management, contract tag retrieval, and client authentication/auto-registration. Voalle Portal passwords are encrypted. Includes CSV bulk import for creating links from Voalle exports (contract_service_tags, authentication_contracts, authentication_concentrators, authentication_access_points, person_users).
 - **OZmap**: Fiber optic route tracking integration. Uses `ozmapTag` field in links to query OZmap API for potency/route data including splitters, fusions, cables, boxes, DIOs, total length, and calculated optical power. Configuration via Global Integrations (provider "ozmap" in `externalIntegrations` table).
 
 ### Third-Party Libraries
@@ -119,6 +119,7 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 7. **RADIUS para Dispositivos**: Novo campo `useRadiusForDevices` permite usar credenciais RADIUS do operador para acessar dispositivos de rede (OLT, switch, concentrador, CPE) via SSH, com fallback automático para credenciais locais
 8. **Biblioteca de Comandos CPE**: Sistema completo com templates de comandos SSH por fabricante/modelo, categorias, substituição de parâmetros ({IP}, {INTERFACE}, etc), IPs de diagnóstico configuráveis por cliente, e histórico de execução
 9. **Schema**: Novas tabelas `cpeCommandTemplates`, `cpeCommandHistory`, `diagnosticTargets` para gerenciamento de comandos CPE
+10. **Importação CSV Voalle**: Nova aba "Importar Voalle" no admin para importação em massa de links a partir de CSVs exportados do Voalle (contract_service_tags, authentication_contracts, authentication_concentrators, authentication_access_points, person_users). Inclui preview, validação de schema, detecção de duplicatas, e log de auditoria.
 
 ### Versão em Produção
 - **Commit**: `5f1095bb`
