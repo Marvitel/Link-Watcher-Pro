@@ -1718,7 +1718,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
-  const getSshConfig = (type: TerminalType): { command?: string; password?: string } => {
+  const getSshConfig = (type: TerminalType): { command?: string; password?: string; fallbackPassword?: string; fallbackUser?: string } => {
     if (type === "shell") return {};
     
     // Determina o dispositivo de ponto de acesso (OLT para GPON, Switch para PTP)
@@ -1740,8 +1740,13 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
     
     // Se RADIUS está habilitado para dispositivos, usar credenciais RADIUS primeiro
+    // Mas também passa as credenciais locais como fallback para caso RADIUS falhe
     const user = useRadius ? radiusAuth.username! : (device.sshUser || "admin");
     const password = useRadius ? radiusAuth.password! : device.sshPassword;
+    
+    // Credenciais de fallback: quando usando RADIUS, o fallback são as credenciais locais do dispositivo
+    const fallbackUser = useRadius ? (device.sshUser || "admin") : undefined;
+    const fallbackPassword = useRadius ? device.sshPassword : undefined;
     
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
@@ -1751,6 +1756,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
       return {
         command: `sshpass -e ssh ${legacyOpts} ${portArg}${user}@${device.ip}`,
         password: password,
+        fallbackPassword: fallbackPassword || undefined,
+        fallbackUser: fallbackUser || undefined,
       };
     }
     return { command: `ssh ${legacyOpts} ${portArg}${user}@${device.ip}` };
@@ -1954,6 +1961,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   key={terminalKeys["ssh-access-point"]} 
                   initialCommand={getSshConfig("ssh-access-point").command} 
                   sshPassword={getSshConfig("ssh-access-point").password}
+                  fallbackPassword={getSshConfig("ssh-access-point").fallbackPassword}
+                  fallbackUser={getSshConfig("ssh-access-point").fallbackUser}
                 />
               </div>
             </CardContent>
@@ -1989,6 +1998,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   key={terminalKeys["ssh-concentrator"]} 
                   initialCommand={getSshConfig("ssh-concentrator").command} 
                   sshPassword={getSshConfig("ssh-concentrator").password}
+                  fallbackPassword={getSshConfig("ssh-concentrator").fallbackPassword}
+                  fallbackUser={getSshConfig("ssh-concentrator").fallbackUser}
                 />
               </div>
             </CardContent>
@@ -2007,6 +2018,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
             const sshUser = useRadius ? radiusAuth.username! : (cpe.sshUser || "admin");
             const sshPassword = useRadius ? radiusAuth.password! : cpe.sshPassword;
+            // Credenciais de fallback: quando usando RADIUS, o fallback são as credenciais locais do CPE
+            const cpeFallbackUser = useRadius ? (cpe.sshUser || "admin") : undefined;
+            const cpeFallbackPassword = useRadius ? cpe.sshPassword : undefined;
             const sshCommand = cpe.ip 
               ? (sshPassword 
                   ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`
@@ -2054,6 +2068,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                         key={cpeKey} 
                         initialCommand={sshCommand} 
                         sshPassword={sshPassword || undefined}
+                        fallbackPassword={cpeFallbackPassword || undefined}
+                        fallbackUser={cpeFallbackUser || undefined}
                       />
                     </div>
                   </CardContent>
@@ -2090,6 +2106,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                     key={terminalKeys["ssh-cpe"]} 
                     initialCommand={getSshConfig("ssh-cpe").command} 
                     sshPassword={getSshConfig("ssh-cpe").password}
+                    fallbackPassword={getSshConfig("ssh-cpe").fallbackPassword}
+                    fallbackUser={getSshConfig("ssh-cpe").fallbackUser}
                   />
                 </div>
               </CardContent>

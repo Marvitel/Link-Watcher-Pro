@@ -202,6 +202,66 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       const data = JSON.parse(event.data);
       if (data.type === "output") {
         term.write(data.data);
+        
+        // Detectar falha de autenticação SSH para tentar fallback
+        // Padrões comuns de erro de autenticação SSH
+        const outputText = data.data.toString();
+        const authFailPatterns = [
+          "Permission denied",
+          "Access denied",
+          "Authentication failed",
+          "password:",  // Prompt de senha (sshpass falhou)
+        ];
+        
+        // Verificar se há credenciais de fallback e se ainda não foi tentado
+        if (fallbackPassword && !fallbackAttempted.current && initialCommand) {
+          const isAuthFailure = authFailPatterns.some(pattern => 
+            outputText.toLowerCase().includes(pattern.toLowerCase())
+          );
+          
+          if (isAuthFailure) {
+            fallbackAttempted.current = true;
+            term.writeln("\n\x1b[33m[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...\x1b[0m");
+            
+            // Construir novo comando SSH com credenciais de fallback
+            // Substituir usuário no comando se fallbackUser for diferente
+            let fallbackCommand = initialCommand;
+            if (fallbackUser && fallbackCommand.includes("@")) {
+              // Extrair e substituir o usuário no comando SSH
+              // Formato: sshpass -e ssh ... user@host ou ssh ... user@host
+              fallbackCommand = fallbackCommand.replace(/@([^\s]+)$/, `@$1`); // Mantém o host
+              // Substituir usuário antes do @
+              const userMatch = fallbackCommand.match(/(\S+)@/);
+              if (userMatch) {
+                fallbackCommand = fallbackCommand.replace(/(\S+)@/, `${fallbackUser}@`);
+              }
+            }
+            
+            // Atualizar a senha de ambiente para a senha de fallback
+            currentPasswordRef.current = fallbackPassword;
+            
+            // Enviar Ctrl+C para cancelar o prompt de senha atual
+            setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
+                
+                // Re-exportar SSHPASS com a nova senha e executar comando
+                setTimeout(() => {
+                  if (ws.readyState === WebSocket.OPEN) {
+                    const exportCmd = `export SSHPASS='${fallbackPassword.replace(/'/g, "'\\''")}'`;
+                    ws.send(JSON.stringify({ type: "input", data: exportCmd + "\n" }));
+                    
+                    setTimeout(() => {
+                      if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: "input", data: fallbackCommand + "\n" }));
+                      }
+                    }, 200);
+                  }
+                }, 200);
+              }
+            }, 100);
+          }
+        }
       } else if (data.type === "authenticated" || data.type === "ready") {
         term.writeln("\x1b[32mConectado!\x1b[0m");
         term.writeln("");
