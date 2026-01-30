@@ -205,11 +205,15 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
                 
                 setTimeout(() => {
                   if (socket.readyState === WebSocket.OPEN) {
-                    // Usar base64 para codificar a senha e evitar problemas com caracteres especiais
-                    const encodedPassword = btoa(fallbackPassword);
-                    // Comando que decodifica silenciosamente e exporta SSHPASS
-                    const silentExportCmd = `export SSHPASS=$(echo '${encodedPassword}' | base64 -d)`;
-                    // Enviar com clear para limpar o histórico visível
+                    // Escapar caracteres especiais na senha para uso em shell
+                    // Usar aspas duplas com escape de $, `, \, !, e "
+                    const escapedPassword = fallbackPassword
+                      .replace(/\\/g, '\\\\')
+                      .replace(/"/g, '\\"')
+                      .replace(/\$/g, '\\$')
+                      .replace(/`/g, '\\`')
+                      .replace(/!/g, '\\!');
+                    const silentExportCmd = `export SSHPASS="${escapedPassword}"`;
                     socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
                     
                     // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
