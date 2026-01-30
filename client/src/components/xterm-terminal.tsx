@@ -84,21 +84,59 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
 
+    // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
+    let sshExecuted = false;
+    let sshExecutedTime = 0;
+    
     // Função para lidar com fallback de autenticação SSH
     // Definida aqui para estar disponível para ambos os WebSockets (primário e alternativo)
     const handleSshAuthFallback = (outputText: string, terminal: Terminal, socket: WebSocket, command?: string) => {
+      // Padrões explícitos de erro de autenticação SSH
       const authFailPatterns = [
         "Permission denied",
         "Access denied",
         "Authentication failed",
-        "password:",  // Prompt de senha (sshpass falhou)
+        "password:",  // Prompt de senha interativo (sshpass falhou ao enviar senha)
+        "SSHPASS: command not found",
+        "Host key verification failed",
+        "Connection refused",
+        "Connection timed out",
+        "Connection closed by",
+        "Connection reset by peer",
       ];
+      
+      // Detectar quando o SSH foi executado
+      if (outputText.includes("Warning: Permanently added") || 
+          outputText.includes("Connecting to") ||
+          outputText.includes("ssh ") && command) {
+        sshExecuted = true;
+        sshExecutedTime = Date.now();
+      }
+      
+      // Detectar retorno ao prompt local após SSH (indica falha silenciosa)
+      // Padrão: [user@host]$ ou user@host:~$ ou similares
+      const localPromptPatterns = [
+        /\[[\w.-]+@[\w.-]+\]\$/,  // [user@host]$
+        /[\w.-]+@[\w.-]+:\S*\$/,  // user@host:~$
+        /\$\s*$/,                  // prompt genérico terminando em $
+      ];
+      
+      const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(outputText));
       
       // Verificar se há credenciais de fallback e se ainda não foi tentado
       if (fallbackPassword && !fallbackAttempted.current && command) {
-        const isAuthFailure = authFailPatterns.some(pattern => 
+        // Verificar se é uma falha explícita de autenticação
+        const isExplicitAuthFailure = authFailPatterns.some(pattern => 
           outputText.toLowerCase().includes(pattern.toLowerCase())
         );
+        
+        // Verificar se é falha silenciosa (voltou ao prompt local logo após executar SSH)
+        // Só considera falha silenciosa se o SSH foi executado há menos de 5 segundos
+        const isSilentFailure = sshExecuted && 
+                                isBackToLocalPrompt && 
+                                (Date.now() - sshExecutedTime) < 5000;
+        
+        const isAuthFailure = isExplicitAuthFailure || isSilentFailure;
         
         if (isAuthFailure) {
           fallbackAttempted.current = true;

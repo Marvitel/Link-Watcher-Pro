@@ -1725,28 +1725,62 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const isPtpLink = link?.linkType === "ptp";
     const accessPointDev = isPtpLink ? devices?.switch : devices?.olt;
     
-    const deviceMap: Record<string, { ip?: string; sshUser?: string; sshPassword?: string; sshPort?: number }> = {
-      "ssh-olt": { ip: devices?.olt?.ip, sshUser: devices?.olt?.sshUser, sshPassword: devices?.olt?.sshPassword, sshPort: devices?.olt?.sshPort },
-      "ssh-access-point": { ip: accessPointDev?.ip, sshUser: accessPointDev?.sshUser, sshPassword: accessPointDev?.sshPassword, sshPort: accessPointDev?.sshPort },
-      "ssh-concentrator": { ip: devices?.concentrator?.ip, sshUser: devices?.concentrator?.sshUser, sshPassword: devices?.concentrator?.sshPassword, sshPort: devices?.concentrator?.sshPort },
-      "ssh-cpe": { ip: devices?.cpe?.ip, sshUser: devices?.cpe?.sshUser, sshPassword: devices?.cpe?.sshPassword, sshPort: devices?.cpe?.sshPort },
+    // O backend já retorna as credenciais corretas (RADIUS ou locais) em sshUser/sshPassword
+    // e as credenciais de fallback (locais) em fallbackSshUser/fallbackSshPassword quando usando RADIUS
+    interface DeviceInfo {
+      ip?: string;
+      sshUser?: string;
+      sshPassword?: string;
+      sshPort?: number;
+      fallbackSshUser?: string;
+      fallbackSshPassword?: string;
+    }
+    
+    const deviceMap: Record<string, DeviceInfo> = {
+      "ssh-olt": { 
+        ip: devices?.olt?.ip, 
+        sshUser: devices?.olt?.sshUser, 
+        sshPassword: devices?.olt?.sshPassword, 
+        sshPort: devices?.olt?.sshPort,
+        fallbackSshUser: (devices?.olt as any)?.fallbackSshUser,
+        fallbackSshPassword: (devices?.olt as any)?.fallbackSshPassword,
+      },
+      "ssh-access-point": { 
+        ip: accessPointDev?.ip, 
+        sshUser: accessPointDev?.sshUser, 
+        sshPassword: accessPointDev?.sshPassword, 
+        sshPort: accessPointDev?.sshPort,
+        fallbackSshUser: (accessPointDev as any)?.fallbackSshUser,
+        fallbackSshPassword: (accessPointDev as any)?.fallbackSshPassword,
+      },
+      "ssh-concentrator": { 
+        ip: devices?.concentrator?.ip, 
+        sshUser: devices?.concentrator?.sshUser, 
+        sshPassword: devices?.concentrator?.sshPassword, 
+        sshPort: devices?.concentrator?.sshPort,
+        fallbackSshUser: (devices?.concentrator as any)?.fallbackSshUser,
+        fallbackSshPassword: (devices?.concentrator as any)?.fallbackSshPassword,
+      },
+      "ssh-cpe": { 
+        ip: devices?.cpe?.ip, 
+        sshUser: devices?.cpe?.sshUser, 
+        sshPassword: devices?.cpe?.sshPassword, 
+        sshPort: devices?.cpe?.sshPort,
+        fallbackSshUser: (devices?.cpe as any)?.fallbackSshUser,
+        fallbackSshPassword: (devices?.cpe as any)?.fallbackSshPassword,
+      },
     };
     
     const device = deviceMap[type];
     if (!device?.ip) return {};
     
-    // Verificar se deve usar credenciais RADIUS (quando habilitado e disponível)
-    const radiusAuth = devices?.radiusAuth;
-    const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
+    // Credenciais primárias (já resolvidas pelo backend - RADIUS ou locais)
+    const user = device.sshUser || "admin";
+    const password = device.sshPassword;
     
-    // Se RADIUS está habilitado para dispositivos, usar credenciais RADIUS primeiro
-    // Mas também passa as credenciais locais como fallback para caso RADIUS falhe
-    const user = useRadius ? radiusAuth.username! : (device.sshUser || "admin");
-    const password = useRadius ? radiusAuth.password! : device.sshPassword;
-    
-    // Credenciais de fallback: quando usando RADIUS, o fallback são as credenciais locais do dispositivo
-    const fallbackUser = useRadius ? (device.sshUser || "admin") : undefined;
-    const fallbackPassword = useRadius ? device.sshPassword : undefined;
+    // Credenciais de fallback (locais do dispositivo, usadas quando RADIUS falha)
+    const fallbackUser = device.fallbackSshUser;
+    const fallbackPassword = device.fallbackSshPassword;
     
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
@@ -2013,14 +2047,12 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
             // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
             const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
-            // Verificar se deve usar credenciais RADIUS (quando habilitado e disponível)
-            const radiusAuth = devices?.radiusAuth;
-            const useRadius = radiusAuth?.enabled && radiusAuth?.hasCredentials && radiusAuth?.username && radiusAuth?.password;
-            const sshUser = useRadius ? radiusAuth.username! : (cpe.sshUser || "admin");
-            const sshPassword = useRadius ? radiusAuth.password! : cpe.sshPassword;
-            // Credenciais de fallback: quando usando RADIUS, o fallback são as credenciais locais do CPE
-            const cpeFallbackUser = useRadius ? (cpe.sshUser || "admin") : undefined;
-            const cpeFallbackPassword = useRadius ? cpe.sshPassword : undefined;
+            // O backend já retorna as credenciais corretas (RADIUS ou locais) em sshUser/sshPassword
+            // e as credenciais de fallback em fallbackSshUser/fallbackSshPassword
+            const sshUser = cpe.sshUser || "admin";
+            const sshPassword = cpe.sshPassword;
+            const cpeFallbackUser = (cpe as any).fallbackSshUser;
+            const cpeFallbackPassword = (cpe as any).fallbackSshPassword;
             const sshCommand = cpe.ip 
               ? (sshPassword 
                   ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`

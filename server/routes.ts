@@ -1610,41 +1610,44 @@ export async function registerRoutes(
         concentrator = await storage.getConcentrator(link.concentratorId);
       }
       
-      // Verificar se deve usar credenciais do operador
-      let concentratorSshUser = concentrator?.sshUser || "admin";
-      let concentratorSshPassword = concentrator?.sshPassword ? decrypt(concentrator.sshPassword) : null;
-      let useOperatorCreds = concentrator?.useOperatorCredentials || false;
+      // Credenciais locais do dispositivo (concentrador) - usadas como fallback
+      const localConcentratorUser = concentrator?.sshUser || "admin";
+      const localConcentratorPassword = concentrator?.sshPassword ? decrypt(concentrator.sshPassword) : null;
       
-      console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, useOperatorCredentials=${useOperatorCreds}, sshUser=${concentrator?.sshUser}`);
+      // Credenciais a usar (podem ser RADIUS ou locais)
+      let concentratorSshUser = localConcentratorUser;
+      let concentratorSshPassword = localConcentratorPassword;
+      let usingRadiusCredentials = false;
+      
+      console.log(`[Devices] Concentrador: id=${concentrator?.id}, name=${concentrator?.name}, sshUser=${concentrator?.sshUser}`);
       console.log(`[Devices] User logado: id=${user?.id}, name=${user?.name}`);
       console.log(`[Devices] Credenciais RADIUS na sessão: ${radiusCredentials ? `user=${radiusCredentials.username}` : 'não disponível'}`);
+      console.log(`[Devices] useRadiusForDevices: ${useRadiusForDevices}`);
       
-      // Se não há concentrador definido OU useOperatorCredentials está ativo, usar credenciais do operador
-      // Prioridade: 1) Credenciais RADIUS da sessão, 2) Credenciais SSH do usuário, 3) Credenciais do concentrador
-      if (!concentrator || useOperatorCreds) {
-        // Primeiro tenta usar credenciais RADIUS da sessão (login via RADIUS)
+      // Se useRadiusForDevices está ativo E há credenciais RADIUS na sessão, usar RADIUS como primário
+      // As credenciais locais do dispositivo serão passadas como fallback
+      if (useRadiusForDevices && radiusCredentials?.username && radiusCredentials?.password) {
+        concentratorSshUser = radiusCredentials.username;
+        concentratorSshPassword = radiusCredentials.password;
+        usingRadiusCredentials = true;
+        console.log(`[Devices] USANDO credenciais RADIUS (useRadiusForDevices=true): ${concentratorSshUser}`);
+      } else if (concentrator?.useOperatorCredentials) {
+        // Fallback: usar credenciais do operador se useOperatorCredentials estiver ativo no concentrador
         if (radiusCredentials?.username && radiusCredentials?.password) {
           concentratorSshUser = radiusCredentials.username;
           concentratorSshPassword = radiusCredentials.password;
-          useOperatorCreds = true;
-          console.log(`[Devices] USANDO credenciais RADIUS da sessão: ${concentratorSshUser}`);
+          usingRadiusCredentials = true;
+          console.log(`[Devices] USANDO credenciais RADIUS (useOperatorCredentials=true): ${concentratorSshUser}`);
         } else if (user?.id) {
-          // Fallback para credenciais SSH cadastradas no usuário
           const operatorUser = await storage.getUser(user.id);
-          console.log(`[Devices] Verificando credenciais SSH do operador: sshUser=${operatorUser?.sshUser}`);
           if (operatorUser?.sshUser) {
             concentratorSshUser = operatorUser.sshUser;
             concentratorSshPassword = operatorUser.sshPassword ? decrypt(operatorUser.sshPassword) : null;
-            useOperatorCreds = true;
             console.log(`[Devices] USANDO credenciais SSH do operador: ${concentratorSshUser}`);
-          } else if (!concentrator) {
-            console.log(`[Devices] Operador não tem credenciais SSH configuradas e não há concentrador`);
-          } else {
-            console.log(`[Devices] Operador não tem credenciais configuradas, usando credenciais do concentrador`);
           }
         }
       } else {
-        console.log(`[Devices] Usando credenciais do concentrador (useOperatorCredentials=${useOperatorCreds})`);
+        console.log(`[Devices] Usando credenciais locais do concentrador`);
       }
       
       // Buscar CPEs associados ao link
@@ -1683,6 +1686,15 @@ export async function registerRoutes(
         const memoryUsage = useAssocMetrics ? assoc.memoryUsage : cpe.memoryUsage;
         const lastMonitoredAt = useAssocMetrics ? assoc.lastMonitoredAt : cpe.lastMonitoredAt;
         
+        // Se useRadiusForDevices ativo e há credenciais RADIUS, usar RADIUS; senão usar credenciais do CPE
+        const cpeSshUser = (useRadiusForDevices && radiusCredentials?.username) 
+          ? radiusCredentials.username 
+          : (cpe.sshUser || "admin");
+        const cpeSshPassword = (useRadiusForDevices && radiusCredentials?.password) 
+          ? radiusCredentials.password 
+          : decryptedSshPassword;
+        const cpeUsingRadius = !!(useRadiusForDevices && radiusCredentials?.username);
+        
         return {
           id: cpe.id,
           linkCpeId: assoc.id,
@@ -1696,8 +1708,8 @@ export async function registerRoutes(
           role: assoc.role || "primary",
           ipOverride: assoc.ipOverride || null,
           showInEquipmentTab: assoc.showInEquipmentTab || false,
-          sshUser: cpe.sshUser || "admin",
-          sshPassword: decryptedSshPassword,
+          sshUser: cpeSshUser,
+          sshPassword: cpeSshPassword,
           sshPort: cpe.sshPort || 22,
           webPort: cpe.webPort || 80,
           webProtocol: cpe.webProtocol || "http",
@@ -1706,6 +1718,10 @@ export async function registerRoutes(
           cpuUsage: lastMonitoredAt ? (cpuUsage ?? null) : null,
           memoryUsage: lastMonitoredAt ? (memoryUsage ?? null) : null,
           lastMonitoredAt: lastMonitoredAt?.toISOString() || null,
+          usingRadiusCredentials: cpeUsingRadius,
+          // Credenciais de fallback (locais do CPE)
+          fallbackSshUser: cpeUsingRadius ? (cpe.sshUser || "admin") : undefined,
+          fallbackSshPassword: cpeUsingRadius ? decryptedSshPassword : undefined,
         };
       }).filter(Boolean);
 
@@ -1717,26 +1733,36 @@ export async function registerRoutes(
           name: olt.name,
           ip: olt.ipAddress,
           available: !!olt.ipAddress,
-          sshUser: olt.username || "admin",
-          sshPassword: olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null,
+          // Se useRadiusForDevices ativo e há credenciais RADIUS, usar RADIUS; senão usar credenciais da OLT
+          sshUser: (useRadiusForDevices && radiusCredentials?.username) ? radiusCredentials.username : (olt.username || "admin"),
+          sshPassword: (useRadiusForDevices && radiusCredentials?.password) ? radiusCredentials.password : (olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null),
           sshPort: olt.port || 22,
           webPort: 80,
           webProtocol: "http",
           winboxPort: (olt as any).winboxPort || 8291,
           vendor: olt.vendor || null,
+          usingRadiusCredentials: !!(useRadiusForDevices && radiusCredentials?.username),
+          // Credenciais de fallback (locais da OLT)
+          fallbackSshUser: (useRadiusForDevices && radiusCredentials?.username) ? (olt.username || "admin") : undefined,
+          fallbackSshPassword: (useRadiusForDevices && radiusCredentials?.password) ? (olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null) : undefined,
         } : null,
         switch: switchDevice ? {
           name: switchDevice.name,
           ip: switchDevice.ipAddress,
           available: !!switchDevice.ipAddress,
-          sshUser: switchDevice.sshUser || "admin",
-          sshPassword: switchDevice.sshPassword ? decrypt(switchDevice.sshPassword) : null,
+          // Se useRadiusForDevices ativo e há credenciais RADIUS, usar RADIUS; senão usar credenciais do switch
+          sshUser: (useRadiusForDevices && radiusCredentials?.username) ? radiusCredentials.username : (switchDevice.sshUser || "admin"),
+          sshPassword: (useRadiusForDevices && radiusCredentials?.password) ? radiusCredentials.password : (switchDevice.sshPassword ? decrypt(switchDevice.sshPassword) : null),
           sshPort: switchDevice.sshPort || 22,
           webPort: switchDevice.webPort || 80,
           webProtocol: switchDevice.webProtocol || "http",
           winboxPort: (switchDevice as any).winboxPort || 8291,
           vendor: switchDevice.vendor || null,
           model: switchDevice.model || null,
+          usingRadiusCredentials: !!(useRadiusForDevices && radiusCredentials?.username),
+          // Credenciais de fallback (locais do switch)
+          fallbackSshUser: (useRadiusForDevices && radiusCredentials?.username) ? (switchDevice.sshUser || "admin") : undefined,
+          fallbackSshPassword: (useRadiusForDevices && radiusCredentials?.password) ? (switchDevice.sshPassword ? decrypt(switchDevice.sshPassword) : null) : undefined,
         } : null,
         concentrator: {
           name: concentrator?.name || "Concentrador",
@@ -1749,7 +1775,10 @@ export async function registerRoutes(
           webProtocol: (concentrator as any)?.webProtocol || "http",
           winboxPort: concentrator?.winboxPort || 8291,
           vendor: concentrator?.vendor || null,
-          useOperatorCredentials: useOperatorCreds,
+          usingRadiusCredentials: usingRadiusCredentials,
+          // Credenciais de fallback: usadas quando autenticação RADIUS falha
+          fallbackSshUser: usingRadiusCredentials ? localConcentratorUser : undefined,
+          fallbackSshPassword: usingRadiusCredentials ? localConcentratorPassword : undefined,
         },
         cpe: primaryCpe || {
           name: link.name,
