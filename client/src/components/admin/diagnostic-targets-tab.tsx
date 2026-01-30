@@ -36,14 +36,13 @@ import type { Client } from "@shared/schema";
 interface DiagnosticTarget {
   id: number;
   name: string;
-  ip: string;
+  ipAddress: string;
   description: string | null;
   category: string;
   clientId: number | null;
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
-  updatedAt: string;
 }
 
 const TARGET_CATEGORIES = [
@@ -63,7 +62,7 @@ export function DiagnosticTargetsTab() {
   
   const [formData, setFormData] = useState({
     name: "",
-    ip: "",
+    ipAddress: "",
     description: "",
     category: "external",
     clientId: null as number | null,
@@ -134,7 +133,7 @@ export function DiagnosticTargetsTab() {
   const resetForm = () => {
     setFormData({
       name: "",
-      ip: "",
+      ipAddress: "",
       description: "",
       category: "external",
       clientId: null,
@@ -149,7 +148,7 @@ export function DiagnosticTargetsTab() {
     setEditingTarget(target);
     setFormData({
       name: target.name,
-      ip: target.ip,
+      ipAddress: target.ipAddress,
       description: target.description || "",
       category: target.category,
       clientId: target.clientId,
@@ -160,7 +159,7 @@ export function DiagnosticTargetsTab() {
   };
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.ip) {
+    if (!formData.name || !formData.ipAddress) {
       toast({ title: "Nome e IP são obrigatórios", variant: "destructive" });
       return;
     }
@@ -186,7 +185,7 @@ export function DiagnosticTargetsTab() {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return t.name.toLowerCase().includes(term) ||
-           t.ip.toLowerCase().includes(term) ||
+           t.ipAddress.toLowerCase().includes(term) ||
            (t.description && t.description.toLowerCase().includes(term));
   }) || [];
 
@@ -255,7 +254,7 @@ export function DiagnosticTargetsTab() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{target.ip}</code>
+                      <code className="text-sm bg-muted px-2 py-1 rounded">{target.ipAddress}</code>
                     </TableCell>
                     <TableCell>
                       <Badge className={`${catInfo.color} text-white`}>{catInfo.label}</Badge>
@@ -325,11 +324,11 @@ export function DiagnosticTargetsTab() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="ip">Endereço IP *</Label>
+              <Label htmlFor="ipAddress">Endereço IP *</Label>
               <Input
-                id="ip"
-                value={formData.ip}
-                onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
+                id="ipAddress"
+                value={formData.ipAddress}
+                onChange={(e) => setFormData({ ...formData, ipAddress: e.target.value })}
                 placeholder="Ex: 8.8.8.8, 200.160.2.3"
                 data-testid="input-target-ip"
               />

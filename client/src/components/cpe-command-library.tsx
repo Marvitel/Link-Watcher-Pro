@@ -110,7 +110,7 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
     },
   });
 
-  const { data: diagnosticTargets } = useQuery<Array<{ id: number; name: string; ip: string; category: string }>>({
+  const { data: diagnosticTargets } = useQuery<Array<{ id: number; name: string; ipAddress: string; category: string }>>({
     queryKey: ["/api/diagnostic-targets"],
   });
 
@@ -413,7 +413,7 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
                             size="sm"
                             variant="outline"
                             className="h-6 text-xs"
-                            onClick={() => setParamValues({ ...paramValues, [placeholder]: target.ip })}
+                            onClick={() => setParamValues({ ...paramValues, [placeholder]: target.ipAddress })}
                             data-testid={`button-target-${target.id}`}
                           >
                             {target.name}
