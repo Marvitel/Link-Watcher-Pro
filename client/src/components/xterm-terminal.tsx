@@ -145,6 +145,20 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       // Só considera entre 300ms e 10s após SSH ser enviado (300ms para garantir que não é o primeiro prompt)
       const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 300 && timeSinceSsh < 10000;
       
+      // Debug: log detalhado para entender a detecção
+      console.log("[SSH Fallback Debug]", {
+        sshSentTime,
+        timeSinceSsh,
+        sshConnected,
+        isBackToLocalPrompt,
+        isExplicitAuthFailure,
+        isSilentFailure,
+        fallbackAttempted: fallbackAttempted.current,
+        hasFallbackPassword: !!fallbackPassword,
+        bufferLength: recentOutputBuffer.length,
+        bufferLast200: recentOutputBuffer.slice(-200)
+      });
+      
       if (isExplicitAuthFailure || isSilentFailure) {
         fallbackAttempted.current = true;
         terminal.writeln("\n\x1b[33m[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...\x1b[0m");
