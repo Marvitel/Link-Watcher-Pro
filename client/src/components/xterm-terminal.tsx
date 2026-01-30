@@ -178,17 +178,14 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
         currentPasswordRef.current = fallbackPassword;
         
         // Aguardar a sessão SSH anterior terminar completamente antes de iniciar o fallback
-        // Aguardar 2 segundos para garantir que a sessão anterior terminou
         setTimeout(() => {
           if (socket.readyState === WebSocket.OPEN) {
-            // Escapar caracteres especiais na senha para uso em shell
+            // Usar $'...' (ANSI-C quoting) para evitar problemas com caracteres especiais
+            // Escapar apenas ' e \ dentro de $'...'
             const escapedPassword = fallbackPassword
               .replace(/\\/g, '\\\\')
-              .replace(/"/g, '\\"')
-              .replace(/\$/g, '\\$')
-              .replace(/`/g, '\\`')
-              .replace(/!/g, '\\!');
-            const silentExportCmd = `export SSHPASS="${escapedPassword}"`;
+              .replace(/'/g, "\\'");
+            const silentExportCmd = `export SSHPASS=$'${escapedPassword}'`;
             socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
             
             // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
