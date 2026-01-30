@@ -1081,6 +1081,22 @@ export default function LinkDetail() {
               </CardContent>
             </Card>
           </div>
+          
+          {equipmentCpe && equipmentCpe.cpeId && (
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 space-y-0">
+                <Network className="w-5 h-5" />
+                <CardTitle className="text-base">Status das Portas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CpePortStatusDisplay 
+                  cpeId={equipmentCpe.cpeId} 
+                  linkCpeId={equipmentCpe.linkCpeId}
+                  cpeName={equipmentCpe.name}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="events">
