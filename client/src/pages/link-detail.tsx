@@ -16,7 +16,7 @@ import { EventsTable } from "@/components/events-table";
 import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
 import { OzmapRouteSection } from "@/components/ozmap-route-section";
-import { XtermTerminal } from "@/components/xterm-terminal";
+import { XtermTerminal, XtermTerminalRef } from "@/components/xterm-terminal";
 import { CpePortStatusDisplay } from "@/components/cpe-port-status";
 import { CpeCommandLibrary } from "@/components/cpe-command-library";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -1675,6 +1675,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   // Estado para terminais de CPEs individuais (quando há múltiplos)
   const [openCpeTerminals, setOpenCpeTerminals] = useState<Record<number, boolean>>({});
   const [cpeTerminalKeys, setCpeTerminalKeys] = useState<Record<number, number>>({});
+  // Ref para o terminal CPE (usado pela biblioteca de comandos)
+  const cpeTerminalRef = useRef<XtermTerminalRef>(null);
+  const cpeTerminalRefs = useRef<Record<number, XtermTerminalRef | null>>({});
   const { toast } = useToast();
 
   const { data: devices, isLoading: devicesLoading } = useQuery<DevicesInfo>({
@@ -2117,6 +2120,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   <CardContent className="pt-0">
                     <div className="border rounded-md overflow-hidden">
                       <XtermTerminal 
+                        ref={(el) => { if (cpe.id !== undefined) cpeTerminalRefs.current[cpe.id] = el; }}
                         key={cpeKey} 
                         initialCommand={sshCommand} 
                         sshPassword={sshPassword || undefined}
@@ -2164,6 +2168,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               <CardContent className="pt-0">
                 <div className="border rounded-md overflow-hidden">
                   <XtermTerminal 
+                    ref={cpeTerminalRef}
                     key={terminalKeys["ssh-cpe"]} 
                     initialCommand={getSshConfig("ssh-cpe").command} 
                     sshPassword={getSshConfig("ssh-cpe").password}
@@ -2196,6 +2201,25 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             model: (devices.cpe as CpeDeviceInfo).model,
             name: devices.cpe.name,
           } : null}
+          onExecuteCommand={(command) => {
+            // Tenta enviar para o terminal CPE principal
+            if (openTerminals["ssh-cpe"] && cpeTerminalRef.current) {
+              cpeTerminalRef.current.sendCommand(command);
+              return;
+            }
+            // Tenta enviar para algum terminal de CPE individual aberto
+            const openCpeId = Object.entries(openCpeTerminals).find(([, isOpen]) => isOpen)?.[0];
+            if (openCpeId && cpeTerminalRefs.current[Number(openCpeId)]) {
+              cpeTerminalRefs.current[Number(openCpeId)]?.sendCommand(command);
+              return;
+            }
+            // Se nenhum terminal está aberto, mostra mensagem
+            toast({
+              title: "Nenhum terminal SSH aberto",
+              description: "Abra um terminal SSH de CPE para executar comandos diretamente",
+              variant: "destructive"
+            });
+          }}
         />
       )}
 

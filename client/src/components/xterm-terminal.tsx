@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { getAuthToken } from "@/lib/auth";
@@ -14,7 +14,11 @@ interface XtermTerminalProps {
   onClose?: () => void;
 }
 
-export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, fallbackUser, onClose }: XtermTerminalProps) {
+export interface XtermTerminalRef {
+  sendCommand: (command: string) => void;
+}
+
+export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, fallbackUser, onClose }, ref) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -23,6 +27,15 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
   const fallbackAttempted = useRef(false);
   const currentPasswordRef = useRef<string | undefined>(sshPassword);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Expõe método sendCommand para componentes externos
+  useImperativeHandle(ref, () => ({
+    sendCommand: (command: string) => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(command + "\n");
+      }
+    }
+  }), []);
 
   const connect = useCallback(() => {
     if (!terminalRef.current) return;
@@ -520,4 +533,4 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       />
     </div>
   );
-}
+});

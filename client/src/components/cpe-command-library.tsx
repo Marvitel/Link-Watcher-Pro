@@ -89,6 +89,7 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
   const [paramDialogOpen, setParamDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CpeCommandTemplate | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [actionMode, setActionMode] = useState<"copy" | "execute">("execute");
   
   const vendorId = cpe?.vendorId;
   const model = cpe?.model;
@@ -153,7 +154,8 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
     return result;
   };
 
-  const handleCommandClick = (template: CpeCommandTemplate) => {
+  const handleCommandClick = (template: CpeCommandTemplate, mode: "copy" | "execute") => {
+    setActionMode(mode);
     const placeholders = extractPlaceholders(template.command);
     const parameters = parseParameters(template.parameters);
     
@@ -175,30 +177,46 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
       setParamValues(initialValues);
       setParamDialogOpen(true);
     } else {
-      executeCommand(template.command, template.id);
+      if (mode === "execute") {
+        executeInTerminal(template.command, template.id);
+      } else {
+        copyCommand(template.command, template.id);
+      }
     }
   };
 
-  const executeCommand = (command: string, templateId?: number) => {
+  const executeInTerminal = (command: string, templateId?: number) => {
     if (onExecuteCommand) {
       onExecuteCommand(command);
       logCommandMutation.mutate({ command, templateId });
       toast({ title: "Comando enviado ao terminal" });
     } else {
-      navigator.clipboard.writeText(command);
-      logCommandMutation.mutate({ command, templateId });
       toast({ 
-        title: "Comando copiado!", 
-        description: "Cole no terminal SSH ativo (Ctrl+Shift+V)" 
+        title: "Terminal não disponível", 
+        description: "Use o botão copiar e cole manualmente no terminal",
+        variant: "destructive"
       });
     }
+  };
+
+  const copyCommand = (command: string, templateId?: number) => {
+    navigator.clipboard.writeText(command);
+    logCommandMutation.mutate({ command, templateId });
+    toast({ 
+      title: "Comando copiado!", 
+      description: "Cole no terminal SSH ativo (Ctrl+Shift+V)" 
+    });
   };
 
   const handleParamSubmit = () => {
     if (!selectedTemplate) return;
     
     const command = substituteParams(selectedTemplate.command, paramValues);
-    executeCommand(command, selectedTemplate.id);
+    if (actionMode === "execute") {
+      executeInTerminal(command, selectedTemplate.id);
+    } else {
+      copyCommand(command, selectedTemplate.id);
+    }
     setParamDialogOpen(false);
     setSelectedTemplate(null);
     setParamValues({});
@@ -343,8 +361,8 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6"
-                                onClick={() => copyToClipboard(template.command)}
-                                title="Copiar"
+                                onClick={() => handleCommandClick(template, "copy")}
+                                title="Copiar para área de transferência"
                                 data-testid={`button-copy-cmd-${template.id}`}
                               >
                                 <Copy className="h-3 w-3" />
@@ -353,8 +371,8 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
                                 size="icon"
                                 variant="ghost"
                                 className="h-6 w-6"
-                                onClick={() => handleCommandClick(template)}
-                                title="Executar"
+                                onClick={() => handleCommandClick(template, "execute")}
+                                title="Executar no terminal"
                                 data-testid={`button-exec-cmd-${template.id}`}
                               >
                                 <Play className="h-3 w-3" />
@@ -446,8 +464,17 @@ export function CpeCommandLibrary({ linkId, cpe, onExecuteCommand }: CpeCommandL
               Cancelar
             </Button>
             <Button onClick={handleParamSubmit} data-testid="button-execute-param-cmd">
-              <Play className="h-4 w-4 mr-2" />
-              Executar
+              {actionMode === "execute" ? (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Executar
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
