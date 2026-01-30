@@ -376,6 +376,7 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
                 if (ws.readyState === WebSocket.OPEN) {
                   term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
                   ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
+                  markSshSent(); // Marcar quando o SSH foi enviado para fallback
                 } else {
                   term.writeln("\x1b[31m[ERRO] WebSocket fechou antes de enviar SSH\x1b[0m");
                 }
