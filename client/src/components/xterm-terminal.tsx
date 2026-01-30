@@ -87,10 +87,13 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
     // sshSentTime é o timestamp de quando o comando SSH foi ENVIADO (não quando aparece no output)
     let sshSentTime = 0;
+    // Buffer para acumular output recente (para detectar padrões que chegam em chunks)
+    let recentOutputBuffer = "";
     
     // Função para marcar quando o SSH foi enviado (chamada após enviar o comando)
     const markSshSent = () => {
       sshSentTime = Date.now();
+      recentOutputBuffer = ""; // Limpar buffer quando novo SSH é enviado
     };
     
     // Função para lidar com fallback de autenticação SSH
@@ -99,6 +102,12 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       // Só processar se o SSH já foi enviado e há credenciais de fallback
       if (!fallbackPassword || fallbackAttempted.current || !command || sshSentTime === 0) {
         return;
+      }
+      
+      // Acumular output no buffer (manter últimos 2000 caracteres)
+      recentOutputBuffer += outputText;
+      if (recentOutputBuffer.length > 2000) {
+        recentOutputBuffer = recentOutputBuffer.slice(-2000);
       }
       
       // Padrões explícitos de erro de autenticação SSH
@@ -112,21 +121,29 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       
       // Verificar se é uma falha explícita de autenticação
       const isExplicitAuthFailure = authFailPatterns.some(pattern => 
-        outputText.toLowerCase().includes(pattern.toLowerCase())
+        recentOutputBuffer.toLowerCase().includes(pattern.toLowerCase())
       );
       
       // Detectar retorno ao prompt local após SSH (indica falha silenciosa)
-      // Padrão: [user@host]$ ou user@host:~$ 
-      // Só considera se passou pelo menos 500ms desde o envio do SSH (tempo para conectar)
+      // O padrão do servidor linkmonitor: [linkmonitor@linkmonitor]$
+      // Procurar no buffer acumulado porque o prompt pode chegar em chunks separados
       const timeSinceSsh = Date.now() - sshSentTime;
-      const localPromptPatterns = [
-        /\[[\w.-]+@[\w.-]+\]\s*\$/,  // [user@host]$
-        /[\w.-]+@[\w.-]+:\S*\$/,      // user@host:~$
-      ];
-      const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(outputText));
       
-      // Falha silenciosa: voltou ao prompt local entre 500ms e 8s após SSH ser enviado
-      const isSilentFailure = isBackToLocalPrompt && timeSinceSsh > 500 && timeSinceSsh < 8000;
+      // Padrões de prompt local mais abrangentes
+      const localPromptPatterns = [
+        /\[linkmonitor@linkmonitor\]\s*\$/,  // Prompt específico do servidor
+        /\[[\w.-]+@[\w.-]+\]\s*\$/,           // [user@host]$
+        /[\w.-]+@[\w.-]+:\S*\$/,               // user@host:~$
+      ];
+      
+      // Verificar se o buffer contém indicação de que SSH conectou mas depois voltou ao prompt
+      const sshConnected = recentOutputBuffer.includes("Warning: Permanently added") ||
+                          recentOutputBuffer.includes("Connecting to");
+      const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(recentOutputBuffer));
+      
+      // Falha silenciosa: SSH conectou, mas depois voltou ao prompt local
+      // Só considera entre 1s e 10s após SSH ser enviado
+      const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 1000 && timeSinceSsh < 10000;
       
       if (isExplicitAuthFailure || isSilentFailure) {
         fallbackAttempted.current = true;
@@ -152,7 +169,6 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
             socket.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
             
             // Re-exportar SSHPASS silenciosamente (usando stty para esconder)
-            // Enviamos o export em uma linha separada sem echo
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
                 // Usar comando que não ecoa a senha
@@ -164,6 +180,7 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
                 setTimeout(() => {
                   if (socket.readyState === WebSocket.OPEN) {
                     sshSentTime = Date.now();
+                    recentOutputBuffer = ""; // Limpar buffer para nova tentativa
                     socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
                   }
                 }, 300);
