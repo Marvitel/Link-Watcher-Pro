@@ -178,44 +178,29 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
         currentPasswordRef.current = fallbackPassword;
         
         // Aguardar a sessão SSH anterior terminar completamente antes de iniciar o fallback
-        // Enviar Ctrl+C e matar processos SSH pendentes
+        // Aguardar 2 segundos para garantir que a sessão anterior terminou
         setTimeout(() => {
           if (socket.readyState === WebSocket.OPEN) {
-            // Enviar múltiplos Ctrl+C para garantir que qualquer processo pendente seja cancelado
-            socket.send(JSON.stringify({ type: "input", data: "\x03\x03" })); // Ctrl+C x2
+            // Escapar caracteres especiais na senha para uso em shell
+            const escapedPassword = fallbackPassword
+              .replace(/\\/g, '\\\\')
+              .replace(/"/g, '\\"')
+              .replace(/\$/g, '\\$')
+              .replace(/`/g, '\\`')
+              .replace(/!/g, '\\!');
+            const silentExportCmd = `export SSHPASS="${escapedPassword}"`;
+            socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
             
-            // Aguardar processos terminarem completamente
+            // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
-                // Matar qualquer processo sshpass/ssh pendente e limpar o terminal
-                socket.send(JSON.stringify({ type: "input", data: "pkill -9 sshpass 2>/dev/null; sleep 0.5\n" }));
-                
-                setTimeout(() => {
-                  if (socket.readyState === WebSocket.OPEN) {
-                    // Escapar caracteres especiais na senha para uso em shell
-                    const escapedPassword = fallbackPassword
-                      .replace(/\\/g, '\\\\')
-                      .replace(/"/g, '\\"')
-                      .replace(/\$/g, '\\$')
-                      .replace(/`/g, '\\`')
-                      .replace(/!/g, '\\!');
-                    const silentExportCmd = `export SSHPASS="${escapedPassword}"`;
-                    socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
-                    
-                    // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
-                    setTimeout(() => {
-                      if (socket.readyState === WebSocket.OPEN) {
-                        sshSentTime = Date.now();
-                        recentOutputBuffer = ""; // Limpar buffer para nova tentativa
-                        socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
-                      }
-                    }, 800); // Delay maior para garantir que pkill e sleep terminaram
-                  }
-                }, 600); // Aguardar pkill executar
+                sshSentTime = Date.now();
+                recentOutputBuffer = ""; // Limpar buffer para nova tentativa
+                socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
               }
-            }, 500); // Aguardar Ctrl+C fazer efeito
+            }, 500);
           }
-        }, 300); // Delay inicial maior
+        }, 2000); // Aguardar 2 segundos para a sessão anterior terminar
       }
     };
 
