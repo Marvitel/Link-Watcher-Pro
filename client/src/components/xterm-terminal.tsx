@@ -142,8 +142,8 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(recentOutputBuffer));
       
       // Falha silenciosa: SSH conectou, mas depois voltou ao prompt local
-      // Só considera entre 300ms e 10s após SSH ser enviado (300ms para garantir que não é o primeiro prompt)
-      const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 300 && timeSinceSsh < 10000;
+      // Só considera entre 100ms e 10s após SSH ser enviado (100ms para garantir que não é o primeiro prompt)
+      const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 100 && timeSinceSsh < 10000;
       
       // Debug: log detalhado para entender a detecção
       console.log("[SSH Fallback Debug]", {
