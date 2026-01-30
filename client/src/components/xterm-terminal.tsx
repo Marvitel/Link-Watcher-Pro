@@ -9,15 +9,19 @@ import "@xterm/xterm/css/xterm.css";
 interface XtermTerminalProps {
   initialCommand?: string;
   sshPassword?: string;
+  fallbackPassword?: string;
+  fallbackUser?: string;
   onClose?: () => void;
 }
 
-export function XtermTerminal({ initialCommand, sshPassword, onClose }: XtermTerminalProps) {
+export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, fallbackUser, onClose }: XtermTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstance = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const initialCommandSent = useRef(false);
+  const fallbackAttempted = useRef(false);
+  const currentPasswordRef = useRef<string | undefined>(sshPassword);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const connect = useCallback(() => {
