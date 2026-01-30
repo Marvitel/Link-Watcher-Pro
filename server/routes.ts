@@ -1718,7 +1718,7 @@ export async function registerRoutes(
           ip: olt.ipAddress,
           available: !!olt.ipAddress,
           sshUser: olt.username || "admin",
-          sshPassword: olt.password || null,
+          sshPassword: olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null,
           sshPort: olt.port || 22,
           webPort: 80,
           webProtocol: "http",
