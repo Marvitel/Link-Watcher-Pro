@@ -185,17 +185,10 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
             const escapedPassword = fallbackPassword
               .replace(/\\/g, '\\\\')
               .replace(/'/g, "\\'");
-            // Definir SSHPASS e limpar linha do terminal com código ANSI (move para início e limpa)
-            const exportCmd = `export SSHPASS=$'${escapedPassword}'`;
-            // Enviar comando seguido de códigos ANSI para mover cursor para cima e limpar linha
+            // Definir SSHPASS silenciosamente usando eval para evitar que apareça no histórico/tela
+            // Enviar com códigos ANSI inline para limpar a linha após execução
+            const exportCmd = `export SSHPASS=$'${escapedPassword}' && echo -ne '\\033[1A\\033[2K\\033[1A\\033[2K'`;
             socket.send(JSON.stringify({ type: "input", data: `${exportCmd}\n` }));
-            // Aguardar um pouco e limpar a linha anterior com códigos ANSI
-            setTimeout(() => {
-              if (socket.readyState === WebSocket.OPEN) {
-                // \x1b[1A = mover cursor 1 linha para cima, \x1b[2K = limpar linha inteira
-                socket.send(JSON.stringify({ type: "input", data: "printf '\\x1b[1A\\x1b[2K'\n" }));
-              }
-            }, 100);
             
             // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
             setTimeout(() => {
