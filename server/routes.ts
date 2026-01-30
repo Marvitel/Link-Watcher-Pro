@@ -1697,6 +1697,7 @@ export async function registerRoutes(
         
         return {
           id: cpe.id,
+          cpeId: cpe.id, // Alias para uso no frontend
           linkCpeId: assoc.id,
           name: cpe.name,
           type: cpe.type,
@@ -3725,6 +3726,171 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error removing CPE from link:", error);
       res.status(500).json({ error: "Falha ao remover CPE do link" });
+    }
+  });
+
+  // CPE Port Status - Coletar e retornar status das portas do CPE via SNMP
+  app.get("/api/cpe/:cpeId/ports", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      const linkCpeId = req.query.linkCpeId ? parseInt(req.query.linkCpeId as string, 10) : undefined;
+      
+      // Verificar autorização multi-tenant
+      if (!req.user?.isSuperAdmin) {
+        // linkCpeId é obrigatório para usuários não-admin para garantir validação de acesso
+        if (!linkCpeId) {
+          return res.status(403).json({ error: "Parâmetro linkCpeId obrigatório" });
+        }
+        
+        const linkCpe = await storage.getLinkCpe(linkCpeId);
+        if (!linkCpe) {
+          return res.status(404).json({ error: "Associação link-CPE não encontrada" });
+        }
+        
+        // Verificar se linkCpe pertence ao cpeId solicitado
+        if (linkCpe.cpeId !== cpeId) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+        
+        // Verificar se o link pertence ao cliente do usuário
+        const link = await storage.getLink(linkCpe.linkId);
+        if (!link || link.clientId !== req.user?.clientId) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+      }
+      
+      // Buscar portas salvas no banco
+      const savedPorts = await storage.getCpePortStatus(cpeId, linkCpeId);
+      res.json(savedPorts);
+    } catch (error) {
+      console.error("Error fetching CPE port status:", error);
+      res.status(500).json({ error: "Falha ao buscar status das portas" });
+    }
+  });
+
+  // Endpoint para coletar status das portas via SNMP e salvar no banco
+  app.post("/api/cpe/:cpeId/ports/refresh", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      const linkCpeId = req.query.linkCpeId ? parseInt(req.query.linkCpeId as string, 10) : undefined;
+      
+      // Verificar autorização multi-tenant
+      if (!req.user?.isSuperAdmin) {
+        // linkCpeId é obrigatório para usuários não-admin para garantir validação de acesso
+        if (!linkCpeId) {
+          return res.status(403).json({ error: "Parâmetro linkCpeId obrigatório" });
+        }
+        
+        const linkCpe = await storage.getLinkCpe(linkCpeId);
+        if (!linkCpe) {
+          return res.status(404).json({ error: "Associação link-CPE não encontrada" });
+        }
+        
+        // Verificar se linkCpe pertence ao cpeId solicitado
+        if (linkCpe.cpeId !== cpeId) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+        
+        // Verificar se o link pertence ao cliente do usuário
+        const link = await storage.getLink(linkCpe.linkId);
+        if (!link || link.clientId !== req.user?.clientId) {
+          return res.status(403).json({ error: "Acesso negado" });
+        }
+      }
+      
+      // Buscar CPE e suas configurações SNMP
+      const cpe = await storage.getCpe(cpeId);
+      if (!cpe) {
+        return res.status(404).json({ error: "CPE não encontrado" });
+      }
+      
+      // Determinar IP a usar (override do linkCpe ou IP do CPE)
+      let targetIp = cpe.ipAddress;
+      if (linkCpeId) {
+        const linkCpe = await storage.getLinkCpe(linkCpeId);
+        if (linkCpe?.ipOverride) {
+          targetIp = linkCpe.ipOverride;
+        }
+      }
+      
+      if (!targetIp) {
+        return res.status(400).json({ error: "CPE não possui IP configurado" });
+      }
+      
+      // Buscar perfil SNMP do CPE ou do fabricante
+      let snmpProfile;
+      if (cpe.snmpProfileId) {
+        snmpProfile = await storage.getSnmpProfile(cpe.snmpProfileId);
+      } else if (cpe.vendorId) {
+        // Tentar buscar perfil padrão do fabricante
+        const vendor = await storage.getEquipmentVendor(cpe.vendorId);
+        if (vendor?.snmpProfileId) {
+          snmpProfile = await storage.getSnmpProfile(vendor.snmpProfileId);
+        }
+      }
+      
+      if (!snmpProfile) {
+        // Usar perfil SNMP padrão (v2c, community public)
+        snmpProfile = {
+          id: 0,
+          version: "2c",
+          port: 161,
+          community: "public",
+          timeout: 5000,
+          retries: 1,
+        };
+      }
+      
+      // Descobrir interfaces via SNMP
+      const interfaces = await discoverInterfaces(targetIp, snmpProfile);
+      
+      // Filtrar apenas interfaces físicas (excluir loopback, vlan, etc)
+      const physicalInterfaces = interfaces.filter(iface => {
+        const name = (iface.ifName || iface.ifDescr || "").toLowerCase();
+        // Incluir apenas interfaces que parecem físicas
+        return !name.includes("loopback") && 
+               !name.includes("null") &&
+               !name.includes("vlan") &&
+               (name.includes("eth") || 
+                name.includes("ge") || 
+                name.includes("fa") || 
+                name.includes("gi") ||
+                name.includes("te") ||
+                name.includes("xe") ||
+                name.includes("lan") ||
+                name.includes("wan") ||
+                name.includes("port") ||
+                /^[0-9]+$/.test(name) || // Algumas interfaces são só números
+                iface.ifSpeed > 0); // Se tem velocidade, provavelmente é física
+      });
+      
+      // Salvar status das portas no banco
+      const savedPorts = [];
+      for (const iface of physicalInterfaces) {
+        const portData = {
+          cpeId,
+          linkCpeId: linkCpeId || null,
+          portIndex: iface.ifIndex,
+          portName: iface.ifAlias || iface.ifName || iface.ifDescr || `Port ${iface.ifIndex}`,
+          operStatus: iface.ifOperStatus || "unknown",
+          adminStatus: iface.ifAdminStatus || "up",
+          speed: iface.ifSpeed || null,
+          duplex: null,
+          mediaType: null,
+        };
+        
+        const saved = await storage.upsertCpePortStatus(portData);
+        savedPorts.push(saved);
+      }
+      
+      res.json({
+        success: true,
+        portsFound: physicalInterfaces.length,
+        ports: savedPorts,
+      });
+    } catch (error) {
+      console.error("Error refreshing CPE port status:", error);
+      res.status(500).json({ error: "Falha ao coletar status das portas via SNMP" });
     }
   });
 

@@ -17,6 +17,7 @@ import { SLAIndicators } from "@/components/sla-indicators";
 import { OpticalSignalSection } from "@/components/optical-signal-section";
 import { OzmapRouteSection } from "@/components/ozmap-route-section";
 import { XtermTerminal } from "@/components/xterm-terminal";
+import { CpePortStatusDisplay } from "@/components/cpe-port-status";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -1578,6 +1579,8 @@ interface DeviceInfo {
 
 interface CpeDeviceInfo extends DeviceInfo {
   id?: number;
+  cpeId?: number;
+  linkCpeId?: number;
   type?: string;
   role?: string;
   manufacturer?: string | null;
@@ -2131,6 +2134,15 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                 <p className="text-xs text-muted-foreground">{devices?.cpe?.ip}</p>
               )}
             </CardHeader>
+            <CardContent className="pt-0 pb-3">
+              {devices?.cpe && (devices.cpe as CpeDeviceInfo).cpeId && (
+                <CpePortStatusDisplay 
+                  cpeId={(devices.cpe as CpeDeviceInfo).cpeId!}
+                  linkCpeId={(devices.cpe as CpeDeviceInfo).linkCpeId}
+                  compact
+                />
+              )}
+            </CardContent>
             {openTerminals["ssh-cpe"] && (
               <CardContent className="pt-0">
                 <div className="border rounded-md overflow-hidden">

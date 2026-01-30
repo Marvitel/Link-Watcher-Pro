@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -379,6 +379,21 @@ export const linkCpes = pgTable("link_cpes", {
   cpuUsage: real("cpu_usage"),
   memoryUsage: real("memory_usage"),
   lastMonitoredAt: timestamp("last_monitored_at"),
+});
+
+// Status das portas do CPE (coletado via SNMP)
+export const cpePortStatus = pgTable("cpe_port_status", {
+  id: serial("id").primaryKey(),
+  cpeId: integer("cpe_id").notNull(), // FK para cpes
+  linkCpeId: integer("link_cpe_id"), // FK opcional para linkCpes (para CPE padrão com múltiplas instâncias)
+  portIndex: integer("port_index").notNull(), // ifIndex SNMP
+  portName: varchar("port_name", { length: 100 }), // ifDescr ou ifAlias
+  operStatus: varchar("oper_status", { length: 20 }).notNull().default("down"), // up, down, testing, unknown
+  adminStatus: varchar("admin_status", { length: 20 }).default("up"), // up, down
+  speed: bigint("speed", { mode: "number" }), // ifSpeed ou ifHighSpeed em bps (null = desconhecido)
+  duplex: varchar("duplex", { length: 20 }), // full, half, unknown
+  mediaType: varchar("media_type", { length: 50 }), // copper, fiber, unknown
+  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 });
 
 export const mibConfigs = pgTable("mib_configs", {
@@ -783,6 +798,7 @@ export const insertOpticalSettingsSchema = createInsertSchema(opticalSettings).o
 export const insertSplitterSchema = createInsertSchema(splitters).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCpeSchema = createInsertSchema(cpes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkCpeSchema = createInsertSchema(linkCpes).omit({ id: true, createdAt: true });
+export const insertCpePortStatusSchema = createInsertSchema(cpePortStatus).omit({ id: true, lastUpdated: true });
 export const insertFirewallWhitelistSchema = createInsertSchema(firewallWhitelist).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFirewallSettingsSchema = createInsertSchema(firewallSettings).omit({ id: true, updatedAt: true });
 export const insertLinkTrafficInterfaceSchema = createInsertSchema(linkTrafficInterfaces).omit({ id: true, createdAt: true });
@@ -819,6 +835,7 @@ export type InsertOpticalSettings = z.infer<typeof insertOpticalSettingsSchema>;
 export type InsertSplitter = z.infer<typeof insertSplitterSchema>;
 export type InsertCpe = z.infer<typeof insertCpeSchema>;
 export type InsertLinkCpe = z.infer<typeof insertLinkCpeSchema>;
+export type InsertCpePortStatus = z.infer<typeof insertCpePortStatusSchema>;
 export type InsertFirewallWhitelist = z.infer<typeof insertFirewallWhitelistSchema>;
 export type InsertFirewallSettings = z.infer<typeof insertFirewallSettingsSchema>;
 export type InsertLinkTrafficInterface = z.infer<typeof insertLinkTrafficInterfaceSchema>;
@@ -855,6 +872,7 @@ export type OpticalSettings = typeof opticalSettings.$inferSelect;
 export type Splitter = typeof splitters.$inferSelect;
 export type Cpe = typeof cpes.$inferSelect;
 export type LinkCpe = typeof linkCpes.$inferSelect;
+export type CpePortStatus = typeof cpePortStatus.$inferSelect;
 export type FirewallWhitelist = typeof firewallWhitelist.$inferSelect;
 export type FirewallSettings = typeof firewallSettings.$inferSelect;
 export type LinkTrafficInterface = typeof linkTrafficInterfaces.$inferSelect;

@@ -36,6 +36,7 @@ import {
   blacklistChecks,
   cpes,
   linkCpes,
+  cpePortStatus,
   linkTrafficInterfaces,
   trafficInterfaceMetrics,
   type Client,
@@ -94,6 +95,8 @@ import {
   type InsertLinkCpe,
   type Cpe,
   type LinkCpe,
+  type CpePortStatus,
+  type InsertCpePortStatus,
   type LinkTrafficInterface,
   type InsertLinkTrafficInterface,
   type TrafficInterfaceMetric,
@@ -2630,6 +2633,59 @@ export class DatabaseStorage {
   async updateLinkCpe(id: number, data: Partial<InsertLinkCpe>): Promise<LinkCpe | undefined> {
     const [assoc] = await db.update(linkCpes).set(data).where(eq(linkCpes.id, id)).returning();
     return assoc;
+  }
+
+  async getLinkCpe(id: number): Promise<LinkCpe | undefined> {
+    const [assoc] = await db.select().from(linkCpes).where(eq(linkCpes.id, id));
+    return assoc;
+  }
+
+  // CPE Port Status - Status das portas do CPE
+  async getCpePortStatus(cpeId: number, linkCpeId?: number): Promise<CpePortStatus[]> {
+    if (linkCpeId) {
+      return await db.select().from(cpePortStatus)
+        .where(and(eq(cpePortStatus.cpeId, cpeId), eq(cpePortStatus.linkCpeId, linkCpeId)))
+        .orderBy(cpePortStatus.portIndex);
+    }
+    return await db.select().from(cpePortStatus)
+      .where(eq(cpePortStatus.cpeId, cpeId))
+      .orderBy(cpePortStatus.portIndex);
+  }
+
+  async upsertCpePortStatus(data: InsertCpePortStatus): Promise<CpePortStatus> {
+    // Verificar se já existe registro para esta porta
+    const existingQuery = db.select().from(cpePortStatus)
+      .where(and(
+        eq(cpePortStatus.cpeId, data.cpeId),
+        eq(cpePortStatus.portIndex, data.portIndex),
+        data.linkCpeId ? eq(cpePortStatus.linkCpeId, data.linkCpeId) : sql`${cpePortStatus.linkCpeId} IS NULL`
+      ));
+    
+    const [existing] = await existingQuery;
+    
+    if (existing) {
+      // Atualizar registro existente
+      const [updated] = await db.update(cpePortStatus)
+        .set({ ...data, lastUpdated: new Date() })
+        .where(eq(cpePortStatus.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Criar novo registro
+      const [created] = await db.insert(cpePortStatus).values(data).returning();
+      return created;
+    }
+  }
+
+  async deleteCpePortStatus(cpeId: number, linkCpeId?: number): Promise<void> {
+    if (linkCpeId) {
+      await db.delete(cpePortStatus).where(and(
+        eq(cpePortStatus.cpeId, cpeId),
+        eq(cpePortStatus.linkCpeId, linkCpeId)
+      ));
+    } else {
+      await db.delete(cpePortStatus).where(eq(cpePortStatus.cpeId, cpeId));
+    }
   }
 
   // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link
