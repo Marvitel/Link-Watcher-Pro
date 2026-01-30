@@ -37,6 +37,9 @@ import {
   cpes,
   linkCpes,
   cpePortStatus,
+  cpeCommandTemplates,
+  cpeCommandHistory,
+  diagnosticTargets,
   linkTrafficInterfaces,
   trafficInterfaceMetrics,
   type Client,
@@ -97,6 +100,12 @@ import {
   type LinkCpe,
   type CpePortStatus,
   type InsertCpePortStatus,
+  type CpeCommandTemplate,
+  type InsertCpeCommandTemplate,
+  type CpeCommandHistory,
+  type InsertCpeCommandHistory,
+  type DiagnosticTarget,
+  type InsertDiagnosticTarget,
   type LinkTrafficInterface,
   type InsertLinkTrafficInterface,
   type TrafficInterfaceMetric,
@@ -2686,6 +2695,129 @@ export class DatabaseStorage {
     } else {
       await db.delete(cpePortStatus).where(eq(cpePortStatus.cpeId, cpeId));
     }
+  }
+
+  // CPE Command Templates - Templates de comandos SSH
+  async getCpeCommandTemplates(vendorId?: number, model?: string): Promise<CpeCommandTemplate[]> {
+    let query = db.select().from(cpeCommandTemplates).where(eq(cpeCommandTemplates.isActive, true));
+    
+    if (vendorId) {
+      const results = await db.select().from(cpeCommandTemplates)
+        .where(and(
+          eq(cpeCommandTemplates.isActive, true),
+          or(
+            eq(cpeCommandTemplates.vendorId, vendorId),
+            sql`${cpeCommandTemplates.vendorId} IS NULL`
+          )
+        ))
+        .orderBy(cpeCommandTemplates.category, cpeCommandTemplates.sortOrder, cpeCommandTemplates.name);
+      
+      // Filtrar por modelo se especificado
+      if (model) {
+        return results.filter(t => !t.model || t.model.toLowerCase() === model.toLowerCase());
+      }
+      return results;
+    }
+    
+    return await db.select().from(cpeCommandTemplates)
+      .where(eq(cpeCommandTemplates.isActive, true))
+      .orderBy(cpeCommandTemplates.category, cpeCommandTemplates.sortOrder, cpeCommandTemplates.name);
+  }
+
+  async getAllCpeCommandTemplates(): Promise<CpeCommandTemplate[]> {
+    return await db.select().from(cpeCommandTemplates)
+      .orderBy(cpeCommandTemplates.vendorId, cpeCommandTemplates.category, cpeCommandTemplates.sortOrder);
+  }
+
+  async getCpeCommandTemplate(id: number): Promise<CpeCommandTemplate | undefined> {
+    const [template] = await db.select().from(cpeCommandTemplates).where(eq(cpeCommandTemplates.id, id));
+    return template;
+  }
+
+  async createCpeCommandTemplate(data: InsertCpeCommandTemplate): Promise<CpeCommandTemplate> {
+    const [template] = await db.insert(cpeCommandTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateCpeCommandTemplate(id: number, data: Partial<InsertCpeCommandTemplate>): Promise<CpeCommandTemplate | undefined> {
+    const [template] = await db.update(cpeCommandTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(cpeCommandTemplates.id, id))
+      .returning();
+    return template;
+  }
+
+  async deleteCpeCommandTemplate(id: number): Promise<void> {
+    await db.delete(cpeCommandTemplates).where(eq(cpeCommandTemplates.id, id));
+  }
+
+  // CPE Command History - Histórico de execução de comandos
+  async getCpeCommandHistory(cpeId: number, linkId?: number, limit: number = 50): Promise<CpeCommandHistory[]> {
+    if (linkId) {
+      return await db.select().from(cpeCommandHistory)
+        .where(and(eq(cpeCommandHistory.cpeId, cpeId), eq(cpeCommandHistory.linkId, linkId)))
+        .orderBy(desc(cpeCommandHistory.executedAt))
+        .limit(limit);
+    }
+    return await db.select().from(cpeCommandHistory)
+      .where(eq(cpeCommandHistory.cpeId, cpeId))
+      .orderBy(desc(cpeCommandHistory.executedAt))
+      .limit(limit);
+  }
+
+  async createCpeCommandHistory(data: InsertCpeCommandHistory): Promise<CpeCommandHistory> {
+    const [history] = await db.insert(cpeCommandHistory).values(data).returning();
+    return history;
+  }
+
+  async updateCpeCommandHistory(id: number, data: Partial<InsertCpeCommandHistory>): Promise<CpeCommandHistory | undefined> {
+    const [history] = await db.update(cpeCommandHistory)
+      .set(data)
+      .where(eq(cpeCommandHistory.id, id))
+      .returning();
+    return history;
+  }
+
+  // Diagnostic Targets - IPs de diagnóstico configuráveis
+  async getDiagnosticTargets(clientId?: number): Promise<DiagnosticTarget[]> {
+    if (clientId) {
+      return await db.select().from(diagnosticTargets)
+        .where(and(
+          eq(diagnosticTargets.isActive, true),
+          or(eq(diagnosticTargets.clientId, clientId), sql`${diagnosticTargets.clientId} IS NULL`)
+        ))
+        .orderBy(diagnosticTargets.category, diagnosticTargets.sortOrder);
+    }
+    return await db.select().from(diagnosticTargets)
+      .where(eq(diagnosticTargets.isActive, true))
+      .orderBy(diagnosticTargets.category, diagnosticTargets.sortOrder);
+  }
+
+  async getAllDiagnosticTargets(): Promise<DiagnosticTarget[]> {
+    return await db.select().from(diagnosticTargets)
+      .orderBy(diagnosticTargets.clientId, diagnosticTargets.category, diagnosticTargets.sortOrder);
+  }
+
+  async getDiagnosticTarget(id: number): Promise<DiagnosticTarget | undefined> {
+    const [target] = await db.select().from(diagnosticTargets).where(eq(diagnosticTargets.id, id));
+    return target;
+  }
+
+  async createDiagnosticTarget(data: InsertDiagnosticTarget): Promise<DiagnosticTarget> {
+    const [target] = await db.insert(diagnosticTargets).values(data).returning();
+    return target;
+  }
+
+  async updateDiagnosticTarget(id: number, data: Partial<InsertDiagnosticTarget>): Promise<DiagnosticTarget | undefined> {
+    const [target] = await db.update(diagnosticTargets)
+      .set(data)
+      .where(eq(diagnosticTargets.id, id))
+      .returning();
+    return target;
+  }
+
+  async deleteDiagnosticTarget(id: number): Promise<void> {
+    await db.delete(diagnosticTargets).where(eq(diagnosticTargets.id, id));
   }
 
   // Link Traffic Interfaces - Múltiplas interfaces de tráfego por link

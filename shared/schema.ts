@@ -396,6 +396,54 @@ export const cpePortStatus = pgTable("cpe_port_status", {
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 });
 
+// Templates de comandos SSH para CPEs (por fabricante/modelo)
+export const cpeCommandTemplates = pgTable("cpe_command_templates", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id"), // FK para equipmentVendors (null = genérico)
+  model: varchar("model", { length: 100 }), // Modelo específico (null = todos os modelos do fabricante)
+  name: varchar("name", { length: 100 }).notNull(), // Nome amigável: "Ver Logs (últimos 100)"
+  category: varchar("category", { length: 50 }).notNull().default("general"), // logs, hardware, network, diagnostic, backup, other
+  command: text("command").notNull(), // Comando SSH: "show log flash tail 100"
+  description: text("description"), // Descrição do que o comando faz
+  hasParameters: boolean("has_parameters").notNull().default(false), // Se aceita parâmetros como {IP}, {INTERFACE}
+  parameterHints: text("parameter_hints"), // JSON com dicas para parâmetros: {"IP": "Endereço IP de destino"}
+  requiresConfirmation: boolean("requires_confirmation").notNull().default(false), // Comandos perigosos
+  sortOrder: integer("sort_order").notNull().default(0), // Ordem de exibição
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Histórico de execução de comandos
+export const cpeCommandHistory = pgTable("cpe_command_history", {
+  id: serial("id").primaryKey(),
+  cpeId: integer("cpe_id").notNull(), // FK para cpes
+  linkCpeId: integer("link_cpe_id"), // FK para linkCpes (contexto do link)
+  linkId: integer("link_id"), // FK para links
+  templateId: integer("template_id"), // FK para cpeCommandTemplates (null = comando manual)
+  userId: integer("user_id").notNull(), // Quem executou
+  command: text("command").notNull(), // Comando executado (com parâmetros substituídos)
+  output: text("output"), // Saída do comando
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, running, success, error, timeout
+  errorMessage: text("error_message"), // Mensagem de erro se falhou
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  durationMs: integer("duration_ms"), // Tempo de execução em ms
+});
+
+// IPs de diagnóstico configuráveis por cliente (para ping/traceroute)
+export const diagnosticTargets = pgTable("diagnostic_targets", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id"), // FK para clients (null = global)
+  name: varchar("name", { length: 100 }).notNull(), // "DNS Google", "DNS ISP"
+  ipAddress: varchar("ip_address", { length: 45 }).notNull(), // IPv4 ou IPv6
+  description: text("description"), // "Servidor DNS primário do Google"
+  category: varchar("category", { length: 50 }).notNull().default("dns"), // dns, gateway, server, other
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const mibConfigs = pgTable("mib_configs", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull(),
@@ -799,6 +847,9 @@ export const insertSplitterSchema = createInsertSchema(splitters).omit({ id: tru
 export const insertCpeSchema = createInsertSchema(cpes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertLinkCpeSchema = createInsertSchema(linkCpes).omit({ id: true, createdAt: true });
 export const insertCpePortStatusSchema = createInsertSchema(cpePortStatus).omit({ id: true, lastUpdated: true });
+export const insertCpeCommandTemplateSchema = createInsertSchema(cpeCommandTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCpeCommandHistorySchema = createInsertSchema(cpeCommandHistory).omit({ id: true, executedAt: true });
+export const insertDiagnosticTargetSchema = createInsertSchema(diagnosticTargets).omit({ id: true, createdAt: true });
 export const insertFirewallWhitelistSchema = createInsertSchema(firewallWhitelist).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFirewallSettingsSchema = createInsertSchema(firewallSettings).omit({ id: true, updatedAt: true });
 export const insertLinkTrafficInterfaceSchema = createInsertSchema(linkTrafficInterfaces).omit({ id: true, createdAt: true });
@@ -836,6 +887,9 @@ export type InsertSplitter = z.infer<typeof insertSplitterSchema>;
 export type InsertCpe = z.infer<typeof insertCpeSchema>;
 export type InsertLinkCpe = z.infer<typeof insertLinkCpeSchema>;
 export type InsertCpePortStatus = z.infer<typeof insertCpePortStatusSchema>;
+export type InsertCpeCommandTemplate = z.infer<typeof insertCpeCommandTemplateSchema>;
+export type InsertCpeCommandHistory = z.infer<typeof insertCpeCommandHistorySchema>;
+export type InsertDiagnosticTarget = z.infer<typeof insertDiagnosticTargetSchema>;
 export type InsertFirewallWhitelist = z.infer<typeof insertFirewallWhitelistSchema>;
 export type InsertFirewallSettings = z.infer<typeof insertFirewallSettingsSchema>;
 export type InsertLinkTrafficInterface = z.infer<typeof insertLinkTrafficInterfaceSchema>;
@@ -873,6 +927,9 @@ export type Splitter = typeof splitters.$inferSelect;
 export type Cpe = typeof cpes.$inferSelect;
 export type LinkCpe = typeof linkCpes.$inferSelect;
 export type CpePortStatus = typeof cpePortStatus.$inferSelect;
+export type CpeCommandTemplate = typeof cpeCommandTemplates.$inferSelect;
+export type CpeCommandHistory = typeof cpeCommandHistory.$inferSelect;
+export type DiagnosticTarget = typeof diagnosticTargets.$inferSelect;
 export type FirewallWhitelist = typeof firewallWhitelist.$inferSelect;
 export type FirewallSettings = typeof firewallSettings.$inferSelect;
 export type LinkTrafficInterface = typeof linkTrafficInterfaces.$inferSelect;
