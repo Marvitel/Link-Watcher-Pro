@@ -32,7 +32,7 @@ export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(fu
   useImperativeHandle(ref, () => ({
     sendCommand: (command: string) => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(command + "\n");
+        wsRef.current.send(JSON.stringify({ type: "input", data: command + "\n" }));
       }
     }
   }), []);
