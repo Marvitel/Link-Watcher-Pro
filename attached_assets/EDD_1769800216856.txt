@@ -1,0 +1,109 @@
+Comando para Switch EDD 2104G2
+
+
+show log flash
+#Lista todo log do equipamento
+
+_______________________________________________________
+
+show log flash tail 100
+#Lista os 100 últimos log do equipamento.
+_______________________________________________________
+
+show hardware-status
+#Lista na tela informações como: Status das portas SFP se estão com transceivers, Rotação da FAN, status da FAN e Temperatura do Equipamento nos 2 sensores.
+
+_______________________________________________________
+
+show hardware-status transceivers
+#Lista todas as interfaces com transceivers ativos e seu status como temperatura, serial, modelo, voltagem e sinal de tx/rx
+
+_______________________________________________________
+
+show uptime
+#Verifica o tempo de atividade do equipamento
+
+_______________________________________________________
+
+show firmware
+#Lista as informações da versão do firmware instalado e a data de compilação.
+
+
+show interfaces status
+#Lista informações como:
+  Port type:              SFP
+  MAC address:            00:04:DF:CA:0B:66
+ Configuration:
+  Name:                   
+  Port admin:             Up
+  Speed-duplex:           Auto
+  Capabilities:           1000full
+  MDIX:                   Auto
+  LACP:                   Disabled
+  OAM:                    Enabled - Active
+ Current status:
+  Link status:            Up
+  Operation speed-duplex: 1000M full
+  Flow control:           Disabled
+  MDIX:                   Normal
+
+show interfaces status ethernet 1/1
+#Listas as informações de uma interface especifica.
+
+_______________________________________________________
+
+show interfaces table utilization bandwidth
+#Visualiza o tráfego em tempo real das interfaces, mostra status de cada interface e o speed
+Obs.: É necessário apertar a tecla ESC para sair do modo de monitoramento.
+
+_______________________________________________________
+
+show cpu usage
+#Verifica o uso da CPU 
+
+_______________________________________________________
+
+ping
+traceroute
+##Teste de latência para uma lista de IPs  pré-determinada como:
+DNS Google: 8.8.8.8 e 8.8.4.4
+DNS do ISP: 191.52.248.20 e 191.52.248.21
+DNS da Cloud: 1.1.1.1 e 1.0.0.1
+
+Obs.: Sugestão para esse tipo de equipamento é que os testes de ping e traceroute possam ser parametrizados em um campo separado para ser definido pelo ISP quais vão ser os IPs para parâmetros de diagnóstico.
+
+_______________________________________________________
+
+show interfaces counters detail
+#Lista as informações de todas as interfaces e as principais informações como: Erro de input e output, erro FCS, drops e erro CRC.
+
+Veriações do comando:
+show interfaces counters ethernet 1/1 summary
+show interfaces counters ethernet 1/1 detail
+
+_______________________________________________________
+
+show mac-address-table
+#lista toda a tabela ARP do equipamento, ajudando a identificar se o equipamento está recebendo os mac-address nas interfaces de ambos os sentidos e nas vlans correspondentes 
+
+_______________________________________________________
+
+show spanning-tree
+#Lista informações de quem é o root da rede STP/RSTP
+
+_______________________________________________________
+
+copy startup-config tftp 191.52.248.142 BKP-EDD-UNIMED
+#Comando para realização de backup dos equipamentos, podem ser substituídos os seguintes campos:
+191.52.248.142 -  esse é o servidor que vai receber o arquivo de backup
+BKP-EDD-UNIMED - Nome do arquivo de backup.
+
+Obs.: Não é possível determinar um diretório específico para alocação do backup, um path.
+
+_______________________________________________________
+
+show clock
+#Informações de hora, dia, mês e ano, listando o horário que está no momento no equipamento
+
+_______________________________________________________
+
