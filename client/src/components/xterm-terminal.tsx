@@ -185,7 +185,8 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
             const escapedPassword = fallbackPassword
               .replace(/\\/g, '\\\\')
               .replace(/'/g, "\\'");
-            const silentExportCmd = `export SSHPASS=$'${escapedPassword}'`;
+            // Usar stty -echo para ocultar a senha e depois restaurar
+            const silentExportCmd = `stty -echo; export SSHPASS=$'${escapedPassword}'; stty echo`;
             socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
             
             // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
