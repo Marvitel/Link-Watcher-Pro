@@ -1779,6 +1779,13 @@ export async function registerRoutes(
           // Credenciais de fallback: usadas quando autenticação RADIUS falha
           fallbackSshUser: usingRadiusCredentials ? localConcentratorUser : undefined,
           fallbackSshPassword: usingRadiusCredentials ? localConcentratorPassword : undefined,
+        } as any,
+        
+        // Debug: mostrar credenciais de fallback do concentrador
+        _debug_concentrator_fallback: {
+          usingRadius: usingRadiusCredentials,
+          hasFallbackUser: !!(usingRadiusCredentials && localConcentratorUser),
+          hasFallbackPassword: !!(usingRadiusCredentials && localConcentratorPassword),
         },
         cpe: primaryCpe || {
           name: link.name,
