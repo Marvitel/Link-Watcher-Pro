@@ -59,6 +59,8 @@ import {
   ChevronDown,
   Filter,
   Calendar,
+  Terminal,
+  Target,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
@@ -77,6 +79,8 @@ import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, Externa
 import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3, Map } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
+import { CommandTemplatesTab } from "@/components/admin/command-templates-tab";
+import { DiagnosticTargetsTab } from "@/components/admin/diagnostic-targets-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
@@ -4868,6 +4872,14 @@ export default function Admin() {
             <Router className="w-4 h-4" />
             CPEs
           </TabsTrigger>
+          <TabsTrigger value="commands" className="gap-2" data-testid="tab-commands">
+            <Terminal className="w-4 h-4" />
+            Comandos
+          </TabsTrigger>
+          <TabsTrigger value="diag-targets" className="gap-2" data-testid="tab-diag-targets">
+            <Target className="w-4 h-4" />
+            IPs Diagnóstico
+          </TabsTrigger>
           <TabsTrigger value="database" className="gap-2">
             <Database className="w-4 h-4" />
             Banco de Dados
@@ -5422,6 +5434,14 @@ export default function Admin() {
 
         <TabsContent value="cpes" className="space-y-4">
           <CpesTab />
+        </TabsContent>
+
+        <TabsContent value="commands" className="space-y-4">
+          <CommandTemplatesTab />
+        </TabsContent>
+
+        <TabsContent value="diag-targets" className="space-y-4">
+          <DiagnosticTargetsTab />
         </TabsContent>
 
         <TabsContent value="database" className="space-y-4">

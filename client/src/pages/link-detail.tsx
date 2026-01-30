@@ -18,6 +18,7 @@ import { OpticalSignalSection } from "@/components/optical-signal-section";
 import { OzmapRouteSection } from "@/components/ozmap-route-section";
 import { XtermTerminal } from "@/components/xterm-terminal";
 import { CpePortStatusDisplay } from "@/components/cpe-port-status";
+import { CpeCommandLibrary } from "@/components/cpe-command-library";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -2175,6 +2176,28 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           </Card>
         )}
       </div>
+
+      {/* Biblioteca de Comandos SSH */}
+      {(devices?.cpe || (devices?.cpes && devices.cpes.length > 0)) && (
+        <CpeCommandLibrary
+          linkId={linkId}
+          cpe={devices?.cpes?.[0] ? {
+            id: devices.cpes[0].id || 0,
+            cpeId: devices.cpes[0].cpeId || 0,
+            linkCpeId: devices.cpes[0].linkCpeId,
+            vendorId: (devices.cpes[0] as any).vendorId,
+            model: devices.cpes[0].model,
+            name: devices.cpes[0].name,
+          } : devices?.cpe ? {
+            id: 0,
+            cpeId: (devices.cpe as CpeDeviceInfo).cpeId || 0,
+            linkCpeId: (devices.cpe as CpeDeviceInfo).linkCpeId,
+            vendorId: (devices.cpe as any).vendorId,
+            model: (devices.cpe as CpeDeviceInfo).model,
+            name: devices.cpe.name,
+          } : null}
+        />
+      )}
 
       {/* Dispositivos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -4023,6 +4023,10 @@ export async function registerRoutes(
 
   app.patch("/api/cpe/:cpeId/command-history/:id", requireAuth, async (req, res) => {
     try {
+      // Apenas super admins podem atualizar histórico de comandos
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem atualizar histórico" });
+      }
       const id = parseInt(req.params.id, 10);
       const history = await storage.updateCpeCommandHistory(id, req.body);
       if (!history) {

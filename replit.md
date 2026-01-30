@@ -64,6 +64,15 @@ An `audit_logs` table records all system audit events, including authentication 
 ### Firewall de Aplicação
 A whitelist-based application firewall controls access to administrative areas and SSH. It uses `firewallSettings` and `firewallWhitelist` tables, supports IPv4/IPv6 addresses and CIDR notation, and allows granular permissions (`allowAdmin`, `allowSsh`, `allowApi`). Changes are recorded in audit logs.
 
+### CPE Command Library (Biblioteca de Comandos CPE)
+Pre-configured command templates for CPE devices organized by manufacturer/model to assist analysts who don't remember command syntax:
+- **Tables**: `cpeCommandTemplates` (templates with vendor/model/category/placeholders), `cpeCommandHistory` (execution log), `diagnosticTargets` (configurable diagnostic IPs per client or global)
+- **Categories**: logs, hardware, network, diagnostic, backup, config, interface, routing, other
+- **Parameter Substitution**: Templates support placeholders like `{IP}`, `{INTERFACE}`, `{VLAN}` that are prompted when copying
+- **Security**: Commands are copied to clipboard (not auto-executed) allowing analysts to review before pasting in terminal. Diagnostic targets are multi-tenant scoped by clientId.
+- **Admin Interface**: CommandTemplatesTab and DiagnosticTargetsTab in admin page for CRUD management
+- **User Interface**: CpeCommandLibrary component in link detail page Tools tab alongside SSH terminals
+
 ### SLA Requirements
 The system monitors for SLA compliance, with targets for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours). Data is retained for 6 months.
 
@@ -108,6 +117,8 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 5. **Integração OZmap**: Configuração global + campo ozmapTag no link + visualização de rota de fibra
 6. **Schema**: Novos campos `mainGraphMode`, `mainGraphInterfaceIds`, e `ozmapTag` na tabela links
 7. **RADIUS para Dispositivos**: Novo campo `useRadiusForDevices` permite usar credenciais RADIUS do operador para acessar dispositivos de rede (OLT, switch, concentrador, CPE) via SSH, com fallback automático para credenciais locais
+8. **Biblioteca de Comandos CPE**: Sistema completo com templates de comandos SSH por fabricante/modelo, categorias, substituição de parâmetros ({IP}, {INTERFACE}, etc), IPs de diagnóstico configuráveis por cliente, e histórico de execução
+9. **Schema**: Novas tabelas `cpeCommandTemplates`, `cpeCommandHistory`, `diagnosticTargets` para gerenciamento de comandos CPE
 
 ### Versão em Produção
 - **Commit**: `5f1095bb`
