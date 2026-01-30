@@ -200,7 +200,7 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
               }
             }, 500);
           }
-        }, 3000); // Aguardar 3 segundos para a sessão anterior terminar
+        }, 5000); // Aguardar 5 segundos para rate limiting do dispositivo
       }
     };
 
