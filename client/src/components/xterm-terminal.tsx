@@ -83,13 +83,6 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     const isAlreadyOnAdminPort = currentPort === adminPort;
     
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
-    
-    // Debug: mostrar se há credenciais de fallback (amarelo para ser visível)
-    if (fallbackPassword) {
-      term.writeln(`\x1b[33m[FALLBACK] Credenciais de fallback disponíveis: user=${fallbackUser || 'N/A'}\x1b[0m`);
-    } else {
-      term.writeln("\x1b[31m[FALLBACK] NENHUMA credencial de fallback disponível!\x1b[0m");
-    }
 
     // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
     // sshSentTime é o timestamp de quando o comando SSH foi ENVIADO (não quando aparece no output)
@@ -106,15 +99,8 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     // Função para lidar com fallback de autenticação SSH
     // Definida aqui para estar disponível para ambos os WebSockets (primário e alternativo)
     const handleSshAuthFallback = (outputText: string, terminal: Terminal, socket: WebSocket, command?: string) => {
-      // Debug inicial - mostrar estado das condições
-      const debugInfo = `sshSentTime=${sshSentTime}, hasFallback=${!!fallbackPassword}, attempted=${fallbackAttempted.current}, hasCmd=${!!command}`;
-      
       // Só processar se o SSH já foi enviado e há credenciais de fallback
       if (!fallbackPassword || fallbackAttempted.current || !command || sshSentTime === 0) {
-        // Log no terminal quando condição falha (apenas se tiver Warning no output)
-        if (outputText.includes("Warning: Permanently") || outputText.includes("[linkmonitor@")) {
-          terminal.writeln(`\x1b[90m[FALLBACK-DBG] Skip: ${debugInfo}\x1b[0m`);
-        }
         return;
       }
       
