@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -122,11 +123,12 @@ function PortIcon({ port, compact }: { port: CpePortStatusType; compact?: boolea
 
 export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact }: CpePortStatusProps) {
   const queryClient = useQueryClient();
+  const [hasAutoRefreshed, setHasAutoRefreshed] = useState(false);
   const queryKey = linkCpeId 
     ? ["/api/cpe", cpeId, "ports", { linkCpeId }]
     : ["/api/cpe", cpeId, "ports"];
   
-  const { data: ports = [], isLoading } = useQuery<CpePortStatusType[]>({
+  const { data: ports = [], isLoading, isFetched } = useQuery<CpePortStatusType[]>({
     queryKey,
     queryFn: async () => {
       const url = linkCpeId 
@@ -150,6 +152,14 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact }: Cpe
       queryClient.invalidateQueries({ queryKey });
     },
   });
+  
+  // Coleta automática quando não há dados salvos
+  useEffect(() => {
+    if (isFetched && ports.length === 0 && !hasAutoRefreshed && !refreshMutation.isPending) {
+      setHasAutoRefreshed(true);
+      refreshMutation.mutate();
+    }
+  }, [isFetched, ports.length, hasAutoRefreshed, refreshMutation]);
   
   if (isLoading) {
     return (
