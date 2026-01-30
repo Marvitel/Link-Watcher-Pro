@@ -83,6 +83,13 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     const isAlreadyOnAdminPort = currentPort === adminPort;
     
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
+    
+    // Debug: mostrar se há credenciais de fallback
+    if (fallbackPassword) {
+      term.writeln(`\x1b[90m[DEBUG] Fallback disponível: user=${fallbackUser || 'N/A'}, pass=***\x1b[0m`);
+    } else {
+      term.writeln("\x1b[90m[DEBUG] Sem credenciais de fallback\x1b[0m");
+    }
 
     // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
     // sshSentTime é o timestamp de quando o comando SSH foi ENVIADO (não quando aparece no output)
