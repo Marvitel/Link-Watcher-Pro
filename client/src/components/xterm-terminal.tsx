@@ -85,100 +85,92 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
     term.writeln("\x1b[33mConectando ao terminal...\x1b[0m");
 
     // Estado para rastrear se o SSH foi executado (detectar retorno ao prompt local)
-    let sshExecuted = false;
-    let sshExecutedTime = 0;
+    // sshSentTime é o timestamp de quando o comando SSH foi ENVIADO (não quando aparece no output)
+    let sshSentTime = 0;
+    
+    // Função para marcar quando o SSH foi enviado (chamada após enviar o comando)
+    const markSshSent = () => {
+      sshSentTime = Date.now();
+    };
     
     // Função para lidar com fallback de autenticação SSH
     // Definida aqui para estar disponível para ambos os WebSockets (primário e alternativo)
     const handleSshAuthFallback = (outputText: string, terminal: Terminal, socket: WebSocket, command?: string) => {
+      // Só processar se o SSH já foi enviado e há credenciais de fallback
+      if (!fallbackPassword || fallbackAttempted.current || !command || sshSentTime === 0) {
+        return;
+      }
+      
       // Padrões explícitos de erro de autenticação SSH
       const authFailPatterns = [
         "Permission denied",
-        "Access denied",
+        "Access denied", 
         "Authentication failed",
         "password:",  // Prompt de senha interativo (sshpass falhou ao enviar senha)
         "SSHPASS: command not found",
-        "Host key verification failed",
-        "Connection refused",
-        "Connection timed out",
-        "Connection closed by",
-        "Connection reset by peer",
       ];
       
-      // Detectar quando o SSH foi executado
-      if (outputText.includes("Warning: Permanently added") || 
-          outputText.includes("Connecting to") ||
-          outputText.includes("ssh ") && command) {
-        sshExecuted = true;
-        sshExecutedTime = Date.now();
-      }
+      // Verificar se é uma falha explícita de autenticação
+      const isExplicitAuthFailure = authFailPatterns.some(pattern => 
+        outputText.toLowerCase().includes(pattern.toLowerCase())
+      );
       
       // Detectar retorno ao prompt local após SSH (indica falha silenciosa)
-      // Padrão: [user@host]$ ou user@host:~$ ou similares
+      // Padrão: [user@host]$ ou user@host:~$ 
+      // Só considera se passou pelo menos 500ms desde o envio do SSH (tempo para conectar)
+      const timeSinceSsh = Date.now() - sshSentTime;
       const localPromptPatterns = [
-        /\[[\w.-]+@[\w.-]+\]\$/,  // [user@host]$
-        /[\w.-]+@[\w.-]+:\S*\$/,  // user@host:~$
-        /\$\s*$/,                  // prompt genérico terminando em $
+        /\[[\w.-]+@[\w.-]+\]\s*\$/,  // [user@host]$
+        /[\w.-]+@[\w.-]+:\S*\$/,      // user@host:~$
       ];
-      
       const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(outputText));
       
-      // Verificar se há credenciais de fallback e se ainda não foi tentado
-      if (fallbackPassword && !fallbackAttempted.current && command) {
-        // Verificar se é uma falha explícita de autenticação
-        const isExplicitAuthFailure = authFailPatterns.some(pattern => 
-          outputText.toLowerCase().includes(pattern.toLowerCase())
-        );
+      // Falha silenciosa: voltou ao prompt local entre 500ms e 8s após SSH ser enviado
+      const isSilentFailure = isBackToLocalPrompt && timeSinceSsh > 500 && timeSinceSsh < 8000;
+      
+      if (isExplicitAuthFailure || isSilentFailure) {
+        fallbackAttempted.current = true;
+        terminal.writeln("\n\x1b[33m[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...\x1b[0m");
         
-        // Verificar se é falha silenciosa (voltou ao prompt local logo após executar SSH)
-        // Só considera falha silenciosa se o SSH foi executado há menos de 5 segundos
-        const isSilentFailure = sshExecuted && 
-                                isBackToLocalPrompt && 
-                                (Date.now() - sshExecutedTime) < 5000;
-        
-        const isAuthFailure = isExplicitAuthFailure || isSilentFailure;
-        
-        if (isAuthFailure) {
-          fallbackAttempted.current = true;
-          terminal.writeln("\n\x1b[33m[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...\x1b[0m");
-          
-          // Construir novo comando SSH com credenciais de fallback
-          // Substituir usuário no comando se fallbackUser for diferente
-          let fallbackCmd = command;
-          if (fallbackUser && fallbackCmd.includes("@")) {
-            // Extrair e substituir o usuário no comando SSH
-            // Formato esperado: ... user@host (user@host sempre no final)
-            const userAtHostMatch = fallbackCmd.match(/(\S+)@(\S+)$/);
-            if (userAtHostMatch) {
-              const host = userAtHostMatch[2]; // Captura o host
-              fallbackCmd = fallbackCmd.replace(/\S+@\S+$/, `${fallbackUser}@${host}`);
-            }
+        // Construir novo comando SSH com credenciais de fallback
+        let fallbackCmd = command;
+        if (fallbackUser && fallbackCmd.includes("@")) {
+          // Substituir usuário no comando: ... user@host -> ... fallbackUser@host
+          const userAtHostMatch = fallbackCmd.match(/(\S+)@(\S+)$/);
+          if (userAtHostMatch) {
+            const host = userAtHostMatch[2];
+            fallbackCmd = fallbackCmd.replace(/\S+@\S+$/, `${fallbackUser}@${host}`);
           }
-          
-          // Atualizar a senha de ambiente para a senha de fallback
-          currentPasswordRef.current = fallbackPassword;
-          
-          // Enviar Ctrl+C para cancelar o prompt de senha atual
-          setTimeout(() => {
-            if (socket.readyState === WebSocket.OPEN) {
-              socket.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
-              
-              // Re-exportar SSHPASS com a nova senha e executar comando
-              setTimeout(() => {
-                if (socket.readyState === WebSocket.OPEN) {
-                  const exportCmd = `export SSHPASS='${fallbackPassword.replace(/'/g, "'\\''")}'`;
-                  socket.send(JSON.stringify({ type: "input", data: exportCmd + "\n" }));
-                  
-                  setTimeout(() => {
-                    if (socket.readyState === WebSocket.OPEN) {
-                      socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
-                    }
-                  }, 200);
-                }
-              }, 200);
-            }
-          }, 100);
         }
+        
+        // Atualizar a senha de ambiente para a senha de fallback
+        currentPasswordRef.current = fallbackPassword;
+        
+        // Enviar Ctrl+C para cancelar o prompt atual, depois reconfigurar e reconectar
+        setTimeout(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
+            
+            // Re-exportar SSHPASS silenciosamente (usando stty para esconder)
+            // Enviamos o export em uma linha separada sem echo
+            setTimeout(() => {
+              if (socket.readyState === WebSocket.OPEN) {
+                // Usar comando que não ecoa a senha
+                const exportCmd = `export SSHPASS='${fallbackPassword.replace(/'/g, "'\\''")}'`;
+                // Desabilitar echo, exportar, habilitar echo novamente
+                socket.send(JSON.stringify({ type: "input", data: `stty -echo; ${exportCmd}; stty echo\n` }));
+                
+                // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
+                setTimeout(() => {
+                  if (socket.readyState === WebSocket.OPEN) {
+                    sshSentTime = Date.now();
+                    socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
+                  }
+                }, 300);
+              }
+            }, 200);
+          }
+        }, 100);
       }
     };
 
@@ -269,6 +261,7 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
                     if (ws.readyState === WebSocket.OPEN) {
                       term.writeln("\x1b[90m[DEBUG] Executando SSH...\x1b[0m");
                       ws.send(JSON.stringify({ type: "input", data: sshCmd + "\n" }));
+                      markSshSent(); // Marcar quando o SSH foi enviado
                     } else {
                       term.writeln("\x1b[31m[ERRO] WebSocket fechou antes de enviar SSH\x1b[0m");
                     }

@@ -1,0 +1,46 @@
+Conectando ao terminal...
+Autenticando...
+Conectado!
+
+[DEBUG] Preparando execução automática...
+bash: impossível definir grupo do processo do terminal (-1): ioctl inapropriado para dispositivo
+bash: nenhum controle de trabalho neste shell
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ 
+                           [SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...
+
+Sessão terminada, matando o shell...alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ [DEBUG] Executando SSH...
+sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 2220 marcus.melo@191.52.248.245
+Warning: Permanently added '[191.52.248.245]:2220' (DSA) to the list of known hosts.
+export SSHPASS='read.rtB.0C73L'
+sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 2220 read@marvitel@191.52.248.245
+
+
+
+
+
+                                                                                                                                                        
+ 
+
+
+
+  MMM MMMM MMM  III  KKK  KKK  RRRRRR     OOOOOO      TTT     III  KKK  KKK
+  MMM  MM  MMM  III  KKKKK     RRR  RRR  OOO  OOO     TTT     III  KKKKK
+  MMM      MMM  III  KKK KKK   RRRRRR    OOO  OOO     TTT     III  KKK KKK
+  MMM      MMM  III  KKK  KKK  RRR  RRR   OOOOOO      TTT     III  KKK  KKK
+
+  MikroTik RouterOS 6.47.8 (c) 1999-2020       http://www.mikrotik.com/
+
+[?]             Gives the list of available commands
+command [?]     Gives help on the command and list of arguments
+
+[Tab]           Completes the command/word. If the input is ambiguous,
+                a second [Tab] gives possible options
+
+/               Move up to base level
+..              Move up one level
+/command        Use command at the base level
+  
+[marcus.melo@AJU-MVT-POP-PRIMAVERA2] >  ...morto.
+                                                 Conexão encerrada.
