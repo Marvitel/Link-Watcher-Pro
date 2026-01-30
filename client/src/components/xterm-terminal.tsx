@@ -142,8 +142,8 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
       const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(recentOutputBuffer));
       
       // Falha silenciosa: SSH conectou, mas depois voltou ao prompt local
-      // Só considera entre 1s e 10s após SSH ser enviado
-      const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 1000 && timeSinceSsh < 10000;
+      // Só considera entre 300ms e 10s após SSH ser enviado (300ms para garantir que não é o primeiro prompt)
+      const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 300 && timeSinceSsh < 10000;
       
       if (isExplicitAuthFailure || isSilentFailure) {
         fallbackAttempted.current = true;
@@ -168,22 +168,32 @@ export function XtermTerminal({ initialCommand, sshPassword, fallbackPassword, f
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: "input", data: "\x03" })); // Ctrl+C
             
-            // Re-exportar SSHPASS silenciosamente (usando stty para esconder)
+            // Usar read -s para ler a senha silenciosamente via heredoc
+            // Isso evita que a senha apareça no histórico ou no terminal
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
-                // Usar comando que não ecoa a senha
-                const exportCmd = `export SSHPASS='${fallbackPassword.replace(/'/g, "'\\''")}'`;
-                // Desabilitar echo, exportar, habilitar echo novamente
-                socket.send(JSON.stringify({ type: "input", data: `stty -echo; ${exportCmd}; stty echo\n` }));
+                // Primeiro limpar a linha atual
+                socket.send(JSON.stringify({ type: "input", data: "\n" }));
                 
-                // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
                 setTimeout(() => {
                   if (socket.readyState === WebSocket.OPEN) {
-                    sshSentTime = Date.now();
-                    recentOutputBuffer = ""; // Limpar buffer para nova tentativa
-                    socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
+                    // Usar base64 para codificar a senha e evitar problemas com caracteres especiais
+                    const encodedPassword = btoa(fallbackPassword);
+                    // Comando que decodifica silenciosamente e exporta SSHPASS
+                    const silentExportCmd = `export SSHPASS=$(echo '${encodedPassword}' | base64 -d)`;
+                    // Enviar com clear para limpar o histórico visível
+                    socket.send(JSON.stringify({ type: "input", data: `${silentExportCmd} 2>/dev/null\n` }));
+                    
+                    // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
+                    setTimeout(() => {
+                      if (socket.readyState === WebSocket.OPEN) {
+                        sshSentTime = Date.now();
+                        recentOutputBuffer = ""; // Limpar buffer para nova tentativa
+                        socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
+                      }
+                    }, 300);
                   }
-                }, 300);
+                }, 100);
               }
             }, 200);
           }
