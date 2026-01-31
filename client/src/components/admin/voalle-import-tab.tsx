@@ -110,23 +110,63 @@ const CSV_TYPES: Record<string, { label: string; description: string; requiredFi
   }
 };
 
-function detectCsvType(headers: string[]): string | null {
+function detectCsvTypeByHeaders(headers: string[]): string | null {
   const headerSet = new Set(headers.map(h => h.toLowerCase().trim()));
   
+  // contract_service_tags: has service_tag and title
   if (headerSet.has("service_tag") && headerSet.has("title")) {
     return "contract_service_tags";
   }
+  // authentication_contracts: has slot/port OLT info or equipment serial
   if (headerSet.has("slot_olt") || headerSet.has("port_olt") || headerSet.has("equipment_serial_number")) {
     return "authentication_contracts";
   }
-  if (headerSet.has("server_ip") && headerSet.has("type") && !headerSet.has("slot_olt")) {
+  // authentication_concentrators: has server_ip (concentrador IP)
+  if (headerSet.has("server_ip") && !headerSet.has("slot_olt")) {
     return "authentication_concentrators";
   }
-  if (headerSet.has("ip") && headerSet.has("name") && !headerSet.has("service_tag") && !headerSet.has("slot_olt")) {
+  // authentication_access_points: has ip field for OLT/access point
+  if ((headerSet.has("ip") || headerSet.has("access_point_ip")) && !headerSet.has("service_tag") && !headerSet.has("slot_olt") && !headerSet.has("server_ip")) {
     return "authentication_access_points";
   }
-  if (headerSet.has("password") && headerSet.has("person_id") && !headerSet.has("service_tag")) {
+  // person_users: has person_id (user portal data)
+  if (headerSet.has("person_id") && !headerSet.has("service_tag") && !headerSet.has("slot_olt")) {
     return "person_users";
+  }
+  
+  return null;
+}
+
+function detectCsvTypeByFilename(filename: string): string | null {
+  const lowerName = filename.toLowerCase();
+  
+  if (lowerName.includes("contract_service_tag") || lowerName.includes("service_tag")) {
+    return "contract_service_tags";
+  }
+  if (lowerName.includes("authentication_contract") && !lowerName.includes("concentrator") && !lowerName.includes("access_point")) {
+    return "authentication_contracts";
+  }
+  if (lowerName.includes("concentrator") || lowerName.includes("concentrador")) {
+    return "authentication_concentrators";
+  }
+  if (lowerName.includes("access_point") || lowerName.includes("olt") || lowerName.includes("ponto_acesso")) {
+    return "authentication_access_points";
+  }
+  if (lowerName.includes("person_user") || lowerName.includes("usuario") || lowerName.includes("portal")) {
+    return "person_users";
+  }
+  
+  return null;
+}
+
+function detectCsvType(headers: string[], filename?: string): string | null {
+  // Try by headers first
+  const byHeaders = detectCsvTypeByHeaders(headers);
+  if (byHeaders) return byHeaders;
+  
+  // Fallback to filename detection
+  if (filename) {
+    return detectCsvTypeByFilename(filename);
   }
   
   return null;
@@ -285,12 +325,12 @@ export function VoalleImportTab() {
         });
       }
       
-      const detectedType = detectCsvType(headers);
+      const detectedType = detectCsvType(headers, file.name);
       
       if (!detectedType) {
         toast({
           title: "Tipo não reconhecido",
-          description: `Não foi possível identificar o tipo do arquivo ${file.name}`,
+          description: `Não foi possível identificar o tipo do arquivo ${file.name}. Cabeçalhos encontrados: ${headers.slice(0, 5).join(', ')}${headers.length > 5 ? '...' : ''}`,
           variant: "destructive",
         });
         continue;
