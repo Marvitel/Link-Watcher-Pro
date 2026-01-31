@@ -4300,7 +4300,10 @@ export async function registerRoutes(
             name: String(link.title || '').trim(),
             location: String(link.city || '').trim(),
             address: String(link.address || '').trim(),
-            ipBlock: "",
+            // Bloco IP combinando validLanIp + validLanIpClass (ex: "192.168.1.1/24")
+            ipBlock: link.validLanIp && link.validLanIpClass 
+              ? `${link.validLanIp}/${link.validLanIpClass}` 
+              : (link.validLanIp || ""),
             totalIps: 1,
             usableIps: 1,
             bandwidth: typeof link.bandwidth === 'number' && link.bandwidth > 0 ? link.bandwidth : 100,
@@ -4315,6 +4318,8 @@ export async function registerRoutes(
             // Concentrator and Access Point (OLT)
             concentratorId: link.concentratorId ? parseInt(link.concentratorId, 10) : null,
             accessPointId: link.accessPointId ? parseInt(link.accessPointId, 10) : null,
+            // Origem de dados de tráfego: concentrator quando tem concentradorId
+            trafficSourceType: link.concentratorId ? 'concentrator' : 'manual',
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
