@@ -457,9 +457,10 @@ export function VoalleImportTab() {
         // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
         const clientDoc = person?.tx_id || '';
+        const voalleId = tag.client_id ? `#${tag.client_id}` : '';
         const clientName = person?.name 
-          ? (clientDoc ? `${person.name} (${clientDoc})` : person.name)
-          : (tag.client_name || `Cliente ${tag.client_id}`);
+          ? `${voalleId} ${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
+          : (tag.client_name ? `${voalleId} ${tag.client_name}` : `Cliente ${tag.client_id}`);
 
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
