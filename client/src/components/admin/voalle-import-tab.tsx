@@ -106,12 +106,13 @@ const CSV_TYPES: Record<string, { label: string; description: string; requiredFi
   person_users: {
     label: "Usuários do Portal",
     description: "Contém hash de senha do portal Voalle",
-    requiredFields: ["id", "person_id"]
+    requiredFields: ["person_id", "username", "password"]
   }
 };
 
 function detectCsvTypeByHeaders(headers: string[]): string | null {
-  const headerSet = new Set(headers.map(h => h.toLowerCase().trim()));
+  const normalizedHeaders = headers.map(h => h.toLowerCase().trim().replace(/"/g, ''));
+  const headerSet = new Set(normalizedHeaders);
   
   // contract_service_tags: has service_tag and title
   if (headerSet.has("service_tag") && headerSet.has("title")) {
@@ -122,16 +123,24 @@ function detectCsvTypeByHeaders(headers: string[]): string | null {
     return "authentication_contracts";
   }
   // authentication_concentrators: has server_ip (concentrador IP)
-  if (headerSet.has("server_ip") && !headerSet.has("slot_olt")) {
+  if (headerSet.has("server_ip")) {
     return "authentication_concentrators";
   }
-  // authentication_access_points: has ip field for OLT/access point
-  if ((headerSet.has("ip") || headerSet.has("access_point_ip")) && !headerSet.has("service_tag") && !headerSet.has("slot_olt") && !headerSet.has("server_ip")) {
+  // authentication_access_points: has ip field AND authentication_concentrator_id (OLT/access point)
+  if (headerSet.has("ip") && headerSet.has("authentication_concentrator_id")) {
     return "authentication_access_points";
   }
-  // person_users: has person_id (user portal data)
-  if (headerSet.has("person_id") && !headerSet.has("service_tag") && !headerSet.has("slot_olt")) {
+  // person_users: has person_id AND username (user portal data)
+  if (headerSet.has("person_id") && headerSet.has("username")) {
     return "person_users";
+  }
+  // Fallback: person_users just by person_id
+  if (headerSet.has("person_id") && headerSet.has("password")) {
+    return "person_users";
+  }
+  // Fallback: access_points by ip + manufacturer_id
+  if (headerSet.has("ip") && headerSet.has("manufacturer_id")) {
+    return "authentication_access_points";
   }
   
   return null;
