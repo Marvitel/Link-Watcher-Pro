@@ -207,9 +207,36 @@ async function lookupPppoeViaSNMP(
       snmpSubtreeWalk(session, ipOid),
     ]);
 
+    console.log(`[PPPoE SNMP] Walk retornou ${usersData.length} usuários ativos, ${addressData.length} IPs`);
+    
+    // Debug: mostrar primeiros 5 usuários ativos
+    if (usersData.length > 0) {
+      const sample = usersData.slice(0, 5).map(u => u.value).join(", ");
+      console.log(`[PPPoE SNMP] Amostra de usuários ativos: ${sample}${usersData.length > 5 ? '...' : ''}`);
+    }
+
     const userIndex = new Map<string, string>();
     for (const item of usersData) {
       userIndex.set(item.value.toLowerCase(), item.index);
+    }
+    
+    // Debug: mostrar o que estamos buscando
+    console.log(`[PPPoE SNMP] Buscando usuários: ${pppoeUsers.join(", ")}`);
+    
+    // Debug: verificar match parcial
+    for (const pppoeUser of pppoeUsers) {
+      const userLower = pppoeUser.toLowerCase();
+      const found = userIndex.has(userLower);
+      if (!found && usersData.length > 0) {
+        // Tentar encontrar match parcial
+        const partial = usersData.find(u => 
+          u.value.toLowerCase().includes(userLower) || 
+          userLower.includes(u.value.toLowerCase())
+        );
+        if (partial) {
+          console.log(`[PPPoE SNMP] Match parcial encontrado: buscando "${pppoeUser}" -> encontrado "${partial.value}"`);
+        }
+      }
     }
 
     const ipByIndex = new Map<string, string>();
