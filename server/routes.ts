@@ -4504,6 +4504,8 @@ export async function registerRoutes(
             linkType: link.linkType === 'ptp' ? 'ptp' : 'gpon',
             authType: link.authType === 'corporate' ? 'corporate' : 'pppoe',
             monitoringEnabled: true,
+            // Enable optical monitoring for GPON links (with OLT)
+            opticalMonitoringEnabled: link.linkType !== 'ptp' && linkOltId ? true : false,
             // OLT fields for GPON
             slotOlt: typeof link.slotOlt === 'number' ? link.slotOlt : null,
             portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
