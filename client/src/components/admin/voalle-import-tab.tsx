@@ -785,11 +785,13 @@ export function VoalleImportTab() {
                       <TableRow>
                         <TableHead className="w-[40px] sticky left-0 bg-background z-10"></TableHead>
                         <TableHead className="sticky left-10 bg-background z-10">Etiqueta</TableHead>
-                        <TableHead>Nome do Serviço</TableHead>
+                        <TableHead>Nome Serviço</TableHead>
+                        <TableHead>Nome Link</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>ID Cliente</TableHead>
                         <TableHead>CPF/CNPJ</TableHead>
                         <TableHead>Tipo</TableHead>
+                        <TableHead>Auth</TableHead>
                         <TableHead>Banda</TableHead>
                         <TableHead>Endereço</TableHead>
                         <TableHead>Cidade</TableHead>
@@ -800,6 +802,12 @@ export function VoalleImportTab() {
                         <TableHead>Concentrador</TableHead>
                         <TableHead>ID OLT</TableHead>
                         <TableHead>Ponto de Acesso</TableHead>
+                        <TableHead>PPPoE User</TableHead>
+                        <TableHead>PPPoE Pass</TableHead>
+                        <TableHead>VLAN</TableHead>
+                        <TableHead>IP Block</TableHead>
+                        <TableHead>WiFi SSID</TableHead>
+                        <TableHead>WiFi Pass</TableHead>
                         <TableHead>CPE User</TableHead>
                         <TableHead>CPE Pass</TableHead>
                         <TableHead>Status</TableHead>
@@ -816,10 +824,13 @@ export function VoalleImportTab() {
                             />
                           </TableCell>
                           <TableCell className="font-mono text-sm sticky left-10 bg-background z-10">{link.serviceTag}</TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={link.title}>
+                          <TableCell className="max-w-[150px] truncate" title={link.title}>
                             {link.title}
                           </TableCell>
-                          <TableCell className="max-w-[200px] truncate" title={link.clientName}>
+                          <TableCell className="max-w-[150px] truncate" title={link.linkName || ''}>
+                            {link.linkName || '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={link.clientName}>
                             {link.clientName}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
@@ -831,6 +842,11 @@ export function VoalleImportTab() {
                           <TableCell>
                             <Badge variant={link.linkType === 'ptp' ? 'default' : 'secondary'}>
                               {link.linkType === 'ptp' ? 'PTP' : 'GPON'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={link.authType === 'corporate' ? 'outline' : 'secondary'}>
+                              {link.authType === 'corporate' ? 'Corp' : 'PPPoE'}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -866,6 +882,26 @@ export function VoalleImportTab() {
                             {link.accessPointId 
                               ? `${link.oltName || '-'}${link.oltIp ? ' (' + link.oltIp + ')' : ''}`
                               : '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.pppoeUser || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.pppoePassword || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.vlan || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.validLanIp && link.validLanIpClass 
+                              ? `${link.validLanIp}/${link.validLanIpClass}` 
+                              : (link.validLanIp || '-')}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.wifiName || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.wifiPassword || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.cpeUser || '-'}
