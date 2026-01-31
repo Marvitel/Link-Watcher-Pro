@@ -4120,6 +4120,7 @@ export async function registerRoutes(
           id: string;
           serviceTag: string;
           title: string;
+          linkName: string | null;
           clientName: string;
           clientVoalleId: number | null;
           clientCpfCnpj: string | null;
@@ -4388,7 +4389,8 @@ export async function registerRoutes(
           const rawLinkData = {
             clientId: linkClientId,
             identifier: String(link.serviceTag || '').trim(),
-            name: String(link.title || '').trim(),
+            // Nome do link: prefixo do equipment_user (antes de ===) ou título
+            name: String(link.linkName || link.title || '').trim(),
             location: String(link.city || '').trim(),
             address: String(link.address || '').trim(),
             // Bloco IP combinando validLanIp + validLanIpClass (ex: "192.168.1.1/24")

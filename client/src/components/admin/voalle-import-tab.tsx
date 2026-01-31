@@ -56,6 +56,7 @@ interface ParsedLink {
   id: string;
   serviceTag: string;
   title: string;
+  linkName: string | null; // Nome do link extraído do equipment_user (prefixo antes de ===)
   clientName: string;
   clientVoalleId: number | null;
   clientCpfCnpj: string | null;
@@ -483,10 +484,17 @@ export function VoalleImportTab() {
           ? `${voalleId} ${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
           : (tag.client_name ? `${voalleId} ${tag.client_name}` : `Cliente ${tag.client_id}`);
 
+        // Extrai nome do link do equipment_user (parte antes de ===)
+        const equipmentUser = authContract?.equipment_user || '';
+        const linkName = equipmentUser.includes('===') 
+          ? equipmentUser.split('===')[0].trim() 
+          : (equipmentUser.trim() || null);
+
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
           serviceTag: tag.service_tag || '',
           title: tag.title || '',
+          linkName,
           clientName,
           clientVoalleId: tag.client_id || null,
           clientCpfCnpj: clientDoc || null,
