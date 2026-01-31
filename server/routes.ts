@@ -4380,6 +4380,7 @@ export async function registerRoutes(
 
           const existingOlt = existingOltsByVoalleId.get(voalleId);
           if (existingOlt) {
+            console.log(`[Voalle Import] OLT from existing: ${existingOlt.id}`);
             oltsCache.set(voalleId, existingOlt.id);
             return { oltId: existingOlt.id, switchId: null };
           }
@@ -4400,6 +4401,7 @@ export async function registerRoutes(
             existingOltsByVoalleId.set(voalleId, newOlt);
             return { oltId: newOlt.id, switchId: null };
           }
+          console.log(`[Voalle Import] OLT: No name to create`);
         } else {
           // Handle as Switch
           const cachedSwitch = switchesCache.get(voalleId);
@@ -4488,6 +4490,8 @@ export async function registerRoutes(
           const linkClientId = await getOrCreateClientForLink(link);
           const linkConcentratorId = await getOrCreateConcentrator(link);
           const { oltId: linkOltId, switchId: linkSwitchId } = await getOrCreateAccessPoint(link);
+          
+          console.log(`[Voalle Import] Link ${link.serviceTag}: clientId=${linkClientId}, concentratorId=${linkConcentratorId}, oltId=${linkOltId}, switchId=${linkSwitchId}`);
 
           // Prepare link data with safe type coercion
           const rawLinkData = {
