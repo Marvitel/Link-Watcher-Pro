@@ -4115,7 +4115,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Apenas super admins podem importar links do Voalle" });
       }
 
-      const { links, targetClientId } = req.body as {
+      const { links, targetClientId, lookupPppoeIps } = req.body as {
         links: Array<{
           id: string;
           serviceTag: string;
@@ -4142,7 +4142,6 @@ export async function registerRoutes(
           oltName: string | null;
           cpeUser: string | null;
           cpePassword: string | null;
-          // Dados PPPoE/VLAN/WiFi
           pppoeUser: string | null;
           pppoePassword: string | null;
           vlan: number | null;
@@ -4157,6 +4156,7 @@ export async function registerRoutes(
           authType: 'pppoe' | 'corporate';
         }>;
         targetClientId: number | null;
+        lookupPppoeIps?: boolean;
       };
 
       if (!links || !Array.isArray(links) || links.length === 0) {
@@ -4605,7 +4605,72 @@ export async function registerRoutes(
         }
       }
 
-      res.json(results);
+      // Optional: Lookup PPPoE IPs from concentrators
+      let pppoeIpsFound = 0;
+      if (lookupPppoeIps && results.success > 0) {
+        console.log(`[Voalle Import] Iniciando busca de IPs via PPPoE...`);
+        
+        try {
+          const { lookupMultiplePppoeSessions } = await import("./concentrator");
+          
+          // Get all links with pppoeUser but no IP
+          const importedLinks = await storage.getLinks();
+          const linksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
+            l.pppoeUser && 
+            (!l.monitoredIp || l.monitoredIp === "") && 
+            l.concentratorId
+          );
+          
+          if (linksNeedingIp.length > 0) {
+            // Group links by concentrator
+            const linksByConcentrator = new Map<number, typeof linksNeedingIp>();
+            for (const link of linksNeedingIp) {
+              if (link.concentratorId) {
+                const existing = linksByConcentrator.get(link.concentratorId) || [];
+                existing.push(link);
+                linksByConcentrator.set(link.concentratorId, existing);
+              }
+            }
+            
+            // Query each concentrator
+            for (const [concentratorId, concentratorLinks] of Array.from(linksByConcentrator.entries())) {
+              const concentrator = await storage.getConcentrator(concentratorId);
+              if (!concentrator || !concentrator.sshUser) {
+                console.log(`[Voalle Import] Concentrador ${concentratorId} sem credenciais SSH, pulando...`);
+                continue;
+              }
+              
+              const pppoeUsers = concentratorLinks
+                .map((l: typeof concentratorLinks[0]) => l.pppoeUser)
+                .filter((u: string | null): u is string => !!u);
+              
+              if (pppoeUsers.length === 0) continue;
+              
+              console.log(`[Voalle Import] Buscando ${pppoeUsers.length} sessões PPPoE no concentrador ${concentrator.name}`);
+              
+              const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers);
+              
+              // Update links with found IPs
+              for (const link of concentratorLinks) {
+                if (link.pppoeUser) {
+                  const session = sessions.get(link.pppoeUser);
+                  if (session?.ipAddress) {
+                    await storage.updateLink(link.id, { monitoredIp: session.ipAddress });
+                    pppoeIpsFound++;
+                    console.log(`[Voalle Import] IP encontrado para ${link.name}: ${session.ipAddress}`);
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log(`[Voalle Import] Busca de IPs concluída: ${pppoeIpsFound} IPs encontrados`);
+        } catch (lookupError) {
+          console.error(`[Voalle Import] Erro na busca de IPs via PPPoE:`, lookupError);
+        }
+      }
+
+      res.json({ ...results, pppoeIpsFound });
 
     } catch (error: any) {
       console.error("Error in Voalle import:", error);

@@ -100,6 +100,7 @@ interface ImportResult {
   success: number;
   failed: number;
   errors: Array<{ serviceTag: string; error: string }>;
+  pppoeIpsFound?: number;
 }
 
 const CSV_TYPES: Record<string, { label: string; description: string; requiredFields: string[] }> = {
@@ -339,6 +340,7 @@ export function VoalleImportTab() {
   const [csvFiles, setCsvFiles] = useState<CsvFile[]>([]);
   const [parsedLinks, setParsedLinks] = useState<ParsedLink[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("auto");
+  const [lookupPppoeIps, setLookupPppoeIps] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
@@ -565,6 +567,7 @@ export function VoalleImportTab() {
       const response = await apiRequest("POST", "/api/admin/voalle-import", {
         links: links.filter(l => l.selected),
         targetClientId: selectedClientId === "auto" ? null : parseInt(selectedClientId),
+        lookupPppoeIps,
       });
       return response.json();
     },
@@ -750,7 +753,7 @@ export function VoalleImportTab() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">Cliente destino:</span>
                     <Select value={selectedClientId} onValueChange={setSelectedClientId}>
@@ -766,6 +769,22 @@ export function VoalleImportTab() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Checkbox 
+                      id="lookupPppoeIps" 
+                      checked={lookupPppoeIps}
+                      onCheckedChange={(checked) => setLookupPppoeIps(checked === true)}
+                      data-testid="checkbox-lookup-pppoe-ips"
+                    />
+                    <label 
+                      htmlFor="lookupPppoeIps" 
+                      className="text-sm cursor-pointer"
+                      title="Busca o IP de monitoramento no concentrador consultando a sessão PPPoE ativa pelo username"
+                    >
+                      Buscar IP via PPPoE
+                    </label>
                   </div>
 
                   <Button
@@ -946,14 +965,14 @@ export function VoalleImportTab() {
 
           {step === 'result' && importResult && (
             <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-4">
                       <CheckCircle className="h-10 w-10 text-green-600" />
                       <div>
                         <p className="text-2xl font-bold">{importResult.success}</p>
-                        <p className="text-sm text-muted-foreground">Links importados com sucesso</p>
+                        <p className="text-sm text-muted-foreground">Links importados</p>
                       </div>
                     </div>
                   </CardContent>
@@ -969,11 +988,25 @@ export function VoalleImportTab() {
                       )}
                       <div>
                         <p className="text-2xl font-bold">{importResult.failed}</p>
-                        <p className="text-sm text-muted-foreground">Falhas na importação</p>
+                        <p className="text-sm text-muted-foreground">Falhas</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
+
+                {importResult.pppoeIpsFound !== undefined && (
+                  <Card className={`${importResult.pppoeIpsFound > 0 ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' : ''}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-4">
+                        <CheckCircle className={`h-10 w-10 ${importResult.pppoeIpsFound > 0 ? 'text-blue-600' : 'text-muted-foreground'}`} />
+                        <div>
+                          <p className="text-2xl font-bold">{importResult.pppoeIpsFound}</p>
+                          <p className="text-sm text-muted-foreground">IPs via PPPoE</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               {importResult.errors.length > 0 && (
