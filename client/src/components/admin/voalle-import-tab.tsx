@@ -516,8 +516,8 @@ export function VoalleImportTab() {
           addressComplement: authContract?.complement || null,
           ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
           linkType: detectLinkType(tag.title || ''),
-          // Detecta tipo de autenticação: se tem VLAN é corporativa, senão é PPPoE
-          authType: authContract?.vlan ? 'corporate' : 'pppoe',
+          // Detecta tipo de autenticação: se tem interface VLAN é corporativa, senão é PPPoE
+          authType: authContract?.vlan_interface ? 'corporate' : 'pppoe',
           selected: true,
           status: 'new',
         };
