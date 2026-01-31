@@ -6,6 +6,7 @@ import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches,
 import { eq, and, not, like, gte, isNotNull, desc, or } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { lookupMultiplePppoeSessions } from "./concentrator";
 import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
 
@@ -1094,7 +1095,7 @@ async function handleIfIndexAutoDiscovery(
       console.log(`[Monitor] ${link.name}: ifIndex changed from ${oldIfIndex} to ${newIfIndex} (auto-discovered)`);
       
       // Update link with new ifIndex
-      await db.update(links).set({
+      const updateData: Record<string, any> = {
         snmpInterfaceIndex: newIfIndex,
         snmpInterfaceName: searchResult.ifName || link.snmpInterfaceName,
         snmpInterfaceDescr: searchResult.ifDescr || link.snmpInterfaceDescr,
@@ -1102,7 +1103,44 @@ async function handleIfIndexAutoDiscovery(
         originalIfName: link.originalIfName || link.snmpInterfaceName,
         ifIndexMismatchCount: 0,
         lastIfIndexValidation: now,
-      }).where(eq(links.id, link.id));
+      };
+      
+      // Para links PPPoE com concentrador, também atualizar o IP
+      if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
+        try {
+          console.log(`[Monitor] ${link.name}: Atualizando IP via PPPoE lookup...`);
+          
+          // Buscar concentrador e perfil SNMP
+          const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+          if (concentrator) {
+            let snmpProfile = null;
+            if (concentrator.snmpProfileId) {
+              const [profileResult] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+              snmpProfile = profileResult || null;
+            }
+            
+            const sessions = await lookupMultiplePppoeSessions(concentrator, [link.pppoeUser], undefined, snmpProfile);
+            const session = sessions.get(link.pppoeUser);
+            
+            if (session) {
+              if (session.ipAddress) {
+                updateData.monitoredIp = session.ipAddress;
+                console.log(`[Monitor] ${link.name}: IP atualizado para ${session.ipAddress}`);
+              }
+              if (session.ifName) {
+                updateData.snmpInterfaceName = session.ifName;
+              }
+              if (session.ifAlias) {
+                updateData.snmpInterfaceDescr = session.ifAlias;
+              }
+            }
+          }
+        } catch (pppoeError) {
+          console.error(`[Monitor] ${link.name}: Erro ao atualizar IP via PPPoE:`, pppoeError);
+        }
+      }
+      
+      await db.update(links).set(updateData).where(eq(links.id, link.id));
       
       // Create event for the ifIndex change
       await db.insert(events).values({
