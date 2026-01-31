@@ -4509,9 +4509,10 @@ export async function registerRoutes(
             portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
             onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
-            // Concentrator and Access Point (OLT for GPON, Switch for PTP) - usando IDs do Link Monitor
+            // Concentrator, OLT and Access Point (Switch) - usando IDs do Link Monitor
             concentratorId: linkConcentratorId,
-            accessPointId: linkOltId || linkSwitchId, // OLT for GPON, Switch for PTP
+            oltId: linkOltId, // OLT for GPON links
+            accessPointId: linkSwitchId, // Switch for PTP/L2 links
             // Origem de dados de tráfego: concentrator > accessPoint (switch) > manual
             trafficSourceType: linkConcentratorId ? 'concentrator' : (linkSwitchId ? 'accessPoint' : 'manual'),
             // CPE credentials
