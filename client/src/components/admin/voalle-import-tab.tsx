@@ -479,10 +479,9 @@ export function VoalleImportTab() {
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
         const personUser = tag.client_id ? personUsersMap.get(tag.client_id) : null;
         const clientDoc = person?.tx_id || '';
-        const voalleId = tag.client_id ? `#${tag.client_id}` : '';
         const clientName = person?.name 
-          ? `${voalleId} ${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
-          : (tag.client_name ? `${voalleId} ${tag.client_name}` : `Cliente ${tag.client_id}`);
+          ? `${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
+          : (tag.client_name || `ID: ${tag.client_id}`);
 
         // Extrai nome do link do equipment_user (parte antes de ===)
         const equipmentUser = authContract?.equipment_user || '';
@@ -842,14 +841,14 @@ export function VoalleImportTab() {
                           <TableCell className="font-mono text-xs">
                             {link.equipmentSerial || '-'}
                           </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {link.concentratorId || link.concentratorIp 
-                              ? `#${link.concentratorId || '-'} ${link.concentratorIp || ''}`
+                          <TableCell className="font-mono text-xs" title={link.concentratorName || ''}>
+                            {link.concentratorId 
+                              ? `${link.concentratorName || 'ID:' + link.concentratorId}${link.concentratorIp ? ' (' + link.concentratorIp + ')' : ''}`
                               : '-'}
                           </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {link.accessPointId || link.oltIp 
-                              ? `#${link.accessPointId || '-'} ${link.oltIp || ''}`
+                          <TableCell className="font-mono text-xs" title={link.oltName || ''}>
+                            {link.accessPointId 
+                              ? `${link.oltName || 'ID:' + link.accessPointId}${link.oltIp ? ' (' + link.oltIp + ')' : ''}`
                               : '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
