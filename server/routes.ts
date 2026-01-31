@@ -4331,46 +4331,87 @@ export async function registerRoutes(
         }
       }
 
-      const getOrCreateOlt = async (link: typeof links[0]): Promise<number | null> => {
-        console.log(`[Voalle Import] getOrCreateOlt - accessPointId: ${link.accessPointId}, oltName: ${link.oltName}`);
-        if (!link.accessPointId) return null;
+      // Get or create Switches - group by voalleId
+      const switchesCache = new Map<number, number>(); // voalleId -> switchId
+      const existingSwitches = await storage.getSwitches();
+      const existingSwitchesByVoalleId = new Map<number, typeof existingSwitches[0]>();
+      for (const sw of existingSwitches) {
+        if (sw.voalleId) {
+          existingSwitchesByVoalleId.set(sw.voalleId, sw);
+        }
+      }
+
+      // Returns { oltId, switchId } - one or the other based on access point name
+      const getOrCreateAccessPoint = async (link: typeof links[0]): Promise<{ oltId: number | null; switchId: number | null }> => {
+        console.log(`[Voalle Import] getOrCreateAccessPoint - accessPointId: ${link.accessPointId}, oltName: ${link.oltName}`);
+        if (!link.accessPointId) return { oltId: null, switchId: null };
         const voalleId = parseInt(link.accessPointId, 10);
-        if (isNaN(voalleId)) return null;
+        if (isNaN(voalleId)) return { oltId: null, switchId: null };
 
-        // Check cache
-        const cached = oltsCache.get(voalleId);
-        if (cached) {
-          console.log(`[Voalle Import] OLT from cache: ${cached}`);
-          return cached;
+        const accessPointName = link.oltName || '';
+        const isOlt = accessPointName.toUpperCase().includes('OLT');
+        console.log(`[Voalle Import] Access point "${accessPointName}" isOlt: ${isOlt}`);
+
+        if (isOlt) {
+          // Handle as OLT
+          const cachedOlt = oltsCache.get(voalleId);
+          if (cachedOlt) {
+            console.log(`[Voalle Import] OLT from cache: ${cachedOlt}`);
+            return { oltId: cachedOlt, switchId: null };
+          }
+
+          const existingOlt = existingOltsByVoalleId.get(voalleId);
+          if (existingOlt) {
+            oltsCache.set(voalleId, existingOlt.id);
+            return { oltId: existingOlt.id, switchId: null };
+          }
+
+          if (accessPointName) {
+            console.log(`[Voalle Import] Creating new OLT: ${accessPointName}`);
+            const newOlt = await storage.createOlt({
+              name: accessPointName,
+              ipAddress: link.oltIp || "0.0.0.0",
+              voalleId: voalleId,
+              port: 23,
+              username: "admin",
+              password: "",
+              connectionType: "telnet",
+            });
+            console.log(`[Voalle Import] Created OLT ID: ${newOlt.id}`);
+            oltsCache.set(voalleId, newOlt.id);
+            existingOltsByVoalleId.set(voalleId, newOlt);
+            return { oltId: newOlt.id, switchId: null };
+          }
+        } else {
+          // Handle as Switch
+          const cachedSwitch = switchesCache.get(voalleId);
+          if (cachedSwitch) {
+            console.log(`[Voalle Import] Switch from cache: ${cachedSwitch}`);
+            return { oltId: null, switchId: cachedSwitch };
+          }
+
+          const existingSwitch = existingSwitchesByVoalleId.get(voalleId);
+          if (existingSwitch) {
+            switchesCache.set(voalleId, existingSwitch.id);
+            return { oltId: null, switchId: existingSwitch.id };
+          }
+
+          if (accessPointName) {
+            console.log(`[Voalle Import] Creating new Switch: ${accessPointName}`);
+            const newSwitch = await storage.createSwitch({
+              name: accessPointName,
+              ipAddress: link.oltIp || "0.0.0.0",
+              voalleId: voalleId,
+            });
+            console.log(`[Voalle Import] Created Switch ID: ${newSwitch.id}`);
+            switchesCache.set(voalleId, newSwitch.id);
+            existingSwitchesByVoalleId.set(voalleId, newSwitch);
+            return { oltId: null, switchId: newSwitch.id };
+          }
         }
 
-        // Check existing
-        const existing = existingOltsByVoalleId.get(voalleId);
-        if (existing) {
-          oltsCache.set(voalleId, existing.id);
-          return existing.id;
-        }
-
-        // Create new if we have name (IP is encrypted in Voalle CSV)
-        if (link.oltName) {
-          console.log(`[Voalle Import] Creating new OLT: ${link.oltName}`);
-          const newOlt = await storage.createOlt({
-            name: link.oltName,
-            ipAddress: link.oltIp || "0.0.0.0", // IP criptografado no CSV
-            voalleId: voalleId,
-            port: 23,
-            username: "admin",
-            password: "",
-            connectionType: "telnet",
-          });
-          console.log(`[Voalle Import] Created OLT ID: ${newOlt.id}`);
-          oltsCache.set(voalleId, newOlt.id);
-          existingOltsByVoalleId.set(voalleId, newOlt);
-          return newOlt.id;
-        }
-
-        console.log(`[Voalle Import] No OLT name, returning null`);
-        return null;
+        console.log(`[Voalle Import] No access point name, returning null`);
+        return { oltId: null, switchId: null };
       };
 
       // Get existing links to check for duplicates
@@ -4428,7 +4469,7 @@ export async function registerRoutes(
           // Get or create client, concentrator and OLT for this link
           const linkClientId = await getOrCreateClientForLink(link);
           const linkConcentratorId = await getOrCreateConcentrator(link);
-          const linkOltId = await getOrCreateOlt(link);
+          const { oltId: linkOltId, switchId: linkSwitchId } = await getOrCreateAccessPoint(link);
 
           // Prepare link data with safe type coercion
           const rawLinkData = {
@@ -4453,11 +4494,11 @@ export async function registerRoutes(
             portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
             onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
-            // Concentrator and Access Point (OLT) - usando IDs do Link Monitor
+            // Concentrator and Access Point (OLT for GPON, Switch for PTP) - usando IDs do Link Monitor
             concentratorId: linkConcentratorId,
-            accessPointId: linkOltId,
-            // Origem de dados de tráfego: concentrator quando tem concentrador
-            trafficSourceType: linkConcentratorId ? 'concentrator' : 'manual',
+            accessPointId: linkOltId || linkSwitchId, // OLT for GPON, Switch for PTP
+            // Origem de dados de tráfego: concentrator > accessPoint (switch) > manual
+            trafficSourceType: linkConcentratorId ? 'concentrator' : (linkSwitchId ? 'accessPoint' : 'manual'),
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
