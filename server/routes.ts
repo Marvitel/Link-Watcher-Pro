@@ -4172,6 +4172,8 @@ export async function registerRoutes(
       // Get or create client - group links by clientVoalleId
       const clientsCache = new Map<number, number>(); // voalleId -> clientId
       const existingClients = await storage.getClients();
+      // Track all slugs (existing + created during import) to avoid duplicates
+      const usedSlugs = new Set(existingClients.map(c => c.slug));
       
       // Build a lookup for existing clients by voalleCustomerId
       const existingByVoalleId = new Map<number, typeof existingClients[0]>();
@@ -4223,21 +4225,33 @@ export async function registerRoutes(
             .replace(/\s*\([^)]+\)\s*$/, '')
             .trim() || `Cliente ${link.clientVoalleId}`;
           
-          const slug = cleanName.toLowerCase()
+          let baseSlug = cleanName.toLowerCase()
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
+          
+          // Ensure unique slug by appending voalleId if base slug already exists
+          let slug = baseSlug || `cliente-${link.clientVoalleId}`;
+          if (usedSlugs.has(slug)) {
+            slug = `${baseSlug}-${link.clientVoalleId}`;
+          }
+          // If still not unique (edge case), add random suffix
+          while (usedSlugs.has(slug)) {
+            slug = `${baseSlug}-${link.clientVoalleId}-${Date.now()}`;
+          }
 
           // Create new client with all Voalle data
           const newClient = await storage.createClient({
             name: cleanName,
-            slug: slug || `cliente-${link.clientVoalleId}`,
+            slug: slug,
             cnpj: link.clientCpfCnpj || undefined,
             voalleCustomerId: link.clientVoalleId,
             voallePortalUsername: link.clientPortalUser || undefined,
             voallePortalPassword: link.clientPortalPassword || undefined,
           });
 
+          // Track the new slug to avoid duplicates within the same import
+          usedSlugs.add(slug);
           clientsCache.set(link.clientVoalleId, newClient.id);
           existingByVoalleId.set(link.clientVoalleId, newClient);
           return newClient.id;
