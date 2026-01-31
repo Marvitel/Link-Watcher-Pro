@@ -1,0 +1,20 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f | grep "PPPoE SNMP"
+jan 31 19:04:01 link-monitor npm[4143669]: [PPPoE SNMP] Buscando 1 sessões em CE: BCQ-MVT-CLT-COND-MAIKAI (mikrotik) via SNMP
+jan 31 19:04:01 link-monitor npm[4143669]: [PPPoE SNMP] Conectando em 191.52.255.96:161 (2c, community: marvitel)
+jan 31 19:04:01 link-monitor npm[4143669]: [PPPoE SNMP] Conectividade OK - RouterOS CCR1009-8G-1S-1S+...
+jan 31 19:04:01 link-monitor npm[4143669]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Tentando OIDs: IF-MIB Standard
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] IF-MIB Standard: 144 usuários, 25 IPs
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Walk final: 144 usuários ativos usando "IF-MIB Standard"
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Amostra de usuários ativos: sfp-sfpplus1-OLT, sfp1-MARVITEL, ether1_OLT_Datacom, ether2_Gerencia_OLT, ether3...
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Buscando usuários: MAIKAI_Q19D01
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Buscando ifName e ifAlias...
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] ifName: 144, ifAlias: 2 entradas
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Tabela de rotas: 251 entradas
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Mapeamento ifIndex->IP: 113 entradas
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Usuário "MAIKAI_Q19D01" -> ifIndex 15741616, ifName: <pppoe-MAIKAI_Q19D01>, ifAlias: N/A, IP: 100.80.3.120
+jan 31 19:04:02 link-monitor npm[4143669]: [PPPoE SNMP] Encontradas 1 sessões de 1 buscadas (SNMP retornou 113 mapeamentos IP)
