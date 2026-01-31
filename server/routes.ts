@@ -4464,16 +4464,6 @@ export async function registerRoutes(
 
           const normalizedTag = link.serviceTag.toLowerCase().trim();
 
-          // Check for duplicate by service tag in existing links
-          if (existingIdentifiers.has(normalizedTag)) {
-            results.errors.push({
-              serviceTag: link.serviceTag,
-              error: "Link já existe com este identificador",
-            });
-            results.failed++;
-            continue;
-          }
-
           // Check for duplicate within this import batch
           if (batchIdentifiers.has(normalizedTag)) {
             results.errors.push({
@@ -4485,6 +4475,9 @@ export async function registerRoutes(
           }
           
           batchIdentifiers.add(normalizedTag);
+          
+          // Check if link already exists (will update instead of skip)
+          const existingLink = existingLinks.find(l => l.identifier?.toLowerCase() === normalizedTag);
 
           // Get or create client, concentrator and OLT for this link
           const linkClientId = await getOrCreateClientForLink(link);
@@ -4555,23 +4548,49 @@ export async function registerRoutes(
             continue;
           }
 
-          await storage.createLink(parseResult.data);
-          results.success++;
+          if (existingLink) {
+            // Update existing link with new data (including OLT/Switch)
+            console.log(`[Voalle Import] Updating existing link ${link.serviceTag} (ID: ${existingLink.id}) with accessPointId=${linkOltId || linkSwitchId}`);
+            await storage.updateLink(existingLink.id, parseResult.data);
+            results.success++;
+            
+            // Log audit event for update
+            await logAuditEvent({
+              actor: req.user,
+              action: "update",
+              entity: "link",
+              entityName: link.serviceTag,
+              status: "success",
+              metadata: {
+                source: "voalle_import",
+                serviceTag: link.serviceTag,
+                title: link.title,
+                accessPointId: linkOltId || linkSwitchId,
+              },
+              request: req,
+            });
+          } else {
+            // Create new link
+            console.log(`[Voalle Import] Creating new link ${link.serviceTag} with accessPointId=${linkOltId || linkSwitchId}`);
+            await storage.createLink(parseResult.data);
+            results.success++;
 
-          // Log audit event
-          await logAuditEvent({
-            actor: req.user,
-            action: "create",
-            entity: "link",
-            entityName: link.serviceTag,
-            status: "success",
-            metadata: {
-              source: "voalle_import",
-              serviceTag: link.serviceTag,
-              title: link.title,
-            },
-            request: req,
-          });
+            // Log audit event for create
+            await logAuditEvent({
+              actor: req.user,
+              action: "create",
+              entity: "link",
+              entityName: link.serviceTag,
+              status: "success",
+              metadata: {
+                source: "voalle_import",
+                serviceTag: link.serviceTag,
+                title: link.title,
+                accessPointId: linkOltId || linkSwitchId,
+              },
+              request: req,
+            });
+          }
 
         } catch (linkError) {
           console.error(`Error importing link ${link.serviceTag}:`, linkError);
