@@ -71,8 +71,10 @@ interface ParsedLink {
   equipmentSerial: string | null;
   concentratorId: string | null;
   concentratorIp: string | null;
+  concentratorName: string | null;
   accessPointId: string | null;
   oltIp: string | null;
+  oltName: string | null;
   cpeUser: string | null;
   cpePassword: string | null;
   // Dados PPPoE/VLAN/WiFi do authentication_contracts
@@ -500,8 +502,10 @@ export function VoalleImportTab() {
           equipmentSerial: authContract?.equipment_serial_number || null,
           concentratorId: authContract?.authentication_concentrator_id?.toString() || null,
           concentratorIp: concentrator?.server_ip || null,
+          concentratorName: concentrator?.title || null,
           accessPointId: authContract?.authentication_access_point_id?.toString() || null,
           oltIp: accessPoint?.ip || null,
+          oltName: accessPoint?.title || null,
           cpeUser: authContract?.equipment_user || null,
           cpePassword: authContract?.equipment_password || null,
           // Dados PPPoE/VLAN/WiFi do authentication_contracts

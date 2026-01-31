@@ -4135,8 +4135,10 @@ export async function registerRoutes(
           equipmentSerial: string | null;
           concentratorId: string | null;
           concentratorIp: string | null;
+          concentratorName: string | null;
           accessPointId: string | null;
           oltIp: string | null;
+          oltName: string | null;
           cpeUser: string | null;
           cpePassword: string | null;
           // Dados PPPoE/VLAN/WiFi
@@ -4238,6 +4240,93 @@ export async function registerRoutes(
         return newClient.id;
       }
 
+      // Get or create concentrators - group by voalleId
+      const concentratorsCache = new Map<number, number>(); // voalleId -> concentratorId
+      const existingConcentrators = await storage.getSnmpConcentrators();
+      const existingConcentratorsByVoalleId = new Map<number, typeof existingConcentrators[0]>();
+      for (const conc of existingConcentrators) {
+        if (conc.voalleId) {
+          existingConcentratorsByVoalleId.set(conc.voalleId, conc);
+        }
+      }
+
+      const getOrCreateConcentrator = async (link: typeof links[0]): Promise<number | null> => {
+        if (!link.concentratorId) return null;
+        const voalleId = parseInt(link.concentratorId, 10);
+        if (isNaN(voalleId)) return null;
+
+        // Check cache
+        const cached = concentratorsCache.get(voalleId);
+        if (cached) return cached;
+
+        // Check existing
+        const existing = existingConcentratorsByVoalleId.get(voalleId);
+        if (existing) {
+          concentratorsCache.set(voalleId, existing.id);
+          return existing.id;
+        }
+
+        // Create new if we have IP
+        if (link.concentratorIp) {
+          const newConc = await storage.createSnmpConcentrator({
+            name: link.concentratorName || `Concentrador Voalle #${voalleId}`,
+            ipAddress: link.concentratorIp,
+            voalleId: voalleId,
+            isActive: true,
+          });
+          concentratorsCache.set(voalleId, newConc.id);
+          existingConcentratorsByVoalleId.set(voalleId, newConc);
+          return newConc.id;
+        }
+
+        return null;
+      };
+
+      // Get or create OLTs - group by voalleId
+      const oltsCache = new Map<number, number>(); // voalleId -> oltId
+      const existingOlts = await storage.getOlts();
+      const existingOltsByVoalleId = new Map<number, typeof existingOlts[0]>();
+      for (const olt of existingOlts) {
+        if (olt.voalleId) {
+          existingOltsByVoalleId.set(olt.voalleId, olt);
+        }
+      }
+
+      const getOrCreateOlt = async (link: typeof links[0]): Promise<number | null> => {
+        if (!link.accessPointId) return null;
+        const voalleId = parseInt(link.accessPointId, 10);
+        if (isNaN(voalleId)) return null;
+
+        // Check cache
+        const cached = oltsCache.get(voalleId);
+        if (cached) return cached;
+
+        // Check existing
+        const existing = existingOltsByVoalleId.get(voalleId);
+        if (existing) {
+          oltsCache.set(voalleId, existing.id);
+          return existing.id;
+        }
+
+        // Create new if we have name (IP is encrypted in Voalle CSV)
+        if (link.oltName) {
+          const newOlt = await storage.createOlt({
+            name: link.oltName,
+            ipAddress: link.oltIp || "0.0.0.0", // IP criptografado no CSV
+            voalleId: voalleId,
+            port: 23,
+            username: "admin",
+            password: "",
+            connectionType: "telnet",
+          });
+          oltsCache.set(voalleId, newOlt.id);
+          existingOltsByVoalleId.set(voalleId, newOlt);
+          return newOlt.id;
+        }
+
+        return null;
+      };
+
       // Get existing links to check for duplicates
       const existingLinks = await storage.getLinks();
       const existingIdentifiers = new Set(existingLinks.map(l => l.identifier?.toLowerCase()));
@@ -4290,8 +4379,10 @@ export async function registerRoutes(
           
           batchIdentifiers.add(normalizedTag);
 
-          // Get or create client for this link
+          // Get or create client, concentrator and OLT for this link
           const linkClientId = await getOrCreateClientForLink(link);
+          const linkConcentratorId = await getOrCreateConcentrator(link);
+          const linkOltId = await getOrCreateOlt(link);
 
           // Prepare link data with safe type coercion
           const rawLinkData = {
@@ -4315,11 +4406,11 @@ export async function registerRoutes(
             portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
             onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
-            // Concentrator and Access Point (OLT)
-            concentratorId: link.concentratorId ? parseInt(link.concentratorId, 10) : null,
-            accessPointId: link.accessPointId ? parseInt(link.accessPointId, 10) : null,
-            // Origem de dados de tráfego: concentrator quando tem concentradorId
-            trafficSourceType: link.concentratorId ? 'concentrator' : 'manual',
+            // Concentrator and Access Point (OLT) - usando IDs do Link Monitor
+            concentratorId: linkConcentratorId,
+            accessPointId: linkOltId,
+            // Origem de dados de tráfego: concentrator quando tem concentrador
+            trafficSourceType: linkConcentratorId ? 'concentrator' : 'manual',
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
