@@ -4477,9 +4477,10 @@ export async function registerRoutes(
 
       res.json(results);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in Voalle import:", error);
-      res.status(500).json({ error: "Falha na importação do Voalle" });
+      console.error("Error stack:", error?.stack);
+      res.status(500).json({ error: "Falha na importação do Voalle", details: error?.message });
     }
   });
 
