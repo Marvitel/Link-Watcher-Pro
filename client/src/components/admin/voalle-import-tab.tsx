@@ -801,6 +801,7 @@ export function VoalleImportTab() {
                         <TableHead>Serial</TableHead>
                         <TableHead>ID Conc.</TableHead>
                         <TableHead>Concentrador</TableHead>
+                        <TableHead>IP Conc.</TableHead>
                         <TableHead>ID OLT</TableHead>
                         <TableHead>Ponto de Acesso</TableHead>
                         <TableHead>PPPoE User</TableHead>
@@ -873,9 +874,10 @@ export function VoalleImportTab() {
                             {link.concentratorId || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs" title={link.concentratorName || ''}>
-                            {link.concentratorId 
-                              ? `${link.concentratorName || '-'}${link.concentratorIp ? ' (' + link.concentratorIp + ')' : ''}`
-                              : '-'}
+                            {link.concentratorName || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.concentratorIp || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.accessPointId || '-'}
