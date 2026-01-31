@@ -8,6 +8,7 @@ export interface PppoeSessionInfo {
   macAddress: string | null;
   uptime: string | null;
   interface: string | null;
+  ifIndex: number | null;  // Índice da interface SNMP para coleta de tráfego
 }
 
 interface ConcentratorSnmpProfile {
@@ -339,16 +340,17 @@ async function lookupPppoeViaSNMP(
 
       if (idx) {
         const ip = ipByIndex.get(idx);
+        const ifIndexNum = parseInt(idx, 10);
         console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx} -> IP: ${ip || 'não encontrado'}`);
-        if (ip && ip !== "0.0.0.0") {
-          results.set(pppoeUser, {
-            username: pppoeUser,
-            ipAddress: ip,
-            macAddress: null,
-            uptime: null,
-            interface: null,
-          });
-        }
+        // Salvar sessão mesmo sem IP se temos o ifIndex (útil para coleta de tráfego)
+        results.set(pppoeUser, {
+          username: pppoeUser,
+          ipAddress: (ip && ip !== "0.0.0.0") ? ip : null,
+          macAddress: null,
+          uptime: null,
+          interface: null,
+          ifIndex: isNaN(ifIndexNum) ? null : ifIndexNum,
+        });
       } else {
         console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" não encontrado no índice`);
       }
@@ -461,6 +463,7 @@ function parseMikrotikPppSession(output: string, pppoeUser: string): PppoeSessio
       macAddress: null,
       uptime: null,
       interface: null,
+      ifIndex: null,
     };
   }
   return null;
@@ -478,6 +481,7 @@ function parseCiscoPppSession(output: string, pppoeUser: string): PppoeSessionIn
           macAddress: null,
           uptime: null,
           interface: null,
+          ifIndex: null,
         };
       }
     }
@@ -499,6 +503,7 @@ function parseHuaweiPppSession(output: string, pppoeUser: string): PppoeSessionI
             macAddress: null,
             uptime: null,
             interface: null,
+            ifIndex: null,
           };
         }
       }

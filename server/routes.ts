@@ -4656,14 +4656,29 @@ export async function registerRoutes(
               
               const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers, undefined, snmpProfile);
               
-              // Update links with found IPs
+              // Update links with found IPs and interface indexes
               for (const link of concentratorLinks) {
                 if (link.pppoeUser) {
                   const session = sessions.get(link.pppoeUser);
-                  if (session?.ipAddress) {
-                    await storage.updateLink(link.id, { monitoredIp: session.ipAddress });
-                    pppoeIpsFound++;
-                    console.log(`[Voalle Import] IP encontrado para ${link.name}: ${session.ipAddress}`);
+                  if (session) {
+                    const updateData: Record<string, any> = {};
+                    
+                    // Salvar IP se encontrado
+                    if (session.ipAddress) {
+                      updateData.monitoredIp = session.ipAddress;
+                      pppoeIpsFound++;
+                    }
+                    
+                    // Salvar ifIndex para coleta de tráfego via concentrador
+                    if (session.ifIndex) {
+                      updateData.snmpInterfaceIndex = session.ifIndex;
+                      updateData.trafficSourceType = 'concentrator'; // Usar concentrador para tráfego
+                    }
+                    
+                    if (Object.keys(updateData).length > 0) {
+                      await storage.updateLink(link.id, updateData);
+                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}`);
+                    }
                   }
                 }
               }
