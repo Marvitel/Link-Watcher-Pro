@@ -454,9 +454,12 @@ export function VoalleImportTab() {
           ? [authContract.street, authContract.street_number, authContract.neighborhood].filter(Boolean).join(', ')
           : '';
 
-        // Get client name from people.csv using client_id
+        // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
-        const clientName = person?.name || tag.client_name || `Cliente ${tag.client_id}`;
+        const clientDoc = person?.tx_id || '';
+        const clientName = person?.name 
+          ? (clientDoc ? `${person.name} (${clientDoc})` : person.name)
+          : (tag.client_name || `Cliente ${tag.client_id}`);
 
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
