@@ -193,6 +193,21 @@ export const links = pgTable("links", {
   mainGraphMode: varchar("main_graph_mode", { length: 20 }).notNull().default("primary"),
   // IDs das interfaces adicionais para agregação (usado quando mainGraphMode = 'aggregate' ou 'single')
   mainGraphInterfaceIds: integer("main_graph_interface_ids").array(),
+  // Dados de autenticação PPPoE do Voalle
+  pppoeUser: varchar("pppoe_user", { length: 100 }), // Usuário PPPoE
+  pppoePassword: text("pppoe_password"), // Senha PPPoE
+  // Dados de VLAN
+  vlan: integer("vlan"), // VLAN ID
+  vlanInterface: varchar("vlan_interface", { length: 100 }), // Interface da VLAN
+  // Dados de IP/LAN
+  validLanIp: varchar("valid_lan_ip", { length: 45 }), // IP válido na LAN
+  validLanIpClass: varchar("valid_lan_ip_class", { length: 20 }), // Classe do IP
+  ipAuthenticationId: varchar("ip_authentication_id", { length: 100 }), // ID de autenticação IP codificado
+  // Dados de WiFi
+  wifiName: varchar("wifi_name", { length: 100 }), // Nome da rede WiFi
+  wifiPassword: text("wifi_password"), // Senha do WiFi
+  // Complemento de endereço
+  addressComplement: text("address_complement"), // Complemento do endereço
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

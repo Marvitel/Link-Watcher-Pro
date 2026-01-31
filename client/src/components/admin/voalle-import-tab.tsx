@@ -75,6 +75,17 @@ interface ParsedLink {
   oltIp: string | null;
   cpeUser: string | null;
   cpePassword: string | null;
+  // Dados PPPoE/VLAN/WiFi do authentication_contracts
+  pppoeUser: string | null;
+  pppoePassword: string | null;
+  vlan: number | null;
+  vlanInterface: string | null;
+  validLanIp: string | null;
+  validLanIpClass: string | null;
+  wifiName: string | null;
+  wifiPassword: string | null;
+  addressComplement: string | null;
+  ipAuthenticationId: string | null;
   linkType: 'gpon' | 'ptp';
   selected: boolean;
   status: 'new' | 'exists' | 'error';
@@ -492,6 +503,17 @@ export function VoalleImportTab() {
           oltIp: accessPoint?.ip || null,
           cpeUser: authContract?.equipment_user || null,
           cpePassword: authContract?.equipment_password || null,
+          // Dados PPPoE/VLAN/WiFi do authentication_contracts
+          pppoeUser: authContract?.user || null,
+          pppoePassword: authContract?.password || null,
+          vlan: authContract?.vlan || null,
+          vlanInterface: authContract?.vlan_interface || null,
+          validLanIp: authContract?.valid_lan_ip || null,
+          validLanIpClass: authContract?.valid_lan_ip_class || null,
+          wifiName: authContract?.wifi_name || null,
+          wifiPassword: authContract?.wifi_password || null,
+          addressComplement: authContract?.complement || null,
+          ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
           linkType: detectLinkType(tag.title || ''),
           selected: true,
           status: 'new',

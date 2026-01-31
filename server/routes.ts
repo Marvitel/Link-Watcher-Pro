@@ -4139,6 +4139,17 @@ export async function registerRoutes(
           oltIp: string | null;
           cpeUser: string | null;
           cpePassword: string | null;
+          // Dados PPPoE/VLAN/WiFi
+          pppoeUser: string | null;
+          pppoePassword: string | null;
+          vlan: number | null;
+          vlanInterface: string | null;
+          validLanIp: string | null;
+          validLanIpClass: string | null;
+          wifiName: string | null;
+          wifiPassword: string | null;
+          addressComplement: string | null;
+          ipAuthenticationId: string | null;
           linkType: 'gpon' | 'ptp';
         }>;
         targetClientId: number | null;
@@ -4305,6 +4316,17 @@ export async function registerRoutes(
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
+            // PPPoE/VLAN/WiFi data from Voalle
+            pppoeUser: link.pppoeUser ? String(link.pppoeUser).trim() : null,
+            pppoePassword: link.pppoePassword ? String(link.pppoePassword) : null,
+            vlan: typeof link.vlan === 'number' ? link.vlan : null,
+            vlanInterface: link.vlanInterface ? String(link.vlanInterface).trim() : null,
+            validLanIp: link.validLanIp ? String(link.validLanIp).trim() : null,
+            validLanIpClass: link.validLanIpClass ? String(link.validLanIpClass).trim() : null,
+            wifiName: link.wifiName ? String(link.wifiName).trim() : null,
+            wifiPassword: link.wifiPassword ? String(link.wifiPassword) : null,
+            addressComplement: link.addressComplement ? String(link.addressComplement).trim() : null,
+            ipAuthenticationId: link.ipAuthenticationId ? String(link.ipAuthenticationId).trim() : null,
             // Location - ensure strings
             latitude: link.lat ? String(link.lat).trim() : null,
             longitude: link.lng ? String(link.lng).trim() : null,
