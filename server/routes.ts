@@ -4669,15 +4669,23 @@ export async function registerRoutes(
                       pppoeIpsFound++;
                     }
                     
-                    // Salvar ifIndex para coleta de tráfego via concentrador
+                    // Salvar ifIndex, ifName, ifAlias para coleta de tráfego via concentrador
                     if (session.ifIndex) {
                       updateData.snmpInterfaceIndex = session.ifIndex;
                       updateData.trafficSourceType = 'concentrator'; // Usar concentrador para tráfego
+                      
+                      // Salvar nome e descrição da interface se disponíveis
+                      if (session.ifName) {
+                        updateData.snmpInterfaceName = session.ifName;
+                      }
+                      if (session.ifAlias) {
+                        updateData.snmpInterfaceDescr = session.ifAlias;
+                      }
                     }
                     
                     if (Object.keys(updateData).length > 0) {
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}`);
+                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}, ifName=${session.ifName || 'N/A'}`);
                     }
                   }
                 }

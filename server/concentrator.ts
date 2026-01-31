@@ -9,6 +9,8 @@ export interface PppoeSessionInfo {
   uptime: string | null;
   interface: string | null;
   ifIndex: number | null;  // Índice da interface SNMP para coleta de tráfego
+  ifName: string | null;   // Nome da interface (ifDescr)
+  ifAlias: string | null;  // Descrição/alias da interface (ifAlias)
 }
 
 interface ConcentratorSnmpProfile {
@@ -40,6 +42,8 @@ const PPPOE_OIDS_MIKROTIK_ALT = {
 // IF-MIB padrão para descrição de interfaces (funciona em qualquer equipamento)
 const PPPOE_OIDS_IFMIB = {
   ifDescr: "1.3.6.1.2.1.2.2.1.2",
+  ifName: "1.3.6.1.2.1.31.1.1.1.1",    // IF-MIB::ifName
+  ifAlias: "1.3.6.1.2.1.31.1.1.1.18",  // IF-MIB::ifAlias (descrição)
   ipAdEntIfIndex: "1.3.6.1.2.1.4.20.1.2",
   ipAdEntAddr: "1.3.6.1.2.1.4.20.1.1",
 };
@@ -321,7 +325,27 @@ async function lookupPppoeViaSNMP(
     // Para IF-MIB, o mapeamento IP é diferente
     // Mikrotik: Precisamos buscar na tabela de rotas (ipRouteIfIndex) que mapeia IP -> ifIndex
     const ipByIndex = new Map<string, string>();
+    const ifNameByIndex = new Map<string, string>();
+    const ifAliasByIndex = new Map<string, string>();
+    
     if (usedOidSet === "IF-MIB Standard") {
+      // Buscar ifName e ifAlias para todas as interfaces
+      console.log(`[PPPoE SNMP] Buscando ifName e ifAlias...`);
+      const [ifNameData, ifAliasData] = await Promise.all([
+        snmpSubtreeWalk(session, PPPOE_OIDS_IFMIB.ifName),
+        snmpSubtreeWalk(session, PPPOE_OIDS_IFMIB.ifAlias),
+      ]);
+      
+      for (const item of ifNameData) {
+        ifNameByIndex.set(item.index, item.value);
+      }
+      for (const item of ifAliasData) {
+        if (item.value && item.value.trim()) {
+          ifAliasByIndex.set(item.index, item.value.trim());
+        }
+      }
+      console.log(`[PPPoE SNMP] ifName: ${ifNameByIndex.size}, ifAlias: ${ifAliasByIndex.size} entradas`);
+      
       // Buscar tabela de rotas IP: ipRouteIfIndex (1.3.6.1.2.1.4.21.1.2)
       // Retorna: OID.IP -> ifIndex (ex: 1.3.6.1.2.1.4.21.1.2.100.80.3.120 = 15741616)
       console.log(`[PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...`);
@@ -355,8 +379,10 @@ async function lookupPppoeViaSNMP(
 
       if (idx) {
         const ip = ipByIndex.get(idx);
+        const ifName = ifNameByIndex.get(idx) || null;
+        const ifAlias = ifAliasByIndex.get(idx) || null;
         const ifIndexNum = parseInt(idx, 10);
-        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx} -> IP: ${ip || 'não encontrado'}`);
+        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx}, ifName: ${ifName || 'N/A'}, ifAlias: ${ifAlias || 'N/A'}, IP: ${ip || 'N/A'}`);
         // Salvar sessão mesmo sem IP se temos o ifIndex (útil para coleta de tráfego)
         results.set(pppoeUser, {
           username: pppoeUser,
@@ -365,6 +391,8 @@ async function lookupPppoeViaSNMP(
           uptime: null,
           interface: null,
           ifIndex: isNaN(ifIndexNum) ? null : ifIndexNum,
+          ifName: ifName,
+          ifAlias: ifAlias,
         });
       } else {
         console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" não encontrado no índice`);
@@ -479,6 +507,8 @@ function parseMikrotikPppSession(output: string, pppoeUser: string): PppoeSessio
       uptime: null,
       interface: null,
       ifIndex: null,
+      ifName: null,
+      ifAlias: null,
     };
   }
   return null;
@@ -497,6 +527,8 @@ function parseCiscoPppSession(output: string, pppoeUser: string): PppoeSessionIn
           uptime: null,
           interface: null,
           ifIndex: null,
+          ifName: null,
+          ifAlias: null,
         };
       }
     }
@@ -519,6 +551,8 @@ function parseHuaweiPppSession(output: string, pppoeUser: string): PppoeSessionI
             uptime: null,
             interface: null,
             ifIndex: null,
+            ifName: null,
+            ifAlias: null,
           };
         }
       }
