@@ -46,7 +46,7 @@ import type { Client } from "@shared/schema";
 
 interface CsvFile {
   name: string;
-  type: 'contract_service_tags' | 'authentication_contracts' | 'authentication_concentrators' | 'authentication_access_points' | 'person_users';
+  type: 'contract_service_tags' | 'authentication_contracts' | 'authentication_concentrators' | 'authentication_access_points' | 'person_users' | 'people';
   data: any[];
   headers: string[];
   rowCount: number;
@@ -107,6 +107,11 @@ const CSV_TYPES: Record<string, { label: string; description: string; requiredFi
     label: "Usuários do Portal",
     description: "Contém hash de senha do portal Voalle",
     requiredFields: ["person_id", "username", "password"]
+  },
+  people: {
+    label: "Pessoas/Clientes",
+    description: "Contém nome, CNPJ/CPF e endereço dos clientes",
+    requiredFields: ["id", "name"]
   }
 };
 
@@ -142,6 +147,14 @@ function detectCsvTypeByHeaders(headers: string[]): string | null {
   if (headerSet.has("ip") && headerSet.has("manufacturer_id")) {
     return "authentication_access_points";
   }
+  // people: has id, name, tx_id (CPF/CNPJ) - customer data
+  if (headerSet.has("name") && headerSet.has("tx_id") && !headerSet.has("service_tag")) {
+    return "people";
+  }
+  // Fallback: people by id + name + type_tx_id
+  if (headerSet.has("name") && headerSet.has("type_tx_id")) {
+    return "people";
+  }
   
   return null;
 }
@@ -163,6 +176,9 @@ function detectCsvTypeByFilename(filename: string): string | null {
   }
   if (lowerName.includes("person_user") || lowerName.includes("usuario") || lowerName.includes("portal")) {
     return "person_users";
+  }
+  if (lowerName.includes("people") || lowerName.includes("pessoa") || lowerName.includes("cliente")) {
+    return "people";
   }
   
   return null;
@@ -399,6 +415,7 @@ export function VoalleImportTab() {
       const concentrators = csvFiles.find(f => f.type === 'authentication_concentrators')?.data || [];
       const accessPoints = csvFiles.find(f => f.type === 'authentication_access_points')?.data || [];
       const personUsers = csvFiles.find(f => f.type === 'person_users')?.data || [];
+      const people = csvFiles.find(f => f.type === 'people')?.data || [];
 
       if (contractTags.length === 0) {
         toast({
@@ -413,6 +430,7 @@ export function VoalleImportTab() {
       const authContractMap = new Map(authContracts.map(ac => [ac.contract_id, ac]));
       const concentratorMap = new Map(concentrators.map(c => [c.id, c]));
       const accessPointMap = new Map(accessPoints.map(ap => [ap.id, ap]));
+      const peopleMap = new Map(people.map(p => [p.id, p]));
 
       const links: ParsedLink[] = [];
 
@@ -436,11 +454,15 @@ export function VoalleImportTab() {
           ? [authContract.street, authContract.street_number, authContract.neighborhood].filter(Boolean).join(', ')
           : '';
 
+        // Get client name from people.csv using client_id
+        const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
+        const clientName = person?.name || tag.client_name || `Cliente ${tag.client_id}`;
+
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
           serviceTag: tag.service_tag || '',
           title: tag.title || '',
-          clientName: tag.client_name || `Cliente ${tag.client_id}`,
+          clientName,
           clientId: null,
           bandwidth: extractBandwidth(tag.title || ''),
           address,
@@ -711,6 +733,7 @@ export function VoalleImportTab() {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Etiqueta</TableHead>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Cliente</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Banda</TableHead>
                       <TableHead>Cidade</TableHead>
@@ -731,6 +754,9 @@ export function VoalleImportTab() {
                         <TableCell className="font-mono text-sm">{link.serviceTag}</TableCell>
                         <TableCell className="max-w-[200px] truncate" title={link.title}>
                           {link.title}
+                        </TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={link.clientName}>
+                          {link.clientName}
                         </TableCell>
                         <TableCell>
                           <Badge variant={link.linkType === 'ptp' ? 'default' : 'secondary'}>
