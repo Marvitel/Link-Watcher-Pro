@@ -4197,6 +4197,22 @@ export async function registerRoutes(
           // Check existing client by voalleCustomerId
           const existing = existingByVoalleId.get(link.clientVoalleId);
           if (existing) {
+            // Update portal credentials if they're missing and we have new data
+            if (link.clientPortalUser || link.clientPortalPassword) {
+              const updateData: any = {};
+              if (link.clientPortalUser && !existing.voallePortalUsername) {
+                updateData.voallePortalUsername = link.clientPortalUser;
+              }
+              if (link.clientPortalPassword && !existing.voallePortalPassword) {
+                updateData.voallePortalPassword = link.clientPortalPassword;
+              }
+              if (link.clientCpfCnpj && !existing.cnpj) {
+                updateData.cnpj = link.clientCpfCnpj;
+              }
+              if (Object.keys(updateData).length > 0) {
+                await storage.updateClient(existing.id, updateData);
+              }
+            }
             clientsCache.set(link.clientVoalleId, existing.id);
             return existing.id;
           }
