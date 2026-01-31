@@ -730,73 +730,103 @@ export function VoalleImportTab() {
                 </div>
               </div>
 
-              <ScrollArea className="h-[500px] border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>Etiqueta</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Banda</TableHead>
-                      <TableHead>Cidade</TableHead>
-                      <TableHead>OLT</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {parsedLinks.map((link) => (
-                      <TableRow key={link.id} className={!link.selected ? 'opacity-50' : ''}>
-                        <TableCell>
-                          <Checkbox
-                            checked={link.selected}
-                            onCheckedChange={() => toggleLinkSelection(link.id)}
-                            data-testid={`checkbox-link-${link.id}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{link.serviceTag}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={link.title}>
-                          {link.title}
-                        </TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={link.clientName}>
-                          {link.clientName}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={link.linkType === 'ptp' ? 'default' : 'secondary'}>
-                            {link.linkType === 'ptp' ? 'PTP' : 'GPON'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {link.bandwidth ? `${link.bandwidth} Mbps` : '-'}
-                        </TableCell>
-                        <TableCell>{link.city || '-'}</TableCell>
-                        <TableCell>
-                          {link.slotOlt && link.portOlt 
-                            ? `${link.slotOlt}/${link.portOlt}` 
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {link.status === 'new' && (
-                            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950">
-                              Novo
-                            </Badge>
-                          )}
-                          {link.status === 'exists' && (
-                            <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950">
-                              Existe
-                            </Badge>
-                          )}
-                          {link.status === 'error' && (
-                            <Badge variant="destructive">
-                              Erro
-                            </Badge>
-                          )}
-                        </TableCell>
+              <ScrollArea className="h-[600px] border rounded-lg">
+                <div className="min-w-[1400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40px] sticky left-0 bg-background z-10"></TableHead>
+                        <TableHead className="sticky left-10 bg-background z-10">Etiqueta</TableHead>
+                        <TableHead>Nome do Serviço</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Banda</TableHead>
+                        <TableHead>Endereço</TableHead>
+                        <TableHead>Cidade</TableHead>
+                        <TableHead>Lat/Lng</TableHead>
+                        <TableHead>Slot/Porta</TableHead>
+                        <TableHead>Serial</TableHead>
+                        <TableHead>Concentrador IP</TableHead>
+                        <TableHead>OLT IP</TableHead>
+                        <TableHead>CPE User</TableHead>
+                        <TableHead>CPE Pass</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedLinks.map((link) => (
+                        <TableRow key={link.id} className={!link.selected ? 'opacity-50' : ''}>
+                          <TableCell className="sticky left-0 bg-background z-10">
+                            <Checkbox
+                              checked={link.selected}
+                              onCheckedChange={() => toggleLinkSelection(link.id)}
+                              data-testid={`checkbox-link-${link.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-sm sticky left-10 bg-background z-10">{link.serviceTag}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={link.title}>
+                            {link.title}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={link.clientName}>
+                            {link.clientName}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={link.linkType === 'ptp' ? 'default' : 'secondary'}>
+                              {link.linkType === 'ptp' ? 'PTP' : 'GPON'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {link.bandwidth ? `${link.bandwidth} Mbps` : '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[150px] truncate" title={link.address}>
+                            {link.address || '-'}
+                          </TableCell>
+                          <TableCell>{link.city || '-'}</TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {link.lat && link.lng ? `${link.lat}, ${link.lng}` : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {link.slotOlt && link.portOlt 
+                              ? `${link.slotOlt}/${link.portOlt}` 
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.equipmentSerial || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.concentratorIp || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.oltIp || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.cpeUser || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.cpePassword || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {link.status === 'new' && (
+                              <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950">
+                                Novo
+                              </Badge>
+                            )}
+                            {link.status === 'exists' && (
+                              <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950">
+                                Existe
+                              </Badge>
+                            )}
+                            {link.status === 'error' && (
+                              <Badge variant="destructive">
+                                Erro
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </ScrollArea>
             </div>
           )}
