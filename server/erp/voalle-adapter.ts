@@ -642,6 +642,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     id: number; 
     serviceTag?: string; 
     description?: string; 
+    equipmentUser?: string;
     active?: boolean; 
     contractNumber?: string; 
     ip?: string; 
@@ -674,6 +675,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             slotOlt: number | null;
             portOlt: number | null;
             equipmentSerialNumber: string | null;
+            equipmentUser: string | null;
             ipAuthentication?: { id: number; ip: string } | null;
             validLanIp?: string | null;
             validLanIpClass?: string | null;
@@ -755,10 +757,17 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
               console.log(`[VoalleAdapter] IP Block (sem classe): ${ipBlock}`);
             }
 
+            // Extrair prefixo do equipmentUser (parte antes de ===)
+            const rawEquipmentUser = conn.equipmentUser || '';
+            const equipmentUserPrefix = rawEquipmentUser.includes('===') 
+              ? rawEquipmentUser.split('===')[0].trim() 
+              : (rawEquipmentUser.trim() || undefined);
+
             return {
               id: conn.contractServiceTag!.id,
               serviceTag: conn.contractServiceTag!.serviceTag,
               description: conn.contractServiceTag!.description || conn.serviceProduct?.title,
+              equipmentUser: equipmentUserPrefix,
               active: conn.active,
               contractNumber: conn.contract?.contract_number,
               ip: conn.ipAuthentication?.ip,
@@ -852,6 +861,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       slotOlt: number | null;
       portOlt: number | null;
       equipmentSerialNumber: string | null;
+      equipmentUser: string | null;
       contract: { id: number; contract_number: string; description: string; status: number } | null;
       serviceProduct: { id: number; title: string } | null;
       contractServiceTag: { id: number; description: string; serviceTag: string } | null;
@@ -893,6 +903,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           slotOlt: number | null;
           portOlt: number | null;
           equipmentSerialNumber: string | null;
+          equipmentUser: string | null;
           ipAuthentication: { id: number; ip: string } | null;
           contract: { id: number; contract_number: string; description: string; status: number } | null;
           serviceProduct: { id: number; title: string } | null;
@@ -931,6 +942,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           slotOlt: conn.slotOlt,
           portOlt: conn.portOlt,
           equipmentSerialNumber: conn.equipmentSerialNumber,
+          equipmentUser: conn.equipmentUser,
           contract: conn.contract,
           serviceProduct: conn.serviceProduct,
           contractServiceTag: conn.contractServiceTag,

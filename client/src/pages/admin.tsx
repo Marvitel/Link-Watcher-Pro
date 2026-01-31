@@ -829,11 +829,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     }
 
     // Preencher automaticamente os campos disponíveis
+    // Nome: usar equipmentUser (prefixo antes de ===) ou description como fallback
     setFormData(prev => ({
       ...prev,
       voalleContractTagId: tag.id,
       voalleContractTagServiceTag: tag.serviceTag || "",
-      name: prev.name || tag.description || tag.serviceTag || "",
+      name: prev.name || tag.equipmentUser || tag.description || tag.serviceTag || "",
       identifier: prev.identifier || tag.serviceTag || "",
       monitoredIp: prev.monitoredIp || tag.ip || "",
       ipBlock: tag.ipBlock || prev.ipBlock,
@@ -936,9 +937,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       }
 
       // FORÇAR atualização de TODOS os campos (sobrescrever valores existentes)
+      // Nome: usar equipmentUser (prefixo antes de ===) ou description como fallback
       setFormData(prev => ({
         ...prev,
-        name: tag.description || tag.serviceTag || prev.name,
+        name: tag.equipmentUser || tag.description || tag.serviceTag || prev.name,
         identifier: tag.serviceTag || prev.identifier,
         monitoredIp: tag.ip || prev.monitoredIp,
         ipBlock: tag.ipBlock || prev.ipBlock,
