@@ -297,8 +297,12 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
       if (lowerValue === 'true') value = true;
       else if (lowerValue === 'false') value = false;
       else if (value === '' || lowerValue === 'null') value = null;
-      else if (typeof value === 'string' && !isNaN(Number(value)) && value.trim() !== '') {
-        value = Number(value);
+      else if (typeof value === 'string') {
+        // Remove separadores de milhar (vírgulas) para números
+        const numericValue = value.replace(/,/g, '').trim();
+        if (numericValue !== '' && !isNaN(Number(numericValue)) && /^-?\d+\.?\d*$/.test(numericValue)) {
+          value = Number(numericValue);
+        }
       }
       row[header] = value;
     });
