@@ -116,6 +116,8 @@ export const links = pgTable("links", {
   packetLossThreshold: real("packet_loss_threshold").notNull().default(2),
   // Tipo de conexão: gpon (fibra com OLT) ou ptp (ponto-a-ponto com switch)
   linkType: varchar("link_type", { length: 20 }).notNull().default("gpon"), // gpon, ptp
+  // Tipo de autenticação: pppoe (usuário PPPoE) ou corporate (VLAN com IP estático)
+  authType: varchar("auth_type", { length: 20 }).notNull().default("pppoe"), // pppoe, corporate
   // Campos para GPON (OLT)
   oltId: integer("olt_id"),
   onuSearchString: varchar("onu_search_string", { length: 100 }), // String de busca (serial da ONU)

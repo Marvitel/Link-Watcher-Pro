@@ -4151,6 +4151,7 @@ export async function registerRoutes(
           addressComplement: string | null;
           ipAuthenticationId: string | null;
           linkType: 'gpon' | 'ptp';
+          authType: 'pppoe' | 'corporate';
         }>;
         targetClientId: number | null;
       };
@@ -4304,6 +4305,7 @@ export async function registerRoutes(
             usableIps: 1,
             bandwidth: typeof link.bandwidth === 'number' && link.bandwidth > 0 ? link.bandwidth : 100,
             linkType: link.linkType === 'ptp' ? 'ptp' : 'gpon',
+            authType: link.authType === 'corporate' ? 'corporate' : 'pppoe',
             monitoringEnabled: true,
             // OLT fields for GPON
             slotOlt: typeof link.slotOlt === 'number' ? link.slotOlt : null,

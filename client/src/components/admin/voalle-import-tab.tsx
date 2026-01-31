@@ -87,6 +87,7 @@ interface ParsedLink {
   addressComplement: string | null;
   ipAuthenticationId: string | null;
   linkType: 'gpon' | 'ptp';
+  authType: 'pppoe' | 'corporate';
   selected: boolean;
   status: 'new' | 'exists' | 'error';
   errorMessage?: string;
@@ -515,6 +516,8 @@ export function VoalleImportTab() {
           addressComplement: authContract?.complement || null,
           ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
           linkType: detectLinkType(tag.title || ''),
+          // Detecta tipo de autenticação: se tem VLAN é corporativa, senão é PPPoE
+          authType: authContract?.vlan ? 'corporate' : 'pppoe',
           selected: true,
           status: 'new',
         };
