@@ -787,6 +787,8 @@ export function VoalleImportTab() {
                         <TableHead className="sticky left-10 bg-background z-10">Etiqueta</TableHead>
                         <TableHead>Nome do Serviço</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>ID Cliente</TableHead>
+                        <TableHead>CPF/CNPJ</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Banda</TableHead>
                         <TableHead>Endereço</TableHead>
@@ -794,7 +796,9 @@ export function VoalleImportTab() {
                         <TableHead>Lat/Lng</TableHead>
                         <TableHead>Slot/Porta</TableHead>
                         <TableHead>Serial</TableHead>
+                        <TableHead>ID Conc.</TableHead>
                         <TableHead>Concentrador</TableHead>
+                        <TableHead>ID OLT</TableHead>
                         <TableHead>Ponto de Acesso</TableHead>
                         <TableHead>CPE User</TableHead>
                         <TableHead>CPE Pass</TableHead>
@@ -817,6 +821,12 @@ export function VoalleImportTab() {
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate" title={link.clientName}>
                             {link.clientName}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.clientVoalleId || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.clientCpfCnpj || '-'}
                           </TableCell>
                           <TableCell>
                             <Badge variant={link.linkType === 'ptp' ? 'default' : 'secondary'}>
@@ -841,14 +851,20 @@ export function VoalleImportTab() {
                           <TableCell className="font-mono text-xs">
                             {link.equipmentSerial || '-'}
                           </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.concentratorId || '-'}
+                          </TableCell>
                           <TableCell className="font-mono text-xs" title={link.concentratorName || ''}>
                             {link.concentratorId 
-                              ? `${link.concentratorName || 'ID:' + link.concentratorId}${link.concentratorIp ? ' (' + link.concentratorIp + ')' : ''}`
+                              ? `${link.concentratorName || '-'}${link.concentratorIp ? ' (' + link.concentratorIp + ')' : ''}`
                               : '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.accessPointId || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs" title={link.oltName || ''}>
                             {link.accessPointId 
-                              ? `${link.oltName || 'ID:' + link.accessPointId}${link.oltIp ? ' (' + link.oltIp + ')' : ''}`
+                              ? `${link.oltName || '-'}${link.oltIp ? ' (' + link.oltIp + ')' : ''}`
                               : '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
