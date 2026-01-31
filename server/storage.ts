@@ -218,6 +218,12 @@ export class DatabaseStorage {
     return await db.select().from(clients).where(eq(clients.isActive, true));
   }
 
+  // Get all client slugs including inactive ones (for import duplicate checking)
+  async getAllClientSlugs(): Promise<string[]> {
+    const result = await db.select({ slug: clients.slug }).from(clients);
+    return result.map(r => r.slug).filter((s): s is string => s !== null);
+  }
+
   async getClient(id: number): Promise<Client | undefined> {
     const [client] = await db.select().from(clients).where(eq(clients.id, id));
     return client || undefined;

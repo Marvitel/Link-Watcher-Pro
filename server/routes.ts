@@ -4172,8 +4172,9 @@ export async function registerRoutes(
       // Get or create client - group links by clientVoalleId
       const clientsCache = new Map<number, number>(); // voalleId -> clientId
       const existingClients = await storage.getClients();
-      // Track all slugs (existing + created during import) to avoid duplicates
-      const usedSlugs = new Set(existingClients.map(c => c.slug));
+      // Track all slugs (including INACTIVE clients) to avoid duplicates with soft-deleted clients
+      const allSlugs = await storage.getAllClientSlugs();
+      const usedSlugs = new Set(allSlugs);
       
       // Build a lookup for existing clients by voalleCustomerId
       const existingByVoalleId = new Map<number, typeof existingClients[0]>();
@@ -4234,8 +4235,25 @@ export async function registerRoutes(
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
           
-          // Ensure unique slug by appending voalleId if base slug already exists
+          // Check if a client with this slug already exists (including inactive) and link/reactivate it
           let slug = baseSlug || `cliente-${link.clientVoalleId}`;
+          const existingBySlug = await storage.getClientBySlug(slug);
+          if (existingBySlug) {
+            console.log(`[Voalle Import] Found existing client by slug: ${slug}, updating/reactivating with voalleId: ${link.clientVoalleId}`);
+            // Update and reactivate existing client with voalleId and portal credentials
+            await storage.updateClient(existingBySlug.id, {
+              isActive: true, // Reactivate if it was soft-deleted
+              voalleCustomerId: link.clientVoalleId,
+              voallePortalUsername: link.clientPortalUser || existingBySlug.voallePortalUsername || undefined,
+              voallePortalPassword: link.clientPortalPassword || existingBySlug.voallePortalPassword || undefined,
+              cnpj: link.clientCpfCnpj || existingBySlug.cnpj || undefined,
+            });
+            clientsCache.set(link.clientVoalleId, existingBySlug.id);
+            existingByVoalleId.set(link.clientVoalleId, existingBySlug);
+            return existingBySlug.id;
+          }
+          
+          // Ensure unique slug by appending voalleId if slug already used in this batch
           console.log(`[Voalle Import] Checking slug: ${slug}, exists in usedSlugs: ${usedSlugs.has(slug)}`);
           if (usedSlugs.has(slug)) {
             slug = `${baseSlug}-${link.clientVoalleId}`;
