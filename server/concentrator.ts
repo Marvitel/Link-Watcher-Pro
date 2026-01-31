@@ -318,16 +318,31 @@ async function lookupPppoeViaSNMP(
       }
     }
 
-    // Para IF-MIB, o mapeamento IP é diferente (ipAdEntAddr.IP -> ifIndex)
+    // Para IF-MIB, o mapeamento IP é diferente
+    // Mikrotik: Precisamos buscar na tabela de rotas (ipRouteIfIndex) que mapeia IP -> ifIndex
     const ipByIndex = new Map<string, string>();
     if (usedOidSet === "IF-MIB Standard") {
-      // ipAdEntAddr retorna IP.IP.IP.IP -> ifIndex, precisamos inverter
-      for (const item of addressData) {
-        // O OID completo é ipAdEntAddr.A.B.C.D, e value é o ifIndex
-        // Mas snmpSubtreeWalk retorna index=A.B.C.D e value=ifIndex
-        // Precisamos mapear ifIndex -> IP
-        ipByIndex.set(item.value, item.index.replace(/\./g, "."));
+      // Buscar tabela de rotas IP: ipRouteIfIndex (1.3.6.1.2.1.4.21.1.2)
+      // Retorna: OID.IP -> ifIndex (ex: 1.3.6.1.2.1.4.21.1.2.100.80.3.120 = 15741616)
+      console.log(`[PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...`);
+      const ipRouteIfIndex = "1.3.6.1.2.1.4.21.1.2";
+      const routeData = await snmpSubtreeWalk(session, ipRouteIfIndex);
+      console.log(`[PPPoE SNMP] Tabela de rotas: ${routeData.length} entradas`);
+      
+      // routeData: index=IP, value=ifIndex
+      // Precisamos inverter: ifIndex -> IP
+      for (const item of routeData) {
+        const ifIndex = item.value;
+        const ip = item.index; // IP no formato A.B.C.D
+        // Só salvar IPs válidos (não 0.0.0.0, não loopback, não multicast)
+        if (ip && !ip.startsWith("0.") && !ip.startsWith("127.") && !ip.startsWith("224.")) {
+          // Se já temos um IP para este ifIndex, preferir o mais específico (evitar redes)
+          if (!ipByIndex.has(ifIndex)) {
+            ipByIndex.set(ifIndex, ip);
+          }
+        }
       }
+      console.log(`[PPPoE SNMP] Mapeamento ifIndex->IP: ${ipByIndex.size} entradas`);
     } else {
       for (const item of addressData) {
         ipByIndex.set(item.index, item.value);
