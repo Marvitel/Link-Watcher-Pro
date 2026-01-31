@@ -4185,6 +4185,7 @@ export async function registerRoutes(
 
       // Helper function to get or create client for a link
       const getOrCreateClientForLink = async (link: typeof links[0]): Promise<number> => {
+        console.log(`[Voalle Import] getOrCreateClientForLink - clientVoalleId: ${link.clientVoalleId}, clientName: ${link.clientName}`);
         // If target client specified, use it
         if (targetClientId) {
           return targetClientId;
@@ -4194,7 +4195,10 @@ export async function registerRoutes(
         if (link.clientVoalleId) {
           // Check cache first
           const cached = clientsCache.get(link.clientVoalleId);
-          if (cached) return cached;
+          if (cached) {
+            console.log(`[Voalle Import] Client from cache: ${cached}`);
+            return cached;
+          }
 
           // Check existing client by voalleCustomerId
           const existing = existingByVoalleId.get(link.clientVoalleId);
@@ -4232,14 +4236,18 @@ export async function registerRoutes(
           
           // Ensure unique slug by appending voalleId if base slug already exists
           let slug = baseSlug || `cliente-${link.clientVoalleId}`;
+          console.log(`[Voalle Import] Checking slug: ${slug}, exists in usedSlugs: ${usedSlugs.has(slug)}`);
           if (usedSlugs.has(slug)) {
             slug = `${baseSlug}-${link.clientVoalleId}`;
+            console.log(`[Voalle Import] Slug conflict, using: ${slug}`);
           }
           // If still not unique (edge case), add random suffix
           while (usedSlugs.has(slug)) {
             slug = `${baseSlug}-${link.clientVoalleId}-${Date.now()}`;
+            console.log(`[Voalle Import] Still conflict, using: ${slug}`);
           }
 
+          console.log(`[Voalle Import] Creating client with slug: ${slug}, voalleId: ${link.clientVoalleId}`);
           // Create new client with all Voalle data
           const newClient = await storage.createClient({
             name: cleanName,
