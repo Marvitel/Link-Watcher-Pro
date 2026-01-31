@@ -4129,7 +4129,9 @@ export async function registerRoutes(
           slotOlt: number | null;
           portOlt: number | null;
           equipmentSerial: string | null;
+          concentratorId: string | null;
           concentratorIp: string | null;
+          accessPointId: string | null;
           oltIp: string | null;
           cpeUser: string | null;
           cpePassword: string | null;
@@ -4238,6 +4240,9 @@ export async function registerRoutes(
             portOlt: typeof link.portOlt === 'number' ? link.portOlt : null,
             onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
+            // Concentrator and Access Point (OLT)
+            concentratorId: link.concentratorId ? parseInt(link.concentratorId, 10) : null,
+            accessPointId: link.accessPointId ? parseInt(link.accessPointId, 10) : null,
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
