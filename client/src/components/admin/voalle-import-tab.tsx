@@ -293,10 +293,10 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
     const row: any = {};
     headers.forEach((header, idx) => {
       let value: any = values[idx]?.replace(/^"|"$/g, '') || '';
-      const lowerValue = typeof value === 'string' ? value.toLowerCase() : '';
+      const lowerValue = typeof value === 'string' ? value.toLowerCase().trim() : '';
       if (lowerValue === 'true') value = true;
       else if (lowerValue === 'false') value = false;
-      else if (value === '') value = null;
+      else if (value === '' || lowerValue === 'null') value = null;
       else if (typeof value === 'string' && !isNaN(Number(value)) && value.trim() !== '') {
         value = Number(value);
       }
