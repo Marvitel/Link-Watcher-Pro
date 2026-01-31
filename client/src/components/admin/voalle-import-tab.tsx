@@ -66,7 +66,9 @@ interface ParsedLink {
   slotOlt: number | null;
   portOlt: number | null;
   equipmentSerial: string | null;
+  concentratorId: string | null;
   concentratorIp: string | null;
+  accessPointId: string | null;
   oltIp: string | null;
   cpeUser: string | null;
   cpePassword: string | null;
@@ -476,7 +478,9 @@ export function VoalleImportTab() {
           slotOlt: authContract?.slot_olt || null,
           portOlt: authContract?.port_olt || null,
           equipmentSerial: authContract?.equipment_serial_number || null,
+          concentratorId: authContract?.authentication_concentrator_id?.toString() || null,
           concentratorIp: concentrator?.server_ip || null,
+          accessPointId: authContract?.authentication_access_point_id?.toString() || null,
           oltIp: accessPoint?.ip || null,
           cpeUser: authContract?.equipment_user || null,
           cpePassword: authContract?.equipment_password || null,
@@ -746,8 +750,8 @@ export function VoalleImportTab() {
                         <TableHead>Lat/Lng</TableHead>
                         <TableHead>Slot/Porta</TableHead>
                         <TableHead>Serial</TableHead>
-                        <TableHead>Concentrador IP</TableHead>
-                        <TableHead>OLT IP</TableHead>
+                        <TableHead>Concentrador</TableHead>
+                        <TableHead>Ponto de Acesso</TableHead>
                         <TableHead>CPE User</TableHead>
                         <TableHead>CPE Pass</TableHead>
                         <TableHead>Status</TableHead>
@@ -794,10 +798,14 @@ export function VoalleImportTab() {
                             {link.equipmentSerial || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            {link.concentratorIp || '-'}
+                            {link.concentratorId || link.concentratorIp 
+                              ? `#${link.concentratorId || '-'} ${link.concentratorIp || ''}`
+                              : '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            {link.oltIp || '-'}
+                            {link.accessPointId || link.oltIp 
+                              ? `#${link.accessPointId || '-'} ${link.oltIp || ''}`
+                              : '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.cpeUser || '-'}
