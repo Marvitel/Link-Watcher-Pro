@@ -1,5 +1,6 @@
+import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
-import type { InsertSnmpConcentrator, SnmpConcentrator } from "@shared/schema";
+import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
 
 export interface PppoeSessionInfo {
   username: string;
@@ -7,6 +8,241 @@ export interface PppoeSessionInfo {
   macAddress: string | null;
   uptime: string | null;
   interface: string | null;
+}
+
+interface ConcentratorSnmpProfile {
+  version: string;
+  port: number;
+  community?: string | null;
+  securityLevel?: string | null;
+  authProtocol?: string | null;
+  authPassword?: string | null;
+  privProtocol?: string | null;
+  privPassword?: string | null;
+  username?: string | null;
+  timeout: number;
+  retries: number;
+}
+
+const PPPOE_OIDS_MIKROTIK = {
+  pppActiveUser: "1.3.6.1.4.1.14988.1.1.5.1.1.1",
+  pppActiveAddress: "1.3.6.1.4.1.14988.1.1.5.1.1.2",
+};
+
+const PPPOE_OIDS_CISCO = {
+  csubSessionUsername: "1.3.6.1.4.1.9.9.786.1.2.1.1.11",
+  csubSessionIpAddr: "1.3.6.1.4.1.9.9.786.1.2.1.1.15",
+};
+
+const PPPOE_OIDS_HUAWEI = {
+  hwBrasSbcUserName: "1.3.6.1.4.1.2011.5.2.1.14.1.2",
+  hwBrasSbcUserIpAddr: "1.3.6.1.4.1.2011.5.2.1.14.1.4",
+};
+
+function createSnmpSession(
+  targetIp: string,
+  profile: ConcentratorSnmpProfile
+): snmp.Session {
+  const version = profile.version.replace("v", "").toLowerCase();
+  const snmpVersion = version === "1" ? 0 : 1;
+
+  const options: any = {
+    port: profile.port,
+    timeout: profile.timeout,
+    retries: profile.retries,
+    version: snmpVersion,
+  };
+
+  if (version === "3") {
+    let securityLevel = snmp.SecurityLevel.noAuthNoPriv;
+    if (profile.securityLevel === "authNoPriv") {
+      securityLevel = snmp.SecurityLevel.authNoPriv;
+    } else if (profile.securityLevel === "authPriv") {
+      securityLevel = snmp.SecurityLevel.authPriv;
+    }
+
+    let authProtocol = snmp.AuthProtocols.none;
+    if (profile.authProtocol === "MD5") {
+      authProtocol = snmp.AuthProtocols.md5;
+    } else if (profile.authProtocol === "SHA") {
+      authProtocol = snmp.AuthProtocols.sha;
+    }
+
+    let privProtocol = snmp.PrivProtocols.none;
+    if (profile.privProtocol === "DES") {
+      privProtocol = snmp.PrivProtocols.des;
+    } else if (profile.privProtocol === "AES") {
+      privProtocol = snmp.PrivProtocols.aes;
+    }
+
+    const user: snmp.User = {
+      name: profile.username || "",
+      level: securityLevel,
+      authProtocol,
+      authKey: profile.authPassword || "",
+      privProtocol,
+      privKey: profile.privPassword || "",
+    };
+
+    return snmp.createV3Session(targetIp, user, options);
+  } else {
+    return snmp.createSession(
+      targetIp,
+      profile.community || "public",
+      options
+    );
+  }
+}
+
+async function snmpSubtreeWalk(
+  session: snmp.Session,
+  oid: string,
+  timeoutMs: number = 30000
+): Promise<Array<{ index: string; value: string }>> {
+  return new Promise((resolve) => {
+    const results: Array<{ index: string; value: string }> = [];
+    let completed = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!completed) {
+        completed = true;
+        session.close();
+        resolve(results);
+      }
+    }, timeoutMs);
+
+    session.subtree(
+      oid,
+      (varbinds: snmp.Varbind[]) => {
+        for (const vb of varbinds) {
+          if ((snmp as any).isVarbindError?.(vb)) continue;
+
+          const fullOid = vb.oid;
+          const suffix = fullOid.replace(oid + ".", "");
+
+          let value = "";
+          if (Buffer.isBuffer(vb.value)) {
+            value = vb.value.toString("utf8").replace(/\x00/g, "").trim();
+          } else if (typeof vb.value === "number") {
+            value = String(vb.value);
+          } else if (typeof vb.value === "string") {
+            value = vb.value;
+          }
+
+          if (value) {
+            results.push({ index: suffix, value });
+          }
+        }
+      },
+      (error?: Error) => {
+        clearTimeout(timeoutId);
+        if (!completed) {
+          completed = true;
+          if (error) {
+            console.log(`[SNMP Walk] Error on ${oid}:`, error.message);
+          }
+          resolve(results);
+        }
+      }
+    );
+  });
+}
+
+async function lookupPppoeViaSNMP(
+  concentrator: SnmpConcentrator,
+  pppoeUsers: string[],
+  snmpProfile: SnmpProfile | null
+): Promise<Map<string, PppoeSessionInfo>> {
+  const results = new Map<string, PppoeSessionInfo>();
+
+  if (!concentrator.ipAddress) {
+    console.log(`[PPPoE SNMP] Concentrador ${concentrator.name} sem IP`);
+    return results;
+  }
+
+  const profile: ConcentratorSnmpProfile = snmpProfile
+    ? {
+        version: snmpProfile.version,
+        port: snmpProfile.port,
+        community: snmpProfile.community,
+        securityLevel: snmpProfile.securityLevel,
+        authProtocol: snmpProfile.authProtocol,
+        authPassword: snmpProfile.authPassword,
+        privProtocol: snmpProfile.privProtocol,
+        privPassword: snmpProfile.privPassword,
+        username: snmpProfile.username,
+        timeout: snmpProfile.timeout,
+        retries: snmpProfile.retries,
+      }
+    : {
+        version: "2c",
+        port: 161,
+        community: "public",
+        timeout: 5000,
+        retries: 1,
+      };
+
+  const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
+  console.log(`[PPPoE SNMP] Buscando ${pppoeUsers.length} sessões em ${concentrator.name} (${vendor}) via SNMP`);
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  try {
+    let userOid: string;
+    let ipOid: string;
+
+    if (vendor === "cisco") {
+      userOid = PPPOE_OIDS_CISCO.csubSessionUsername;
+      ipOid = PPPOE_OIDS_CISCO.csubSessionIpAddr;
+    } else if (vendor === "huawei") {
+      userOid = PPPOE_OIDS_HUAWEI.hwBrasSbcUserName;
+      ipOid = PPPOE_OIDS_HUAWEI.hwBrasSbcUserIpAddr;
+    } else {
+      userOid = PPPOE_OIDS_MIKROTIK.pppActiveUser;
+      ipOid = PPPOE_OIDS_MIKROTIK.pppActiveAddress;
+    }
+
+    const [usersData, addressData] = await Promise.all([
+      snmpSubtreeWalk(session, userOid),
+      snmpSubtreeWalk(session, ipOid),
+    ]);
+
+    const userIndex = new Map<string, string>();
+    for (const item of usersData) {
+      userIndex.set(item.value.toLowerCase(), item.index);
+    }
+
+    const ipByIndex = new Map<string, string>();
+    for (const item of addressData) {
+      ipByIndex.set(item.index, item.value);
+    }
+
+    for (const pppoeUser of pppoeUsers) {
+      const userLower = pppoeUser.toLowerCase();
+      const idx = userIndex.get(userLower);
+
+      if (idx) {
+        const ip = ipByIndex.get(idx);
+        if (ip && ip !== "0.0.0.0") {
+          results.set(pppoeUser, {
+            username: pppoeUser,
+            ipAddress: ip,
+            macAddress: null,
+            uptime: null,
+            interface: null,
+          });
+        }
+      }
+    }
+
+    console.log(`[PPPoE SNMP] Encontradas ${results.size} sessões de ${pppoeUsers.length} buscadas`);
+  } catch (error) {
+    console.error(`[PPPoE SNMP] Erro:`, error instanceof Error ? error.message : error);
+  } finally {
+    session.close();
+  }
+
+  return results;
 }
 
 interface SshConnectionOptions {
@@ -24,9 +260,8 @@ async function executeSSHCommand(
   return new Promise((resolve, reject) => {
     const client = new SSHClient();
     let output = "";
-    let errorOutput = "";
     const timeout = options.timeout || 15000;
-    
+
     const timeoutId = setTimeout(() => {
       client.end();
       reject(new Error("SSH connection timeout"));
@@ -51,9 +286,7 @@ async function executeSSHCommand(
           output += data.toString();
         });
 
-        stream.stderr.on("data", (data: Buffer) => {
-          errorOutput += data.toString();
-        });
+        stream.stderr.on("data", () => {});
       });
     });
 
@@ -99,59 +332,9 @@ async function executeSSHCommand(
 }
 
 function parseMikrotikPppSession(output: string, pppoeUser: string): PppoeSessionInfo | null {
-  const lines = output.split("\n");
-  let currentSession: Partial<PppoeSessionInfo> = {};
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    if (trimmed.includes("name=")) {
-      const nameMatch = trimmed.match(/name="?([^"\s]+)"?/);
-      if (nameMatch) {
-        currentSession.username = nameMatch[1];
-      }
-    }
-    
-    if (trimmed.includes("address=")) {
-      const addressMatch = trimmed.match(/address=([^\s]+)/);
-      if (addressMatch) {
-        currentSession.ipAddress = addressMatch[1];
-      }
-    }
-    
-    if (trimmed.includes("caller-id=")) {
-      const macMatch = trimmed.match(/caller-id="?([^"\s]+)"?/);
-      if (macMatch) {
-        currentSession.macAddress = macMatch[1];
-      }
-    }
-    
-    if (trimmed.includes("uptime=")) {
-      const uptimeMatch = trimmed.match(/uptime=([^\s]+)/);
-      if (uptimeMatch) {
-        currentSession.uptime = uptimeMatch[1];
-      }
-    }
-    
-    if (trimmed.includes("interface=")) {
-      const ifMatch = trimmed.match(/interface="?([^"\s]+)"?/);
-      if (ifMatch) {
-        currentSession.interface = ifMatch[1];
-      }
-    }
-  }
-  
-  if (currentSession.username && currentSession.username.toLowerCase() === pppoeUser.toLowerCase()) {
-    return {
-      username: currentSession.username,
-      ipAddress: currentSession.ipAddress || null,
-      macAddress: currentSession.macAddress || null,
-      uptime: currentSession.uptime || null,
-      interface: currentSession.interface || null,
-    };
-  }
-  
-  const simpleMatch = output.match(new RegExp(`${pppoeUser.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?address=([\\d.]+)`, 'i'));
+  const simpleMatch = output.match(
+    new RegExp(`${pppoeUser.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?address=([\\d.]+)`, "i")
+  );
   if (simpleMatch) {
     return {
       username: pppoeUser,
@@ -161,13 +344,11 @@ function parseMikrotikPppSession(output: string, pppoeUser: string): PppoeSessio
       interface: null,
     };
   }
-  
   return null;
 }
 
 function parseCiscoPppSession(output: string, pppoeUser: string): PppoeSessionInfo | null {
   const lines = output.split("\n");
-  
   for (const line of lines) {
     if (line.toLowerCase().includes(pppoeUser.toLowerCase())) {
       const ipMatch = line.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
@@ -182,13 +363,11 @@ function parseCiscoPppSession(output: string, pppoeUser: string): PppoeSessionIn
       }
     }
   }
-  
   return null;
 }
 
 function parseHuaweiPppSession(output: string, pppoeUser: string): PppoeSessionInfo | null {
   const lines = output.split("\n");
-  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.toLowerCase().includes(pppoeUser.toLowerCase())) {
@@ -206,113 +385,30 @@ function parseHuaweiPppSession(output: string, pppoeUser: string): PppoeSessionI
       }
     }
   }
-  
   return null;
 }
 
-export async function lookupPppoeSession(
-  concentrator: SnmpConcentrator,
-  pppoeUser: string,
-  password?: string
-): Promise<PppoeSessionInfo | null> {
-  if (!concentrator.sshUser || !concentrator.ipAddress) {
-    console.log(`[PPPoE Lookup] Concentrador ${concentrator.name} sem credenciais SSH configuradas`);
-    return null;
-  }
-  
-  const sshPassword = password || concentrator.sshPassword || "";
-  if (!sshPassword) {
-    console.log(`[PPPoE Lookup] Concentrador ${concentrator.name} sem senha SSH configurada`);
-    return null;
-  }
-  
-  const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
-  
-  let command: string;
-  switch (vendor) {
-    case "cisco":
-      command = `show subscriber session username ${pppoeUser}`;
-      break;
-    case "huawei":
-      command = `display access-user username ${pppoeUser}`;
-      break;
-    case "juniper":
-      command = `show subscribers user-name ${pppoeUser}`;
-      break;
-    case "mikrotik":
-    default:
-      command = `/ppp active print where name="${pppoeUser}"`;
-      break;
-  }
-  
-  console.log(`[PPPoE Lookup] Consultando sessão ${pppoeUser} em ${concentrator.name} (${vendor})`);
-  
-  try {
-    const output = await executeSSHCommand(
-      {
-        host: concentrator.ipAddress,
-        port: concentrator.sshPort || 22,
-        username: concentrator.sshUser,
-        password: sshPassword,
-      },
-      command
-    );
-    
-    console.log(`[PPPoE Lookup] Output recebido (${output.length} chars)`);
-    
-    let session: PppoeSessionInfo | null = null;
-    
-    switch (vendor) {
-      case "cisco":
-        session = parseCiscoPppSession(output, pppoeUser);
-        break;
-      case "huawei":
-        session = parseHuaweiPppSession(output, pppoeUser);
-        break;
-      case "mikrotik":
-      default:
-        session = parseMikrotikPppSession(output, pppoeUser);
-        break;
-    }
-    
-    if (session?.ipAddress) {
-      console.log(`[PPPoE Lookup] IP encontrado: ${session.ipAddress} para ${pppoeUser}`);
-    } else {
-      console.log(`[PPPoE Lookup] Sessão não encontrada ou sem IP para ${pppoeUser}`);
-    }
-    
-    return session;
-  } catch (error) {
-    console.error(`[PPPoE Lookup] Erro ao consultar ${concentrator.name}:`, error instanceof Error ? error.message : error);
-    return null;
-  }
-}
-
-export async function lookupMultiplePppoeSessions(
+async function lookupPppoeViaSSH(
   concentrator: SnmpConcentrator,
   pppoeUsers: string[],
   password?: string
 ): Promise<Map<string, PppoeSessionInfo>> {
   const results = new Map<string, PppoeSessionInfo>();
-  
+
   if (!concentrator.sshUser || !concentrator.ipAddress) {
-    console.log(`[PPPoE Bulk Lookup] Concentrador ${concentrator.name} sem credenciais SSH`);
     return results;
   }
-  
+
   const sshPassword = password || concentrator.sshPassword || "";
   if (!sshPassword) {
-    console.log(`[PPPoE Bulk Lookup] Concentrador ${concentrator.name} sem senha SSH`);
     return results;
   }
-  
+
   const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
-  
-  console.log(`[PPPoE Bulk Lookup] Buscando ${pppoeUsers.length} sessões em ${concentrator.name}`);
-  
+  console.log(`[PPPoE SSH] Buscando ${pppoeUsers.length} sessões em ${concentrator.name} (${vendor}) via SSH`);
+
   try {
     let command: string;
-    
     if (vendor === "mikrotik") {
       command = `/ppp active print`;
     } else if (vendor === "cisco") {
@@ -322,7 +418,7 @@ export async function lookupMultiplePppoeSessions(
     } else {
       command = `/ppp active print`;
     }
-    
+
     const output = await executeSSHCommand(
       {
         host: concentrator.ipAddress,
@@ -333,12 +429,10 @@ export async function lookupMultiplePppoeSessions(
       },
       command
     );
-    
-    console.log(`[PPPoE Bulk Lookup] Output recebido (${output.length} chars)`);
-    
+
     for (const pppoeUser of pppoeUsers) {
       let session: PppoeSessionInfo | null = null;
-      
+
       switch (vendor) {
         case "cisco":
           session = parseCiscoPppSession(output, pppoeUser);
@@ -351,17 +445,51 @@ export async function lookupMultiplePppoeSessions(
           session = parseMikrotikPppSession(output, pppoeUser);
           break;
       }
-      
+
       if (session?.ipAddress) {
         results.set(pppoeUser, session);
       }
     }
-    
-    console.log(`[PPPoE Bulk Lookup] Encontradas ${results.size} sessões ativas de ${pppoeUsers.length} buscadas`);
-    
-    return results;
+
+    console.log(`[PPPoE SSH] Encontradas ${results.size} sessões de ${pppoeUsers.length} buscadas`);
   } catch (error) {
-    console.error(`[PPPoE Bulk Lookup] Erro:`, error instanceof Error ? error.message : error);
-    return results;
+    console.error(`[PPPoE SSH] Erro:`, error instanceof Error ? error.message : error);
   }
+
+  return results;
+}
+
+export async function lookupPppoeSession(
+  concentrator: SnmpConcentrator,
+  pppoeUser: string,
+  password?: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<PppoeSessionInfo | null> {
+  const results = await lookupMultiplePppoeSessions(
+    concentrator,
+    [pppoeUser],
+    password,
+    snmpProfile
+  );
+  return results.get(pppoeUser) || null;
+}
+
+export async function lookupMultiplePppoeSessions(
+  concentrator: SnmpConcentrator,
+  pppoeUsers: string[],
+  password?: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<Map<string, PppoeSessionInfo>> {
+  if (pppoeUsers.length === 0) {
+    return new Map();
+  }
+
+  let results = await lookupPppoeViaSNMP(concentrator, pppoeUsers, snmpProfile || null);
+
+  if (results.size === 0 && concentrator.sshUser && concentrator.sshPassword) {
+    console.log(`[PPPoE Lookup] SNMP não retornou resultados, tentando SSH como fallback`);
+    results = await lookupPppoeViaSSH(concentrator, pppoeUsers, password);
+  }
+
+  return results;
 }
