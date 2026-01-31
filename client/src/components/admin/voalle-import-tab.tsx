@@ -57,7 +57,10 @@ interface ParsedLink {
   serviceTag: string;
   title: string;
   clientName: string;
-  clientId: number | null;
+  clientVoalleId: number | null;
+  clientCpfCnpj: string | null;
+  clientPortalUser: string | null;
+  clientPortalPassword: string | null;
   bandwidth: number | null;
   address: string;
   city: string;
@@ -433,6 +436,7 @@ export function VoalleImportTab() {
       const concentratorMap = new Map(concentrators.map(c => [c.id, c]));
       const accessPointMap = new Map(accessPoints.map(ap => [ap.id, ap]));
       const peopleMap = new Map(people.map(p => [p.id, p]));
+      const personUsersMap = new Map(personUsers.map(pu => [pu.person_id, pu]));
 
       const links: ParsedLink[] = [];
 
@@ -458,6 +462,7 @@ export function VoalleImportTab() {
 
         // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
+        const personUser = tag.client_id ? personUsersMap.get(tag.client_id) : null;
         const clientDoc = person?.tx_id || '';
         const voalleId = tag.client_id ? `#${tag.client_id}` : '';
         const clientName = person?.name 
@@ -469,7 +474,10 @@ export function VoalleImportTab() {
           serviceTag: tag.service_tag || '',
           title: tag.title || '',
           clientName,
-          clientId: null,
+          clientVoalleId: tag.client_id || null,
+          clientCpfCnpj: clientDoc || null,
+          clientPortalUser: personUser?.username || null,
+          clientPortalPassword: personUser?.password || null,
           bandwidth: extractBandwidth(tag.title || ''),
           address,
           city: authContract?.city || '',

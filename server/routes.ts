@@ -4121,6 +4121,10 @@ export async function registerRoutes(
           serviceTag: string;
           title: string;
           clientName: string;
+          clientVoalleId: number | null;
+          clientCpfCnpj: string | null;
+          clientPortalUser: string | null;
+          clientPortalPassword: string | null;
           bandwidth: number | null;
           address: string;
           city: string;
@@ -4150,24 +4154,76 @@ export async function registerRoutes(
         errors: [] as Array<{ serviceTag: string; error: string }>,
       };
 
-      // Get or create client
-      let clientId = targetClientId;
-      if (!clientId) {
-        // Create a new client for this import batch
-        const existingClients = await storage.getClients();
-        const clientName = links[0]?.clientName || "Cliente Voalle Import";
-        
-        // Check if client already exists
-        const existing = existingClients.find(c => c.name === clientName);
-        if (existing) {
-          clientId = existing.id;
-        } else {
-          const newClient = await storage.createClient({
-            name: clientName,
-            slug: clientName.toLowerCase().replace(/\s+/g, '-'),
-          });
-          clientId = newClient.id;
+      // Get or create client - group links by clientVoalleId
+      const clientsCache = new Map<number, number>(); // voalleId -> clientId
+      const existingClients = await storage.getClients();
+      
+      // Build a lookup for existing clients by voalleCustomerId
+      const existingByVoalleId = new Map<number, typeof existingClients[0]>();
+      for (const client of existingClients) {
+        if (client.voalleCustomerId) {
+          existingByVoalleId.set(client.voalleCustomerId, client);
         }
+      }
+
+      // Helper function to get or create client for a link
+      const getOrCreateClientForLink = async (link: typeof links[0]): Promise<number> => {
+        // If target client specified, use it
+        if (targetClientId) {
+          return targetClientId;
+        }
+
+        // If link has voalleId, try to find/create by it
+        if (link.clientVoalleId) {
+          // Check cache first
+          const cached = clientsCache.get(link.clientVoalleId);
+          if (cached) return cached;
+
+          // Check existing client by voalleCustomerId
+          const existing = existingByVoalleId.get(link.clientVoalleId);
+          if (existing) {
+            clientsCache.set(link.clientVoalleId, existing.id);
+            return existing.id;
+          }
+
+          // Extract clean name (remove #ID prefix and (CPF/CNPJ) suffix for slug)
+          const cleanName = link.clientName
+            .replace(/^#\d+\s*/, '')
+            .replace(/\s*\([^)]+\)\s*$/, '')
+            .trim() || `Cliente ${link.clientVoalleId}`;
+          
+          const slug = cleanName.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+
+          // Create new client with all Voalle data
+          const newClient = await storage.createClient({
+            name: cleanName,
+            slug: slug || `cliente-${link.clientVoalleId}`,
+            cnpj: link.clientCpfCnpj || undefined,
+            voalleCustomerId: link.clientVoalleId,
+            voallePortalUsername: link.clientPortalUser || undefined,
+            voallePortalPassword: link.clientPortalPassword || undefined,
+          });
+
+          clientsCache.set(link.clientVoalleId, newClient.id);
+          existingByVoalleId.set(link.clientVoalleId, newClient);
+          return newClient.id;
+        }
+
+        // Fallback: use first link's name
+        const fallbackName = link.clientName || "Cliente Voalle Import";
+        const existingByName = existingClients.find(c => c.name === fallbackName);
+        if (existingByName) {
+          return existingByName.id;
+        }
+
+        const newClient = await storage.createClient({
+          name: fallbackName,
+          slug: fallbackName.toLowerCase().replace(/\s+/g, '-'),
+        });
+        return newClient.id;
       }
 
       // Get existing links to check for duplicates
@@ -4222,9 +4278,12 @@ export async function registerRoutes(
           
           batchIdentifiers.add(normalizedTag);
 
+          // Get or create client for this link
+          const linkClientId = await getOrCreateClientForLink(link);
+
           // Prepare link data with safe type coercion
           const rawLinkData = {
-            clientId: clientId!,
+            clientId: linkClientId,
             identifier: String(link.serviceTag || '').trim(),
             name: String(link.title || '').trim(),
             location: String(link.city || '').trim(),
