@@ -320,12 +320,12 @@ function extractBandwidth(title: string): number | null {
   return null;
 }
 
-function detectLinkType(title: string): 'gpon' | 'ptp' {
-  const lowerTitle = title.toLowerCase();
-  if (lowerTitle.includes('dedicado') || lowerTitle.includes('scm') || lowerTitle.includes('ptp')) {
-    return 'ptp';
+function detectLinkType(accessPointName: string | null): 'gpon' | 'ptp' {
+  // Se o ponto de acesso contém "OLT" no nome, é GPON, senão é PTP
+  if (accessPointName && accessPointName.toLowerCase().includes('olt')) {
+    return 'gpon';
   }
-  return 'gpon';
+  return 'ptp';
 }
 
 export function VoalleImportTab() {
@@ -526,7 +526,8 @@ export function VoalleImportTab() {
           wifiPassword: authContract?.wifi_password || null,
           addressComplement: authContract?.complement || null,
           ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
-          linkType: detectLinkType(tag.title || ''),
+          // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
+          linkType: detectLinkType(accessPoint?.title || null),
           // Detecta tipo de autenticação: se tem usuário PPPoE é PPPoE, senão é Corporate
           authType: authContract?.user ? 'pppoe' : 'corporate',
           selected: true,
