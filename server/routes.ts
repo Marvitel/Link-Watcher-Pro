@@ -4646,9 +4646,15 @@ export async function registerRoutes(
               
               if (pppoeUsers.length === 0) continue;
               
-              console.log(`[Voalle Import] Buscando ${pppoeUsers.length} sessões PPPoE no concentrador ${concentrator.name}`);
+              // Buscar perfil SNMP do concentrador
+              let snmpProfile = null;
+              if (concentrator.snmpProfileId) {
+                snmpProfile = await storage.getSnmpProfile(concentrator.snmpProfileId);
+              }
               
-              const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers);
+              console.log(`[Voalle Import] Buscando ${pppoeUsers.length} sessões PPPoE no concentrador ${concentrator.name} (SNMP: ${snmpProfile ? snmpProfile.name : 'default'})`);
+              
+              const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers, undefined, snmpProfile);
               
               // Update links with found IPs
               for (const link of concentratorLinks) {
