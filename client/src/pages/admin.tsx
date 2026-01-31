@@ -760,6 +760,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     id: number;
     serviceTag?: string;
     description?: string;
+    equipmentUser?: string;
     contractNumber?: string;
     ip?: string;
     ipBlock?: string;
@@ -773,6 +774,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     slotOlt?: number;
     portOlt?: number;
     equipmentSerialNumber?: string;
+    pppoeUser?: string;
+    pppoePassword?: string;
+    wifiName?: string;
+    wifiPassword?: string;
+    contractStatus?: number;
   }
   
   const { data: voalleContractTags, isLoading: isLoadingTags, error: tagsError, refetch: refetchTags } = useQuery<{ tags: VoalleTag[]; cnpj?: string; error?: string }>({
@@ -848,6 +854,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       slotOlt: tag.slotOlt ?? prev.slotOlt,
       portOlt: tag.portOlt ?? prev.portOlt,
       equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
+      pppoeUser: tag.pppoeUser || prev.pppoeUser,
+      pppoePassword: tag.pppoePassword || prev.pppoePassword,
+      wifiName: tag.wifiName || prev.wifiName,
+      wifiPassword: tag.wifiPassword || prev.wifiPassword,
     }));
 
     // Se encontrou concentrador, mudar modo para concentrador
@@ -954,6 +964,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         slotOlt: tag.slotOlt ?? prev.slotOlt,
         portOlt: tag.portOlt ?? prev.portOlt,
         equipmentSerialNumber: tag.equipmentSerialNumber || prev.equipmentSerialNumber,
+        pppoeUser: tag.pppoeUser || prev.pppoeUser,
+        pppoePassword: tag.pppoePassword || prev.pppoePassword,
+        wifiName: tag.wifiName || prev.wifiName,
+        wifiPassword: tag.wifiPassword || prev.wifiPassword,
       }));
 
       // Se encontrou concentrador, mudar modo para concentrador
@@ -1950,8 +1964,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
                     slotOlt: tag.slotOlt ?? prev.slotOlt,
                     portOlt: tag.portOlt ?? prev.portOlt,
                     equipmentSerialNumber: tag.equipmentSerialNumber ?? prev.equipmentSerialNumber,
+                    pppoeUser: tag.pppoeUser || prev.pppoeUser,
+                    pppoePassword: tag.pppoePassword || prev.pppoePassword,
+                    wifiName: tag.wifiName || prev.wifiName,
+                    wifiPassword: tag.wifiPassword || prev.wifiPassword,
                   }));
-                  toast({ title: "Voalle Sincronizado", description: "Dados de Slot, Porta e Serial atualizados" });
+                  toast({ title: "Voalle Sincronizado", description: "Dados atualizados do Voalle" });
                 } else {
                   toast({ title: "Etiqueta não encontrada", description: "Selecione uma etiqueta válida", variant: "destructive" });
                 }

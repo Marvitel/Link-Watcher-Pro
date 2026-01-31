@@ -657,6 +657,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     portOlt?: number;
     equipmentSerialNumber?: string;
     ipBlock?: string;
+    pppoeUser?: string;
+    pppoePassword?: string;
+    wifiName?: string;
+    wifiPassword?: string;
+    contractStatus?: number;
   }>> {
     const { voalleCustomerId, cnpj, portalUsername, portalPassword } = params;
     
@@ -676,6 +681,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
             portOlt: number | null;
             equipmentSerialNumber: string | null;
             equipmentUser: string | null;
+            user: string | null;
+            password: string | null;
+            wifiName: string | null;
+            wifiPassword: string | null;
             ipAuthentication?: { id: number; ip: string } | null;
             validLanIp?: string | null;
             validLanIpClass?: string | null;
@@ -782,6 +791,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
               slotOlt: conn.slotOlt ?? undefined,
               portOlt: conn.portOlt ?? undefined,
               equipmentSerialNumber: conn.equipmentSerialNumber ?? undefined,
+              pppoeUser: conn.user ?? undefined,
+              pppoePassword: conn.password ?? undefined,
+              wifiName: conn.wifiName ?? undefined,
+              wifiPassword: conn.wifiPassword ?? undefined,
+              contractStatus: conn.contract?.status ?? undefined,
             };
           });
 
