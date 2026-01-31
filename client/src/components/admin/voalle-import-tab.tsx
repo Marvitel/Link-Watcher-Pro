@@ -527,8 +527,8 @@ export function VoalleImportTab() {
           addressComplement: authContract?.complement || null,
           ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
           linkType: detectLinkType(tag.title || ''),
-          // Detecta tipo de autenticação: se tem interface VLAN é corporativa, senão é PPPoE
-          authType: authContract?.vlan_interface ? 'corporate' : 'pppoe',
+          // Detecta tipo de autenticação: se tem usuário PPPoE é PPPoE, senão é Corporate
+          authType: authContract?.user ? 'pppoe' : 'corporate',
           selected: true,
           status: 'new',
         };
@@ -805,7 +805,8 @@ export function VoalleImportTab() {
                         <TableHead>PPPoE User</TableHead>
                         <TableHead>PPPoE Pass</TableHead>
                         <TableHead>VLAN</TableHead>
-                        <TableHead>IP Block</TableHead>
+                        <TableHead>Interface VLAN</TableHead>
+                        <TableHead>Bloco IP</TableHead>
                         <TableHead>WiFi SSID</TableHead>
                         <TableHead>WiFi Pass</TableHead>
                         <TableHead>CPE User</TableHead>
@@ -834,7 +835,7 @@ export function VoalleImportTab() {
                             {link.clientName}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            {link.clientVoalleId || '-'}
+                            {link.clientVoalleId ? String(link.clientVoalleId) : '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.clientCpfCnpj || '-'}
@@ -879,9 +880,7 @@ export function VoalleImportTab() {
                             {link.accessPointId || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs" title={link.oltName || ''}>
-                            {link.accessPointId 
-                              ? `${link.oltName || '-'}${link.oltIp ? ' (' + link.oltIp + ')' : ''}`
-                              : '-'}
+                            {link.oltName || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.pppoeUser || '-'}
@@ -891,6 +890,9 @@ export function VoalleImportTab() {
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.vlan || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.vlanInterface || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.validLanIp && link.validLanIpClass 
