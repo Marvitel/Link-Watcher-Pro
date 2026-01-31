@@ -1,0 +1,33 @@
+jan 31 12:42:28 link-monitor npm[3976466]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 1720, clientName: MARCO CESAR MATOS MACEDO (80678785520)
+jan 31 12:42:28 link-monitor npm[3976466]: [Voalle Import] Found existing client by slug: marco-cesar-matos-macedo, updating/reactivating with voalleId: 1720
+jan 31 12:42:28 link-monitor npm[3976466]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 110, oltName: OLT-DATACOM-MAIKAI
+jan 31 12:42:28 link-monitor npm[3976466]: [Voalle Import] Access point "OLT-DATACOM-MAIKAI" isOlt: true
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5675, clientName: CAMARA DE DIRIGENTES LOJISTAS DE ARACAJU (13045935000136)
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Found existing client by slug: camara-de-dirigentes-lojistas-de-aracaju, updating/reactivating with voalleId: 5675
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 32, oltName: AJU-MVT-OLT-DATACOM-MARVITEL
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Access point "AJU-MVT-OLT-DATACOM-MARVITEL" isOlt: true
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 3161, clientName: CONDOMINIO CENTRO MEDICO JOUBERTO UCHOA DE MENDONCA (44904476000122)
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Found existing client by slug: condominio-centro-medico-jouberto-uchoa-de-mendonca, updating/reactivating with voalleId: 3161
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 92, oltName: AJU-MVT-SW-UBT-BARRA-WIRELESS
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Access point "AJU-MVT-SW-UBT-BARRA-WIRELESS" isOlt: false
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Creating new Switch: AJU-MVT-SW-UBT-BARRA-WIRELESS
+jan 31 12:42:29 link-monitor npm[3976466]: [Voalle Import] Created Switch ID: 6
+jan 31 12:42:39 link-monitor npm[3976466]: [Voalle Contract Tags] Buscando etiquetas para cliente 28
+jan 31 12:42:39 link-monitor npm[3976466]: [Voalle Contract Tags] Cliente: CAMARA DE DIRIGENTES LOJISTAS DE ARACAJU, CNPJ: 13045935000136, VoalleCustomerId: 5675
+jan 31 12:42:39 link-monitor npm[3976466]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+jan 31 12:42:39 link-monitor npm[3976466]: [Voalle Contract Tags] voalleCustomerId: 5675, CNPJ: 13045935000136, portalUser: não definido, portalPass: não definido
+jan 31 12:42:39 link-monitor npm[3976466]: [VoalleAdapter] Portal API configurada mas credenciais do portal não fornecidas para cliente
+jan 31 12:42:39 link-monitor npm[3976466]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 13045935000136): /contractservicetagspaged?txId=13045935000136&Page=1&PageSize=50
+jan 31 12:42:40 link-monitor npm[3976466]: [VoalleAdapter] API antiga: 6 etiquetas encontradas
+jan 31 12:42:40 link-monitor npm[3976466]: [Voalle Contract Tags] Encontradas 6 etiquetas
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] Blacklist cache loaded: 3 links with blacklisted IPs
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] Starting parallel collection for 36 links (10 workers)
+jan 31 12:42:43 link-monitor npm[3976466]: Ping failed for : Command failed: ping -c 5 -W 3 -i 0.3  2>&1
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] CENTRO-MEDICO-JOUBERTO-UCHOA: Creating event with description: "O link ficou indisponível. Última latência: 0.0ms, Perda de pacotes: 100.0%"
+jan 31 12:42:43 link-monitor npm[3976466]: Ping failed for Rua Santa Luzia, 570, São José: Command failed: ping -c 5 -W 3 -i 0.3 Rua Santa Luzia, 570, São José 2>&1
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] CDL: Creating event with description: "O link ficou indisponível. Última latência: 0.0ms, Perda de pacotes: 100.0%"
+jan 31 12:42:43 link-monitor npm[3976466]: Ping failed for Rodovia Engenheiro Edilson Tavora, 6500, Luar da Barra: Command failed: ping -c 5 -W 3 -i 0.3 Rodovia Engenheiro Edilson Tavora, 6500, Luar da Barra 2>&1
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] MAIKAI_Q19D01: Creating event with description: "O link ficou indisponível. Última latência: 0.0ms, Perda de pacotes: 100.0%"
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] CENTRO-MEDICO-JOUBERTO-UCHOA: lat=0.0ms, loss=100.0%, status=offline
+jan 31 12:42:43 link-monitor npm[3976466]: [Monitor] MAIKAI_Q19D01: lat=0.0ms, loss=100.0%, status=offline
+jan 31 12:42:43 link-monitor npm[397646
