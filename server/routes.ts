@@ -4310,13 +4310,17 @@ export async function registerRoutes(
       }
 
       const getOrCreateOlt = async (link: typeof links[0]): Promise<number | null> => {
+        console.log(`[Voalle Import] getOrCreateOlt - accessPointId: ${link.accessPointId}, oltName: ${link.oltName}`);
         if (!link.accessPointId) return null;
         const voalleId = parseInt(link.accessPointId, 10);
         if (isNaN(voalleId)) return null;
 
         // Check cache
         const cached = oltsCache.get(voalleId);
-        if (cached) return cached;
+        if (cached) {
+          console.log(`[Voalle Import] OLT from cache: ${cached}`);
+          return cached;
+        }
 
         // Check existing
         const existing = existingOltsByVoalleId.get(voalleId);
@@ -4327,6 +4331,7 @@ export async function registerRoutes(
 
         // Create new if we have name (IP is encrypted in Voalle CSV)
         if (link.oltName) {
+          console.log(`[Voalle Import] Creating new OLT: ${link.oltName}`);
           const newOlt = await storage.createOlt({
             name: link.oltName,
             ipAddress: link.oltIp || "0.0.0.0", // IP criptografado no CSV
@@ -4336,11 +4341,13 @@ export async function registerRoutes(
             password: "",
             connectionType: "telnet",
           });
+          console.log(`[Voalle Import] Created OLT ID: ${newOlt.id}`);
           oltsCache.set(voalleId, newOlt.id);
           existingOltsByVoalleId.set(voalleId, newOlt);
           return newOlt.id;
         }
 
+        console.log(`[Voalle Import] No OLT name, returning null`);
         return null;
       };
 
