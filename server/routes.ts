@@ -4243,7 +4243,7 @@ export async function registerRoutes(
 
       // Get or create concentrators - group by voalleId
       const concentratorsCache = new Map<number, number>(); // voalleId -> concentratorId
-      const existingConcentrators = await storage.getSnmpConcentrators();
+      const existingConcentrators = await storage.getConcentrators();
       const existingConcentratorsByVoalleId = new Map<number, typeof existingConcentrators[0]>();
       for (const conc of existingConcentrators) {
         if (conc.voalleId) {
@@ -4269,7 +4269,7 @@ export async function registerRoutes(
 
         // Create new if we have IP
         if (link.concentratorIp) {
-          const newConc = await storage.createSnmpConcentrator({
+          const newConc = await storage.createConcentrator({
             name: link.concentratorName || `Concentrador Voalle #${voalleId}`,
             ipAddress: link.concentratorIp,
             voalleId: voalleId,
