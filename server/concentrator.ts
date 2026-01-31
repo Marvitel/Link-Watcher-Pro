@@ -198,10 +198,28 @@ async function lookupPppoeViaSNMP(
 
   const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
   console.log(`[PPPoE SNMP] Buscando ${pppoeUsers.length} sessões em ${concentrator.name} (${vendor}) via SNMP`);
+  console.log(`[PPPoE SNMP] Conectando em ${concentrator.ipAddress}:${profile.port} (${profile.version}, community: ${profile.community || 'N/A'})`);
 
   const session = createSnmpSession(concentrator.ipAddress, profile);
 
   try {
+    // Teste de conectividade SNMP com sysDescr (OID universal)
+    const sysDescrOid = "1.3.6.1.2.1.1.1";
+    try {
+      const sysDescrData = await snmpSubtreeWalk(session, sysDescrOid);
+      if (sysDescrData.length > 0) {
+        const desc = sysDescrData[0].value.substring(0, 80);
+        console.log(`[PPPoE SNMP] Conectividade OK - ${desc}...`);
+      } else {
+        console.log(`[PPPoE SNMP] AVISO: sysDescr vazio, SNMP pode ter restrições`);
+      }
+    } catch (connErr: any) {
+      console.log(`[PPPoE SNMP] ERRO de conectividade: ${connErr.message}`);
+      console.log(`[PPPoE SNMP] Verifique: community string, firewall, SNMP habilitado no Mikrotik`);
+      session.close();
+      return results;
+    }
+
     // Definir lista de OIDs a tentar baseado no vendor
     type OidPair = { user: string; ip: string; name: string };
     const oidSets: OidPair[] = [];
