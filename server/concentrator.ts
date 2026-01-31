@@ -289,9 +289,9 @@ async function lookupPppoeViaSNMP(
 
     const userIndex = new Map<string, string>();
     for (const item of usersData) {
-      // Para IF-MIB, extrair username de interfaces tipo <ppp-USERNAME>
+      // Para IF-MIB, extrair username de interfaces tipo <ppp-USERNAME> ou <pppoe-USERNAME>
       let username = item.value;
-      const pppMatch = username.match(/<ppp-([^>]+)>/i);
+      const pppMatch = username.match(/<ppp(?:oe)?-([^>]+)>/i);
       if (pppMatch) {
         username = pppMatch[1];
       }
@@ -339,6 +339,7 @@ async function lookupPppoeViaSNMP(
 
       if (idx) {
         const ip = ipByIndex.get(idx);
+        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx} -> IP: ${ip || 'não encontrado'}`);
         if (ip && ip !== "0.0.0.0") {
           results.set(pppoeUser, {
             username: pppoeUser,
@@ -348,10 +349,12 @@ async function lookupPppoeViaSNMP(
             interface: null,
           });
         }
+      } else {
+        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" não encontrado no índice`);
       }
     }
 
-    console.log(`[PPPoE SNMP] Encontradas ${results.size} sessões de ${pppoeUsers.length} buscadas`);
+    console.log(`[PPPoE SNMP] Encontradas ${results.size} sessões de ${pppoeUsers.length} buscadas (SNMP retornou ${ipByIndex.size} mapeamentos IP)`);
   } catch (error) {
     console.error(`[PPPoE SNMP] Erro:`, error instanceof Error ? error.message : error);
   } finally {
