@@ -24,9 +24,23 @@ interface ConcentratorSnmpProfile {
   retries: number;
 }
 
+// Mikrotik PPP Active MIB (RouterOS 6.x+)
 const PPPOE_OIDS_MIKROTIK = {
   pppActiveUser: "1.3.6.1.4.1.14988.1.1.5.1.1.1",
   pppActiveAddress: "1.3.6.1.4.1.14988.1.1.5.1.1.2",
+};
+
+// Mikrotik PPP Secret MIB alternativo (outra branch da MIB)
+const PPPOE_OIDS_MIKROTIK_ALT = {
+  pppSecretName: "1.3.6.1.4.1.14988.1.1.5.2.1.1",
+  pppSecretRemoteAddress: "1.3.6.1.4.1.14988.1.1.5.2.1.3",
+};
+
+// IF-MIB padrão para descrição de interfaces (funciona em qualquer equipamento)
+const PPPOE_OIDS_IFMIB = {
+  ifDescr: "1.3.6.1.2.1.2.2.1.2",
+  ipAdEntIfIndex: "1.3.6.1.2.1.4.20.1.2",
+  ipAdEntAddr: "1.3.6.1.2.1.4.20.1.1",
 };
 
 const PPPOE_OIDS_CISCO = {
@@ -188,26 +202,66 @@ async function lookupPppoeViaSNMP(
   const session = createSnmpSession(concentrator.ipAddress, profile);
 
   try {
-    let userOid: string;
-    let ipOid: string;
+    // Definir lista de OIDs a tentar baseado no vendor
+    type OidPair = { user: string; ip: string; name: string };
+    const oidSets: OidPair[] = [];
 
     if (vendor === "cisco") {
-      userOid = PPPOE_OIDS_CISCO.csubSessionUsername;
-      ipOid = PPPOE_OIDS_CISCO.csubSessionIpAddr;
+      oidSets.push({ 
+        user: PPPOE_OIDS_CISCO.csubSessionUsername, 
+        ip: PPPOE_OIDS_CISCO.csubSessionIpAddr,
+        name: "Cisco Subscriber"
+      });
     } else if (vendor === "huawei") {
-      userOid = PPPOE_OIDS_HUAWEI.hwBrasSbcUserName;
-      ipOid = PPPOE_OIDS_HUAWEI.hwBrasSbcUserIpAddr;
+      oidSets.push({ 
+        user: PPPOE_OIDS_HUAWEI.hwBrasSbcUserName, 
+        ip: PPPOE_OIDS_HUAWEI.hwBrasSbcUserIpAddr,
+        name: "Huawei BRAS"
+      });
     } else {
-      userOid = PPPOE_OIDS_MIKROTIK.pppActiveUser;
-      ipOid = PPPOE_OIDS_MIKROTIK.pppActiveAddress;
+      // Mikrotik: tentar múltiplos OIDs
+      oidSets.push({ 
+        user: PPPOE_OIDS_MIKROTIK.pppActiveUser, 
+        ip: PPPOE_OIDS_MIKROTIK.pppActiveAddress,
+        name: "Mikrotik PPP Active"
+      });
+      oidSets.push({ 
+        user: PPPOE_OIDS_MIKROTIK_ALT.pppSecretName, 
+        ip: PPPOE_OIDS_MIKROTIK_ALT.pppSecretRemoteAddress,
+        name: "Mikrotik PPP Secret"
+      });
+      // Fallback: IF-MIB para interfaces <ppp-username>
+      oidSets.push({ 
+        user: PPPOE_OIDS_IFMIB.ifDescr, 
+        ip: PPPOE_OIDS_IFMIB.ipAdEntAddr,
+        name: "IF-MIB Standard"
+      });
     }
 
-    const [usersData, addressData] = await Promise.all([
-      snmpSubtreeWalk(session, userOid),
-      snmpSubtreeWalk(session, ipOid),
-    ]);
+    let usersData: { index: string; value: string }[] = [];
+    let addressData: { index: string; value: string }[] = [];
+    let usedOidSet = "";
 
-    console.log(`[PPPoE SNMP] Walk retornou ${usersData.length} usuários ativos, ${addressData.length} IPs`);
+    // Tentar cada conjunto de OIDs até encontrar dados
+    for (const oidSet of oidSets) {
+      console.log(`[PPPoE SNMP] Tentando OIDs: ${oidSet.name}`);
+      
+      const [users, addresses] = await Promise.all([
+        snmpSubtreeWalk(session, oidSet.user),
+        snmpSubtreeWalk(session, oidSet.ip),
+      ]);
+
+      console.log(`[PPPoE SNMP] ${oidSet.name}: ${users.length} usuários, ${addresses.length} IPs`);
+
+      if (users.length > 0) {
+        usersData = users;
+        addressData = addresses;
+        usedOidSet = oidSet.name;
+        break;
+      }
+    }
+
+    console.log(`[PPPoE SNMP] Walk final: ${usersData.length} usuários ativos usando "${usedOidSet || 'nenhum'}"`);
     
     // Debug: mostrar primeiros 5 usuários ativos
     if (usersData.length > 0) {
@@ -217,7 +271,13 @@ async function lookupPppoeViaSNMP(
 
     const userIndex = new Map<string, string>();
     for (const item of usersData) {
-      userIndex.set(item.value.toLowerCase(), item.index);
+      // Para IF-MIB, extrair username de interfaces tipo <ppp-USERNAME>
+      let username = item.value;
+      const pppMatch = username.match(/<ppp-([^>]+)>/i);
+      if (pppMatch) {
+        username = pppMatch[1];
+      }
+      userIndex.set(username.toLowerCase(), item.index);
     }
     
     // Debug: mostrar o que estamos buscando
@@ -229,19 +289,30 @@ async function lookupPppoeViaSNMP(
       const found = userIndex.has(userLower);
       if (!found && usersData.length > 0) {
         // Tentar encontrar match parcial
-        const partial = usersData.find(u => 
-          u.value.toLowerCase().includes(userLower) || 
-          userLower.includes(u.value.toLowerCase())
-        );
+        const partial = usersData.find(u => {
+          const val = u.value.toLowerCase();
+          return val.includes(userLower) || userLower.includes(val);
+        });
         if (partial) {
           console.log(`[PPPoE SNMP] Match parcial encontrado: buscando "${pppoeUser}" -> encontrado "${partial.value}"`);
         }
       }
     }
 
+    // Para IF-MIB, o mapeamento IP é diferente (ipAdEntAddr.IP -> ifIndex)
     const ipByIndex = new Map<string, string>();
-    for (const item of addressData) {
-      ipByIndex.set(item.index, item.value);
+    if (usedOidSet === "IF-MIB Standard") {
+      // ipAdEntAddr retorna IP.IP.IP.IP -> ifIndex, precisamos inverter
+      for (const item of addressData) {
+        // O OID completo é ipAdEntAddr.A.B.C.D, e value é o ifIndex
+        // Mas snmpSubtreeWalk retorna index=A.B.C.D e value=ifIndex
+        // Precisamos mapear ifIndex -> IP
+        ipByIndex.set(item.value, item.index.replace(/\./g, "."));
+      }
+    } else {
+      for (const item of addressData) {
+        ipByIndex.set(item.index, item.value);
+      }
     }
 
     for (const pppoeUser of pppoeUsers) {
