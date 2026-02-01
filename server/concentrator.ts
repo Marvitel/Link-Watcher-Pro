@@ -84,6 +84,7 @@ export interface CorporateLinkInfo {
   ifIndex: number;
   ipAddress: string | null;
   macAddress: string | null;
+  ipBlock: string | null; // Bloco IP para monitoramento de blacklist (ex: "191.52.254.164/32")
 }
 
 function createSnmpSession(
@@ -1175,24 +1176,21 @@ export async function lookupCorporateLinkInfo(
   // Depois, buscar o IP na tabela ARP usando o ifIndex
   const arpResult = await lookupIpFromArpTable(concentrator, ifResult.ifIndex, snmpProfile);
 
-  // Se não encontrou IP via ARP, tentar via tabela de rotas CIDR
-  let ipBlock: string | null = null;
-  if (!arpResult?.ipAddress) {
-    console.log(`[Corporate SNMP] IP não encontrado via ARP, tentando tabela de rotas CIDR...`);
-    const cidrResult = await lookupIpBlockFromRouteTable(concentrator, ifResult.ifIndex, snmpProfile);
-    if (cidrResult) {
-      ipBlock = cidrResult;
-      console.log(`[Corporate SNMP] Bloco IP encontrado via CIDR: ${ipBlock}`);
-    }
+  // Buscar bloco IP via tabela de rotas CIDR (para monitoramento de blacklist)
+  console.log(`[Corporate SNMP] Buscando bloco IP via tabela de rotas CIDR...`);
+  const ipBlock = await lookupIpBlockFromRouteTable(concentrator, ifResult.ifIndex, snmpProfile);
+  if (ipBlock) {
+    console.log(`[Corporate SNMP] Bloco IP encontrado via CIDR: ${ipBlock}`);
   }
 
   const result: CorporateLinkInfo = {
     vlanInterface: ifResult.ifName,
     ifIndex: ifResult.ifIndex,
-    ipAddress: arpResult?.ipAddress || ipBlock || null,
+    ipAddress: arpResult?.ipAddress || null,
     macAddress: arpResult?.macAddress || null,
+    ipBlock: ipBlock, // Bloco IP para blacklist (separado do IP do cliente)
   };
 
-  console.log(`[Corporate SNMP] Resultado: ifIndex=${result.ifIndex}, IP=${result.ipAddress || 'N/A'}, MAC=${result.macAddress || 'N/A'}`);
+  console.log(`[Corporate SNMP] Resultado: ifIndex=${result.ifIndex}, IP=${result.ipAddress || 'N/A'}, ipBlock=${result.ipBlock || 'N/A'}, MAC=${result.macAddress || 'N/A'}`);
   return result;
 }

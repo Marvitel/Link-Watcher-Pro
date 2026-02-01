@@ -4787,8 +4787,14 @@ export async function registerRoutes(
                         corporateIpsFound++;
                       }
                       
+                      // Se o link não tem ipBlock definido (não veio validLanIp no CSV), usar o do SNMP
+                      if (corpInfo.ipBlock && !link.ipBlock) {
+                        updateData.ipBlock = corpInfo.ipBlock;
+                        console.log(`[Voalle Import] ${link.name}: Bloco IP obtido via SNMP: ${corpInfo.ipBlock}`);
+                      }
+                      
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'} (via ${usedConcentrator.name})`);
+                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}, ipBlock=${corpInfo.ipBlock || link.ipBlock || 'N/A'} (via ${usedConcentrator.name})`);
                     }
                   } catch (linkErr: any) {
                     console.error(`[Voalle Import] Erro ao buscar info corporativa para ${link.name}: ${linkErr.message}`);
