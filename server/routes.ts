@@ -4613,10 +4613,11 @@ export async function registerRoutes(
         try {
           const { lookupMultiplePppoeSessions } = await import("./concentrator");
           
-          // Get all links with pppoeUser but no IP
+          // Get all PPPoE links (not corporate) with pppoeUser but no IP
           const importedLinks = await storage.getLinks();
           const linksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
             l.pppoeUser && 
+            l.authType !== 'corporate' && // Exclude corporate links - they use VLAN/ARP lookup
             (!l.monitoredIp || l.monitoredIp === "") && 
             l.concentratorId
           );
