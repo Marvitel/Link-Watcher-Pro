@@ -4211,7 +4211,7 @@ export async function registerRoutes(
                 updateData.voallePortalUsername = link.clientPortalUser;
               }
               if (link.clientPortalPassword && !existing.voallePortalPassword) {
-                updateData.voallePortalPassword = link.clientPortalPassword;
+                updateData.voallePortalPassword = encrypt(link.clientPortalPassword);
               }
               if (link.clientCpfCnpj && !existing.cnpj) {
                 updateData.cnpj = link.clientCpfCnpj;
@@ -4241,11 +4241,15 @@ export async function registerRoutes(
           if (existingBySlug) {
             console.log(`[Voalle Import] Found existing client by slug: ${slug}, updating/reactivating with voalleId: ${link.clientVoalleId}`);
             // Update and reactivate existing client with voalleId and portal credentials
+            // Criptografar nova senha se fornecida
+            const newEncryptedPassword = link.clientPortalPassword && !existingBySlug.voallePortalPassword 
+              ? encrypt(link.clientPortalPassword) 
+              : existingBySlug.voallePortalPassword;
             await storage.updateClient(existingBySlug.id, {
               isActive: true, // Reactivate if it was soft-deleted
               voalleCustomerId: link.clientVoalleId,
               voallePortalUsername: link.clientPortalUser || existingBySlug.voallePortalUsername || undefined,
-              voallePortalPassword: link.clientPortalPassword || existingBySlug.voallePortalPassword || undefined,
+              voallePortalPassword: newEncryptedPassword || undefined,
               cnpj: link.clientCpfCnpj || existingBySlug.cnpj || undefined,
             });
             clientsCache.set(link.clientVoalleId, existingBySlug.id);
@@ -4267,14 +4271,17 @@ export async function registerRoutes(
 
           console.log(`[Voalle Import] Creating client with slug: ${slug}, voalleId: ${link.clientVoalleId}`);
           // Create new client with all Voalle data
+          // Criptografar senha do portal se fornecida
+          const encryptedPassword = link.clientPortalPassword ? encrypt(link.clientPortalPassword) : undefined;
           const newClient = await storage.createClient({
             name: cleanName,
             slug: slug,
             cnpj: link.clientCpfCnpj || undefined,
             voalleCustomerId: link.clientVoalleId,
             voallePortalUsername: link.clientPortalUser || undefined,
-            voallePortalPassword: link.clientPortalPassword || undefined,
+            voallePortalPassword: encryptedPassword,
           });
+          console.log(`[Voalle Import] Cliente criado: ${cleanName}, portalUser: ${link.clientPortalUser || 'N/A'}, portalPass: ${encryptedPassword ? '[ENCRYPTED]' : 'N/A'}`);
 
           // Track the new slug to avoid duplicates within the same import
           usedSlugs.add(slug);
