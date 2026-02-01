@@ -913,9 +913,22 @@ export async function lookupVlanInterfaceIndex(
     const ifNameData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ifName);
 
     console.log(`[Corporate SNMP] Encontradas ${ifDescrData.length} interfaces via ifDescr, ${ifNameData.length} via ifName`);
+    
+    // Debug: mostrar algumas interfaces encontradas para verificar se a busca SNMP está funcionando
+    if (ifNameData.length > 0) {
+      const sample = ifNameData.slice(0, 5).map(e => e.value).join(', ');
+      console.log(`[Corporate SNMP] Primeiras interfaces (ifName): ${sample}...`);
+    }
 
     // Normalizar o nome da interface para busca
     const normalizedSearch = vlanInterface.toLowerCase().replace(/[.\-_\s]/g, "");
+    console.log(`[Corporate SNMP] Buscando normalizado: "${normalizedSearch}"`);
+    
+    // Debug: buscar interface específica na lista
+    const exactMatch = ifNameData.find(e => e.value === vlanInterface);
+    if (exactMatch) {
+      console.log(`[Corporate SNMP] Interface encontrada diretamente: ${exactMatch.value} (index: ${exactMatch.index})`);
+    }
 
     // Primeiro tentar ifName (mais preciso)
     for (const entry of ifNameData) {
