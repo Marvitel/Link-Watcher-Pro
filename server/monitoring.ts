@@ -1200,9 +1200,13 @@ async function handleIfIndexAutoDiscovery(
     }
   } else {
     // Interface not found on primary concentrator - try backup if configured
+    console.log(`[Monitor] ${link.name}: Interface "${searchName}" NÃO ENCONTRADA no concentrador. trafficSourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}, pppoeUser=${link.pppoeUser}`);
+    
     if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
       // Get the current concentrator to check for backup
       const [currentConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      
+      console.log(`[Monitor] ${link.name}: Concentrador atual: ${currentConcentrator?.name || 'N/A'}, backupId=${currentConcentrator?.backupConcentratorId || 'NÃO CONFIGURADO'}`);
       
       // Guardrails: check backup exists and is different from current
       if (currentConcentrator?.backupConcentratorId && currentConcentrator.backupConcentratorId !== currentConcentrator.id) {
@@ -1210,6 +1214,8 @@ async function handleIfIndexAutoDiscovery(
         
         // Get backup concentrator
         const [backupConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, currentConcentrator.backupConcentratorId));
+        
+        console.log(`[Monitor] ${link.name}: Backup concentrador: ${backupConcentrator?.name || 'NÃO ENCONTRADO'}, isActive=${backupConcentrator?.isActive}, backupId=${backupConcentrator?.backupConcentratorId}`);
         
         // Avoid cyclic backup chains (backup's backup is current)
         if (backupConcentrator && backupConcentrator.isActive && backupConcentrator.backupConcentratorId !== currentConcentrator.id) {
