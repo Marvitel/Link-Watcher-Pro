@@ -1070,6 +1070,92 @@ export async function lookupIpFromArpTable(
 }
 
 /**
+ * Busca bloco IP na tabela de rotas CIDR dado um ifIndex
+ * OID: ipCidrRouteIfIndex (1.3.6.1.2.1.4.24.4.1.5)
+ * Formato do index: destIP.maskIP.0.nextHopIP
+ * Exemplo: 1.3.6.1.2.1.4.24.4.1.5.191.52.254.164.255.255.255.255.0.100.65.129.178 = 277
+ */
+async function lookupIpBlockFromRouteTable(
+  concentrator: SnmpConcentrator,
+  targetIfIndex: number,
+  snmpProfile?: SnmpProfile | null
+): Promise<string | null> {
+  const profile: ConcentratorSnmpProfile =
+    snmpProfile
+      ? {
+          version: snmpProfile.version,
+          port: snmpProfile.port,
+          community: snmpProfile.community,
+          securityLevel: snmpProfile.securityLevel,
+          authProtocol: snmpProfile.authProtocol,
+          authPassword: snmpProfile.authPassword,
+          privProtocol: snmpProfile.privProtocol,
+          privPassword: snmpProfile.privPassword,
+          username: snmpProfile.username,
+          timeout: snmpProfile.timeout,
+          retries: snmpProfile.retries,
+        }
+      : {
+          version: "2c",
+          port: 161,
+          community: "public",
+          timeout: 5000,
+          retries: 1,
+        };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  try {
+    const ipCidrRouteIfIndex = "1.3.6.1.2.1.4.24.4.1.5";
+    const routeData = await snmpSubtreeWalk(session, ipCidrRouteIfIndex);
+    
+    console.log(`[Corporate SNMP] Tabela de rotas CIDR: ${routeData.length} entradas`);
+
+    // Procurar rotas que usam o ifIndex do link
+    for (const entry of routeData) {
+      const ifIndex = typeof entry.value === 'number' ? entry.value : parseInt(entry.value, 10);
+      if (ifIndex !== targetIfIndex) continue;
+
+      // Extrair IP e máscara do index
+      // Formato: OID.destIP(4 octets).mask(4 octets).0.nextHop(4 octets)
+      const indexParts = entry.index.replace(ipCidrRouteIfIndex + ".", "").split(".");
+      if (indexParts.length >= 9) {
+        const destIp = indexParts.slice(0, 4).join(".");
+        const maskOctets = indexParts.slice(4, 8).map(Number);
+        
+        // Calcular CIDR a partir da máscara
+        let cidr = 0;
+        for (const octet of maskOctets) {
+          let bits = octet;
+          while (bits > 0) {
+            cidr += bits & 1;
+            bits >>= 1;
+          }
+        }
+        
+        const maskStr = maskOctets.join(".");
+        const ipBlock = `${destIp}/${cidr}`;
+        
+        console.log(`[Corporate SNMP] Rota encontrada: ${destIp} mask ${maskStr} -> ifIndex ${ifIndex} (${ipBlock})`);
+        
+        // Ignorar rotas default e muito grandes (provavelmente não são do cliente)
+        if (destIp === "0.0.0.0" || cidr < 24) continue;
+        
+        session.close();
+        return ipBlock;
+      }
+    }
+
+    session.close();
+    return null;
+  } catch (error: any) {
+    console.error(`[Corporate SNMP] Erro ao buscar bloco IP via CIDR: ${error.message}`);
+    session.close();
+    return null;
+  }
+}
+
+/**
  * Busca informações de link corporativo: ifIndex pela interface VLAN e IP pela tabela ARP
  */
 export async function lookupCorporateLinkInfo(
@@ -1089,10 +1175,21 @@ export async function lookupCorporateLinkInfo(
   // Depois, buscar o IP na tabela ARP usando o ifIndex
   const arpResult = await lookupIpFromArpTable(concentrator, ifResult.ifIndex, snmpProfile);
 
+  // Se não encontrou IP via ARP, tentar via tabela de rotas CIDR
+  let ipBlock: string | null = null;
+  if (!arpResult?.ipAddress) {
+    console.log(`[Corporate SNMP] IP não encontrado via ARP, tentando tabela de rotas CIDR...`);
+    const cidrResult = await lookupIpBlockFromRouteTable(concentrator, ifResult.ifIndex, snmpProfile);
+    if (cidrResult) {
+      ipBlock = cidrResult;
+      console.log(`[Corporate SNMP] Bloco IP encontrado via CIDR: ${ipBlock}`);
+    }
+  }
+
   const result: CorporateLinkInfo = {
     vlanInterface: ifResult.ifName,
     ifIndex: ifResult.ifIndex,
-    ipAddress: arpResult?.ipAddress || null,
+    ipAddress: arpResult?.ipAddress || ipBlock || null,
     macAddress: arpResult?.macAddress || null,
   };
 
