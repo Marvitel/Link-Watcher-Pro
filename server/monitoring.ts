@@ -1058,29 +1058,63 @@ async function handleIfIndexAutoDiscovery(
   
   // Attempt auto-discovery using interface name
   const searchName = link.originalIfName || link.snmpInterfaceName;
-  if (!searchName || !link.snmpRouterIp) {
+  
+  // Determinar IP e perfil SNMP para busca
+  // Para links com concentrador, usar o IP do concentrador
+  let searchIp = link.snmpRouterIp;
+  let searchProfile = profile;
+  
+  if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
+    // Buscar concentrador para obter IP e perfil SNMP
+    const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+    if (concentrator) {
+      searchIp = concentrator.ipAddress;
+      // Usar perfil SNMP do concentrador se configurado
+      if (concentrator.snmpProfileId) {
+        const [concProfile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+        if (concProfile) {
+          searchProfile = {
+            id: concProfile.id,
+            version: concProfile.version || '2c',
+            port: concProfile.port || 161,
+            community: concProfile.community,
+            securityLevel: concProfile.securityLevel,
+            authProtocol: concProfile.authProtocol,
+            authPassword: concProfile.authPassword,
+            privProtocol: concProfile.privProtocol,
+            privPassword: concProfile.privPassword,
+            username: concProfile.username,
+            timeout: concProfile.timeout || 5000,
+            retries: concProfile.retries || 1,
+          };
+        }
+      }
+    }
+  }
+  
+  if (!searchName || !searchIp) {
     return { updated: false };
   }
   
-  console.log(`[Monitor] ${link.name}: Auto-discovery triggered after ${newMismatchCount} failures. Searching for interface "${searchName}"`);
+  console.log(`[Monitor] ${link.name}: Auto-discovery triggered after ${newMismatchCount} failures. Searching for interface "${searchName}" on ${searchIp}`);
   
   const snmpProfileForSearch: SnmpProfileType = {
-    id: profile.id,
-    version: profile.version,
-    port: profile.port,
-    community: profile.community,
-    securityLevel: profile.securityLevel,
-    authProtocol: profile.authProtocol,
-    authPassword: profile.authPassword,
-    privProtocol: profile.privProtocol,
-    privPassword: profile.privPassword,
-    username: profile.username,
-    timeout: profile.timeout,
-    retries: profile.retries,
+    id: searchProfile.id,
+    version: searchProfile.version,
+    port: searchProfile.port,
+    community: searchProfile.community,
+    securityLevel: searchProfile.securityLevel,
+    authProtocol: searchProfile.authProtocol,
+    authPassword: searchProfile.authPassword,
+    privProtocol: searchProfile.privProtocol,
+    privPassword: searchProfile.privPassword,
+    username: searchProfile.username,
+    timeout: searchProfile.timeout,
+    retries: searchProfile.retries,
   };
   
   const searchResult = await findInterfaceByName(
-    link.snmpRouterIp,
+    searchIp,
     snmpProfileForSearch,
     searchName,
     link.snmpInterfaceDescr,
