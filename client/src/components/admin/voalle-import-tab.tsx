@@ -503,8 +503,8 @@ export function VoalleImportTab() {
           clientName,
           clientVoalleId: tag.client_id || null,
           clientCpfCnpj: clientDoc || null,
-          clientPortalUser: personUser?.username || null,
-          // Usar CPF/CNPJ como senha do portal (padrão comum no Voalle)
+          // Usar CPF/CNPJ como usuário e senha do portal se não tiver person_users
+          clientPortalUser: personUser?.username || clientDoc || null,
           clientPortalPassword: clientDoc || null,
           bandwidth: extractBandwidth(tag.title || ''),
           address,
