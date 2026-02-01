@@ -280,7 +280,7 @@ async function lookupPppoeViaSNMP(
     let addressData: { index: string; value: string }[] = [];
     let usedOidSet = "";
 
-    // Tentar cada conjunto de OIDs até encontrar dados
+    // Tentar cada conjunto de OIDs até encontrar os usuários específicos que buscamos
     for (const oidSet of oidSets) {
       console.log(`[PPPoE SNMP] Tentando OIDs: ${oidSet.name}`);
       
@@ -292,10 +292,29 @@ async function lookupPppoeViaSNMP(
       console.log(`[PPPoE SNMP] ${oidSet.name}: ${users.length} usuários, ${addresses.length} IPs`);
 
       if (users.length > 0) {
-        usersData = users;
-        addressData = addresses;
-        usedOidSet = oidSet.name;
-        break;
+        // Verificar se encontramos pelo menos um dos usuários que buscamos
+        const foundTarget = pppoeUsers.some(pppoeUser => {
+          const userLower = pppoeUser.toLowerCase();
+          return users.some(u => {
+            let username = u.value;
+            // Normalizar username (extrair de <ppp-xxx> se necessário)
+            const pppMatch = username.match(/<ppp(?:oe)?-([^>]+)>/i);
+            if (pppMatch) username = pppMatch[1];
+            return username.toLowerCase() === userLower || username.toLowerCase().includes(userLower);
+          });
+        });
+        
+        if (foundTarget || usersData.length === 0) {
+          // Encontramos o usuário alvo OU é nossa primeira opção com dados
+          usersData = users;
+          addressData = addresses;
+          usedOidSet = oidSet.name;
+          if (foundTarget) {
+            console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo encontrado, usando este OID set`);
+            break;
+          }
+          console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo NÃO encontrado, tentando próximo OID set...`);
+        }
       }
     }
 
