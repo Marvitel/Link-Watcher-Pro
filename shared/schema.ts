@@ -735,6 +735,7 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
   webProtocol: varchar("web_protocol", { length: 10 }).default("http"), // http ou https
   winboxPort: integer("winbox_port").default(8291), // Porta Winbox para Mikrotik
   vendor: varchar("vendor", { length: 50 }), // mikrotik, cisco, huawei, etc
+  backupConcentratorId: integer("backup_concentrator_id"), // Concentrador backup para failover PPPoE
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

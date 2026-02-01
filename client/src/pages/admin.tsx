@@ -8869,6 +8869,7 @@ interface SnmpConcentrator {
   equipmentVendorId: number | null;
   model: string | null;
   description: string | null;
+  backupConcentratorId: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -8917,6 +8918,7 @@ function ConcentratorsTab() {
     webProtocol: "http",
     winboxPort: 8291,
     vendor: "",
+    backupConcentratorId: null as number | null,
   });
 
   const resetForm = () => {
@@ -8937,6 +8939,7 @@ function ConcentratorsTab() {
       description: "",
       isActive: true,
       voalleId: null,
+      backupConcentratorId: null,
     });
     setEditingConcentrator(undefined);
     setIsCreatingProfile(false);
@@ -8990,6 +8993,7 @@ function ConcentratorsTab() {
       webProtocol: concentrator.webProtocol || "http",
       winboxPort: concentrator.winboxPort || 8291,
       vendor: concentrator.vendor || "",
+      backupConcentratorId: concentrator.backupConcentratorId || null,
     });
     setDialogOpen(true);
   };
@@ -9236,6 +9240,29 @@ function ConcentratorsTab() {
                 />
                 <p className="text-xs text-muted-foreground">
                   ID do authenticationConcentrator no Voalle para associacao automatica
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Concentrador Backup</Label>
+                <Select
+                  value={formData.backupConcentratorId?.toString() || "none"}
+                  onValueChange={(v) => setFormData({ ...formData, backupConcentratorId: v === "none" ? null : parseInt(v, 10) })}
+                >
+                  <SelectTrigger data-testid="select-backup-concentrator">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {concentratorsList?.filter(c => c.id !== editingConcentrator?.id && c.isActive).map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.name} ({c.ipAddress})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Concentrador alternativo para failover PPPoE (busca interface se principal falhar)
                 </p>
               </div>
               
