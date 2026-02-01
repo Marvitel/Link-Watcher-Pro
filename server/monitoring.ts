@@ -1126,11 +1126,26 @@ async function handleIfIndexAutoDiscovery(
   // Isso funciona em todos os vendors (Mikrotik, Cisco, Huawei, etc)
   let searchResult: { found: boolean; ifIndex: number | null; ifName?: string; ifDescr?: string; ifAlias?: string; matchType?: string; ipAddress?: string } = { found: false, ifIndex: null };
   
-  if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
+  // Determinar pppoeUser: usar o campo direto ou extrair do snmpInterfaceName
+  let effectivePppoeUser = link.pppoeUser;
+  if (!effectivePppoeUser && link.snmpInterfaceName) {
+    // Extrair username de <pppoe-username> ou <ppp-username>
+    const pppMatch = link.snmpInterfaceName.match(/<ppp(?:oe)?-([^>]+)>/i);
+    if (pppMatch) {
+      effectivePppoeUser = pppMatch[1];
+      console.log(`[Monitor] ${link.name}: Extracted pppoeUser "${effectivePppoeUser}" from snmpInterfaceName`);
+    }
+  }
+  
+  // Usar concentrador se: trafficSourceType='concentrator' OU (concentratorId existe e temos pppoeUser)
+  const useConcentrator = (link.trafficSourceType === 'concentrator' || link.concentratorId) && link.concentratorId && effectivePppoeUser;
+  
+  if (useConcentrator && effectivePppoeUser && link.concentratorId) {
     try {
       const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
       if (concentrator) {
-        console.log(`[Monitor] ${link.name}: Using PPPoE lookup for "${link.pppoeUser}" on ${concentrator.name} (vendor: ${concentrator.vendor})`);
+        const pppoeUserToSearch = effectivePppoeUser; // Already validated as non-null
+        console.log(`[Monitor] ${link.name}: Using PPPoE lookup for "${pppoeUserToSearch}" on ${concentrator.name} (vendor: ${concentrator.vendor})`);
         
         let snmpProfile = null;
         if (concentrator.snmpProfileId) {
@@ -1138,8 +1153,8 @@ async function handleIfIndexAutoDiscovery(
           snmpProfile = profileResult || null;
         }
         
-        const sessions = await lookupMultiplePppoeSessions(concentrator, [link.pppoeUser], undefined, snmpProfile);
-        const session = sessions.get(link.pppoeUser);
+        const sessions = await lookupMultiplePppoeSessions(concentrator, [pppoeUserToSearch], undefined, snmpProfile);
+        const session = sessions.get(pppoeUserToSearch);
         
         if (session && session.ifIndex) {
           searchResult = {
@@ -1227,9 +1242,10 @@ async function handleIfIndexAutoDiscovery(
     }
   } else {
     // Interface not found on primary concentrator - try backup if configured
-    console.log(`[Monitor] ${link.name}: Interface "${searchName}" NÃO ENCONTRADA no concentrador. trafficSourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}, pppoeUser=${link.pppoeUser}`);
+    console.log(`[Monitor] ${link.name}: Interface "${searchName}" NÃO ENCONTRADA no concentrador. trafficSourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}, pppoeUser=${link.pppoeUser}, effectivePppoeUser=${effectivePppoeUser}`);
     
-    if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
+    // Usar concentrador se temos concentratorId e pppoeUser (mesmo se trafficSourceType não for 'concentrator')
+    if (link.concentratorId && effectivePppoeUser) {
       // Get the current concentrator to check for backup
       const [currentConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
       
@@ -1269,12 +1285,13 @@ async function handleIfIndexAutoDiscovery(
             }
           }
           
-          console.log(`[Monitor] ${link.name}: Buscando PPPoE "${link.pppoeUser}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
+          console.log(`[Monitor] ${link.name}: Buscando PPPoE "${effectivePppoeUser}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
           
           try {
             // Try to find PPPoE session on backup concentrator
-            const sessions = await lookupMultiplePppoeSessions(backupConcentrator, [link.pppoeUser], undefined, backupProfile as any);
-            const session = sessions.get(link.pppoeUser);
+            const pppoeUserForBackup = effectivePppoeUser!; // Already validated as non-null
+            const sessions = await lookupMultiplePppoeSessions(backupConcentrator, [pppoeUserForBackup], undefined, backupProfile as any);
+            const session = sessions.get(pppoeUserForBackup);
             
             if (session && session.ifIndex) {
               console.log(`[Monitor] ${link.name}: PPPoE encontrado no backup! ifIndex=${session.ifIndex}, IP=${session.ipAddress}`);
