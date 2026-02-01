@@ -1076,7 +1076,7 @@ export async function lookupIpFromArpTable(
  * Formato do index: destIP.maskIP.0.nextHopIP
  * Exemplo: 1.3.6.1.2.1.4.24.4.1.5.191.52.254.164.255.255.255.255.0.100.65.129.178 = 277
  */
-async function lookupIpBlockFromRouteTable(
+export async function lookupIpBlockFromRouteTable(
   concentrator: SnmpConcentrator,
   targetIfIndex: number,
   snmpProfile?: SnmpProfile | null

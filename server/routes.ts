@@ -4611,7 +4611,7 @@ export async function registerRoutes(
         console.log(`[Voalle Import] Iniciando busca de IPs via PPPoE...`);
         
         try {
-          const { lookupMultiplePppoeSessions } = await import("./concentrator");
+          const { lookupMultiplePppoeSessions, lookupIpBlockFromRouteTable } = await import("./concentrator");
           
           // Get all PPPoE links (not corporate) with pppoeUser but no IP
           const importedLinks = await storage.getLinks();
@@ -4682,11 +4682,32 @@ export async function registerRoutes(
                       if (session.ifAlias) {
                         updateData.snmpInterfaceDescr = session.ifAlias;
                       }
+                      
+                      // Buscar bloco IP público na tabela de rotas (para blacklist)
+                      // Só busca se o link não tiver ipBlock definido (não veio validLanIp no CSV)
+                      if (!link.ipBlock) {
+                        try {
+                          const snmpProfileData = concentrator.snmpProfileId 
+                            ? await storage.getSnmpProfile(concentrator.snmpProfileId)
+                            : null;
+                          const ipBlock = await lookupIpBlockFromRouteTable(
+                            concentrator,
+                            session.ifIndex,
+                            snmpProfileData
+                          );
+                          if (ipBlock) {
+                            updateData.ipBlock = ipBlock;
+                            console.log(`[Voalle Import] ${link.name}: Bloco IP obtido via SNMP: ${ipBlock}`);
+                          }
+                        } catch (ipBlockErr: any) {
+                          console.log(`[Voalle Import] ${link.name}: Erro ao buscar bloco IP: ${ipBlockErr.message}`);
+                        }
+                      }
                     }
                     
                     if (Object.keys(updateData).length > 0) {
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}, ifName=${session.ifName || 'N/A'}`);
+                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}, ifName=${session.ifName || 'N/A'}, ipBlock=${updateData.ipBlock || link.ipBlock || 'N/A'}`);
                     }
                   }
                 }
