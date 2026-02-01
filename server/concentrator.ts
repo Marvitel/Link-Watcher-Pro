@@ -1137,10 +1137,28 @@ async function lookupIpBlockFromRouteTable(
         const maskStr = maskOctets.join(".");
         const ipBlock = `${destIp}/${cidr}`;
         
-        console.log(`[Corporate SNMP] Rota encontrada: ${destIp} mask ${maskStr} -> ifIndex ${ifIndex} (${ipBlock})`);
-        
         // Ignorar rotas default e muito grandes (provavelmente não são do cliente)
         if (destIp === "0.0.0.0" || cidr < 24) continue;
+        
+        // Verificar se é um IP público (ignorar privados e CGNAT)
+        const firstOctet = parseInt(indexParts[0], 10);
+        const secondOctet = parseInt(indexParts[1], 10);
+        
+        // Ignorar IPs privados e reservados:
+        // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10 (CGNAT), 127.0.0.0/8
+        const isPrivate = 
+          firstOctet === 10 ||                                          // 10.0.0.0/8
+          (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31) || // 172.16.0.0/12
+          (firstOctet === 192 && secondOctet === 168) ||                // 192.168.0.0/16
+          (firstOctet === 100 && secondOctet >= 64 && secondOctet <= 127) || // 100.64.0.0/10 (CGNAT)
+          firstOctet === 127;                                           // 127.0.0.0/8 (loopback)
+        
+        if (isPrivate) {
+          console.log(`[Corporate SNMP] Rota ignorada (IP privado/CGNAT): ${ipBlock}`);
+          continue;
+        }
+        
+        console.log(`[Corporate SNMP] Rota encontrada (IP público): ${destIp} mask ${maskStr} -> ifIndex ${ifIndex} (${ipBlock})`);
         
         session.close();
         return ipBlock;
