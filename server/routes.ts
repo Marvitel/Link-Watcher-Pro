@@ -7082,6 +7082,7 @@ export async function registerRoutes(
       const allLinks = await storage.getLinks();
       const allHosts = await storage.getHosts();
       const allClients = await storage.getClients();
+      const allConcentrators = await storage.getConcentrators();
 
       const unresolvedEvents = await db.execute(sql`
         SELECT e.*, l.name as link_name, c.name as client_name
@@ -7177,10 +7178,23 @@ export async function registerRoutes(
           ipBlock: l.ipBlock,
           address: l.address,
           snmpInterfaceName: l.snmpInterfaceName,
+          snmpInterfaceIndex: l.snmpInterfaceIndex,
           monitoredIp: l.monitoredIp,
           snmpRouterIp: l.snmpRouterIp,
+          concentratorId: l.concentratorId,
+          trafficSourceType: l.trafficSourceType,
+          pppoeUser: l.pppoeUser,
+          ifIndexMismatchCount: l.ifIndexMismatchCount,
           failureReason: l.failureReason,
           failureSource: l.failureSource,
+        })),
+        concentrators: allConcentrators.map(c => ({
+          id: c.id,
+          name: c.name,
+          ipAddress: c.ipAddress,
+          isActive: c.isActive,
+          backupConcentratorId: c.backupConcentratorId,
+          snmpProfileId: c.snmpProfileId,
         })),
       });
     } catch (error) {
