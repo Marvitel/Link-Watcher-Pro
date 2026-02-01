@@ -209,7 +209,38 @@ async function lookupPppoeViaSNMP(
         retries: 1,
       };
 
-  const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
+  // Derive vendor from equipmentVendorId name or use explicit vendor field
+  let vendor = (concentrator.vendor || "").toLowerCase();
+  
+  // If no explicit vendor, try to derive from equipment vendor name
+  if (!vendor && concentrator.equipmentVendorId) {
+    // Common vendor name mappings
+    const vendorNameMappings: Record<string, string> = {
+      "cisco": "cisco",
+      "mikrotik": "mikrotik",
+      "huawei": "huawei",
+      "juniper": "juniper",
+      "routeros": "mikrotik",
+    };
+    // We'll need to get the vendor name from the database
+    // For now, check if concentrator has any hint in name/model
+    const nameHints = `${concentrator.name} ${concentrator.model || ""}`.toLowerCase();
+    if (nameHints.includes("cisco") || nameHints.includes("asr") || nameHints.includes("ios")) {
+      vendor = "cisco";
+    } else if (nameHints.includes("mikrotik") || nameHints.includes("routeros")) {
+      vendor = "mikrotik";
+    } else if (nameHints.includes("huawei") || nameHints.includes("ne40") || nameHints.includes("ne8k")) {
+      vendor = "huawei";
+    } else if (nameHints.includes("juniper")) {
+      vendor = "juniper";
+    }
+  }
+  
+  // Default to mikrotik if still no vendor
+  if (!vendor) {
+    vendor = "mikrotik";
+  }
+  
   console.log(`[PPPoE SNMP] Buscando ${pppoeUsers.length} sessões em ${concentrator.name} (${vendor}) via SNMP`);
   console.log(`[PPPoE SNMP] Conectando em ${concentrator.ipAddress}:${profile.port} (${profile.version}, community: ${profile.community || 'N/A'})`);
 
@@ -713,7 +744,20 @@ async function lookupPppoeViaSSH(
     return results;
   }
 
-  const vendor = (concentrator.vendor || "mikrotik").toLowerCase();
+  // Derive vendor from name/model hints or use explicit vendor field
+  let vendor = (concentrator.vendor || "").toLowerCase();
+  if (!vendor) {
+    const nameHints = `${concentrator.name} ${concentrator.model || ""}`.toLowerCase();
+    if (nameHints.includes("cisco") || nameHints.includes("asr") || nameHints.includes("ios")) {
+      vendor = "cisco";
+    } else if (nameHints.includes("mikrotik") || nameHints.includes("routeros")) {
+      vendor = "mikrotik";
+    } else if (nameHints.includes("huawei") || nameHints.includes("ne40") || nameHints.includes("ne8k")) {
+      vendor = "huawei";
+    } else {
+      vendor = "mikrotik";
+    }
+  }
   console.log(`[PPPoE SSH] Buscando ${pppoeUsers.length} sessões em ${concentrator.name} (${vendor}) via SSH`);
 
   try {
