@@ -1217,8 +1217,9 @@ async function handleIfIndexAutoDiscovery(
         
         console.log(`[Monitor] ${link.name}: Backup concentrador: ${backupConcentrator?.name || 'NÃO ENCONTRADO'}, isActive=${backupConcentrator?.isActive}, backupId=${backupConcentrator?.backupConcentratorId}`);
         
-        // Avoid cyclic backup chains (backup's backup is current)
-        if (backupConcentrator && backupConcentrator.isActive && backupConcentrator.backupConcentratorId !== currentConcentrator.id) {
+        // Allow mutual backup (A->B, B->A) - this is a valid redundancy pattern
+        // The cyclic check was too restrictive, preventing valid failover scenarios
+        if (backupConcentrator && backupConcentrator.isActive) {
           // Get backup concentrator's SNMP profile
           let backupProfile = searchProfile;
           if (backupConcentrator.snmpProfileId) {
