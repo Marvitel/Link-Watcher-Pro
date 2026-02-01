@@ -4699,7 +4699,87 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ ...results, pppoeIpsFound });
+      // Lookup Corporate links: ifIndex via VLAN interface + IP via ARP table
+      let corporateIpsFound = 0;
+      if (lookupPppoeIps && results.success > 0) {
+        console.log(`[Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...`);
+        
+        try {
+          const { lookupCorporateLinkInfo } = await import("./concentrator");
+          
+          // Get all corporate links with vlanInterface but no IP
+          const importedLinks = await storage.getLinks();
+          const corporateLinksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
+            l.authType === 'corporate' &&
+            l.vlanInterface && 
+            (!l.monitoredIp || l.monitoredIp === "") && 
+            l.concentratorId
+          );
+          
+          if (corporateLinksNeedingIp.length > 0) {
+            console.log(`[Voalle Import] Encontrados ${corporateLinksNeedingIp.length} links corporativos precisando de IP`);
+            
+            // Group by concentrator
+            const linksByConcentrator = new Map<number, typeof corporateLinksNeedingIp>();
+            for (const link of corporateLinksNeedingIp) {
+              if (link.concentratorId) {
+                const existing = linksByConcentrator.get(link.concentratorId) || [];
+                existing.push(link);
+                linksByConcentrator.set(link.concentratorId, existing);
+              }
+            }
+            
+            // Query each concentrator
+            for (const [concentratorId, concentratorLinks] of Array.from(linksByConcentrator.entries())) {
+              const concentrator = await storage.getConcentrator(concentratorId);
+              if (!concentrator) {
+                console.log(`[Voalle Import] Concentrador ${concentratorId} não encontrado, pulando...`);
+                continue;
+              }
+              
+              // Buscar perfil SNMP do concentrador
+              let snmpProfile = null;
+              if (concentrator.snmpProfileId) {
+                snmpProfile = await storage.getSnmpProfile(concentrator.snmpProfileId);
+              }
+              
+              console.log(`[Voalle Import] Buscando info corporativa para ${concentratorLinks.length} links em ${concentrator.name}`);
+              
+              for (const link of concentratorLinks) {
+                if (link.vlanInterface) {
+                  try {
+                    const corpInfo = await lookupCorporateLinkInfo(concentrator, link.vlanInterface, snmpProfile);
+                    
+                    if (corpInfo) {
+                      const updateData: Record<string, any> = {
+                        snmpInterfaceIndex: corpInfo.ifIndex,
+                        snmpInterfaceName: corpInfo.vlanInterface,
+                        trafficSourceType: 'concentrator',
+                      };
+                      
+                      if (corpInfo.ipAddress) {
+                        updateData.monitoredIp = corpInfo.ipAddress;
+                        corporateIpsFound++;
+                      }
+                      
+                      await storage.updateLink(link.id, updateData);
+                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}`);
+                    }
+                  } catch (linkErr: any) {
+                    console.error(`[Voalle Import] Erro ao buscar info corporativa para ${link.name}: ${linkErr.message}`);
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log(`[Voalle Import] Busca corporativa concluída: ${corporateIpsFound} IPs encontrados`);
+        } catch (lookupError) {
+          console.error(`[Voalle Import] Erro na busca de IPs corporativos:`, lookupError);
+        }
+      }
+
+      res.json({ ...results, pppoeIpsFound, corporateIpsFound });
 
     } catch (error: any) {
       console.error("Error in Voalle import:", error);
