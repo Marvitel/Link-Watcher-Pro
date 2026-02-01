@@ -442,7 +442,8 @@ interface PingResult {
   latency: number;
   packetLoss: number;
   success: boolean;
-  failureReason?: string;
+  status?: string;
+  failureReason?: string | null;
 }
 
 interface TrafficResult {
@@ -1057,7 +1058,15 @@ async function handleIfIndexAutoDiscovery(
   }
   
   // Attempt auto-discovery using interface name
-  const searchName = link.originalIfName || link.snmpInterfaceName;
+  // Para links PPPoE com concentrador, priorizar pppoeUser (username puro)
+  // Isso permite failover entre concentradores de vendors diferentes (ex: Mikrotik -> Cisco)
+  let searchName = link.originalIfName || link.snmpInterfaceName;
+  
+  if (link.trafficSourceType === 'concentrator' && link.pppoeUser) {
+    // Use pppoeUser for PPPoE links - this works across different vendors
+    searchName = link.pppoeUser;
+    console.log(`[Monitor] ${link.name}: Using pppoeUser "${link.pppoeUser}" for auto-discovery (cross-vendor compatible)`);
+  }
   
   // Determinar IP e perfil SNMP para busca
   // Para links com concentrador, usar o IP do concentrador
@@ -1113,13 +1122,60 @@ async function handleIfIndexAutoDiscovery(
     retries: searchProfile.retries,
   };
   
-  const searchResult = await findInterfaceByName(
-    searchIp,
-    snmpProfileForSearch,
-    searchName,
-    link.snmpInterfaceDescr,
-    link.snmpInterfaceAlias || undefined
-  );
+  // Para links PPPoE com concentrador, usar lookupMultiplePppoeSessions diretamente
+  // Isso funciona em todos os vendors (Mikrotik, Cisco, Huawei, etc)
+  let searchResult: { found: boolean; ifIndex: number | null; ifName?: string; ifDescr?: string; ifAlias?: string; matchType?: string; ipAddress?: string } = { found: false, ifIndex: null };
+  
+  if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
+    try {
+      const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      if (concentrator) {
+        console.log(`[Monitor] ${link.name}: Using PPPoE lookup for "${link.pppoeUser}" on ${concentrator.name} (vendor: ${concentrator.vendor})`);
+        
+        let snmpProfile = null;
+        if (concentrator.snmpProfileId) {
+          const [profileResult] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+          snmpProfile = profileResult || null;
+        }
+        
+        const sessions = await lookupMultiplePppoeSessions(concentrator, [link.pppoeUser], undefined, snmpProfile);
+        const session = sessions.get(link.pppoeUser);
+        
+        if (session && session.ifIndex) {
+          searchResult = {
+            found: true,
+            ifIndex: session.ifIndex,
+            ifName: session.ifName || undefined,
+            ifAlias: session.ifAlias || undefined,
+            matchType: 'pppoe-session',
+            ipAddress: session.ipAddress || undefined,
+          };
+          console.log(`[Monitor] ${link.name}: PPPoE session found: ifIndex=${session.ifIndex}, IP=${session.ipAddress}, ifName=${session.ifName}`);
+        }
+      }
+    } catch (pppoeError) {
+      console.error(`[Monitor] ${link.name}: PPPoE lookup failed:`, pppoeError);
+    }
+  }
+  
+  // Fallback: use findInterfaceByName for non-PPPoE links or if PPPoE lookup failed
+  if (!searchResult.found) {
+    const ifResult = await findInterfaceByName(
+      searchIp,
+      snmpProfileForSearch,
+      searchName,
+      link.snmpInterfaceDescr,
+      link.snmpInterfaceAlias || undefined
+    );
+    searchResult = {
+      found: ifResult.found,
+      ifIndex: ifResult.ifIndex,
+      ifName: ifResult.ifName || undefined,
+      ifDescr: ifResult.ifDescr || undefined,
+      ifAlias: ifResult.ifAlias || undefined,
+      matchType: ifResult.matchType || undefined,
+    };
+  }
   
   if (searchResult.found && searchResult.ifIndex !== null) {
     const oldIfIndex = link.snmpInterfaceIndex;
@@ -1139,39 +1195,10 @@ async function handleIfIndexAutoDiscovery(
         lastIfIndexValidation: now,
       };
       
-      // Para links PPPoE com concentrador, também atualizar o IP
-      if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
-        try {
-          console.log(`[Monitor] ${link.name}: Atualizando IP via PPPoE lookup...`);
-          
-          // Buscar concentrador e perfil SNMP
-          const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
-          if (concentrator) {
-            let snmpProfile = null;
-            if (concentrator.snmpProfileId) {
-              const [profileResult] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
-              snmpProfile = profileResult || null;
-            }
-            
-            const sessions = await lookupMultiplePppoeSessions(concentrator, [link.pppoeUser], undefined, snmpProfile);
-            const session = sessions.get(link.pppoeUser);
-            
-            if (session) {
-              if (session.ipAddress) {
-                updateData.monitoredIp = session.ipAddress;
-                console.log(`[Monitor] ${link.name}: IP atualizado para ${session.ipAddress}`);
-              }
-              if (session.ifName) {
-                updateData.snmpInterfaceName = session.ifName;
-              }
-              if (session.ifAlias) {
-                updateData.snmpInterfaceDescr = session.ifAlias;
-              }
-            }
-          }
-        } catch (pppoeError) {
-          console.error(`[Monitor] ${link.name}: Erro ao atualizar IP via PPPoE:`, pppoeError);
-        }
+      // Se já temos IP da sessão PPPoE, atualizar monitoredIp
+      if (searchResult.ipAddress) {
+        updateData.monitoredIp = searchResult.ipAddress;
+        console.log(`[Monitor] ${link.name}: IP atualizado para ${searchResult.ipAddress}`);
       }
       
       await db.update(links).set(updateData).where(eq(links.id, link.id));
@@ -1328,7 +1355,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   const isL2Link = (link as any).isL2Link === true;
   
   // Para links L2, não fazer ping - status será determinado pelo sinal óptico/porta
-  let pingResult: { latency: number; packetLoss: number; status: string; failureReason: string | null; success?: boolean };
+  let pingResult: PingResult;
   
   // Variável para armazenar o status da porta para links L2
   let l2PortStatus: { operStatus: string; adminStatus: string } | null = null;
