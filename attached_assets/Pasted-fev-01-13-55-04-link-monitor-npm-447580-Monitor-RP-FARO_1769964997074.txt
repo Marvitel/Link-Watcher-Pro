@@ -1,0 +1,32 @@
+fev 01 13:55:04 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: Interface "<pppoe-rp.farolandia>" NÃO ENCONTRADA no concentrador. trafficSourceType=manual, concentratorId=1, pppoeUser=null, effectivePppoeUser=rp.farolandia
+fev 01 13:55:04 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: Concentrador atual: CE: AJU-MVT-BORDA-HSP, backupId=4
+fev 01 13:55:04 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: Interface não encontrada no concentrador principal. Tentando backup...
+fev 01 13:55:04 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: Backup concentrador: CE: CISCO ASR1002, isActive=true, backupId=null
+fev 01 13:55:04 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: Buscando PPPoE "rp.farolandia" no backup CE: CISCO ASR1002 (191.52.255.254)
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Buscando 1 sessões em CE: CISCO ASR1002 (mikrotik) via SNMP
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Conectando em 191.52.255.254:161 (2c, community: marvitel)
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Conectividade OK - Cisco IOS Software, ASR1000 Software (PPC_LINUX_IOSD-ADVIPSERVICESK9-M), Version...
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Tentando OIDs: IF-MIB Standard
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] IF-MIB Standard: 77 usuários, 7 IPs
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] IF-MIB Standard: Usuário alvo NÃO encontrado, tentando próximo OID set...
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Walk final: 77 usuários ativos usando "IF-MIB Standard"
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Amostra de usuários ativos: GigabitEthernet0/0/0, GigabitEthernet0/0/1, GigabitEthernet0/0/2, GigabitEthernet0/0/3, TenGigabitEthernet0/1/0...
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Buscando usuários: rp.farolandia
+fev 01 13:55:04 link-monitor npm[447580]: [PPPoE SNMP] Buscando ifName e ifAlias...
+fev 01 13:55:05 link-monitor npm[447580]: [PPPoE SNMP] ifName: 77, ifAlias: 63 entradas
+fev 01 13:55:05 link-monitor npm[447580]: [PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...
+fev 01 13:55:05 link-monitor npm[447580]: [PPPoE SNMP] Tabela de rotas: 0 entradas
+fev 01 13:55:05 link-monitor npm[447580]: [PPPoE SNMP] Tentando tabela CIDR (ipCidrRouteIfIndex)...
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Tabela CIDR: 102 entradas
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] CIDR Mapeamento ifIndex->IP: 58 entradas
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Índice ifAlias->ifIndex: 26 entradas
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Amostra ifAlias: ptp ne8k via core2 cisco, vlan pppoe olt-datacenter zte-c600, %u, 2684s.ltda, rp.coelhoecampos
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Usuário "rp.farolandia" encontrado via ifAlias -> ifIndex 78
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Usuário "rp.farolandia" -> ifIndex 78 (via ifAlias), ifName: Vi1.51, ifAlias: rp.farolandia, IP: 100.80.16.7
+fev 01 13:55:06 link-monitor npm[447580]: [PPPoE SNMP] Encontradas 1 sessões de 1 buscadas (SNMP retornou 58 mapeamentos IP)
+fev 01 13:55:06 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M: PPPoE encontrado no backup! ifIndex=78, IP=100.80.16.7
+fev 01 13:55:06 link-monitor npm[447580]: [Monitor] RP FAROLANDIA - 100M - vendorId: 8, vendor: TP-Link, cpuOid: 1.3.6.1.4.1.
