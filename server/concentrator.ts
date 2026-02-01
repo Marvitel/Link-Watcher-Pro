@@ -947,28 +947,9 @@ export async function lookupVlanInterfaceIndex(
       }
     }
 
-    // Busca mais flexível: por número VLAN
-    // Extract VLAN ID specifically after "vlan" keyword (e.g., "vlan.709", "vlan709", "vlan-709")
-    const vlanMatch = vlanInterface.match(/vlan[.\-]?(\d+)/i);
-    if (vlanMatch) {
-      const vlanId = vlanMatch[1];
-      console.log(`[Corporate SNMP] Extraído VLAN ID ${vlanId} de "${vlanInterface}"`);
-      // Procurar por interfaces que contenham o ID da VLAN
-      for (const entry of [...ifNameData, ...ifDescrData]) {
-        const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
-        const name = entry.value.toLowerCase();
-        // Match patterns: vlan100, vlan.100, Vlan 100, GigabitEthernet0/0/0.100
-        if (name.match(new RegExp(`(vlan|\\.)${vlanId}($|[^0-9])`, 'i'))) {
-          console.log(`[Corporate SNMP] Match por VLAN ID ${vlanId}: "${entry.value}" -> ifIndex ${ifIndex}`);
-          session.close();
-          return { ifIndex, ifName: entry.value };
-        }
-      }
-    } else {
-      console.log(`[Corporate SNMP] Não foi possível extrair VLAN ID de "${vlanInterface}"`);
-    }
-
-    console.log(`[Corporate SNMP] Interface "${vlanInterface}" não encontrada no concentrador`);
+    // Não fazer busca flexível por VLAN ID - pode atribuir interface errada
+    // Se não encontrou match exato, retornar null e deixar o fallback tentar o backup concentrator
+    console.log(`[Corporate SNMP] Interface "${vlanInterface}" não encontrada no concentrador (busca exata)`);
     session.close();
     return null;
   } catch (error: any) {
