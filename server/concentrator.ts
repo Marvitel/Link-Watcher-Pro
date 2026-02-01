@@ -948,9 +948,11 @@ export async function lookupVlanInterfaceIndex(
     }
 
     // Busca mais flexível: por número VLAN
-    const vlanMatch = vlanInterface.match(/(\d+)/);
+    // Extract VLAN ID specifically after "vlan" keyword (e.g., "vlan.709", "vlan709", "vlan-709")
+    const vlanMatch = vlanInterface.match(/vlan[.\-]?(\d+)/i);
     if (vlanMatch) {
       const vlanId = vlanMatch[1];
+      console.log(`[Corporate SNMP] Extraído VLAN ID ${vlanId} de "${vlanInterface}"`);
       // Procurar por interfaces que contenham o ID da VLAN
       for (const entry of [...ifNameData, ...ifDescrData]) {
         const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
@@ -962,6 +964,8 @@ export async function lookupVlanInterfaceIndex(
           return { ifIndex, ifName: entry.value };
         }
       }
+    } else {
+      console.log(`[Corporate SNMP] Não foi possível extrair VLAN ID de "${vlanInterface}"`);
     }
 
     console.log(`[Corporate SNMP] Interface "${vlanInterface}" não encontrada no concentrador`);

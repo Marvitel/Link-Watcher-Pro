@@ -1,0 +1,18 @@
+fev 01 18:45:22 link-monitor npm[573611]: [Monitor] Starting parallel collection for 34 links (10 workers)
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5675, clientName: CAMARA DE DIRIGENTES LOJISTAS DE ARACAJU (13045935000136)
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Found existing client by slug: camara-de-dirigentes-lojistas-de-aracaju, updating/reactivating with voalleId: 5675
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 32, oltName: AJU-MVT-OLT-DATACOM-MARVITEL
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Access point "AJU-MVT-OLT-DATACOM-MARVITEL" isOlt: true
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] OLT from existing: 10
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Link 0X3W071T: clientId=28, concentratorId=2, oltId=10, switchId=null
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Creating new link 0X3W071T with accessPointId=10
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Busca de IPs concluída: 0 IPs encontrados
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Encontrados 1 links corporativos precisando de IP
+fev 01 18:45:22 link-monitor npm[573611]: [Voalle Import] Buscando info corporativa para 1 links em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:45:22 link-monitor npm[573611]: [Corporate SNMP] Buscando info corporativa para VLAN "sfpplus1-vlan.709-CDL" em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:45:22 link-monitor npm[573611]: [Corporate SNMP] Buscando ifIndex para interface "sfpplus1-vlan.709-CDL" em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:45:22 link-monitor npm[573611]: [Corporate SNMP] Encontradas 288 interfaces via ifDescr, 288 via ifName
+fev 01 18:45:22 link-monitor npm[573611]: [Corporate SNMP] Match por VLAN ID 1: "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.2114-RODOLFO" -> ifIndex 126
+fev 01 18:45:22 link-monitor npm[573611]: [Corporate SNMP] Buscando IP na tabela ARP para ifIndex 126 em CE: AJU-MVT-BORDA-OSPF
