@@ -1199,7 +1199,89 @@ async function handleIfIndexAutoDiscovery(
       return { updated: false };
     }
   } else {
-    // Interface not found - create warning event
+    // Interface not found on primary concentrator - try backup if configured
+    if (link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser) {
+      // Get the current concentrator to check for backup
+      const [currentConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      
+      // Guardrails: check backup exists and is different from current
+      if (currentConcentrator?.backupConcentratorId && currentConcentrator.backupConcentratorId !== currentConcentrator.id) {
+        console.log(`[Monitor] ${link.name}: Interface não encontrada no concentrador principal. Tentando backup...`);
+        
+        // Get backup concentrator
+        const [backupConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, currentConcentrator.backupConcentratorId));
+        
+        // Avoid cyclic backup chains (backup's backup is current)
+        if (backupConcentrator && backupConcentrator.isActive && backupConcentrator.backupConcentratorId !== currentConcentrator.id) {
+          // Get backup concentrator's SNMP profile
+          let backupProfile = searchProfile;
+          if (backupConcentrator.snmpProfileId) {
+            const [backupProfileResult] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, backupConcentrator.snmpProfileId));
+            if (backupProfileResult) {
+              backupProfile = {
+                id: backupProfileResult.id,
+                version: backupProfileResult.version || '2c',
+                port: backupProfileResult.port || 161,
+                community: backupProfileResult.community,
+                securityLevel: backupProfileResult.securityLevel,
+                authProtocol: backupProfileResult.authProtocol,
+                authPassword: backupProfileResult.authPassword,
+                privProtocol: backupProfileResult.privProtocol,
+                privPassword: backupProfileResult.privPassword,
+                username: backupProfileResult.username,
+                timeout: backupProfileResult.timeout || 5000,
+                retries: backupProfileResult.retries || 1,
+              };
+            }
+          }
+          
+          console.log(`[Monitor] ${link.name}: Buscando PPPoE "${link.pppoeUser}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
+          
+          try {
+            // Try to find PPPoE session on backup concentrator
+            const sessions = await lookupMultiplePppoeSessions(backupConcentrator, [link.pppoeUser], undefined, backupProfile as any);
+            const session = sessions.get(link.pppoeUser);
+            
+            if (session && session.ifIndex) {
+              console.log(`[Monitor] ${link.name}: PPPoE encontrado no backup! ifIndex=${session.ifIndex}, IP=${session.ipAddress}`);
+              
+              // Update link with backup concentrator info
+              const updateData: Record<string, any> = {
+                concentratorId: backupConcentrator.id,
+                snmpInterfaceIndex: session.ifIndex,
+                snmpInterfaceName: session.ifName || link.snmpInterfaceName,
+                snmpInterfaceDescr: session.ifAlias || link.snmpInterfaceDescr,
+                ifIndexMismatchCount: 0,
+                lastIfIndexValidation: now,
+              };
+              
+              if (session.ipAddress) {
+                updateData.monitoredIp = session.ipAddress;
+              }
+              
+              await db.update(links).set(updateData).where(eq(links.id, link.id));
+              
+              // Create event for the concentrator failover
+              await db.insert(events).values({
+                linkId: link.id,
+                clientId: link.clientId,
+                type: "info",
+                title: `Failover de concentrador em ${link.name}`,
+                description: `Link migrou de "${currentConcentrator.name}" para backup "${backupConcentrator.name}". Nova interface: ${session.ifName || 'N/A'}, IP: ${session.ipAddress || 'N/A'}`,
+                timestamp: now,
+                resolved: true,
+              });
+              
+              return { updated: true, newIfIndex: session.ifIndex };
+            }
+          } catch (backupError) {
+            console.error(`[Monitor] ${link.name}: Erro ao buscar no concentrador backup:`, backupError);
+          }
+        }
+      }
+    }
+    
+    // Interface not found on primary or backup - create warning event
     console.log(`[Monitor] ${link.name}: Could not auto-discover interface "${searchName}"`);
     
     await db.update(links).set({
