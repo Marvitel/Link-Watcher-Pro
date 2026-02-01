@@ -4700,8 +4700,9 @@ export async function registerRoutes(
       }
 
       // Lookup Corporate links: ifIndex via VLAN interface + IP via ARP table
+      // Runs independently of lookupPppoeIps - corporate links always need VLAN/ARP lookup
       let corporateIpsFound = 0;
-      if (lookupPppoeIps && results.success > 0) {
+      if (results.success > 0) {
         console.log(`[Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...`);
         
         try {

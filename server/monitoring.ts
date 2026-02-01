@@ -1060,7 +1060,11 @@ async function handleIfIndexAutoDiscovery(
   // Attempt auto-discovery using interface name
   // Para links PPPoE com concentrador, priorizar pppoeUser (username puro)
   // Isso permite failover entre concentradores de vendors diferentes (ex: Mikrotik -> Cisco)
+  // Para links corporativos, usar vlanInterface se snmpInterfaceName não existir
   let searchName = link.originalIfName || link.snmpInterfaceName;
+  if (!searchName && link.authType === 'corporate' && link.vlanInterface) {
+    searchName = link.vlanInterface;
+  }
   
   if (link.trafficSourceType === 'concentrator' && link.pppoeUser) {
     // Use pppoeUser for PPPoE links - this works across different vendors
@@ -1137,10 +1141,44 @@ async function handleIfIndexAutoDiscovery(
     }
   }
   
-  // Usar concentrador se: trafficSourceType='concentrator' OU (concentratorId existe e temos pppoeUser)
-  const useConcentrator = (link.trafficSourceType === 'concentrator' || link.concentratorId) && link.concentratorId && effectivePppoeUser;
+  // Usar concentrador se: trafficSourceType='concentrator' OU (concentratorId existe e temos pppoeUser ou vlanInterface)
+  const useConcentratorPppoe = (link.trafficSourceType === 'concentrator' || link.concentratorId) && link.concentratorId && effectivePppoeUser;
+  const useConcentratorCorporate = link.authType === 'corporate' && link.concentratorId && link.vlanInterface;
   
-  if (useConcentrator && effectivePppoeUser && link.concentratorId) {
+  // Corporate links: use VLAN interface + ARP table lookup
+  if (useConcentratorCorporate && link.vlanInterface && link.concentratorId) {
+    try {
+      const { lookupCorporateLinkInfo } = await import("./concentrator");
+      const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      if (concentrator) {
+        console.log(`[Monitor] ${link.name}: Using Corporate/VLAN lookup for "${link.vlanInterface}" on ${concentrator.name}`);
+        
+        let snmpProfile = null;
+        if (concentrator.snmpProfileId) {
+          const [profileResult] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+          snmpProfile = profileResult || null;
+        }
+        
+        const corpInfo = await lookupCorporateLinkInfo(concentrator, link.vlanInterface, snmpProfile);
+        if (corpInfo) {
+          searchResult = {
+            found: true,
+            ifIndex: corpInfo.ifIndex,
+            ifName: corpInfo.vlanInterface,
+            ipAddress: corpInfo.ipAddress || undefined,
+            matchType: 'corporate_vlan',
+          };
+          console.log(`[Monitor] ${link.name}: Corporate VLAN lookup result: ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}`);
+        } else {
+          console.log(`[Monitor] ${link.name}: Corporate VLAN interface "${link.vlanInterface}" not found on concentrator`);
+        }
+      }
+    } catch (corpError: any) {
+      console.error(`[Monitor] ${link.name}: Corporate lookup error: ${corpError.message}`);
+    }
+  }
+  // PPPoE links: use PPPoE session lookup
+  else if (useConcentratorPppoe && effectivePppoeUser && link.concentratorId) {
     try {
       const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
       if (concentrator) {
@@ -1244,8 +1282,11 @@ async function handleIfIndexAutoDiscovery(
     // Interface not found on primary concentrator - try backup if configured
     console.log(`[Monitor] ${link.name}: Interface "${searchName}" NÃO ENCONTRADA no concentrador. trafficSourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}, pppoeUser=${link.pppoeUser}, effectivePppoeUser=${effectivePppoeUser}`);
     
-    // Usar concentrador se temos concentratorId e pppoeUser (mesmo se trafficSourceType não for 'concentrator')
-    if (link.concentratorId && effectivePppoeUser) {
+    // Usar concentrador se temos concentratorId e pppoeUser ou vlanInterface (corporate)
+    const hasPppoeForBackup = link.concentratorId && effectivePppoeUser;
+    const hasCorporateForBackup = link.authType === 'corporate' && link.concentratorId && link.vlanInterface;
+    
+    if (hasPppoeForBackup || hasCorporateForBackup) {
       // Get the current concentrator to check for backup
       const [currentConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
       
@@ -1285,45 +1326,83 @@ async function handleIfIndexAutoDiscovery(
             }
           }
           
-          console.log(`[Monitor] ${link.name}: Buscando PPPoE "${effectivePppoeUser}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
-          
           try {
-            // Try to find PPPoE session on backup concentrator
-            const pppoeUserForBackup = effectivePppoeUser!; // Already validated as non-null
-            const sessions = await lookupMultiplePppoeSessions(backupConcentrator, [pppoeUserForBackup], undefined, backupProfile as any);
-            const session = sessions.get(pppoeUserForBackup);
-            
-            if (session && session.ifIndex) {
-              console.log(`[Monitor] ${link.name}: PPPoE encontrado no backup! ifIndex=${session.ifIndex}, IP=${session.ipAddress}`);
+            // Try PPPoE lookup on backup for PPPoE links
+            if (hasPppoeForBackup && effectivePppoeUser) {
+              console.log(`[Monitor] ${link.name}: Buscando PPPoE "${effectivePppoeUser}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
               
-              // Update link with backup concentrator info
-              const updateData: Record<string, any> = {
-                concentratorId: backupConcentrator.id,
-                snmpInterfaceIndex: session.ifIndex,
-                snmpInterfaceName: session.ifName || link.snmpInterfaceName,
-                snmpInterfaceDescr: session.ifAlias || link.snmpInterfaceDescr,
-                ifIndexMismatchCount: 0,
-                lastIfIndexValidation: now,
-              };
+              const pppoeUserForBackup = effectivePppoeUser;
+              const sessions = await lookupMultiplePppoeSessions(backupConcentrator, [pppoeUserForBackup], undefined, backupProfile as any);
+              const session = sessions.get(pppoeUserForBackup);
               
-              if (session.ipAddress) {
-                updateData.monitoredIp = session.ipAddress;
+              if (session && session.ifIndex) {
+                console.log(`[Monitor] ${link.name}: PPPoE encontrado no backup! ifIndex=${session.ifIndex}, IP=${session.ipAddress}`);
+                
+                const updateData: Record<string, any> = {
+                  concentratorId: backupConcentrator.id,
+                  snmpInterfaceIndex: session.ifIndex,
+                  snmpInterfaceName: session.ifName || link.snmpInterfaceName,
+                  snmpInterfaceDescr: session.ifAlias || link.snmpInterfaceDescr,
+                  ifIndexMismatchCount: 0,
+                  lastIfIndexValidation: now,
+                };
+                
+                if (session.ipAddress) {
+                  updateData.monitoredIp = session.ipAddress;
+                }
+                
+                await db.update(links).set(updateData).where(eq(links.id, link.id));
+                
+                await db.insert(events).values({
+                  linkId: link.id,
+                  clientId: link.clientId,
+                  type: "info",
+                  title: `Failover de concentrador em ${link.name}`,
+                  description: `Link migrou de "${currentConcentrator.name}" para backup "${backupConcentrator.name}". Nova interface: ${session.ifName || 'N/A'}, IP: ${session.ipAddress || 'N/A'}`,
+                  timestamp: now,
+                  resolved: true,
+                });
+                
+                return { updated: true, newIfIndex: session.ifIndex };
               }
+            }
+            
+            // Try Corporate VLAN/ARP lookup on backup for corporate links
+            if (hasCorporateForBackup && link.vlanInterface) {
+              console.log(`[Monitor] ${link.name}: Buscando VLAN "${link.vlanInterface}" no backup ${backupConcentrator.name} (${backupConcentrator.ipAddress})`);
               
-              await db.update(links).set(updateData).where(eq(links.id, link.id));
+              const { lookupCorporateLinkInfo } = await import("./concentrator");
+              const corpInfo = await lookupCorporateLinkInfo(backupConcentrator, link.vlanInterface, backupProfile as any);
               
-              // Create event for the concentrator failover
-              await db.insert(events).values({
-                linkId: link.id,
-                clientId: link.clientId,
-                type: "info",
-                title: `Failover de concentrador em ${link.name}`,
-                description: `Link migrou de "${currentConcentrator.name}" para backup "${backupConcentrator.name}". Nova interface: ${session.ifName || 'N/A'}, IP: ${session.ipAddress || 'N/A'}`,
-                timestamp: now,
-                resolved: true,
-              });
-              
-              return { updated: true, newIfIndex: session.ifIndex };
+              if (corpInfo && corpInfo.ifIndex) {
+                console.log(`[Monitor] ${link.name}: VLAN encontrada no backup! ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress}`);
+                
+                const updateData: Record<string, any> = {
+                  concentratorId: backupConcentrator.id,
+                  snmpInterfaceIndex: corpInfo.ifIndex,
+                  snmpInterfaceName: corpInfo.vlanInterface || link.snmpInterfaceName,
+                  ifIndexMismatchCount: 0,
+                  lastIfIndexValidation: now,
+                };
+                
+                if (corpInfo.ipAddress) {
+                  updateData.monitoredIp = corpInfo.ipAddress;
+                }
+                
+                await db.update(links).set(updateData).where(eq(links.id, link.id));
+                
+                await db.insert(events).values({
+                  linkId: link.id,
+                  clientId: link.clientId,
+                  type: "info",
+                  title: `Failover de concentrador em ${link.name}`,
+                  description: `Link corporativo migrou de "${currentConcentrator.name}" para backup "${backupConcentrator.name}". Nova interface: ${corpInfo.vlanInterface || 'N/A'}, IP: ${corpInfo.ipAddress || 'N/A'}`,
+                  timestamp: now,
+                  resolved: true,
+                });
+                
+                return { updated: true, newIfIndex: corpInfo.ifIndex };
+              }
             }
           } catch (backupError) {
             console.error(`[Monitor] ${link.name}: Erro ao buscar no concentrador backup:`, backupError);
@@ -1436,13 +1515,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         
         // Handle auto-discovery of ifIndex when collection fails
         // Skip auto-discovery if link is offline (ping failed) - device is unreachable
-        // EXCEPTION: Para links PPPoE com concentrador, permitir auto-discovery mesmo sem IP
+        // EXCEPTION: Para links PPPoE/Corporativos com concentrador, permitir auto-discovery mesmo sem IP
         // porque o concentrador é acessível e pode fornecer o ifIndex/IP
         // Only do auto-discovery for manual/concentrator mode, not accessPoint mode
         const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
-        const canDoConcentratorDiscovery = link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser;
+        // PPPoE: precisa de pppoeUser | Corporate: precisa de vlanInterface
+        const canDoPppoeDiscovery = link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser;
+        const canDoCorporateDiscovery = link.authType === 'corporate' && link.trafficSourceType === 'concentrator' && link.concentratorId && link.vlanInterface;
+        const canDoConcentratorDiscovery = canDoPppoeDiscovery || canDoCorporateDiscovery;
         
-        if (link.snmpInterfaceName && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
+        // Para links corporativos, usar vlanInterface como gatilho se snmpInterfaceName não existir
+        const hasInterfaceForDiscovery = link.snmpInterfaceName || (link.authType === 'corporate' && link.vlanInterface);
+        if (hasInterfaceForDiscovery && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
           // If ifIndex was updated, retry collection with new index
