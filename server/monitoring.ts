@@ -1303,9 +1303,13 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         
         // Handle auto-discovery of ifIndex when collection fails
         // Skip auto-discovery if link is offline (ping failed) - device is unreachable
+        // EXCEPTION: Para links PPPoE com concentrador, permitir auto-discovery mesmo sem IP
+        // porque o concentrador é acessível e pode fornecer o ifIndex/IP
         // Only do auto-discovery for manual/concentrator mode, not accessPoint mode
         const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
-        if (link.snmpInterfaceName && !isLinkOffline && link.trafficSourceType !== 'accessPoint') {
+        const canDoConcentratorDiscovery = link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser;
+        
+        if (link.snmpInterfaceName && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
           // If ifIndex was updated, retry collection with new index
