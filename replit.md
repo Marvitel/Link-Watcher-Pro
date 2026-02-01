@@ -44,6 +44,14 @@ Links support three traffic data sources configured via `trafficSourceType`:
 - **Concentrator**: Uses the associated concentrator's IP and profile
 - **Access Point (Switch/PE)**: For L2 links with RSTP where concentrator cannot identify which route is active. Traffic is collected from the access switch using `accessPointId` and `accessPointInterfaceIndex`
 
+### Corporate Link Discovery (authType='corporate')
+For corporate links (non-PPPoE connections identified during Voalle import by absence of pppoeUser):
+- **VLAN Interface Detection**: Uses `vlanInterface` field to find ifIndex via SNMP ifDescr walk
+- **ARP Table IP Discovery**: Queries ipNetToMedia OID (1.3.6.1.2.1.4.22.1.3) to find client IP from ARP table
+- **Backup Concentrator Failover**: Supports automatic failover to backup concentrator when VLAN interface not found on primary
+- **Auto-Discovery Trigger**: Uses vlanInterface for initial discovery even without snmpInterfaceName (enables first-time setup)
+- **Vendor Auto-Detection**: Concentrator vendor (cisco/huawei/mikrotik) derived from name/model patterns, no manual selection needed
+
 ### Multiple Traffic Interfaces per Link
 Links can have additional traffic interfaces for composite monitoring (e.g., L2+L3 on same chart):
 - **Table**: `linkTrafficInterfaces` stores additional interfaces with label, color, source type (manual/concentrator/switch), SNMP settings
