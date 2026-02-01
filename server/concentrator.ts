@@ -66,6 +66,26 @@ const PPPOE_OIDS_HUAWEI = {
   hwBrasSbcUserIpAddr: "1.3.6.1.4.1.2011.5.2.1.14.1.4",
 };
 
+// OIDs para links corporativos (VLAN interface + ARP)
+const CORPORATE_OIDS = {
+  // ARP Table - ipNetToMediaTable (RFC 2011/4293)
+  ipNetToMediaIfIndex: "1.3.6.1.2.1.4.22.1.1",    // ifIndex da interface
+  ipNetToMediaPhysAddress: "1.3.6.1.2.1.4.22.1.2", // MAC address
+  ipNetToMediaNetAddress: "1.3.6.1.2.1.4.22.1.3",  // IP address
+  ipNetToMediaType: "1.3.6.1.2.1.4.22.1.4",        // Tipo de entrada (1=other, 2=invalid, 3=dynamic, 4=static)
+  // Interface table
+  ifDescr: "1.3.6.1.2.1.2.2.1.2",                  // Interface description
+  ifName: "1.3.6.1.2.1.31.1.1.1.1",                // Interface name (IF-MIB)
+  ifAlias: "1.3.6.1.2.1.31.1.1.1.18",              // Interface alias/description
+};
+
+export interface CorporateLinkInfo {
+  vlanInterface: string;
+  ifIndex: number;
+  ipAddress: string | null;
+  macAddress: string | null;
+}
+
 function createSnmpSession(
   targetIp: string,
   profile: ConcentratorSnmpProfile
@@ -845,4 +865,239 @@ export async function lookupMultiplePppoeSessions(
   }
 
   return results;
+}
+
+/**
+ * Busca o ifIndex de uma interface VLAN no concentrador
+ * Suporta diferentes formatos: "Vlan100", "vlan.100", "GigabitEthernet0/0/0.100", etc.
+ */
+export async function lookupVlanInterfaceIndex(
+  concentrator: SnmpConcentrator,
+  vlanInterface: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<{ ifIndex: number; ifName: string } | null> {
+  if (!vlanInterface) {
+    return null;
+  }
+
+  console.log(`[Corporate SNMP] Buscando ifIndex para interface "${vlanInterface}" em ${concentrator.name}`);
+
+  const profile: ConcentratorSnmpProfile =
+    snmpProfile
+      ? {
+          version: snmpProfile.version,
+          port: snmpProfile.port,
+          community: snmpProfile.community,
+          securityLevel: snmpProfile.securityLevel,
+          authProtocol: snmpProfile.authProtocol,
+          authPassword: snmpProfile.authPassword,
+          privProtocol: snmpProfile.privProtocol,
+          privPassword: snmpProfile.privPassword,
+          username: snmpProfile.username,
+          timeout: snmpProfile.timeout,
+          retries: snmpProfile.retries,
+        }
+      : {
+          version: "2c",
+          port: 161,
+          community: "public",
+          timeout: 5000,
+          retries: 1,
+        };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  try {
+    // Buscar ifDescr e ifName para todas as interfaces
+    const ifDescrData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ifDescr);
+    const ifNameData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ifName);
+
+    console.log(`[Corporate SNMP] Encontradas ${ifDescrData.length} interfaces via ifDescr, ${ifNameData.length} via ifName`);
+
+    // Normalizar o nome da interface para busca
+    const normalizedSearch = vlanInterface.toLowerCase().replace(/[.\-_\s]/g, "");
+
+    // Primeiro tentar ifName (mais preciso)
+    for (const entry of ifNameData) {
+      const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
+      const ifName = entry.value;
+      const normalizedName = ifName.toLowerCase().replace(/[.\-_\s]/g, "");
+
+      if (normalizedName === normalizedSearch || 
+          normalizedName.includes(normalizedSearch) || 
+          normalizedSearch.includes(normalizedName)) {
+        console.log(`[Corporate SNMP] Match encontrado via ifName: "${ifName}" -> ifIndex ${ifIndex}`);
+        session.close();
+        return { ifIndex, ifName };
+      }
+    }
+
+    // Fallback para ifDescr
+    for (const entry of ifDescrData) {
+      const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
+      const ifDescr = entry.value;
+      const normalizedDescr = ifDescr.toLowerCase().replace(/[.\-_\s]/g, "");
+
+      if (normalizedDescr === normalizedSearch || 
+          normalizedDescr.includes(normalizedSearch) || 
+          normalizedSearch.includes(normalizedDescr)) {
+        console.log(`[Corporate SNMP] Match encontrado via ifDescr: "${ifDescr}" -> ifIndex ${ifIndex}`);
+        session.close();
+        return { ifIndex, ifName: ifDescr };
+      }
+    }
+
+    // Busca mais flexível: por número VLAN
+    const vlanMatch = vlanInterface.match(/(\d+)/);
+    if (vlanMatch) {
+      const vlanId = vlanMatch[1];
+      // Procurar por interfaces que contenham o ID da VLAN
+      for (const entry of [...ifNameData, ...ifDescrData]) {
+        const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
+        const name = entry.value.toLowerCase();
+        // Match patterns: vlan100, vlan.100, Vlan 100, GigabitEthernet0/0/0.100
+        if (name.match(new RegExp(`(vlan|\\.)${vlanId}($|[^0-9])`, 'i'))) {
+          console.log(`[Corporate SNMP] Match por VLAN ID ${vlanId}: "${entry.value}" -> ifIndex ${ifIndex}`);
+          session.close();
+          return { ifIndex, ifName: entry.value };
+        }
+      }
+    }
+
+    console.log(`[Corporate SNMP] Interface "${vlanInterface}" não encontrada no concentrador`);
+    session.close();
+    return null;
+  } catch (error: any) {
+    console.error(`[Corporate SNMP] Erro ao buscar ifIndex: ${error.message}`);
+    session.close();
+    return null;
+  }
+}
+
+/**
+ * Busca o IP do cliente na tabela ARP do concentrador usando o ifIndex
+ */
+export async function lookupIpFromArpTable(
+  concentrator: SnmpConcentrator,
+  ifIndex: number,
+  snmpProfile?: SnmpProfile | null
+): Promise<{ ipAddress: string; macAddress: string } | null> {
+  console.log(`[Corporate SNMP] Buscando IP na tabela ARP para ifIndex ${ifIndex} em ${concentrator.name}`);
+
+  const profile: ConcentratorSnmpProfile =
+    snmpProfile
+      ? {
+          version: snmpProfile.version,
+          port: snmpProfile.port,
+          community: snmpProfile.community,
+          securityLevel: snmpProfile.securityLevel,
+          authProtocol: snmpProfile.authProtocol,
+          authPassword: snmpProfile.authPassword,
+          privProtocol: snmpProfile.privProtocol,
+          privPassword: snmpProfile.privPassword,
+          username: snmpProfile.username,
+          timeout: snmpProfile.timeout,
+          retries: snmpProfile.retries,
+        }
+      : {
+          version: "2c",
+          port: 161,
+          community: "public",
+          timeout: 5000,
+          retries: 1,
+        };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  try {
+    // Walk the ARP table (ipNetToMedia)
+    const arpIfIndexData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ipNetToMediaIfIndex);
+    const arpPhysAddrData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ipNetToMediaPhysAddress);
+    const arpNetAddrData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ipNetToMediaNetAddress);
+
+    console.log(`[Corporate SNMP] Tabela ARP: ${arpIfIndexData.length} entradas`);
+
+    // O OID é: ipNetToMediaIfIndex.ifIndex.ipAddress
+    // Ex: 1.3.6.1.2.1.4.22.1.1.100.10.0.0.1 -> ifIndex 100, IP 10.0.0.1
+
+    // Criar mapa de OID suffix -> dados
+    const arpEntries: Map<string, { ifIndex: number; ip: string; mac: string }> = new Map();
+
+    for (const entry of arpIfIndexData) {
+      // O index termina com: ifIndex.IP (4 octetos)
+      const indexParts = entry.index.split(".");
+      // Os últimos 4 octetos são o IP
+      const ipParts = indexParts.slice(-4);
+      const ip = ipParts.join(".");
+      // O ifIndex está antes do IP
+      const entryIfIndex = parseInt(entry.value, 10);
+      const suffix = indexParts.slice(-5).join(".");
+      
+      arpEntries.set(suffix, { ifIndex: entryIfIndex, ip, mac: "" });
+    }
+
+    // Preencher MAC addresses
+    for (const entry of arpPhysAddrData) {
+      const indexParts = entry.index.split(".");
+      const suffix = indexParts.slice(-5).join(".");
+      const arpEntry = arpEntries.get(suffix);
+      if (arpEntry) {
+        // Converter MAC de buffer/string hex para formato legível
+        let mac = entry.value;
+        if (Buffer.isBuffer(mac)) {
+          mac = Array.from(mac).map((b: number) => b.toString(16).padStart(2, '0')).join(':');
+        }
+        arpEntry.mac = mac;
+      }
+    }
+
+    // Encontrar entrada para o ifIndex desejado
+    const arpEntriesArray = Array.from(arpEntries.values());
+    for (const data of arpEntriesArray) {
+      if (data.ifIndex === ifIndex && data.ip && !data.ip.startsWith("0.")) {
+        console.log(`[Corporate SNMP] IP encontrado na tabela ARP: ${data.ip} (MAC: ${data.mac || 'N/A'})`);
+        session.close();
+        return { ipAddress: data.ip, macAddress: data.mac || null } as { ipAddress: string; macAddress: string };
+      }
+    }
+
+    console.log(`[Corporate SNMP] Nenhum IP encontrado na tabela ARP para ifIndex ${ifIndex}`);
+    session.close();
+    return null;
+  } catch (error: any) {
+    console.error(`[Corporate SNMP] Erro ao buscar tabela ARP: ${error.message}`);
+    session.close();
+    return null;
+  }
+}
+
+/**
+ * Busca informações de link corporativo: ifIndex pela interface VLAN e IP pela tabela ARP
+ */
+export async function lookupCorporateLinkInfo(
+  concentrator: SnmpConcentrator,
+  vlanInterface: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<CorporateLinkInfo | null> {
+  console.log(`[Corporate SNMP] Buscando info corporativa para VLAN "${vlanInterface}" em ${concentrator.name}`);
+
+  // Primeiro, buscar o ifIndex pela interface VLAN
+  const ifResult = await lookupVlanInterfaceIndex(concentrator, vlanInterface, snmpProfile);
+  if (!ifResult) {
+    console.log(`[Corporate SNMP] Interface VLAN "${vlanInterface}" não encontrada`);
+    return null;
+  }
+
+  // Depois, buscar o IP na tabela ARP usando o ifIndex
+  const arpResult = await lookupIpFromArpTable(concentrator, ifResult.ifIndex, snmpProfile);
+
+  const result: CorporateLinkInfo = {
+    vlanInterface: ifResult.ifName,
+    ifIndex: ifResult.ifIndex,
+    ipAddress: arpResult?.ipAddress || null,
+    macAddress: arpResult?.macAddress || null,
+  };
+
+  console.log(`[Corporate SNMP] Resultado: ifIndex=${result.ifIndex}, IP=${result.ipAddress || 'N/A'}, MAC=${result.macAddress || 'N/A'}`);
+  return result;
 }
