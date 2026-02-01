@@ -53,6 +53,14 @@ const PPPOE_OIDS_CISCO = {
   csubSessionIpAddr: "1.3.6.1.4.1.9.9.786.1.2.1.1.15",
 };
 
+// Cisco ASR: PPPoE sessions use ifAlias for username and ipCidrRouteIfIndex for IP mapping
+const PPPOE_OIDS_CISCO_ASR = {
+  ifAlias: "1.3.6.1.2.1.31.1.1.1.18",           // Username in interface alias
+  ipCidrRouteIfIndex: "1.3.6.1.2.1.4.24.4.1.5", // IP CIDR route table -> ifIndex
+  ifDescr: "1.3.6.1.2.1.2.2.1.2",               // Interface description
+  ifName: "1.3.6.1.2.1.31.1.1.1.1",             // Interface name
+};
+
 const PPPOE_OIDS_HUAWEI = {
   hwBrasSbcUserName: "1.3.6.1.4.1.2011.5.2.1.14.1.2",
   hwBrasSbcUserIpAddr: "1.3.6.1.4.1.2011.5.2.1.14.1.4",
@@ -230,10 +238,17 @@ async function lookupPppoeViaSNMP(
     const oidSets: OidPair[] = [];
 
     if (vendor === "cisco") {
+      // Cisco ASR: Try subscriber session MIB first, then fallback to ifAlias method
       oidSets.push({ 
         user: PPPOE_OIDS_CISCO.csubSessionUsername, 
         ip: PPPOE_OIDS_CISCO.csubSessionIpAddr,
         name: "Cisco Subscriber"
+      });
+      // Fallback: ifAlias contains the PPPoE username
+      oidSets.push({ 
+        user: PPPOE_OIDS_CISCO_ASR.ifAlias, 
+        ip: PPPOE_OIDS_CISCO_ASR.ipCidrRouteIfIndex,
+        name: "Cisco ASR ifAlias"
       });
     } else if (vendor === "huawei") {
       oidSets.push({ 
@@ -322,13 +337,60 @@ async function lookupPppoeViaSNMP(
       }
     }
 
-    // Para IF-MIB, o mapeamento IP é diferente
-    // Mikrotik: Precisamos buscar na tabela de rotas (ipRouteIfIndex) que mapeia IP -> ifIndex
+    // Para IF-MIB e Cisco ASR, o mapeamento IP é diferente
+    // Precisamos buscar na tabela de rotas que mapeia IP -> ifIndex
     const ipByIndex = new Map<string, string>();
     const ifNameByIndex = new Map<string, string>();
     const ifAliasByIndex = new Map<string, string>();
     
-    if (usedOidSet === "IF-MIB Standard") {
+    if (usedOidSet === "Cisco ASR ifAlias") {
+      // Cisco ASR: ifAlias contains username, ipCidrRouteIfIndex maps IP to ifIndex
+      // Format: OID.IP.MASK.0.0.0.0.0 = ifIndex
+      // Example: .1.3.6.1.2.1.4.24.4.1.5.100.80.16.1.255.255.255.255.0.0.0.0.0 = 38
+      console.log(`[PPPoE SNMP] Cisco ASR: Buscando ifName e ifDescr...`);
+      const [ifNameData, ifDescrData] = await Promise.all([
+        snmpSubtreeWalk(session, PPPOE_OIDS_CISCO_ASR.ifName),
+        snmpSubtreeWalk(session, PPPOE_OIDS_CISCO_ASR.ifDescr),
+      ]);
+      
+      for (const item of ifNameData) {
+        ifNameByIndex.set(item.index, item.value);
+      }
+      for (const item of ifDescrData) {
+        if (item.value && item.value.trim()) {
+          ifAliasByIndex.set(item.index, item.value.trim());
+        }
+      }
+      console.log(`[PPPoE SNMP] Cisco ASR: ifName: ${ifNameByIndex.size}, ifDescr: ${ifAliasByIndex.size} entradas`);
+      
+      // Parse ipCidrRouteIfIndex: index format is IP.MASK.NEXTHOP (13 octets)
+      // We need to extract the IP (first 4 octets) and map to ifIndex
+      console.log(`[PPPoE SNMP] Cisco ASR: Processando tabela de rotas CIDR (${addressData.length} entradas)...`);
+      
+      for (const item of addressData) {
+        const ifIndex = item.value;
+        // Index format: IP.MASK.NEXTHOP (e.g., 100.80.16.1.255.255.255.255.0.0.0.0.0)
+        const parts = item.index.split(".");
+        if (parts.length >= 4) {
+          const ip = parts.slice(0, 4).join(".");
+          // Only save valid IPs (not 0.0.0.0, not loopback, not multicast)
+          if (ip && !ip.startsWith("0.") && !ip.startsWith("127.") && !ip.startsWith("224.")) {
+            // Map ifIndex -> IP (prefer first occurrence)
+            if (!ipByIndex.has(ifIndex)) {
+              ipByIndex.set(ifIndex, ip);
+            }
+          }
+        }
+      }
+      console.log(`[PPPoE SNMP] Cisco ASR: Mapeamento ifIndex->IP: ${ipByIndex.size} entradas`);
+      
+      // Debug: show sample of mappings
+      if (ipByIndex.size > 0) {
+        const sample = Array.from(ipByIndex.entries()).slice(0, 3)
+          .map(([idx, ip]) => `${idx}=${ip}`).join(", ");
+        console.log(`[PPPoE SNMP] Cisco ASR: Amostra ifIndex->IP: ${sample}...`);
+      }
+    } else if (usedOidSet === "IF-MIB Standard") {
       // Buscar ifName e ifAlias para todas as interfaces
       console.log(`[PPPoE SNMP] Buscando ifName e ifAlias...`);
       const [ifNameData, ifAliasData] = await Promise.all([
