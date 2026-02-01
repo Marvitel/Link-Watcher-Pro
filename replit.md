@@ -8,6 +8,13 @@ Preferred communication style: Simple, everyday language (Portuguese).
 
 **IMPORTANTE: Sistema em PRODUÇÃO** - Todas as alterações devem ser feitas com cuidado e testadas antes de aplicar.
 
+### Ambiente de Produção para Testes
+**URL de Produção**: https://linkmonitor.marvitel.com.br
+- Todas as verificações de funcionamento devem ser feitas via API de diagnóstico do ambiente de produção
+- O ambiente de desenvolvimento (Replit) não possui dados reais - sempre usar produção para validar
+- Para testar endpoints: `curl https://linkmonitor.marvitel.com.br/api/...`
+- Logs de produção são compartilhados pelo usuário quando necessário
+
 ## System Architecture
 
 ### Multi-Tenant Architecture
