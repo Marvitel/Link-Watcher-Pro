@@ -431,39 +431,94 @@ async function lookupPppoeViaSNMP(
       // Retorna: OID.IP -> ifIndex (ex: 1.3.6.1.2.1.4.21.1.2.100.80.3.120 = 15741616)
       console.log(`[PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...`);
       const ipRouteIfIndex = "1.3.6.1.2.1.4.21.1.2";
-      const routeData = await snmpSubtreeWalk(session, ipRouteIfIndex);
+      let routeData = await snmpSubtreeWalk(session, ipRouteIfIndex);
       console.log(`[PPPoE SNMP] Tabela de rotas: ${routeData.length} entradas`);
       
-      // routeData: index=IP, value=ifIndex
-      // Precisamos inverter: ifIndex -> IP
-      for (const item of routeData) {
-        const ifIndex = item.value;
-        const ip = item.index; // IP no formato A.B.C.D
-        // Só salvar IPs válidos (não 0.0.0.0, não loopback, não multicast)
-        if (ip && !ip.startsWith("0.") && !ip.startsWith("127.") && !ip.startsWith("224.")) {
-          // Se já temos um IP para este ifIndex, preferir o mais específico (evitar redes)
-          if (!ipByIndex.has(ifIndex)) {
-            ipByIndex.set(ifIndex, ip);
+      // If ipRouteIfIndex returns no results, try ipCidrRouteIfIndex (Cisco ASR uses this)
+      if (routeData.length === 0) {
+        console.log(`[PPPoE SNMP] Tentando tabela CIDR (ipCidrRouteIfIndex)...`);
+        const ipCidrRouteIfIndex = "1.3.6.1.2.1.4.24.4.1.5";
+        const cidrData = await snmpSubtreeWalk(session, ipCidrRouteIfIndex);
+        console.log(`[PPPoE SNMP] Tabela CIDR: ${cidrData.length} entradas`);
+        
+        // Parse CIDR format: IP.MASK.NEXTHOP (13 octets) -> ifIndex
+        for (const item of cidrData) {
+          const ifIndex = item.value;
+          const parts = item.index.split(".");
+          if (parts.length >= 4) {
+            const ip = parts.slice(0, 4).join(".");
+            // Only save valid IPs (not networks, not loopback)
+            if (ip && !ip.startsWith("0.") && !ip.startsWith("127.") && !ip.startsWith("224.")) {
+              // Skip network routes (check if mask is /32 = 255.255.255.255)
+              const isMask32 = parts.length >= 8 && 
+                parts[4] === "255" && parts[5] === "255" && parts[6] === "255" && parts[7] === "255";
+              if (isMask32 && !ipByIndex.has(ifIndex)) {
+                ipByIndex.set(ifIndex, ip);
+              }
+            }
           }
         }
+        console.log(`[PPPoE SNMP] CIDR Mapeamento ifIndex->IP: ${ipByIndex.size} entradas`);
+      } else {
+        // routeData: index=IP, value=ifIndex
+        // Precisamos inverter: ifIndex -> IP
+        for (const item of routeData) {
+          const ifIndex = item.value;
+          const ip = item.index; // IP no formato A.B.C.D
+          // Só salvar IPs válidos (não 0.0.0.0, não loopback, não multicast)
+          if (ip && !ip.startsWith("0.") && !ip.startsWith("127.") && !ip.startsWith("224.")) {
+            // Se já temos um IP para este ifIndex, preferir o mais específico (evitar redes)
+            if (!ipByIndex.has(ifIndex)) {
+              ipByIndex.set(ifIndex, ip);
+            }
+          }
+        }
+        console.log(`[PPPoE SNMP] Mapeamento ifIndex->IP: ${ipByIndex.size} entradas`);
       }
-      console.log(`[PPPoE SNMP] Mapeamento ifIndex->IP: ${ipByIndex.size} entradas`);
     } else {
       for (const item of addressData) {
         ipByIndex.set(item.index, item.value);
       }
     }
 
+    // Build reverse index from ifAlias (for Cisco ASR where username is in ifAlias)
+    const ifAliasUserIndex = new Map<string, string>();
+    const aliasEntries = Array.from(ifAliasByIndex.entries());
+    for (const entry of aliasEntries) {
+      const ifIndex = entry[0];
+      const alias = entry[1];
+      // ifAlias may contain the PPPoE username directly
+      if (alias) {
+        ifAliasUserIndex.set(alias.toLowerCase(), ifIndex);
+      }
+    }
+    if (ifAliasUserIndex.size > 0) {
+      console.log(`[PPPoE SNMP] Índice ifAlias->ifIndex: ${ifAliasUserIndex.size} entradas`);
+      // Debug: show some aliases
+      const sampleAliases = Array.from(ifAliasUserIndex.keys()).slice(0, 5).join(", ");
+      console.log(`[PPPoE SNMP] Amostra ifAlias: ${sampleAliases}`);
+    }
+
     for (const pppoeUser of pppoeUsers) {
       const userLower = pppoeUser.toLowerCase();
-      const idx = userIndex.get(userLower);
+      let idx = userIndex.get(userLower);
+      let foundVia = "userIndex";
+
+      // If not found in primary userIndex, try ifAlias index (Cisco ASR pattern)
+      if (!idx && ifAliasUserIndex.size > 0) {
+        idx = ifAliasUserIndex.get(userLower);
+        if (idx) {
+          foundVia = "ifAlias";
+          console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" encontrado via ifAlias -> ifIndex ${idx}`);
+        }
+      }
 
       if (idx) {
         const ip = ipByIndex.get(idx);
         const ifName = ifNameByIndex.get(idx) || null;
         const ifAlias = ifAliasByIndex.get(idx) || null;
         const ifIndexNum = parseInt(idx, 10);
-        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx}, ifName: ${ifName || 'N/A'}, ifAlias: ${ifAlias || 'N/A'}, IP: ${ip || 'N/A'}`);
+        console.log(`[PPPoE SNMP] Usuário "${pppoeUser}" -> ifIndex ${idx} (via ${foundVia}), ifName: ${ifName || 'N/A'}, ifAlias: ${ifAlias || 'N/A'}, IP: ${ip || 'N/A'}`);
         // Salvar sessão mesmo sem IP se temos o ifIndex (útil para coleta de tráfego)
         results.set(pppoeUser, {
           username: pppoeUser,

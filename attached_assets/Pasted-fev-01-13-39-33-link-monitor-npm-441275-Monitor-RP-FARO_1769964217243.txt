@@ -1,0 +1,38 @@
+fev 01 13:39:33 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Interface "<pppoe-rp.farolandia>" NÃO ENCONTRADA no concentrador. trafficSourceType=manual, concentratorId=1, pppoeUser=null, effectivePppoeUser=rp.farolandia
+fev 01 13:39:33 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Concentrador atual: CE: AJU-MVT-BORDA-HSP, backupId=4
+fev 01 13:39:33 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Interface não encontrada no concentrador principal. Tentando backup...
+fev 01 13:39:33 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Backup concentrador: CE: CISCO ASR1002, isActive=true, backupId=null
+fev 01 13:39:33 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Buscando PPPoE "rp.farolandia" no backup CE: CISCO ASR1002 (191.52.255.254)
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Buscando 1 sessões em CE: CISCO ASR1002 (mikrotik) via SNMP
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Conectando em 191.52.255.254:161 (2c, community: marvitel)
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Conectividade OK - Cisco IOS Software, ASR1000 Software (PPC_LINUX_IOSD-ADVIPSERVICESK9-M), Version...
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Tentando OIDs: IF-MIB Standard
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] IF-MIB Standard: 77 usuários, 7 IPs
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] IF-MIB Standard: Usuário alvo NÃO encontrado, tentando próximo OID set...
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Walk final: 77 usuários ativos usando "IF-MIB Standard"
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Amostra de usuários ativos: GigabitEthernet0/0/0, GigabitEthernet0/0/1, GigabitEthernet0/0/2, GigabitEthernet0/0/3, TenGigabitEthernet0/1/0...
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Buscando usuários: rp.farolandia
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Buscando ifName e ifAlias...
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] ifName: 77, ifAlias: 63 entradas
+fev 01 13:39:33 link-monitor npm[441275]: [PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE SNMP] Tabela de rotas: 0 entradas
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE SNMP] Mapeamento ifIndex->IP: 0 entradas
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE SNMP] Usuário "rp.farolandia" não encontrado no índice
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE SNMP] Encontradas 0 sessões de 1 buscadas (SNMP retornou 0 mapeamentos IP)
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE Lookup] SNMP não retornou resultados, tentando SSH como fallback
+fev 01 13:39:34 link-monitor npm[441275]: [PPPoE SSH] Buscando 1 sessões em CE: CISCO ASR1002 (mikrotik) via SSH
+fev 01 13:39:37 link-monitor npm[441275]: [PPPoE SSH] Erro: All configured authentication methods failed
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M: Could not auto-discover interface "<pppoe-rp.farolandia>"
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - vendorId: 8, vendor: TP-Link, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memOid: 1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1, memTotalOid: , memUsedOid:
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memConfig: {"memoryOid":"1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1","memoryTotalOid":"","memoryUsedOid":"","memoryIsPercentage":true}
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - Resultado CPU/Mem: cpu=0, mem=0
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - Óptico: coletando via OLT OLT-DTC-HSP (datacom) slot=1 port=1 onu=12
+fev 01 13:39:37 link-monitor npm[441275]: [SNMP Optical] Índice calculado para datacom: slot=1, port=1, onuId=12 -> index=16780288
+fev 01 13:39:37 link-monitor npm[441275]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16780288, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16780288
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 01 13:39:37 link-monitor npm[441275]: [Monitor] RP FAROLANDIA - 100M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG84678D48...
+fev 01 13:39:37 link-monitor npm[441275

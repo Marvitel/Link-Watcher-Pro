@@ -9218,6 +9218,28 @@ function ConcentratorsTab() {
                   />
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="concentrator-pppoe-vendor">Tipo de Concentrador PPPoE</Label>
+                <Select
+                  value={formData.vendor || "mikrotik"}
+                  onValueChange={(v) => setFormData({ ...formData, vendor: v })}
+                >
+                  <SelectTrigger data-testid="select-pppoe-vendor">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mikrotik">Mikrotik</SelectItem>
+                    <SelectItem value="cisco">Cisco (IOS/ASR)</SelectItem>
+                    <SelectItem value="huawei">Huawei</SelectItem>
+                    <SelectItem value="juniper">Juniper</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Define os OIDs SNMP usados para buscar sessoes PPPoE
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="concentrator-description">Descricao</Label>
                 <Input
