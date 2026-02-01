@@ -4750,7 +4750,25 @@ export async function registerRoutes(
               for (const link of concentratorLinks) {
                 if (link.vlanInterface) {
                   try {
-                    const corpInfo = await lookupCorporateLinkInfo(concentrator, link.vlanInterface, snmpProfile);
+                    let corpInfo = await lookupCorporateLinkInfo(concentrator, link.vlanInterface, snmpProfile);
+                    let usedConcentrator = concentrator;
+                    
+                    // Fallback para backup concentrator se não encontrou no principal
+                    if (!corpInfo && concentrator.backupConcentratorId) {
+                      console.log(`[Voalle Import] Interface não encontrada em ${concentrator.name}, tentando backup...`);
+                      const backupConcentrator = await storage.getConcentrator(concentrator.backupConcentratorId);
+                      if (backupConcentrator) {
+                        let backupSnmpProfile = null;
+                        if (backupConcentrator.snmpProfileId) {
+                          backupSnmpProfile = await storage.getSnmpProfile(backupConcentrator.snmpProfileId);
+                        }
+                        corpInfo = await lookupCorporateLinkInfo(backupConcentrator, link.vlanInterface, backupSnmpProfile);
+                        if (corpInfo) {
+                          usedConcentrator = backupConcentrator;
+                          console.log(`[Voalle Import] Encontrado no backup: ${backupConcentrator.name}`);
+                        }
+                      }
+                    }
                     
                     if (corpInfo) {
                       const updateData: Record<string, any> = {
@@ -4759,13 +4777,18 @@ export async function registerRoutes(
                         trafficSourceType: 'concentrator',
                       };
                       
+                      // Se encontrou no backup, atualizar o concentratorId do link
+                      if (usedConcentrator.id !== concentrator.id) {
+                        updateData.concentratorId = usedConcentrator.id;
+                      }
+                      
                       if (corpInfo.ipAddress) {
                         updateData.monitoredIp = corpInfo.ipAddress;
                         corporateIpsFound++;
                       }
                       
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}`);
+                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'} (via ${usedConcentrator.name})`);
                     }
                   } catch (linkErr: any) {
                     console.error(`[Voalle Import] Erro ao buscar info corporativa para ${link.name}: ${linkErr.message}`);

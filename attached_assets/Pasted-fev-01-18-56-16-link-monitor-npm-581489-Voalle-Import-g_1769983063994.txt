@@ -1,0 +1,19 @@
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5675, clientName: CAMARA DE DIRIGENTES LOJISTAS DE ARACAJU (13045935000136)
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Found existing client by slug: camara-de-dirigentes-lojistas-de-aracaju, updating/reactivating with voalleId: 5675
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 32, oltName: AJU-MVT-OLT-DATACOM-MARVITEL
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Access point "AJU-MVT-OLT-DATACOM-MARVITEL" isOlt: true
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] OLT from existing: 10
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Link 0X3W071T: clientId=28, concentratorId=2, oltId=10, switchId=null
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Creating new link 0X3W071T with accessPointId=10
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Busca de IPs concluída: 0 IPs encontrados
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Encontrados 1 links corporativos precisando de IP
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Buscando info corporativa para 1 links em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Buscando info corporativa para VLAN "sfpplus1-vlan.709-CDL" em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Buscando ifIndex para interface "sfpplus1-vlan.709-CDL" em CE: AJU-MVT-BORDA-OSPF
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Encontradas 288 interfaces via ifDescr, 288 via ifName
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Extraído VLAN ID 709 de "sfpplus1-vlan.709-CDL"
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Interface "sfpplus1-vlan.709-CDL" não encontrada no concentrador
+fev 01 18:56:16 link-monitor npm[581489]: [Corporate SNMP] Interface VLAN "sfpplus1-vlan.709-CDL" não encontrada
+fev 01 18:56:16 link-monitor npm[581489]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
