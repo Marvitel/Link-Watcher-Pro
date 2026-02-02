@@ -46,7 +46,7 @@ import type { Client } from "@shared/schema";
 
 interface CsvFile {
   name: string;
-  type: 'contract_service_tags' | 'authentication_contracts' | 'authentication_concentrators' | 'authentication_access_points' | 'person_users' | 'people';
+  type: 'contratos_ativos' | 'conexoes' | 'contract_service_tags' | 'authentication_contracts' | 'authentication_concentrators' | 'authentication_access_points' | 'person_users' | 'people';
   data: any[];
   headers: string[];
   rowCount: number;
@@ -89,6 +89,7 @@ interface ParsedLink {
   wifiPassword: string | null;
   addressComplement: string | null;
   ipAuthenticationId: string | null;
+  monitoredIp: string | null; // IP direto do conexoes.csv (sem precisar de discovery)
   linkType: 'gpon' | 'ptp';
   authType: 'pppoe' | 'corporate';
   selected: boolean;
@@ -104,6 +105,16 @@ interface ImportResult {
 }
 
 const CSV_TYPES: Record<string, { label: string; description: string; requiredFields: string[] }> = {
+  contratos_ativos: {
+    label: "Contratos Ativos",
+    description: "Lista de contratos com situação Normal - BASE DE VALIDAÇÃO",
+    requiredFields: ["nº contrato"]
+  },
+  conexoes: {
+    label: "Conexões (Dados Completos)",
+    description: "Contém IP, usuário PPPoE, concentrador, OLT - DADOS PRINCIPAIS",
+    requiredFields: ["código da conexão", "código do contrato"]
+  },
   contract_service_tags: {
     label: "Etiquetas de Contrato",
     description: "Contém service_tag, title, client_id, contract_id",
@@ -140,6 +151,16 @@ function detectCsvTypeByHeaders(headers: string[]): string | null {
   const normalizedHeaders = headers.map(h => h.toLowerCase().trim().replace(/"/g, ''));
   const headerSet = new Set(normalizedHeaders);
   
+  // contratos_ativos: has "nº contrato" or "situação" - lista de contratos ativos
+  if ((headerSet.has("nº contrato") || headerSet.has("n contrato") || headerSet.has("numero contrato")) && 
+      (headerSet.has("situação") || headerSet.has("situacao") || headerSet.has("status"))) {
+    return "contratos_ativos";
+  }
+  // conexoes: has "código da conexão" and "código do contrato" - dados completos de conexão
+  if ((headerSet.has("código da conexão") || headerSet.has("codigo da conexao")) && 
+      (headerSet.has("código do contrato") || headerSet.has("codigo do contrato"))) {
+    return "conexoes";
+  }
   // contract_service_tags: has service_tag and title
   if (headerSet.has("service_tag") && headerSet.has("title")) {
     return "contract_service_tags";
@@ -183,6 +204,13 @@ function detectCsvTypeByHeaders(headers: string[]): string | null {
 function detectCsvTypeByFilename(filename: string): string | null {
   const lowerName = filename.toLowerCase();
   
+  // Novos formatos de exportação amigável do Voalle
+  if (lowerName.includes("contratos_ativos") || lowerName.includes("contratosativos") || lowerName.includes("contratos-ativos")) {
+    return "contratos_ativos";
+  }
+  if (lowerName.includes("conexoes") || lowerName.includes("conexões")) {
+    return "conexoes";
+  }
   if (lowerName.includes("contract_service_tag") || lowerName.includes("service_tag")) {
     return "contract_service_tags";
   }
@@ -436,6 +464,11 @@ export function VoalleImportTab() {
     setIsProcessing(true);
     
     try {
+      // Novos CSVs amigáveis do Voalle
+      const contratosAtivos = csvFiles.find(f => f.type === 'contratos_ativos')?.data || [];
+      const conexoes = csvFiles.find(f => f.type === 'conexoes')?.data || [];
+      
+      // CSVs antigos (para dados complementares)
       const contractTags = csvFiles.find(f => f.type === 'contract_service_tags')?.data || [];
       const authContracts = csvFiles.find(f => f.type === 'authentication_contracts')?.data || [];
       const concentrators = csvFiles.find(f => f.type === 'authentication_concentrators')?.data || [];
@@ -443,14 +476,39 @@ export function VoalleImportTab() {
       const personUsers = csvFiles.find(f => f.type === 'person_users')?.data || [];
       const people = csvFiles.find(f => f.type === 'people')?.data || [];
 
-      if (contractTags.length === 0) {
+      // Validar: precisa de contract_service_tags OU conexoes
+      if (contractTags.length === 0 && conexoes.length === 0) {
         toast({
           title: "Arquivo obrigatório faltando",
-          description: "O arquivo de Etiquetas de Contrato (contract_service_tags) é obrigatório",
+          description: "É necessário o arquivo de Etiquetas de Contrato (contract_service_tags) OU Conexões (conexoes.csv)",
           variant: "destructive",
         });
         setIsProcessing(false);
         return;
+      }
+
+      // Criar set de contratos ativos para filtro (normaliza números de contrato)
+      const contratosAtivosSet = new Set<string>();
+      for (const contrato of contratosAtivos) {
+        // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", etc)
+        const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'];
+        if (numContrato) {
+          // Normaliza: remove espaços, M-, pontos
+          const normalizado = String(numContrato).trim().replace(/^M-/i, '').replace(/\./g, '');
+          contratosAtivosSet.add(normalizado);
+          // Também adiciona versão original para matching flexível
+          contratosAtivosSet.add(String(numContrato).trim());
+        }
+      }
+      const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
+
+      // Criar mapa de conexões por código do contrato (para enriquecer dados)
+      const conexoesMap = new Map<string, any>();
+      for (const conexao of conexoes) {
+        const codigoContrato = conexao['Código do Contrato'] || conexao['codigo do contrato'];
+        if (codigoContrato) {
+          conexoesMap.set(String(codigoContrato), conexao);
+        }
       }
 
       const authContractMap = new Map(authContracts.map(ac => [ac.contract_id, ac]));
@@ -469,6 +527,15 @@ export function VoalleImportTab() {
           continue;
         }
 
+        // Filtrar por contratos ativos se houver planilha de contratos_ativos
+        if (hasContratosAtivosFilter) {
+          const contractId = String(tag.contract_id || '').trim();
+          const normalizedId = contractId.replace(/^M-/i, '').replace(/\./g, '');
+          if (!contratosAtivosSet.has(contractId) && !contratosAtivosSet.has(normalizedId)) {
+            continue; // Pula contratos não ativos
+          }
+        }
+
         const authContract = authContractMap.get(tag.contract_id);
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
@@ -477,9 +544,15 @@ export function VoalleImportTab() {
           ? accessPointMap.get(authContract.authentication_access_point_id)
           : null;
 
+        // Buscar dados enriquecidos do conexoes.csv se disponível
+        const conexao = conexoesMap.get(String(tag.contract_id));
+        
+        // Extrair IP direto do conexoes.csv (campo "IP")
+        const monitoredIpFromConexao = conexao?.['IP'] || conexao?.['ip'] || null;
+
         const address = authContract 
           ? [authContract.street, authContract.street_number, authContract.neighborhood].filter(Boolean).join(', ')
-          : '';
+          : (conexao ? [conexao['Rua'], conexao['Número'], conexao['Bairro']].filter(Boolean).join(', ') : '');
 
         // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
@@ -487,18 +560,22 @@ export function VoalleImportTab() {
         const clientDoc = person?.tx_id || '';
         const clientName = person?.name 
           ? `${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
-          : (tag.client_name || `ID: ${tag.client_id}`);
+          : (conexao?.['Nome do Cliente'] || tag.client_name || `ID: ${tag.client_id}`);
 
-        // Extrai nome do link do equipment_user (parte antes de ===)
-        const equipmentUser = authContract?.equipment_user || '';
-        const linkName = equipmentUser.includes('===') 
-          ? equipmentUser.split('===')[0].trim() 
-          : (equipmentUser.trim() || null);
+        // Extrai nome do link - primeiro tenta conexao, depois authContract
+        const complementoConexao = conexao?.['Complemento'] || '';
+        const equipmentUser = authContract?.equipment_user || conexao?.['Usuário do Equipamento'] || '';
+        const linkName = complementoConexao?.trim() || 
+          (equipmentUser.includes('===') ? equipmentUser.split('===')[0].trim() : (equipmentUser.trim() || null));
+
+        // Dados PPPoE do conexoes.csv (nomes amigáveis)
+        const pppoeUserFromConexao = conexao?.['Usuário'] || null;
+        const pppoePasswordFromConexao = conexao?.['Senha do Usuário'] || null;
 
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
           serviceTag: tag.service_tag || '',
-          title: tag.title || '',
+          title: tag.title || (conexao?.['Etiqueta'] || ''),
           linkName,
           clientName,
           clientVoalleId: tag.client_id || null,
@@ -506,37 +583,39 @@ export function VoalleImportTab() {
           // Usar CPF/CNPJ como usuário e senha do portal se não tiver person_users
           clientPortalUser: personUser?.username || clientDoc || null,
           clientPortalPassword: clientDoc || null,
-          bandwidth: extractBandwidth(tag.title || ''),
+          bandwidth: extractBandwidth(tag.title || conexao?.['Serviço'] || ''),
           address,
-          city: authContract?.city || '',
-          lat: authContract?.lat?.toString() || null,
-          lng: authContract?.lng?.toString() || null,
+          city: authContract?.city || conexao?.['Cidade'] || '',
+          lat: authContract?.lat?.toString() || conexao?.['Latitude'] || null,
+          lng: authContract?.lng?.toString() || conexao?.['Longitude'] || null,
           slotOlt: authContract?.slot_olt || null,
           portOlt: authContract?.port_olt || null,
           equipmentSerial: authContract?.equipment_serial_number || null,
-          concentratorId: authContract?.authentication_concentrator_id?.toString() || null,
+          concentratorId: authContract?.authentication_concentrator_id?.toString() || conexao?.['Código Concentrador'] || null,
           concentratorIp: concentrator?.server_ip || null,
-          concentratorName: concentrator?.title || null,
-          accessPointId: authContract?.authentication_access_point_id?.toString() || null,
+          concentratorName: concentrator?.title || conexao?.['Concentrador'] || null,
+          accessPointId: authContract?.authentication_access_point_id?.toString() || conexao?.['Código do Ponto de Acesso'] || null,
           oltIp: accessPoint?.ip || null,
-          oltName: accessPoint?.title || null,
-          cpeUser: authContract?.equipment_user || null,
-          cpePassword: authContract?.equipment_password || null,
-          // Dados PPPoE/VLAN/WiFi do authentication_contracts
-          pppoeUser: authContract?.user || null,
-          pppoePassword: authContract?.password || null,
+          oltName: accessPoint?.title || conexao?.['Ponto de Acesso'] || null,
+          cpeUser: authContract?.equipment_user || conexao?.['Usuário do Equipamento'] || null,
+          cpePassword: authContract?.equipment_password || conexao?.['Senha do Equipamento'] || null,
+          // Dados PPPoE/VLAN/WiFi - prioriza conexoes.csv
+          pppoeUser: authContract?.user || pppoeUserFromConexao || null,
+          pppoePassword: authContract?.password || pppoePasswordFromConexao || null,
           vlan: authContract?.vlan || null,
           vlanInterface: authContract?.vlan_interface || null,
-          validLanIp: authContract?.valid_lan_ip || null,
-          validLanIpClass: authContract?.valid_lan_ip_class || null,
+          validLanIp: authContract?.valid_lan_ip || conexao?.['IP Válido LAN'] || null,
+          validLanIpClass: authContract?.valid_lan_ip_class || conexao?.['Classe IP LAN'] || null,
           wifiName: authContract?.wifi_name || null,
           wifiPassword: authContract?.wifi_password || null,
-          addressComplement: authContract?.complement || null,
-          ipAuthenticationId: authContract?.ip_authentication_id?.toString() || null,
+          addressComplement: authContract?.complement || conexao?.['Complemento'] || null,
+          ipAuthenticationId: authContract?.ip_authentication_id?.toString() || conexao?.['Código do IP'] || null,
+          // IP monitorado direto do conexoes.csv (sem precisar de discovery)
+          monitoredIp: monitoredIpFromConexao,
           // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
-          linkType: detectLinkType(accessPoint?.title || null),
+          linkType: detectLinkType(accessPoint?.title || conexao?.['Ponto de Acesso'] || null),
           // Detecta tipo de autenticação: se tem usuário PPPoE é PPPoE, senão é Corporate
-          authType: authContract?.user ? 'pppoe' : 'corporate',
+          authType: (authContract?.user || pppoeUserFromConexao) ? 'pppoe' : 'corporate',
           selected: true,
           status: 'new',
         };
@@ -629,12 +708,18 @@ export function VoalleImportTab() {
                 <Info className="h-4 w-4" />
                 <AlertTitle>Arquivos necessários</AlertTitle>
                 <AlertDescription>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
+                  <p className="font-medium text-green-600 dark:text-green-400 mt-2">Exportação Amigável (Recomendado):</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li><strong>contratos_ativos.csv</strong> - Filtra apenas contratos ativos (situação Normal)</li>
+                    <li><strong>conexoes.csv</strong> - Dados completos com IP do cliente (sem criptografia)</li>
+                  </ul>
+                  <p className="font-medium mt-3">Exportação Técnica:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
                     <li><strong>contract_service_tags.csv</strong> - Obrigatório (etiquetas de contrato)</li>
                     <li><strong>authentication_contracts.csv</strong> - Recomendado (endereço, slot/porta OLT)</li>
                     <li><strong>authentication_concentrators.csv</strong> - Opcional (IPs dos concentradores)</li>
                     <li><strong>authentication_access_points.csv</strong> - Opcional (IPs das OLTs)</li>
-                    <li><strong>person_users.csv</strong> - Opcional (senhas do portal)</li>
+                    <li><strong>people.csv</strong> - Opcional (CPF/CNPJ dos clientes)</li>
                   </ul>
                 </AlertDescription>
               </Alert>

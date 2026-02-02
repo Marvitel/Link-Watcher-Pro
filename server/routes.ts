@@ -4152,6 +4152,7 @@ export async function registerRoutes(
           wifiPassword: string | null;
           addressComplement: string | null;
           ipAuthenticationId: string | null;
+          monitoredIp: string | null; // IP direto do conexoes.csv
           linkType: 'gpon' | 'ptp';
           authType: 'pppoe' | 'corporate';
         }>;
@@ -4538,6 +4539,8 @@ export async function registerRoutes(
             wifiPassword: link.wifiPassword ? String(link.wifiPassword) : null,
             addressComplement: link.addressComplement ? String(link.addressComplement).trim() : null,
             ipAuthenticationId: link.ipAuthenticationId ? String(link.ipAuthenticationId).trim() : null,
+            // IP monitorado direto do conexoes.csv (sem precisar de discovery)
+            monitoredIp: link.monitoredIp ? String(link.monitoredIp).trim() : null,
             // Location - ensure strings
             latitude: link.lat ? String(link.lat).trim() : null,
             longitude: link.lng ? String(link.lng).trim() : null,
