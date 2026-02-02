@@ -719,7 +719,7 @@ export function VoalleImportTab() {
                     <li><strong>authentication_contracts.csv</strong> - Recomendado (endereço, slot/porta OLT)</li>
                     <li><strong>authentication_concentrators.csv</strong> - Opcional (IPs dos concentradores)</li>
                     <li><strong>authentication_access_points.csv</strong> - Opcional (IPs das OLTs)</li>
-                    <li><strong>people.csv</strong> - Opcional (CPF/CNPJ dos clientes)</li>
+                    <li><strong>person_users.csv</strong> - Opcional (senhas do portal)</li>
                   </ul>
                 </AlertDescription>
               </Alert>
