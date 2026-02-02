@@ -272,6 +272,12 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
   
   const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   
+  // Auto-detect delimiter from first line (semicolon or comma)
+  const firstLine = normalizedText.split('\n')[0] || '';
+  const semicolonCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = semicolonCount > commaCount ? ';' : ',';
+  
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentField = '';
@@ -300,7 +306,7 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
     } else {
       if (char === '"') {
         inQuotes = true;
-      } else if (char === ',') {
+      } else if (char === delimiter) {
         currentRow.push(currentField.trim());
         currentField = '';
       } else if (char === '\n') {
