@@ -684,6 +684,25 @@ export function VoalleImportTab() {
       setParsedLinks(links);
       setStep('preview');
       
+      // Detectar contratos com múltiplas etiquetas sem dados específicos do conexoes.csv
+      const contractTagCount = new Map<number, number>();
+      for (const link of links) {
+        const contractId = parseInt(link.contractNumber || '0');
+        if (contractId) {
+          contractTagCount.set(contractId, (contractTagCount.get(contractId) || 0) + 1);
+        }
+      }
+      const multiTagContracts = Array.from(contractTagCount.entries()).filter(([, count]) => count > 1);
+      
+      if (multiTagContracts.length > 0 && conexoesMap.size === 0) {
+        toast({
+          title: "Atenção: Contratos com múltiplas etiquetas",
+          description: `${multiTagContracts.length} contrato(s) possuem múltiplas etiquetas de serviço. Para ter dados específicos por etiqueta (endereço, PPPoE, OLT), inclua o arquivo conexoes.csv na importação.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+      }
+      
       toast({
         title: "Processamento concluído",
         description: `${links.length} links encontrados para importação`,
