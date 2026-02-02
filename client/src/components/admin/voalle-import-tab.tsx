@@ -538,15 +538,19 @@ export function VoalleImportTab() {
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
 
-      // Criar mapa de conexões por código de etiqueta (service_tag) para enriquecer dados
+      // Criar mapa de conexões por ID da etiqueta (numérico) para enriquecer dados
       // Cada linha do conexoes.csv corresponde a uma etiqueta específica, não ao contrato
-      // IMPORTANTE: O campo correto é "Código da Etiqueta", não "Etiqueta" (que é o nome do serviço)
-      const conexoesMap = new Map<string, any>();
+      // IMPORTANTE: O campo "Código da Etiqueta" no conexoes.csv corresponde ao campo "id" no contract_service_tags
+      // Exemplo: conexoes["Código da Etiqueta"] = 3401 ↔ contract_service_tags.id = 3401
+      const conexoesMap = new Map<number, any>();
       for (const conexao of conexoes) {
-        // Prioridade: "Código da Etiqueta" > "Código Etiqueta" > "service_tag" > "etiqueta_codigo"
-        const codigoEtiqueta = conexao['Código da Etiqueta'] || conexao['Código Etiqueta'] || conexao['service_tag'] || conexao['etiqueta_codigo'];
+        // O campo "Código da Etiqueta" contém o ID numérico que corresponde ao tag.id
+        const codigoEtiqueta = conexao['Código da Etiqueta'] || conexao['Código Etiqueta'];
         if (codigoEtiqueta) {
-          conexoesMap.set(String(codigoEtiqueta).trim(), conexao);
+          const tagId = parseInt(String(codigoEtiqueta).trim());
+          if (!isNaN(tagId)) {
+            conexoesMap.set(tagId, conexao);
+          }
         }
       }
       
@@ -612,8 +616,9 @@ export function VoalleImportTab() {
           ? accessPointMap.get(authContract.authentication_access_point_id)
           : null;
 
-        // Buscar dados enriquecidos do conexoes.csv se disponível (match por etiqueta)
-        const conexao = conexoesMap.get(String(tag.service_tag || '').trim());
+        // Buscar dados enriquecidos do conexoes.csv se disponível (match por ID da etiqueta)
+        // O tag.id corresponde ao "Código da Etiqueta" do conexoes.csv
+        const conexao = conexoesMap.get(tag.id);
         
         // Extrair IP direto do conexoes.csv (campo "IP")
         const monitoredIpFromConexao = conexao?.['IP'] || conexao?.['ip'] || null;
