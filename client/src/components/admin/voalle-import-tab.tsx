@@ -557,16 +557,26 @@ export function VoalleImportTab() {
       // Criar mapa de authContracts por etiqueta (service_tag) se disponível, senão por contract_id
       // O Voalle pode ter múltiplas linhas no authentication_contracts para cada etiqueta
       const authContractByTagMap = new Map<string, any>();
-      const authContractByContractMap = new Map<number, any>();
+      // Usar string como chave para suportar prefixos como "M-"
+      const authContractByContractMap = new Map<string, any>();
       for (const ac of authContracts) {
         // Verificar se tem service_tag no registro
         const serviceTag = ac.service_tag || ac.tag || ac.etiqueta;
         if (serviceTag) {
           authContractByTagMap.set(String(serviceTag).trim(), ac);
         }
-        // Também mapear por contract_id como fallback
+        // Também mapear por contract_id como fallback (múltiplas variações)
         if (ac.contract_id) {
-          authContractByContractMap.set(ac.contract_id, ac);
+          const contractIdStr = String(ac.contract_id).trim();
+          // Mapear versão original
+          authContractByContractMap.set(contractIdStr, ac);
+          // Mapear versão normalizada (sem M-, sem pontos)
+          const normalizedId = contractIdStr.replace(/^M-/i, '').replace(/\./g, '');
+          authContractByContractMap.set(normalizedId, ac);
+          // Se for número puro, também mapear com prefixo M-
+          if (/^\d+$/.test(contractIdStr)) {
+            authContractByContractMap.set(`M-${contractIdStr}`, ac);
+          }
         }
       }
       
@@ -607,8 +617,12 @@ export function VoalleImportTab() {
         }
 
         // Buscar authContract primeiro por etiqueta (mais específico), depois por contract_id (fallback)
+        // Tentar múltiplas variações do contract_id (com e sem prefixo M-)
+        const contractIdStr = String(tag.contract_id || '').trim();
+        const contractIdNormalized = contractIdStr.replace(/^M-/i, '').replace(/\./g, '');
         const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
-          || authContractByContractMap.get(tag.contract_id);
+          || authContractByContractMap.get(contractIdStr)
+          || authContractByContractMap.get(contractIdNormalized);
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
           : null;
