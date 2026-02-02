@@ -547,8 +547,24 @@ export function VoalleImportTab() {
           conexoesMap.set(String(etiqueta).trim(), conexao);
         }
       }
-
-      const authContractMap = new Map(authContracts.map(ac => [ac.contract_id, ac]));
+      
+      // Criar mapa de authContracts por etiqueta (service_tag) se disponível, senão por contract_id
+      // O Voalle pode ter múltiplas linhas no authentication_contracts para cada etiqueta
+      const authContractByTagMap = new Map<string, any>();
+      const authContractByContractMap = new Map<number, any>();
+      for (const ac of authContracts) {
+        // Verificar se tem service_tag no registro
+        const serviceTag = ac.service_tag || ac.tag || ac.etiqueta;
+        if (serviceTag) {
+          authContractByTagMap.set(String(serviceTag).trim(), ac);
+        }
+        // Também mapear por contract_id como fallback
+        if (ac.contract_id) {
+          authContractByContractMap.set(ac.contract_id, ac);
+        }
+      }
+      
+      console.log(`[Voalle Import] conexoesMap: ${conexoesMap.size} etiquetas, authContractByTagMap: ${authContractByTagMap.size} etiquetas, authContractByContractMap: ${authContractByContractMap.size} contratos`);
       const concentratorMap = new Map(concentrators.map(c => [c.id, c]));
       const accessPointMap = new Map(accessPoints.map(ap => [ap.id, ap]));
       const peopleMap = new Map(people.map(p => [p.id, p]));
@@ -573,7 +589,9 @@ export function VoalleImportTab() {
           }
         }
 
-        const authContract = authContractMap.get(tag.contract_id);
+        // Buscar authContract primeiro por etiqueta (mais específico), depois por contract_id (fallback)
+        const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
+          || authContractByContractMap.get(tag.contract_id);
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
           : null;
