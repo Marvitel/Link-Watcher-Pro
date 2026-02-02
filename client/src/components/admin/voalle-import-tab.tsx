@@ -837,18 +837,20 @@ export function VoalleImportTab() {
   const filteredLinks = parsedLinks.filter(link => {
     if (!filterText.trim()) return true;
     const search = filterText.toLowerCase();
+    // Converter todos os campos para string antes de comparar (alguns podem ser números)
+    const str = (val: any) => String(val || '').toLowerCase();
     return (
-      link.serviceTag?.toLowerCase().includes(search) ||
-      link.contractNumber?.toLowerCase().includes(search) ||
-      link.title?.toLowerCase().includes(search) ||
-      link.linkName?.toLowerCase().includes(search) ||
-      link.clientName?.toLowerCase().includes(search) ||
-      link.address?.toLowerCase().includes(search) ||
-      link.city?.toLowerCase().includes(search) ||
-      link.pppoeUser?.toLowerCase().includes(search) ||
-      link.monitoredIp?.toLowerCase().includes(search) ||
-      link.concentratorName?.toLowerCase().includes(search) ||
-      link.oltName?.toLowerCase().includes(search)
+      str(link.serviceTag).includes(search) ||
+      str(link.contractNumber).includes(search) ||
+      str(link.title).includes(search) ||
+      str(link.linkName).includes(search) ||
+      str(link.clientName).includes(search) ||
+      str(link.address).includes(search) ||
+      str(link.city).includes(search) ||
+      str(link.pppoeUser).includes(search) ||
+      str(link.monitoredIp).includes(search) ||
+      str(link.concentratorName).includes(search) ||
+      str(link.oltName).includes(search)
     );
   });
 
