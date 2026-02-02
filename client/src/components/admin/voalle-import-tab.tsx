@@ -538,12 +538,13 @@ export function VoalleImportTab() {
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
 
-      // Criar mapa de conexões por código do contrato (para enriquecer dados)
+      // Criar mapa de conexões por etiqueta (service_tag) para enriquecer dados
+      // Cada linha do conexoes.csv corresponde a uma etiqueta específica, não ao contrato
       const conexoesMap = new Map<string, any>();
       for (const conexao of conexoes) {
-        const codigoContrato = conexao['Código do Contrato'] || conexao['codigo do contrato'];
-        if (codigoContrato) {
-          conexoesMap.set(String(codigoContrato), conexao);
+        const etiqueta = conexao['Etiqueta'] || conexao['etiqueta'];
+        if (etiqueta) {
+          conexoesMap.set(String(etiqueta).trim(), conexao);
         }
       }
 
@@ -580,8 +581,8 @@ export function VoalleImportTab() {
           ? accessPointMap.get(authContract.authentication_access_point_id)
           : null;
 
-        // Buscar dados enriquecidos do conexoes.csv se disponível
-        const conexao = conexoesMap.get(String(tag.contract_id));
+        // Buscar dados enriquecidos do conexoes.csv se disponível (match por etiqueta)
+        const conexao = conexoesMap.get(String(tag.service_tag || '').trim());
         
         // Extrair IP direto do conexoes.csv (campo "IP")
         const monitoredIpFromConexao = conexao?.['IP'] || conexao?.['ip'] || null;
