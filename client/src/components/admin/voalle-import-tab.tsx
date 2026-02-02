@@ -566,16 +566,26 @@ export function VoalleImportTab() {
           authContractByTagMap.set(String(serviceTag).trim(), ac);
         }
         // Também mapear por contract_id como fallback (múltiplas variações)
+        // Suporta: M-24, 24, 1036.2, M-441.2, etc.
         if (ac.contract_id) {
           const contractIdStr = String(ac.contract_id).trim();
           // Mapear versão original
           authContractByContractMap.set(contractIdStr, ac);
-          // Mapear versão normalizada (sem M-, sem pontos)
-          const normalizedId = contractIdStr.replace(/^M-/i, '').replace(/\./g, '');
-          authContractByContractMap.set(normalizedId, ac);
-          // Se for número puro, também mapear com prefixo M-
-          if (/^\d+$/.test(contractIdStr)) {
+          
+          // Remover prefixo M- se existir
+          const semPrefixo = contractIdStr.replace(/^M-/i, '');
+          authContractByContractMap.set(semPrefixo, ac);
+          
+          // Adicionar prefixo M- se não tiver
+          if (!/^M-/i.test(contractIdStr)) {
             authContractByContractMap.set(`M-${contractIdStr}`, ac);
+          }
+          
+          // Versão sem ponto decimal (1036.2 -> 10362)
+          const semPonto = semPrefixo.replace(/\./g, '');
+          if (semPonto !== semPrefixo) {
+            authContractByContractMap.set(semPonto, ac);
+            authContractByContractMap.set(`M-${semPonto}`, ac);
           }
         }
       }
@@ -617,12 +627,15 @@ export function VoalleImportTab() {
         }
 
         // Buscar authContract primeiro por etiqueta (mais específico), depois por contract_id (fallback)
-        // Tentar múltiplas variações do contract_id (com e sem prefixo M-)
+        // Tentar múltiplas variações do contract_id (com e sem prefixo M-, com e sem ponto decimal)
         const contractIdStr = String(tag.contract_id || '').trim();
-        const contractIdNormalized = contractIdStr.replace(/^M-/i, '').replace(/\./g, '');
+        const semPrefixo = contractIdStr.replace(/^M-/i, '');
+        const semPonto = semPrefixo.replace(/\./g, '');
         const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
           || authContractByContractMap.get(contractIdStr)
-          || authContractByContractMap.get(contractIdNormalized);
+          || authContractByContractMap.get(semPrefixo)
+          || authContractByContractMap.get(semPonto)
+          || authContractByContractMap.get(`M-${semPrefixo}`);
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
           : null;
