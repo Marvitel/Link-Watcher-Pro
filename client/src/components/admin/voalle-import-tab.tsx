@@ -565,6 +565,17 @@ export function VoalleImportTab() {
       }
       
       console.log(`[Voalle Import] conexoesMap: ${conexoesMap.size} etiquetas, authContractByTagMap: ${authContractByTagMap.size} etiquetas, authContractByContractMap: ${authContractByContractMap.size} contratos`);
+      
+      // Debug: mostrar primeiras 3 etiquetas de cada fonte para comparar formato
+      const conexoesKeys = Array.from(conexoesMap.keys()).slice(0, 3);
+      const tagsSample = contractTags.slice(0, 3).map(t => String(t.service_tag || '').trim());
+      console.log(`[Voalle Import] Formato etiquetas conexoes.csv: ${JSON.stringify(conexoesKeys)}`);
+      console.log(`[Voalle Import] Formato etiquetas contract_tags: ${JSON.stringify(tagsSample)}`);
+      
+      // Debug: mostrar campos do primeiro registro do conexoes.csv
+      if (conexoes.length > 0) {
+        console.log(`[Voalle Import] Campos conexoes.csv: ${JSON.stringify(Object.keys(conexoes[0]))}`);
+      }
       const concentratorMap = new Map(concentrators.map(c => [c.id, c]));
       const accessPointMap = new Map(accessPoints.map(ap => [ap.id, ap]));
       const peopleMap = new Map(people.map(p => [p.id, p]));
