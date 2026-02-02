@@ -1,0 +1,305 @@
+[Info] Successfully preconnected to https://fonts.googleapis.com/
+[Info] Successfully preconnected to https://fonts.gstatic.com/
+[Log] [Version] Restaurando rota: /admin (index-DBodWI35.js, line 52)
+[Log] [Voalle Import] contratosAtivosSet: 2174 variações, exemplos: (index-DBodWI35.js, line 225)
+Array (10)
+0
+"2384"
+1
+"M-2384"
+2
+"2737"
+3
+"M-2737"
+4
+"1901"
+5
+"M-1901"
+6
+"2306"
+7
+"M-2306"
+8
+"2091"
+9
+"M-2091"
+
+Protótipo Array
+
+at()
+
+concat(value, ...)
+
+constructor: function()
+
+copyWithin(targetIndex, startIndex, [endIndex=length])
+
+entries()
+
+every(callback, [thisArg])
+
+fill(value, [startIndex=0], [endIndex=length])
+
+filter(callback, [thisArg])
+
+find(callback, [thisArg])
+
+findIndex(callback, [thisArg])
+
+findLast(callback, [thisArg])
+
+findLastIndex(callback, [thisArg])
+
+flat()
+
+flatMap()
+
+forEach(callback, [thisArg])
+
+includes(searchValue, [startIndex=0])
+
+indexOf(searchValue, [startIndex=0])
+
+join([separator=","])
+
+keys()
+
+lastIndexOf(searchValue, [startIndex=length])
+
+length: 0
+
+map(callback, [thisArg])
+
+pop()
+
+push(value, ...)
+
+reduce(callback, [initialValue])
+
+reduceRight(callback, [initialValue])
+
+reverse()
+
+shift()
+
+slice([startIndex=0], [endIndex=length])
+
+some(callback, [thisArg])
+
+sort([compareFunction])
+
+splice(startIndex, [deleteCount=0], ...itemsToAdd)
+
+toLocaleString()
+
+toReversed()
+
+toSorted()
+
+toSpliced()
+
+toString()
+
+unshift()
+
+values()
+
+with()
+
+Symbol(Symbol.iterator)()
+
+Symbol(Symbol.unscopables): {at: true, copyWithin: true, entries: true, fill: true, find: true, …}
+
+Protótipo Object
+[Log] [Voalle Import] conexoesMap: 1564 etiquetas, authContractByTagMap: 0 etiquetas, authContractByContractMap: 2336 contratos (index-DBodWI35.js, line 225)
+[Log] [Voalle Import] Formato etiquetas conexoes.csv: [3401,4003,3348] (index-DBodWI35.js, line 225)
+[Log] [Voalle Import] Formato etiquetas contract_tags: ["JW37Y8NA","YQBVJZMR","3A1SGTMZ"] (index-DBodWI35.js, line 225)
+[Log] [Voalle Import] Campos conexoes.csv: ["Código da Conexão","Código do Contrato","Descrição do Contrato","Nome do Cliente","Código do Serviço","Serviço","Cód. Item de Contrato","Usuário","Senha do Usuário","MAC","Senha EAP/PSK","IP Válido LAN","Classe IP LAN","Código Concentrador","Concentrador","Código do Ponto de Acesso","Ponto de Acesso","Código do IP","IP","Código do Address List","Address List","Tipo de Equipamento","Usuário do Equipamento","Senha do Equipamento","Porta do Equipamento","CEP","Número","Bairro","Rua","Cidade","Estado","Latitude","Longitude","Código da Etiqueta","Descrição da Etiqueta","Tipo de Conexão","Complemento","Ativo","Tipo de IP","Porta API","Data de Ativação","Utiliza Franquia","Consumo de Franquia","Atualização Automática","Data Criação","Data Modificação","Cidade do Cliente","Bairro do Cliente"] (index-DBodWI35.js, line 225)
+[Log] [Voalle Import] Contratos com muitas etiquetas ANTES do filtro: (index-DBodWI35.js, line 225)
+Array (29)
+0
+["72", 13] (2)
+1
+["1457", 76] (2)
+2
+["1943", 23] (2)
+3
+["1589", 17] (2)
+4
+["2403", 6] (2)
+5
+["1046", 8] (2)
+6
+["24", 113] (2)
+7
+["1739", 58] (2)
+8
+["2351", 7] (2)
+9
+["1167", 98] (2)
+10
+["187", 11] (2)
+11
+["181", 14] (2)
+12
+["2571", 6] (2)
+13
+["1880", 37] (2)
+14
+["42", 28] (2)
+15
+["202", 11] (2)
+16
+["1784", 49] (2)
+17
+["1106", 192] (2)
+18
+["462", 9] (2)
+19
+["503", 21] (2)
+20
+["400", 72] (2)
+21
+["465", 6] (2)
+22
+["340", 24] (2)
+23
+["137", 10] (2)
+24
+["481", 7] (2)
+25
+["262", 41] (2)
+26
+["1660", 8] (2)
+27
+["1193", 11] (2)
+28
+["363", 11] (2)
+
+Protótipo Array
+
+at()
+
+concat(value, ...)
+
+constructor: function()
+
+copyWithin(targetIndex, startIndex, [endIndex=length])
+
+entries()
+
+every(callback, [thisArg])
+
+fill(value, [startIndex=0], [endIndex=length])
+
+filter(callback, [thisArg])
+
+find(callback, [thisArg])
+
+findIndex(callback, [thisArg])
+
+findLast(callback, [thisArg])
+
+findLastIndex(callback, [thisArg])
+
+flat()
+
+flatMap()
+
+forEach(callback, [thisArg])
+
+includes(searchValue, [startIndex=0])
+
+indexOf(searchValue, [startIndex=0])
+
+join([separator=","])
+
+keys()
+
+lastIndexOf(searchValue, [startIndex=length])
+
+length: 0
+
+map(callback, [thisArg])
+
+pop()
+
+push(value, ...)
+
+reduce(callback, [initialValue])
+
+reduceRight(callback, [initialValue])
+
+reverse()
+
+shift()
+
+slice([startIndex=0], [endIndex=length])
+
+some(callback, [thisArg])
+
+sort([compareFunction])
+
+splice(startIndex, [deleteCount=0], ...itemsToAdd)
+
+toLocaleString()
+
+toReversed()
+
+toSorted()
+
+toSpliced()
+
+toString()
+
+unshift()
+
+values()
+
+with()
+
+Symbol(Symbol.iterator)()
+
+Symbol(Symbol.unscopables): {at: true, copyWithin: true, entries: true, fill: true, find: true, …}
+
+Protótipo Object
+[Log] [Voalle Import] Resumo do processamento: (index-DBodWI35.js, line 225)
+Object
+
+linksGerados: 1122
+
+pulados: Object
+
+contratosNaoAtivos: 1005
+
+inativos: 227
+
+porTitulo: 1266
+
+Protótipo Object
+
+totalTags: 3620
+
+Protótipo Object
+
+__defineGetter__(propertyName, getterFunction)
+
+__defineSetter__(propertyName, setterFunction)
+
+__lookupGetter__(propertyName)
+
+__lookupSetter__(propertyName)
+
+constructor: function()
+
+hasOwnProperty(propertyName)
+
+isPrototypeOf(property)
+
+propertyIsEnumerable(propertyName)
+
+toLocaleString()
+
+toString()
+
+valueOf()

@@ -526,9 +526,17 @@ export function VoalleImportTab() {
       // Criar set de contratos ativos para filtro (normaliza números de contrato)
       // Suporta: M-24, 24, 1036.2, M-441.2, etc.
       const contratosAtivosSet = new Set<string>();
+      
+      // Debug: mostrar campos disponíveis no contratos_ativos
+      if (contratosAtivos.length > 0) {
+        const campos = Object.keys(contratosAtivos[0]);
+        console.log(`[Voalle Import] Campos contratos_ativos.csv:`, campos);
+        console.log(`[Voalle Import] Exemplo linha contratos_ativos:`, contratosAtivos[0]);
+      }
+      
       for (const contrato of contratosAtivos) {
-        // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", etc)
-        const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'];
+        // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", "N Contrato", "Contrato", etc)
+        const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'] || contrato['Contrato'] || contrato['contrato'] || contrato['N° Contrato'] || contrato['Numero Contrato'];
         if (numContrato) {
           const original = String(numContrato).trim();
           // Versão sem prefixo M-
