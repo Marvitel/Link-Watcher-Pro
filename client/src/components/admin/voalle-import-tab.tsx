@@ -114,61 +114,72 @@ function normalizeFieldName(field: string): string {
     .trim();
 }
 
-const CSV_TYPES: Record<string, { label: string; description: string; requiredFields: string[] }> = {
+const CSV_TYPES: Record<string, { label: string; description: string; requiredFields: string[][]; requiredFieldsDisplay: string[] }> = {
   contratos_ativos: {
     label: "Contratos Ativos",
     description: "Lista de contratos com situação Normal - BASE DE VALIDAÇÃO",
-    requiredFields: ["n contrato"]
+    requiredFields: [["n contrato", "numero contrato", "contrato"]],
+    requiredFieldsDisplay: ["nº contrato"]
   },
   conexoes: {
     label: "Conexões (Dados Completos)",
     description: "Contém IP, usuário PPPoE, concentrador, OLT - DADOS PRINCIPAIS",
-    requiredFields: ["codigo da conexao", "codigo do contrato"]
+    requiredFields: [["codigo da conexao", "codigo conexao", "cod conexao", "conexao"], ["codigo do contrato", "codigo contrato", "cod contrato"]],
+    requiredFieldsDisplay: ["código da conexão", "código do contrato"]
   },
   contract_service_tags: {
     label: "Etiquetas de Contrato",
     description: "Contém service_tag, title, client_id, contract_id",
-    requiredFields: ["id", "service_tag", "title", "client_id", "contract_id"]
+    requiredFields: [["id"], ["service_tag"], ["title"], ["client_id"], ["contract_id"]],
+    requiredFieldsDisplay: ["id", "service_tag", "title", "client_id", "contract_id"]
   },
   authentication_contracts: {
     label: "Contratos de Autenticação",
     description: "Contém endereço, slot/porta OLT, credenciais CPE",
-    requiredFields: ["id", "contract_id"]
+    requiredFields: [["id"], ["contract_id"]],
+    requiredFieldsDisplay: ["id", "contract_id"]
   },
   authentication_concentrators: {
     label: "Concentradores",
     description: "Contém IP e credenciais dos concentradores",
-    requiredFields: ["id", "server_ip"]
+    requiredFields: [["id"], ["server_ip"]],
+    requiredFieldsDisplay: ["id", "server_ip"]
   },
   authentication_access_points: {
     label: "Pontos de Acesso (OLTs)",
     description: "Contém IP e credenciais das OLTs",
-    requiredFields: ["id", "ip"]
+    requiredFields: [["id"], ["ip"]],
+    requiredFieldsDisplay: ["id", "ip"]
   },
   person_users: {
     label: "Usuários do Portal",
     description: "Contém hash de senha do portal Voalle",
-    requiredFields: ["person_id", "username", "password"]
+    requiredFields: [["person_id"], ["username"], ["password"]],
+    requiredFieldsDisplay: ["person_id", "username", "password"]
   },
   people: {
     label: "Pessoas/Clientes",
     description: "Contém nome, CNPJ/CPF e endereço dos clientes",
-    requiredFields: ["id", "name"]
+    requiredFields: [["id"], ["name"]],
+    requiredFieldsDisplay: ["id", "name"]
   }
 };
 
 function detectCsvTypeByHeaders(headers: string[]): string | null {
-  const normalizedHeaders = headers.map(h => h.toLowerCase().trim().replace(/"/g, ''));
+  const normalizedHeaders = headers.map(h => normalizeFieldName(h));
   const headerSet = new Set(normalizedHeaders);
   
+  // Helper to check if any variation of a field exists
+  const hasField = (variations: string[]) => variations.some(v => headerSet.has(normalizeFieldName(v)));
+  
   // contratos_ativos: has "nº contrato" or "situação" - lista de contratos ativos
-  if ((headerSet.has("nº contrato") || headerSet.has("n contrato") || headerSet.has("numero contrato")) && 
-      (headerSet.has("situação") || headerSet.has("situacao") || headerSet.has("status"))) {
+  if (hasField(["nº contrato", "n contrato", "numero contrato", "numero_contrato", "contrato"]) && 
+      hasField(["situação", "situacao", "status"])) {
     return "contratos_ativos";
   }
   // conexoes: has "código da conexão" and "código do contrato" - dados completos de conexão
-  if ((headerSet.has("código da conexão") || headerSet.has("codigo da conexao")) && 
-      (headerSet.has("código do contrato") || headerSet.has("codigo do contrato"))) {
+  if (hasField(["código da conexão", "codigo da conexao", "codigo_conexao", "cod conexao", "conexao"]) && 
+      hasField(["código do contrato", "codigo do contrato", "codigo_contrato", "cod contrato"])) {
     return "conexoes";
   }
   // contract_service_tags: has service_tag and title
@@ -427,9 +438,14 @@ export function VoalleImportTab() {
 
       const typeInfo = CSV_TYPES[detectedType];
       const normalizedHeaders = headers.map(h => normalizeFieldName(h));
-      const missingFields = typeInfo.requiredFields.filter(
-        field => !normalizedHeaders.some(h => h === normalizeFieldName(field))
-      );
+      const missingFieldIndexes: number[] = [];
+      typeInfo.requiredFields.forEach((variations, index) => {
+        const found = variations.some(v => normalizedHeaders.some(h => h === normalizeFieldName(v)));
+        if (!found) {
+          missingFieldIndexes.push(index);
+        }
+      });
+      const missingFields = missingFieldIndexes.map(i => typeInfo.requiredFieldsDisplay[i]);
       
       if (missingFields.length > 0) {
         toast({
