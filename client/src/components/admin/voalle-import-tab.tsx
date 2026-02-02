@@ -104,16 +104,26 @@ interface ImportResult {
   pppoeIpsFound?: number;
 }
 
+function normalizeFieldName(field: string): string {
+  return field
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ºª°]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const CSV_TYPES: Record<string, { label: string; description: string; requiredFields: string[] }> = {
   contratos_ativos: {
     label: "Contratos Ativos",
     description: "Lista de contratos com situação Normal - BASE DE VALIDAÇÃO",
-    requiredFields: ["nº contrato"]
+    requiredFields: ["n contrato"]
   },
   conexoes: {
     label: "Conexões (Dados Completos)",
     description: "Contém IP, usuário PPPoE, concentrador, OLT - DADOS PRINCIPAIS",
-    requiredFields: ["código da conexão", "código do contrato"]
+    requiredFields: ["codigo da conexao", "codigo do contrato"]
   },
   contract_service_tags: {
     label: "Etiquetas de Contrato",
@@ -416,8 +426,9 @@ export function VoalleImportTab() {
       }
 
       const typeInfo = CSV_TYPES[detectedType];
+      const normalizedHeaders = headers.map(h => normalizeFieldName(h));
       const missingFields = typeInfo.requiredFields.filter(
-        field => !headers.some(h => h.toLowerCase() === field.toLowerCase())
+        field => !normalizedHeaders.some(h => h === normalizeFieldName(field))
       );
       
       if (missingFields.length > 0) {
