@@ -633,8 +633,8 @@ export function VoalleImportTab() {
         
         // Filtro de título: aceitar links de internet (dedicados, SCM, fibra, banda larga, etc.)
         const title = tag.title?.toLowerCase() || '';
-        // Termos que indicam serviço de internet
-        const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade'];
+        // Termos que indicam serviço de internet/conectividade
+        const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade', 'serviços de ti', 'serviço de ti', 'ti corporativo'];
         // Termos que indicam que NÃO é link de internet (para excluir)
         const excludeTerms = ['telefon', 'voz', 'pabx', 'sip', 'tv', 'iptv', 'streaming'];
         
