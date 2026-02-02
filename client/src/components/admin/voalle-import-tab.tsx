@@ -26,6 +26,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
@@ -399,6 +400,7 @@ export function VoalleImportTab() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
+  const [filterText, setFilterText] = useState<string>('');
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -703,6 +705,24 @@ export function VoalleImportTab() {
     },
   });
 
+  // Filtrar links baseado no texto de busca
+  const filteredLinks = parsedLinks.filter(link => {
+    if (!filterText.trim()) return true;
+    const search = filterText.toLowerCase();
+    return (
+      link.serviceTag?.toLowerCase().includes(search) ||
+      link.title?.toLowerCase().includes(search) ||
+      link.linkName?.toLowerCase().includes(search) ||
+      link.clientName?.toLowerCase().includes(search) ||
+      link.address?.toLowerCase().includes(search) ||
+      link.city?.toLowerCase().includes(search) ||
+      link.pppoeUser?.toLowerCase().includes(search) ||
+      link.monitoredIp?.toLowerCase().includes(search) ||
+      link.concentratorName?.toLowerCase().includes(search) ||
+      link.oltName?.toLowerCase().includes(search)
+    );
+  });
+
   const toggleLinkSelection = (id: string) => {
     setParsedLinks(links => 
       links.map(l => l.id === id ? { ...l, selected: !l.selected } : l)
@@ -851,7 +871,7 @@ export function VoalleImportTab() {
 
           {step === 'preview' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   <Button
                     variant="outline"
@@ -870,6 +890,18 @@ export function VoalleImportTab() {
                       {selectedCount} de {parsedLinks.length} selecionados
                     </span>
                   </div>
+                  <Input
+                    placeholder="Filtrar por etiqueta, cliente, IP, cidade..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="w-[300px]"
+                    data-testid="input-filter"
+                  />
+                  {filterText && (
+                    <span className="text-sm text-muted-foreground">
+                      {filteredLinks.length} de {parsedLinks.length} exibidos
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4 flex-wrap">
@@ -946,6 +978,7 @@ export function VoalleImportTab() {
                         <TableHead>IP Conc.</TableHead>
                         <TableHead>ID OLT</TableHead>
                         <TableHead>Ponto de Acesso</TableHead>
+                        <TableHead className="bg-green-100 dark:bg-green-900">IP Monitorado</TableHead>
                         <TableHead>PPPoE User</TableHead>
                         <TableHead>PPPoE Pass</TableHead>
                         <TableHead>VLAN</TableHead>
@@ -959,7 +992,7 @@ export function VoalleImportTab() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {parsedLinks.map((link) => (
+                      {filteredLinks.map((link) => (
                         <TableRow key={link.id} className={!link.selected ? 'opacity-50' : ''}>
                           <TableCell className="sticky left-0 bg-background z-10">
                             <Checkbox
@@ -1026,6 +1059,9 @@ export function VoalleImportTab() {
                           </TableCell>
                           <TableCell className="font-mono text-xs" title={link.oltName || ''}>
                             {link.oltName || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs bg-green-50 dark:bg-green-950">
+                            {link.monitoredIp || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {link.pppoeUser || '-'}
