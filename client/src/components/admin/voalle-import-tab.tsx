@@ -524,19 +524,30 @@ export function VoalleImportTab() {
       }
 
       // Criar set de contratos ativos para filtro (normaliza números de contrato)
+      // Suporta: M-24, 24, 1036.2, M-441.2, etc.
       const contratosAtivosSet = new Set<string>();
       for (const contrato of contratosAtivos) {
         // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", etc)
         const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'];
         if (numContrato) {
-          // Normaliza: remove espaços, M-, pontos
-          const normalizado = String(numContrato).trim().replace(/^M-/i, '').replace(/\./g, '');
-          contratosAtivosSet.add(normalizado);
-          // Também adiciona versão original para matching flexível
-          contratosAtivosSet.add(String(numContrato).trim());
+          const original = String(numContrato).trim();
+          // Versão sem prefixo M-
+          const semPrefixo = original.replace(/^M-/i, '');
+          // Versão sem pontos decimais
+          const semPonto = semPrefixo.replace(/\./g, '');
+          
+          // Adiciona todas as variações
+          contratosAtivosSet.add(original);           // M-24
+          contratosAtivosSet.add(semPrefixo);         // 24
+          contratosAtivosSet.add(semPonto);           // 24 (ou 10362 para 1036.2)
+          contratosAtivosSet.add(`M-${semPrefixo}`);  // M-24 (garantir prefixo)
         }
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
+      
+      if (hasContratosAtivosFilter) {
+        console.log(`[Voalle Import] contratosAtivosSet: ${contratosAtivosSet.size} variações, exemplos:`, Array.from(contratosAtivosSet).slice(0, 10));
+      }
 
       // Criar mapa de conexões por ID da etiqueta (numérico) para enriquecer dados
       // Cada linha do conexoes.csv corresponde a uma etiqueta específica, não ao contrato
@@ -649,8 +660,17 @@ export function VoalleImportTab() {
         // Filtrar por contratos ativos se houver planilha de contratos_ativos
         if (hasContratosAtivosFilter) {
           const contractId = String(tag.contract_id || '').trim();
-          const normalizedId = contractId.replace(/^M-/i, '').replace(/\./g, '');
-          if (!contratosAtivosSet.has(contractId) && !contratosAtivosSet.has(normalizedId)) {
+          const semPrefixo = contractId.replace(/^M-/i, '');
+          const semPonto = semPrefixo.replace(/\./g, '');
+          const comPrefixo = `M-${semPrefixo}`;
+          
+          // Tentar todas as variações
+          const isActive = contratosAtivosSet.has(contractId) || 
+                          contratosAtivosSet.has(semPrefixo) || 
+                          contratosAtivosSet.has(semPonto) ||
+                          contratosAtivosSet.has(comPrefixo);
+          
+          if (!isActive) {
             skippedByContratosAtivos++;
             continue; // Pula contratos não ativos
           }
