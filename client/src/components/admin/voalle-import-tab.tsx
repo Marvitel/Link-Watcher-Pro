@@ -538,13 +538,15 @@ export function VoalleImportTab() {
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
 
-      // Criar mapa de conexões por etiqueta (service_tag) para enriquecer dados
+      // Criar mapa de conexões por código de etiqueta (service_tag) para enriquecer dados
       // Cada linha do conexoes.csv corresponde a uma etiqueta específica, não ao contrato
+      // IMPORTANTE: O campo correto é "Código da Etiqueta", não "Etiqueta" (que é o nome do serviço)
       const conexoesMap = new Map<string, any>();
       for (const conexao of conexoes) {
-        const etiqueta = conexao['Etiqueta'] || conexao['etiqueta'];
-        if (etiqueta) {
-          conexoesMap.set(String(etiqueta).trim(), conexao);
+        // Prioridade: "Código da Etiqueta" > "Código Etiqueta" > "service_tag" > "etiqueta_codigo"
+        const codigoEtiqueta = conexao['Código da Etiqueta'] || conexao['Código Etiqueta'] || conexao['service_tag'] || conexao['etiqueta_codigo'];
+        if (codigoEtiqueta) {
+          conexoesMap.set(String(codigoEtiqueta).trim(), conexao);
         }
       }
       
