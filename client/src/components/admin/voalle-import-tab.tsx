@@ -56,6 +56,7 @@ interface CsvFile {
 interface ParsedLink {
   id: string;
   serviceTag: string;
+  contractNumber: string | null; // Número do contrato (Código do Contrato)
   title: string;
   linkName: string | null; // Nome do link extraído do equipment_user (prefixo antes de ===)
   clientName: string;
@@ -610,6 +611,7 @@ export function VoalleImportTab() {
         const link: ParsedLink = {
           id: `voalle-${tag.id}`,
           serviceTag: tag.service_tag || '',
+          contractNumber: tag.contract_id?.toString() || conexao?.['Código do Contrato'] || null,
           title: tag.title || (conexao?.['Etiqueta'] || ''),
           linkName,
           clientName,
@@ -711,6 +713,7 @@ export function VoalleImportTab() {
     const search = filterText.toLowerCase();
     return (
       link.serviceTag?.toLowerCase().includes(search) ||
+      link.contractNumber?.toLowerCase().includes(search) ||
       link.title?.toLowerCase().includes(search) ||
       link.linkName?.toLowerCase().includes(search) ||
       link.clientName?.toLowerCase().includes(search) ||
@@ -960,6 +963,7 @@ export function VoalleImportTab() {
                       <TableRow>
                         <TableHead className="w-[40px] sticky left-0 bg-background z-10"></TableHead>
                         <TableHead className="sticky left-10 bg-background z-10">Etiqueta</TableHead>
+                        <TableHead>Nº Contrato</TableHead>
                         <TableHead>Nome Serviço</TableHead>
                         <TableHead>Nome Link</TableHead>
                         <TableHead>Cliente</TableHead>
@@ -1002,6 +1006,9 @@ export function VoalleImportTab() {
                             />
                           </TableCell>
                           <TableCell className="font-mono text-sm sticky left-10 bg-background z-10">{link.serviceTag}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {link.contractNumber || '-'}
+                          </TableCell>
                           <TableCell className="max-w-[150px] truncate" title={link.title}>
                             {link.title}
                           </TableCell>
