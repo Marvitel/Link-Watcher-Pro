@@ -609,11 +609,40 @@ export function VoalleImportTab() {
 
       const links: ParsedLink[] = [];
 
+      // Debug: contar etiquetas por contrato antes do filtro
+      const tagsByContract = new Map<string, number>();
       for (const tag of contractTags) {
-        if (!tag.active) continue;
+        const cid = String(tag.contract_id || '');
+        tagsByContract.set(cid, (tagsByContract.get(cid) || 0) + 1);
+      }
+      // Mostrar contratos com mais de 5 etiquetas
+      const bigContracts = Array.from(tagsByContract.entries()).filter(([, count]) => count > 5);
+      if (bigContracts.length > 0) {
+        console.log(`[Voalle Import] Contratos com muitas etiquetas ANTES do filtro:`, bigContracts);
+      }
+
+      let skippedInactive = 0;
+      let skippedByTitle = 0;
+      let skippedByContratosAtivos = 0;
+
+      for (const tag of contractTags) {
+        if (!tag.active) {
+          skippedInactive++;
+          continue;
+        }
         
+        // Filtro de título: aceitar links de internet (dedicados, SCM, fibra, banda larga, etc.)
         const title = tag.title?.toLowerCase() || '';
-        if (!title.includes('dedicado') && !title.includes('scm') && !title.includes('fibra') && !title.includes('banda')) {
+        // Termos que indicam serviço de internet
+        const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade'];
+        // Termos que indicam que NÃO é link de internet (para excluir)
+        const excludeTerms = ['telefon', 'voz', 'pabx', 'sip', 'tv', 'iptv', 'streaming'];
+        
+        const hasInternetTerm = internetTerms.some(term => title.includes(term));
+        const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
+        
+        if (!hasInternetTerm || hasExcludeTerm) {
+          skippedByTitle++;
           continue;
         }
 
@@ -622,6 +651,7 @@ export function VoalleImportTab() {
           const contractId = String(tag.contract_id || '').trim();
           const normalizedId = contractId.replace(/^M-/i, '').replace(/\./g, '');
           if (!contratosAtivosSet.has(contractId) && !contratosAtivosSet.has(normalizedId)) {
+            skippedByContratosAtivos++;
             continue; // Pula contratos não ativos
           }
         }
@@ -725,6 +755,17 @@ export function VoalleImportTab() {
 
         links.push(link);
       }
+
+      // Log de debug: mostrar quantas etiquetas foram puladas por cada motivo
+      console.log(`[Voalle Import] Resumo do processamento:`, {
+        totalTags: contractTags.length,
+        linksGerados: links.length,
+        pulados: {
+          inativos: skippedInactive,
+          porTitulo: skippedByTitle,
+          contratosNaoAtivos: skippedByContratosAtivos
+        }
+      });
 
       setParsedLinks(links);
       setStep('preview');
