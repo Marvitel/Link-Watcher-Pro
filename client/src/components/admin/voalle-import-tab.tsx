@@ -555,6 +555,13 @@ export function VoalleImportTab() {
       
       if (hasContratosAtivosFilter) {
         console.log(`[Voalle Import] contratosAtivosSet: ${contratosAtivosSet.size} variações, exemplos:`, Array.from(contratosAtivosSet).slice(0, 10));
+        // Debug específico para contrato 24
+        const has24 = contratosAtivosSet.has('24');
+        const hasM24 = contratosAtivosSet.has('M-24');
+        console.log(`[Voalle Import] Contrato 24 no Set? 24=${has24}, M-24=${hasM24}`);
+        // Buscar qualquer variação que contenha "24"
+        const variacoes24 = Array.from(contratosAtivosSet).filter(v => v.includes('24'));
+        console.log(`[Voalle Import] Variações contendo "24":`, variacoes24.slice(0, 20));
       }
 
       // Criar mapa de conexões por ID da etiqueta (numérico) para enriquecer dados
