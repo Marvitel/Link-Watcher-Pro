@@ -587,9 +587,10 @@ export function VoalleImportTab() {
         // Extrair IP direto do conexoes.csv (campo "IP")
         const monitoredIpFromConexao = conexao?.['IP'] || conexao?.['ip'] || null;
 
-        const address = authContract 
-          ? [authContract.street, authContract.street_number, authContract.neighborhood].filter(Boolean).join(', ')
-          : (conexao ? [conexao['Rua'], conexao['Número'], conexao['Bairro']].filter(Boolean).join(', ') : '');
+        // Priorizar dados do conexoes.csv (por etiqueta) sobre authContract (por contrato)
+        const address = conexao 
+          ? [conexao['Rua'], conexao['Número'], conexao['Bairro']].filter(Boolean).join(', ')
+          : (authContract ? [authContract.street, authContract.street_number, authContract.neighborhood].filter(Boolean).join(', ') : '');
 
         // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
@@ -623,31 +624,32 @@ export function VoalleImportTab() {
           clientPortalPassword: clientDoc || null,
           bandwidth: extractBandwidth(tag.title || conexao?.['Serviço'] || ''),
           address,
-          city: authContract?.city || conexao?.['Cidade'] || '',
-          lat: authContract?.lat?.toString() || conexao?.['Latitude'] || null,
-          lng: authContract?.lng?.toString() || conexao?.['Longitude'] || null,
-          slotOlt: authContract?.slot_olt || null,
-          portOlt: authContract?.port_olt || null,
-          equipmentSerial: authContract?.equipment_serial_number || null,
-          concentratorId: authContract?.authentication_concentrator_id?.toString() || conexao?.['Código Concentrador'] || null,
-          concentratorIp: concentrator?.server_ip || null,
-          concentratorName: concentrator?.title || conexao?.['Concentrador'] || null,
-          accessPointId: authContract?.authentication_access_point_id?.toString() || conexao?.['Código do Ponto de Acesso'] || null,
-          oltIp: accessPoint?.ip || null,
-          oltName: accessPoint?.title || conexao?.['Ponto de Acesso'] || null,
-          cpeUser: authContract?.equipment_user || conexao?.['Usuário do Equipamento'] || null,
-          cpePassword: authContract?.equipment_password || conexao?.['Senha do Equipamento'] || null,
-          // Dados PPPoE/VLAN/WiFi - prioriza conexoes.csv
-          pppoeUser: authContract?.user || pppoeUserFromConexao || null,
-          pppoePassword: authContract?.password || pppoePasswordFromConexao || null,
-          vlan: authContract?.vlan || null,
-          vlanInterface: authContract?.vlan_interface || null,
-          validLanIp: authContract?.valid_lan_ip || conexao?.['IP Válido LAN'] || null,
-          validLanIpClass: authContract?.valid_lan_ip_class || conexao?.['Classe IP LAN'] || null,
-          wifiName: authContract?.wifi_name || null,
-          wifiPassword: authContract?.wifi_password || null,
-          addressComplement: authContract?.complement || conexao?.['Complemento'] || null,
-          ipAuthenticationId: authContract?.ip_authentication_id?.toString() || conexao?.['Código do IP'] || null,
+          // Priorizar conexoes.csv (por etiqueta) sobre authContract (por contrato)
+          city: conexao?.['Cidade'] || authContract?.city || '',
+          lat: conexao?.['Latitude'] || authContract?.lat?.toString() || null,
+          lng: conexao?.['Longitude'] || authContract?.lng?.toString() || null,
+          slotOlt: conexao?.['Slot OLT'] ? parseInt(conexao['Slot OLT']) : authContract?.slot_olt || null,
+          portOlt: conexao?.['Porta OLT'] ? parseInt(conexao['Porta OLT']) : authContract?.port_olt || null,
+          equipmentSerial: conexao?.['Serial do Equipamento'] || authContract?.equipment_serial_number || null,
+          concentratorId: conexao?.['Código Concentrador'] || authContract?.authentication_concentrator_id?.toString() || null,
+          concentratorIp: conexao?.['IP Concentrador'] || concentrator?.server_ip || null,
+          concentratorName: conexao?.['Concentrador'] || concentrator?.title || null,
+          accessPointId: conexao?.['Código do Ponto de Acesso'] || authContract?.authentication_access_point_id?.toString() || null,
+          oltIp: conexao?.['IP Ponto de Acesso'] || accessPoint?.ip || null,
+          oltName: conexao?.['Ponto de Acesso'] || accessPoint?.title || null,
+          cpeUser: conexao?.['Usuário do Equipamento'] || authContract?.equipment_user || null,
+          cpePassword: conexao?.['Senha do Equipamento'] || authContract?.equipment_password || null,
+          // Dados PPPoE/VLAN/WiFi - prioriza conexoes.csv (por etiqueta)
+          pppoeUser: pppoeUserFromConexao || authContract?.user || null,
+          pppoePassword: pppoePasswordFromConexao || authContract?.password || null,
+          vlan: conexao?.['VLAN'] ? parseInt(conexao['VLAN']) : authContract?.vlan || null,
+          vlanInterface: conexao?.['Interface VLAN'] || authContract?.vlan_interface || null,
+          validLanIp: conexao?.['IP Válido LAN'] || authContract?.valid_lan_ip || null,
+          validLanIpClass: conexao?.['Classe IP LAN'] || authContract?.valid_lan_ip_class || null,
+          wifiName: conexao?.['Nome WiFi'] || authContract?.wifi_name || null,
+          wifiPassword: conexao?.['Senha WiFi'] || authContract?.wifi_password || null,
+          addressComplement: conexao?.['Complemento'] || authContract?.complement || null,
+          ipAuthenticationId: conexao?.['Código do IP'] || authContract?.ip_authentication_id?.toString() || null,
           // IP monitorado direto do conexoes.csv (sem precisar de discovery)
           monitoredIp: monitoredIpFromConexao,
           // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
