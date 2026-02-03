@@ -4728,6 +4728,56 @@ export async function registerRoutes(
           }
           
           console.log(`[Voalle Import] Busca de IPs concluída: ${pppoeIpsFound} IPs encontrados`);
+          
+          // Vincular links PPPoE a CPE padrão do tipo ONU
+          try {
+            // Buscar CPEs padrão do tipo "onu"
+            const standardOnuCpes = await storage.getStandardCpesByType('onu');
+            
+            if (standardOnuCpes.length === 0) {
+              console.log(`[Voalle Import] Nenhuma CPE padrão tipo ONU cadastrada - vinculação automática ignorada`);
+            } else if (standardOnuCpes.length > 1) {
+              console.log(`[Voalle Import] Múltiplas CPEs padrão tipo ONU encontradas (${standardOnuCpes.length}) - vinculação automática ignorada. Selecione manualmente.`);
+            } else {
+              // Exatamente uma CPE padrão tipo ONU - vincular automaticamente
+              const standardCpe = standardOnuCpes[0];
+              console.log(`[Voalle Import] CPE padrão encontrada: ${standardCpe.name} (ID: ${standardCpe.id})`);
+              
+              // Buscar todos os links PPPoE importados que têm IP
+              const allLinks = await storage.getLinks();
+              const pppoeLinksWithIp = allLinks.filter((l: typeof allLinks[0]) => 
+                l.authType === 'pppoe' && 
+                l.pppoeUser && 
+                l.monitoredIp && 
+                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 60000 // Criados no último minuto
+              );
+              
+              let cpesLinked = 0;
+              for (const link of pppoeLinksWithIp) {
+                // Verificar se já existe associação
+                const existingAssocs = await storage.getLinkCpes(link.id);
+                if (existingAssocs.length > 0) {
+                  continue; // Já tem CPE vinculado
+                }
+                
+                // Criar associação com a CPE padrão
+                await storage.addCpeToLink({
+                  linkId: link.id,
+                  cpeId: standardCpe.id,
+                  role: 'primary',
+                  ipOverride: link.monitoredIp,
+                  showInEquipmentTab: true,
+                });
+                cpesLinked++;
+              }
+              
+              if (cpesLinked > 0) {
+                console.log(`[Voalle Import] ${cpesLinked} links PPPoE vinculados à CPE padrão ${standardCpe.name}`);
+              }
+            }
+          } catch (cpeError) {
+            console.error(`[Voalle Import] Erro ao vincular CPEs padrão:`, cpeError);
+          }
         } catch (lookupError) {
           console.error(`[Voalle Import] Erro na busca de IPs via PPPoE:`, lookupError);
         }
