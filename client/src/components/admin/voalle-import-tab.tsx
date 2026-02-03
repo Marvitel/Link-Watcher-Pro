@@ -526,6 +526,8 @@ export function VoalleImportTab() {
       // Criar set de contratos ativos para filtro (normaliza números de contrato)
       // Suporta: M-24, 24, 1036.2, M-441.2, etc.
       const contratosAtivosSet = new Set<string>();
+      // Mapa de contract_id → tipo do contrato (para verificar tipo de serviço)
+      const contratoTipoMap = new Map<string, string>();
       
       // Debug: mostrar campos disponíveis no contratos_ativos
       if (contratosAtivos.length > 0) {
@@ -537,6 +539,9 @@ export function VoalleImportTab() {
       for (const contrato of contratosAtivos) {
         // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", "N Contrato", "Contrato", etc)
         const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'] || contrato['Contrato'] || contrato['contrato'] || contrato['N° Contrato'] || contrato['Numero Contrato'];
+        // Pega o tipo do contrato para verificar se é TI/internet
+        const tipoContrato = (contrato['Tipo'] || contrato['tipo'] || contrato['Descrição'] || contrato['descricao'] || '').toLowerCase();
+        
         if (numContrato) {
           const original = String(numContrato).trim();
           // Versão sem prefixo M-
@@ -549,6 +554,12 @@ export function VoalleImportTab() {
           contratosAtivosSet.add(semPrefixo);         // 24
           contratosAtivosSet.add(semPonto);           // 24 (ou 10362 para 1036.2)
           contratosAtivosSet.add(`M-${semPrefixo}`);  // M-24 (garantir prefixo)
+          
+          // Mapeia o tipo do contrato para todas as variações do contract_id
+          contratoTipoMap.set(original, tipoContrato);
+          contratoTipoMap.set(semPrefixo, tipoContrato);
+          contratoTipoMap.set(semPonto, tipoContrato);
+          contratoTipoMap.set(`M-${semPrefixo}`, tipoContrato);
         }
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
@@ -667,7 +678,15 @@ export function VoalleImportTab() {
         const hasInternetTerm = internetTerms.some(term => title.includes(term));
         const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
         
-        if (!hasInternetTerm || hasExcludeTerm) {
+        // Verificar também o tipo do contrato (se disponível no contratos_ativos.csv)
+        // Tipos de contrato que indicam serviço de TI/internet/dados
+        const contractId = String(tag.contract_id || '').trim();
+        const tipoContrato = contratoTipoMap.get(contractId) || contratoTipoMap.get(contractId.replace(/^M-/i, '')) || '';
+        const tiposValidosContrato = ['serviços de ti', 'serviço de ti', 'ti corporativo', 'prestação de serviços', 'banda larga', 'internet', 'fibra', 'dedicado', 'link', 'mpls', 'conectividade', 'dados'];
+        const contratoTipoValido = tiposValidosContrato.some(term => tipoContrato.includes(term));
+        
+        // Aceitar se: (tem termo de internet no título OU tipo de contrato é válido) E não tem termo de exclusão
+        if ((!hasInternetTerm && !contratoTipoValido) || hasExcludeTerm) {
           skippedByTitle++;
           continue;
         }
