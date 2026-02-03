@@ -2649,6 +2649,25 @@ export class DatabaseStorage {
       .orderBy(cpes.name);
   }
 
+  async getCpeByVendorId(vendorId: number): Promise<Cpe | undefined> {
+    const [cpe] = await db.select().from(cpes)
+      .where(and(
+        eq(cpes.vendorId, vendorId),
+        eq(cpes.isActive, true)
+      ))
+      .limit(1);
+    return cpe;
+  }
+
+  async getCpesByVendorId(vendorId: number): Promise<Cpe[]> {
+    return await db.select().from(cpes)
+      .where(and(
+        eq(cpes.vendorId, vendorId),
+        eq(cpes.isActive, true)
+      ))
+      .orderBy(cpes.name);
+  }
+
   // Link-CPE Associations
   async getLinkCpes(linkId: number): Promise<(LinkCpe & { cpe: Cpe })[]> {
     const associations = await db.select().from(linkCpes).where(eq(linkCpes.linkId, linkId));
