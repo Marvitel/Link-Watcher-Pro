@@ -4733,13 +4733,12 @@ export async function registerRoutes(
           try {
             const { lookupMacFromArpByIp, detectVendorByMac } = await import("./concentrator");
             
-            // Buscar todos os links PPPoE importados que têm IP
+            // Buscar todos os links PPPoE que têm IP mas não têm CPE vinculado ainda
             const allLinks = await storage.getLinks();
             const pppoeLinksWithIp = allLinks.filter((l: typeof allLinks[0]) => 
               l.authType === 'pppoe' && 
               l.pppoeUser && 
-              l.monitoredIp && 
-              l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
+              l.monitoredIp
             );
             
             console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE recentes para vincular CPE`);
