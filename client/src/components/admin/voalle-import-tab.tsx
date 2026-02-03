@@ -700,17 +700,25 @@ export function VoalleImportTab() {
         // 1. Etiqueta ativa (já verificado acima)
         // 2. Contrato na planilha contratos_ativos (já verificado acima)
         // 3. Ter usuário PPPoE OU interface VLAN (verificar agora)
-        const pppoeUser = conexao?.['Usuário'] || authContract?.user || null;
-        const vlanInterface = conexao?.['Interface VLAN'] || authContract?.vlan_interface || null;
-        const vlan = conexao?.['VLAN'] || authContract?.vlan || null;
+        // IMPORTANTE: Usar APENAS dados do conexao (por tag.id) para evitar mistura
+        // entre serviços do mesmo contrato (ex: internet vs VoIP)
+        const pppoeUserFromConexaoOnly = conexao?.['Usuário'] || null;
+        const vlanInterfaceFromConexaoOnly = conexao?.['Interface VLAN'] || null;
+        const vlanFromConexaoOnly = conexao?.['VLAN'] || null;
         
-        const hasPppoeOrVlan = !!(pppoeUser || vlanInterface || vlan);
+        const hasPppoeOrVlan = !!(pppoeUserFromConexaoOnly || vlanInterfaceFromConexaoOnly || vlanFromConexaoOnly);
         
-        // Se não tem PPPoE nem VLAN → NÃO IMPORTAR
+        // Se não tem PPPoE nem VLAN no conexoes.csv para ESTA etiqueta → NÃO IMPORTAR
+        // Isso evita importar etiquetas de VoIP com dados de internet do mesmo contrato
         if (!hasPppoeOrVlan) {
           skippedByTitle++;
           continue;
         }
+        
+        // Dados finais de PPPoE/VLAN para esta etiqueta específica
+        const pppoeUser = pppoeUserFromConexaoOnly;
+        const vlanInterface = vlanInterfaceFromConexaoOnly;
+        const vlan = vlanFromConexaoOnly;
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
           : null;
