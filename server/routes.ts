@@ -4761,7 +4761,7 @@ export async function registerRoutes(
                 l.authType === 'pppoe' && 
                 l.pppoeUser && 
                 l.monitoredIp && 
-                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 60000 // Criados no último minuto
+                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
               );
               
               let cpesLinked = 0;
@@ -4975,7 +4975,7 @@ export async function registerRoutes(
                 l.authType === 'corporate' && 
                 l.vlanInterface && 
                 l.monitoredIp &&
-                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 60000
+                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
               );
               
               let corpCpesLinked = 0;
