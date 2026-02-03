@@ -4732,11 +4732,23 @@ export async function registerRoutes(
           // Vincular links PPPoE a CPE padrão do tipo ONU
           try {
             // Buscar CPEs padrão do tipo "onu"
-            const standardOnuCpes = await storage.getStandardCpesByType('onu');
+            let standardOnuCpes = await storage.getStandardCpesByType('onu');
             
+            // Criar CPE padrão tipo ONU se não existir nenhuma
             if (standardOnuCpes.length === 0) {
-              console.log(`[Voalle Import] Nenhuma CPE padrão tipo ONU cadastrada - vinculação automática ignorada`);
-            } else if (standardOnuCpes.length > 1) {
+              console.log(`[Voalle Import] Criando CPE padrão tipo ONU automaticamente...`);
+              const newStandardCpe = await storage.createCpe({
+                name: 'ONU Padrão',
+                type: 'onu',
+                isStandard: true,
+                hasAccess: true,
+                ownership: 'provider',
+              });
+              standardOnuCpes = [newStandardCpe];
+              console.log(`[Voalle Import] CPE padrão criada: ${newStandardCpe.name} (ID: ${newStandardCpe.id})`);
+            }
+            
+            if (standardOnuCpes.length > 1) {
               console.log(`[Voalle Import] Múltiplas CPEs padrão tipo ONU encontradas (${standardOnuCpes.length}) - vinculação automática ignorada. Selecione manualmente.`);
             } else {
               // Exatamente uma CPE padrão tipo ONU - vincular automaticamente
@@ -4932,6 +4944,64 @@ export async function registerRoutes(
           }
           
           console.log(`[Voalle Import] Busca corporativa concluída: ${corporateIpsFound} IPs encontrados`);
+          
+          // Vincular links corporativos sem CPE a CPE padrão tipo "cpe"
+          try {
+            let standardCpeCpes = await storage.getStandardCpesByType('cpe');
+            
+            // Criar CPE padrão tipo CPE se não existir nenhuma
+            if (standardCpeCpes.length === 0) {
+              console.log(`[Voalle Import] Criando CPE padrão tipo CPE automaticamente...`);
+              const newStandardCpe = await storage.createCpe({
+                name: 'CPE Padrão',
+                type: 'cpe',
+                isStandard: true,
+                hasAccess: true,
+                ownership: 'provider',
+              });
+              standardCpeCpes = [newStandardCpe];
+              console.log(`[Voalle Import] CPE padrão criada: ${newStandardCpe.name} (ID: ${newStandardCpe.id})`);
+            }
+            
+            if (standardCpeCpes.length > 1) {
+              console.log(`[Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (${standardCpeCpes.length}) - vinculação automática ignorada`);
+            } else {
+              const standardCpe = standardCpeCpes[0];
+              console.log(`[Voalle Import] CPE padrão (corporativo) encontrada: ${standardCpe.name} (ID: ${standardCpe.id})`);
+              
+              // Buscar links corporativos sem CPE associado
+              const allLinks = await storage.getLinks();
+              const corpLinksWithoutCpe = allLinks.filter((l: typeof allLinks[0]) => 
+                l.authType === 'corporate' && 
+                l.vlanInterface && 
+                l.monitoredIp &&
+                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 60000
+              );
+              
+              let corpCpesLinked = 0;
+              for (const link of corpLinksWithoutCpe) {
+                const existingAssocs = await storage.getLinkCpes(link.id);
+                if (existingAssocs.length > 0) {
+                  continue;
+                }
+                
+                await storage.addCpeToLink({
+                  linkId: link.id,
+                  cpeId: standardCpe.id,
+                  role: 'primary',
+                  ipOverride: link.monitoredIp,
+                  showInEquipmentTab: true,
+                });
+                corpCpesLinked++;
+              }
+              
+              if (corpCpesLinked > 0) {
+                console.log(`[Voalle Import] ${corpCpesLinked} links corporativos vinculados à CPE padrão ${standardCpe.name}`);
+              }
+            }
+          } catch (cpeError) {
+            console.error(`[Voalle Import] Erro ao vincular CPEs padrão corporativas:`, cpeError);
+          }
         } catch (lookupError) {
           console.error(`[Voalle Import] Erro na busca de IPs corporativos:`, lookupError);
         }
