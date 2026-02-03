@@ -335,6 +335,8 @@ export const equipmentVendors = pgTable("equipment_vendors", {
   // Perfil SNMP padrão para equipamentos deste fabricante
   snmpProfileId: integer("snmp_profile_id"),
   description: text("description"),
+  // Tipo de acesso padrão para CPEs deste fabricante
+  defaultAccessType: varchar("default_access_type", { length: 20 }).default("ssh"), // web, ssh, winbox
   isBuiltIn: boolean("is_built_in").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
