@@ -696,31 +696,20 @@ export function VoalleImportTab() {
         // Buscar dados do conexoes.csv para verificar PPPoE e VLAN
         const conexao = conexoesMap.get(tag.id);
         
-        // REGRA DE OURO: Se tem usuário PPPoE OU interface VLAN → IMPORTAR
+        // REGRA DE OURO: 3 requisitos obrigatórios:
+        // 1. Etiqueta ativa (já verificado acima)
+        // 2. Contrato na planilha contratos_ativos (já verificado acima)
+        // 3. Ter usuário PPPoE OU interface VLAN (verificar agora)
         const pppoeUser = conexao?.['Usuário'] || authContract?.user || null;
         const vlanInterface = conexao?.['Interface VLAN'] || authContract?.vlan_interface || null;
         const vlan = conexao?.['VLAN'] || authContract?.vlan || null;
         
         const hasPppoeOrVlan = !!(pppoeUser || vlanInterface || vlan);
         
-        // Se não tem PPPoE nem VLAN, usar filtro de título como fallback
+        // Se não tem PPPoE nem VLAN → NÃO IMPORTAR
         if (!hasPppoeOrVlan) {
-          const title = tag.title?.toLowerCase() || '';
-          const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade', 'serviços de ti', 'serviço de ti', 'ti corporativo'];
-          const excludeTerms = ['telefon', 'voz', 'pabx', 'sip', 'tv', 'iptv', 'streaming'];
-          
-          const hasInternetTerm = internetTerms.some(term => title.includes(term));
-          const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
-          
-          // Verificar também o tipo do contrato
-          const tipoContrato = contratoTipoMap.get(contractId) || contratoTipoMap.get(semPrefixo) || '';
-          const tiposValidosContrato = ['serviços de ti', 'serviço de ti', 'ti corporativo', 'prestação de serviços', 'banda larga', 'internet', 'fibra', 'dedicado', 'link', 'mpls', 'conectividade', 'dados'];
-          const contratoTipoValido = tiposValidosContrato.some(term => tipoContrato.includes(term));
-          
-          if ((!hasInternetTerm && !contratoTipoValido) || hasExcludeTerm) {
-            skippedByTitle++;
-            continue;
-          }
+          skippedByTitle++;
+          continue;
         }
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
