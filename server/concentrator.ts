@@ -1444,3 +1444,71 @@ export async function lookupCorporateLinkInfo(
   console.log(`[Corporate SNMP] Resultado: ifIndex=${result.ifIndex}, IP=${result.ipAddress || 'N/A'}, ipBlock=${result.ipBlock || 'N/A'}, MAC=${result.macAddress || 'N/A'}`);
   return result;
 }
+
+/**
+ * Busca o MAC na tabela ARP dado um IP conhecido
+ * Útil para links PPPoE onde já descobrimos o IP mas precisamos do MAC para identificar o vendor
+ */
+export async function lookupMacFromArpByIp(
+  concentrator: SnmpConcentrator,
+  targetIp: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<string | null> {
+  console.log(`[ARP Lookup] Buscando MAC para IP ${targetIp} em ${concentrator.name}`);
+
+  const profile: ConcentratorSnmpProfile =
+    snmpProfile
+      ? {
+          version: snmpProfile.version,
+          port: snmpProfile.port,
+          community: snmpProfile.community,
+          securityLevel: snmpProfile.securityLevel,
+          authProtocol: snmpProfile.authProtocol,
+          authPassword: snmpProfile.authPassword,
+          privProtocol: snmpProfile.privProtocol,
+          privPassword: snmpProfile.privPassword,
+          username: snmpProfile.username,
+          timeout: snmpProfile.timeout,
+          retries: snmpProfile.retries,
+        }
+      : {
+          version: "2c",
+          port: 161,
+          community: "public",
+          timeout: 5000,
+          retries: 1,
+        };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  try {
+    // Walk the ARP table
+    const arpPhysAddrData = await snmpSubtreeWalk(session, CORPORATE_OIDS.ipNetToMediaPhysAddress);
+
+    // OID format: ipNetToMediaPhysAddress.ifIndex.ipAddress
+    for (const entry of arpPhysAddrData) {
+      const indexParts = entry.index.split(".");
+      // Last 4 octets are the IP
+      const ipParts = indexParts.slice(-4);
+      const entryIp = ipParts.join(".");
+
+      if (entryIp === targetIp) {
+        let mac = entry.value;
+        if (Buffer.isBuffer(mac)) {
+          mac = Array.from(mac).map((b: number) => b.toString(16).padStart(2, '0')).join(':');
+        }
+        console.log(`[ARP Lookup] MAC encontrado para ${targetIp}: ${mac}`);
+        session.close();
+        return mac;
+      }
+    }
+
+    console.log(`[ARP Lookup] MAC não encontrado para IP ${targetIp}`);
+    session.close();
+    return null;
+  } catch (error: any) {
+    console.error(`[ARP Lookup] Erro ao buscar MAC: ${error.message}`);
+    session.close();
+    return null;
+  }
+}

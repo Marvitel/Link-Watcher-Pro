@@ -4729,63 +4729,104 @@ export async function registerRoutes(
           
           console.log(`[Voalle Import] Busca de IPs concluída: ${pppoeIpsFound} IPs encontrados`);
           
-          // Vincular links PPPoE a CPE padrão do tipo ONU
+          // Vincular links PPPoE a CPE padrão por fabricante (detectado via MAC)
           try {
-            // Buscar CPEs padrão do tipo "onu"
-            let standardOnuCpes = await storage.getStandardCpesByType('onu');
+            const { lookupMacFromArpByIp, detectVendorByMac } = await import("./concentrator");
             
-            // Criar CPE padrão tipo ONU se não existir nenhuma
-            if (standardOnuCpes.length === 0) {
-              console.log(`[Voalle Import] Criando CPE padrão tipo ONU automaticamente...`);
-              const newStandardCpe = await storage.createCpe({
+            // Buscar todos os links PPPoE importados que têm IP
+            const allLinks = await storage.getLinks();
+            const pppoeLinksWithIp = allLinks.filter((l: typeof allLinks[0]) => 
+              l.authType === 'pppoe' && 
+              l.pppoeUser && 
+              l.monitoredIp && 
+              l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
+            );
+            
+            console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE recentes para vincular CPE`);
+            
+            let cpesLinkedByVendor = 0;
+            let cpesLinkedGeneric = 0;
+            
+            // CPE padrão genérica (fallback)
+            let genericStandardCpe: any = null;
+            const standardOnuCpes = await storage.getStandardCpesByType('onu');
+            if (standardOnuCpes.length === 1) {
+              genericStandardCpe = standardOnuCpes[0];
+            } else if (standardOnuCpes.length === 0) {
+              // Criar CPE padrão genérica se não existir
+              genericStandardCpe = await storage.createCpe({
                 name: 'ONU Padrão',
                 type: 'onu',
                 isStandard: true,
                 hasAccess: true,
                 ownership: 'provider',
               });
-              standardOnuCpes = [newStandardCpe];
-              console.log(`[Voalle Import] CPE padrão criada: ${newStandardCpe.name} (ID: ${newStandardCpe.id})`);
+              console.log(`[Voalle Import] CPE padrão genérica criada: ${genericStandardCpe.name}`);
             }
             
-            if (standardOnuCpes.length > 1) {
-              console.log(`[Voalle Import] Múltiplas CPEs padrão tipo ONU encontradas (${standardOnuCpes.length}) - vinculação automática ignorada. Selecione manualmente.`);
-            } else {
-              // Exatamente uma CPE padrão tipo ONU - vincular automaticamente
-              const standardCpe = standardOnuCpes[0];
-              console.log(`[Voalle Import] CPE padrão encontrada: ${standardCpe.name} (ID: ${standardCpe.id})`);
+            for (const link of pppoeLinksWithIp) {
+              // Verificar se já existe associação
+              const existingAssocs = await storage.getLinkCpes(link.id);
+              if (existingAssocs.length > 0) {
+                continue; // Já tem CPE vinculado
+              }
               
-              // Buscar todos os links PPPoE importados que têm IP
-              const allLinks = await storage.getLinks();
-              const pppoeLinksWithIp = allLinks.filter((l: typeof allLinks[0]) => 
-                l.authType === 'pppoe' && 
-                l.pppoeUser && 
-                l.monitoredIp && 
-                l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
-              );
+              let linkedCpe = null;
               
-              let cpesLinked = 0;
-              for (const link of pppoeLinksWithIp) {
-                // Verificar se já existe associação
-                const existingAssocs = await storage.getLinkCpes(link.id);
-                if (existingAssocs.length > 0) {
-                  continue; // Já tem CPE vinculado
+              // Tentar descobrir MAC via ARP para detectar fabricante
+              if (link.concentratorId && link.monitoredIp) {
+                try {
+                  const concentrator = await storage.getConcentrator(link.concentratorId);
+                  if (concentrator) {
+                    const snmpProfile = concentrator.snmpProfileId 
+                      ? await storage.getSnmpProfile(concentrator.snmpProfileId)
+                      : null;
+                    
+                    const mac = await lookupMacFromArpByIp(concentrator, link.monitoredIp, snmpProfile);
+                    
+                    if (mac) {
+                      const vendorSlug = detectVendorByMac(mac);
+                      if (vendorSlug) {
+                        const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
+                        if (vendor) {
+                          // Buscar CPE padrão deste vendor
+                          const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
+                          if (vendorCpe) {
+                            linkedCpe = vendorCpe;
+                            console.log(`[Voalle Import] ${link.name}: MAC=${mac}, Vendor=${vendor.name} -> CPE padrão: ${vendorCpe.name}`);
+                            cpesLinkedByVendor++;
+                          } else {
+                            console.log(`[Voalle Import] ${link.name}: MAC=${mac}, Vendor=${vendor.name} - sem CPE padrão cadastrada`);
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (arpErr: any) {
+                  console.log(`[Voalle Import] ${link.name}: Erro ao buscar MAC via ARP: ${arpErr.message}`);
                 }
-                
-                // Criar associação com a CPE padrão
+              }
+              
+              // Fallback: usar CPE padrão genérica
+              if (!linkedCpe && genericStandardCpe) {
+                linkedCpe = genericStandardCpe;
+                cpesLinkedGeneric++;
+              }
+              
+              // Vincular CPE ao link
+              if (linkedCpe) {
                 await storage.addCpeToLink({
                   linkId: link.id,
-                  cpeId: standardCpe.id,
+                  cpeId: linkedCpe.id,
                   role: 'primary',
                   ipOverride: link.monitoredIp,
                   showInEquipmentTab: true,
                 });
-                cpesLinked++;
               }
-              
-              if (cpesLinked > 0) {
-                console.log(`[Voalle Import] ${cpesLinked} links PPPoE vinculados à CPE padrão ${standardCpe.name}`);
-              }
+            }
+            
+            if (cpesLinkedByVendor > 0 || cpesLinkedGeneric > 0) {
+              console.log(`[Voalle Import] CPEs vinculadas: ${cpesLinkedByVendor} por vendor, ${cpesLinkedGeneric} genéricas`);
             }
           } catch (cpeError) {
             console.error(`[Voalle Import] Erro ao vincular CPEs padrão:`, cpeError);
@@ -4905,10 +4946,10 @@ export async function registerRoutes(
                               if (vendor) {
                                 console.log(`[Voalle Import] ${link.name}: Vendor detectado pelo MAC: ${vendor.name} (ID: ${vendor.id})`);
                                 
-                                // Buscar CPE cadastrada com esse vendorId
-                                const vendorCpe = await storage.getCpeByVendorId(vendor.id);
+                                // Buscar CPE padrão (isStandard=true) deste vendor
+                                const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
                                 if (vendorCpe) {
-                                  // Associar CPE existente ao link
+                                  // Associar CPE padrão ao link
                                   await storage.addCpeToLink({
                                     linkId: link.id,
                                     cpeId: vendorCpe.id,
@@ -4916,9 +4957,9 @@ export async function registerRoutes(
                                     ipOverride: corpInfo.ipAddress,
                                     showInEquipmentTab: true,
                                   });
-                                  console.log(`[Voalle Import] ${link.name}: CPE ${vendorCpe.name} vinculada (Vendor: ${vendor.name}, IP: ${corpInfo.ipAddress})`);
+                                  console.log(`[Voalle Import] ${link.name}: CPE padrão ${vendorCpe.name} vinculada (Vendor: ${vendor.name}, IP: ${corpInfo.ipAddress})`);
                                 } else {
-                                  console.log(`[Voalle Import] ${link.name}: Nenhuma CPE cadastrada para vendor ${vendor.name} - será vinculada CPE padrão depois`);
+                                  console.log(`[Voalle Import] ${link.name}: Nenhuma CPE padrão para vendor ${vendor.name} - verifique isStandard=true`);
                                 }
                               } else {
                                 console.log(`[Voalle Import] ${link.name}: Vendor ${vendorSlug} não encontrado no sistema`);
