@@ -4525,6 +4525,8 @@ export async function registerRoutes(
             accessPointId: linkSwitchId, // Switch for PTP/L2 links
             // Origem de dados de tráfego: concentrator > accessPoint (switch) > manual
             trafficSourceType: linkConcentratorId ? 'concentrator' : (linkSwitchId ? 'accessPoint' : 'manual'),
+            // Para links corporativos, usar vlanInterface como snmpInterfaceName (será resolvido para ifIndex via SNMP)
+            snmpInterfaceName: link.authType === 'corporate' && link.vlanInterface ? String(link.vlanInterface).trim() : null,
             // CPE credentials
             cpeUser: link.cpeUser ? String(link.cpeUser).trim() : null,
             cpePassword: link.cpePassword ? String(link.cpePassword) : null,
