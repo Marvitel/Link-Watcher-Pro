@@ -1,0 +1,17 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f | grep "Voalle Import"
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5664, clientName: MOISES SANTANA GOMES (1143932579)
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Found existing client by slug: moises-santana-gomes, updating/reactivating with voalleId: 5664
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 155, oltName: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Access point "BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE" isOlt: true
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] OLT from existing: 13
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Link FT581EDW: clientId=38, concentratorId=10, oltId=13, switchId=null
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Creating new link FT581EDW with accessPointId=13
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 03 11:40:24 link-monitor npm[1719735]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE : BCQ-MVT-RB-BARRA (SNMP: SNMP MARVITEL V2)
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] moises.gomes: IP=100.80.7.123, ifIndex=15790327, ifName=<pppoe-moises.gomes>, ipBlock=N/A
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] 2 links PPPoE recentes para vincular CPE
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] CPEs vinculadas: 0 por vendor, 2 genéricas
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
+fev 03 11:40:26 link-monitor npm[1719735]: [Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (4) - vinculação automática ignorada

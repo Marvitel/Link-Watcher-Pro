@@ -4774,6 +4774,7 @@ export async function registerRoutes(
               
               // Tentar descobrir MAC via ARP para detectar fabricante
               if (link.concentratorId && link.monitoredIp) {
+                console.log(`[Voalle Import] ${link.name}: Buscando MAC via ARP para IP ${link.monitoredIp}...`);
                 try {
                   const concentrator = await storage.getConcentrator(link.concentratorId);
                   if (concentrator) {
@@ -4784,26 +4785,37 @@ export async function registerRoutes(
                     const mac = await lookupMacFromArpByIp(concentrator, link.monitoredIp, snmpProfile);
                     
                     if (mac) {
+                      console.log(`[Voalle Import] ${link.name}: MAC encontrado: ${mac}`);
                       const vendorSlug = detectVendorByMac(mac);
+                      console.log(`[Voalle Import] ${link.name}: Vendor slug detectado: ${vendorSlug || 'nenhum'}`);
                       if (vendorSlug) {
                         const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
                         if (vendor) {
+                          console.log(`[Voalle Import] ${link.name}: Vendor encontrado: ${vendor.name} (ID: ${vendor.id})`);
                           // Buscar CPE padrão deste vendor
                           const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
                           if (vendorCpe) {
                             linkedCpe = vendorCpe;
-                            console.log(`[Voalle Import] ${link.name}: MAC=${mac}, Vendor=${vendor.name} -> CPE padrão: ${vendorCpe.name}`);
+                            console.log(`[Voalle Import] ${link.name}: CPE padrão vinculada: ${vendorCpe.name}`);
                             cpesLinkedByVendor++;
                           } else {
-                            console.log(`[Voalle Import] ${link.name}: MAC=${mac}, Vendor=${vendor.name} - sem CPE padrão cadastrada`);
+                            console.log(`[Voalle Import] ${link.name}: Nenhuma CPE padrão para vendor ${vendor.name}`);
                           }
+                        } else {
+                          console.log(`[Voalle Import] ${link.name}: Vendor ${vendorSlug} não encontrado no sistema`);
                         }
                       }
+                    } else {
+                      console.log(`[Voalle Import] ${link.name}: MAC não encontrado via ARP`);
                     }
+                  } else {
+                    console.log(`[Voalle Import] ${link.name}: Concentrador ID ${link.concentratorId} não encontrado`);
                   }
                 } catch (arpErr: any) {
-                  console.log(`[Voalle Import] ${link.name}: Erro ao buscar MAC via ARP: ${arpErr.message}`);
+                  console.log(`[Voalle Import] ${link.name}: Erro ARP: ${arpErr.message}`);
                 }
+              } else {
+                console.log(`[Voalle Import] ${link.name}: Sem concentrador (${link.concentratorId}) ou IP (${link.monitoredIp})`);
               }
               
               // Fallback: usar CPE padrão genérica
