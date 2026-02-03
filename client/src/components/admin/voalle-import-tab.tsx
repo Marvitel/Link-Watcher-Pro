@@ -737,7 +737,8 @@ export function VoalleImportTab() {
         // Get client name and document (CPF/CNPJ) from people.csv using client_id
         const person = tag.client_id ? peopleMap.get(tag.client_id) : null;
         const personUser = tag.client_id ? personUsersMap.get(tag.client_id) : null;
-        const clientDoc = person?.tx_id || '';
+        // Garantir que tx_id seja string (pode vir como número do CSV)
+        const clientDoc = person?.tx_id ? String(person.tx_id) : '';
         const clientName = person?.name 
           ? `${person.name}${clientDoc ? ` (${clientDoc})` : ''}`
           : (conexao?.['Nome do Cliente'] || tag.client_name || `ID: ${tag.client_id}`);
