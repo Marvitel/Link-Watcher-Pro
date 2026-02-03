@@ -668,37 +668,13 @@ export function VoalleImportTab() {
           continue;
         }
         
-        // Filtro de título: aceitar links de internet (dedicados, SCM, fibra, banda larga, etc.)
-        const title = tag.title?.toLowerCase() || '';
-        // Termos que indicam serviço de internet/conectividade
-        const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade', 'serviços de ti', 'serviço de ti', 'ti corporativo'];
-        // Termos que indicam que NÃO é link de internet (para excluir)
-        const excludeTerms = ['telefon', 'voz', 'pabx', 'sip', 'tv', 'iptv', 'streaming'];
-        
-        const hasInternetTerm = internetTerms.some(term => title.includes(term));
-        const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
-        
-        // Verificar também o tipo do contrato (se disponível no contratos_ativos.csv)
-        // Tipos de contrato que indicam serviço de TI/internet/dados
+        // Primeiro: verificar se está nos contratos ativos (obrigatório se planilha disponível)
         const contractId = String(tag.contract_id || '').trim();
-        const tipoContrato = contratoTipoMap.get(contractId) || contratoTipoMap.get(contractId.replace(/^M-/i, '')) || '';
-        const tiposValidosContrato = ['serviços de ti', 'serviço de ti', 'ti corporativo', 'prestação de serviços', 'banda larga', 'internet', 'fibra', 'dedicado', 'link', 'mpls', 'conectividade', 'dados'];
-        const contratoTipoValido = tiposValidosContrato.some(term => tipoContrato.includes(term));
+        const semPrefixo = contractId.replace(/^M-/i, '');
+        const semPonto = semPrefixo.replace(/\./g, '');
+        const comPrefixo = `M-${semPrefixo}`;
         
-        // Aceitar se: (tem termo de internet no título OU tipo de contrato é válido) E não tem termo de exclusão
-        if ((!hasInternetTerm && !contratoTipoValido) || hasExcludeTerm) {
-          skippedByTitle++;
-          continue;
-        }
-
-        // Filtrar por contratos ativos se houver planilha de contratos_ativos
         if (hasContratosAtivosFilter) {
-          const contractId = String(tag.contract_id || '').trim();
-          const semPrefixo = contractId.replace(/^M-/i, '');
-          const semPonto = semPrefixo.replace(/\./g, '');
-          const comPrefixo = `M-${semPrefixo}`;
-          
-          // Tentar todas as variações
           const isActive = contratosAtivosSet.has(contractId) || 
                           contratosAtivosSet.has(semPrefixo) || 
                           contratosAtivosSet.has(semPonto) ||
@@ -711,25 +687,47 @@ export function VoalleImportTab() {
         }
 
         // Buscar authContract primeiro por etiqueta (mais específico), depois por contract_id (fallback)
-        // Tentar múltiplas variações do contract_id (com e sem prefixo M-, com e sem ponto decimal)
-        const contractIdStr = String(tag.contract_id || '').trim();
-        const semPrefixo = contractIdStr.replace(/^M-/i, '');
-        const semPonto = semPrefixo.replace(/\./g, '');
         const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
-          || authContractByContractMap.get(contractIdStr)
+          || authContractByContractMap.get(contractId)
           || authContractByContractMap.get(semPrefixo)
           || authContractByContractMap.get(semPonto)
-          || authContractByContractMap.get(`M-${semPrefixo}`);
+          || authContractByContractMap.get(comPrefixo);
+        
+        // Buscar dados do conexoes.csv para verificar PPPoE e VLAN
+        const conexao = conexoesMap.get(tag.id);
+        
+        // REGRA DE OURO: Se tem usuário PPPoE OU interface VLAN → IMPORTAR
+        const pppoeUser = conexao?.['Usuário'] || authContract?.user || null;
+        const vlanInterface = conexao?.['Interface VLAN'] || authContract?.vlan_interface || null;
+        const vlan = conexao?.['VLAN'] || authContract?.vlan || null;
+        
+        const hasPppoeOrVlan = !!(pppoeUser || vlanInterface || vlan);
+        
+        // Se não tem PPPoE nem VLAN, usar filtro de título como fallback
+        if (!hasPppoeOrVlan) {
+          const title = tag.title?.toLowerCase() || '';
+          const internetTerms = ['dedicado', 'scm', 'fibra', 'banda', 'internet', 'link', 'ip', 'mpls', 'vpn', 'sdwan', 'wan', 'conectividade', 'serviços de ti', 'serviço de ti', 'ti corporativo'];
+          const excludeTerms = ['telefon', 'voz', 'pabx', 'sip', 'tv', 'iptv', 'streaming'];
+          
+          const hasInternetTerm = internetTerms.some(term => title.includes(term));
+          const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
+          
+          // Verificar também o tipo do contrato
+          const tipoContrato = contratoTipoMap.get(contractId) || contratoTipoMap.get(semPrefixo) || '';
+          const tiposValidosContrato = ['serviços de ti', 'serviço de ti', 'ti corporativo', 'prestação de serviços', 'banda larga', 'internet', 'fibra', 'dedicado', 'link', 'mpls', 'conectividade', 'dados'];
+          const contratoTipoValido = tiposValidosContrato.some(term => tipoContrato.includes(term));
+          
+          if ((!hasInternetTerm && !contratoTipoValido) || hasExcludeTerm) {
+            skippedByTitle++;
+            continue;
+          }
+        }
         const concentrator = authContract?.authentication_concentrator_id 
           ? concentratorMap.get(authContract.authentication_concentrator_id) 
           : null;
         const accessPoint = authContract?.authentication_access_point_id
           ? accessPointMap.get(authContract.authentication_access_point_id)
           : null;
-
-        // Buscar dados enriquecidos do conexoes.csv se disponível (match por ID da etiqueta)
-        // O tag.id corresponde ao "Código da Etiqueta" do conexoes.csv
-        const conexao = conexoesMap.get(tag.id);
         
         // Extrair IP direto do conexoes.csv (campo "IP")
         const monitoredIpFromConexao = conexao?.['IP'] || conexao?.['ip'] || null;
