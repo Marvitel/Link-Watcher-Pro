@@ -1582,6 +1582,11 @@ export class DatabaseStorage {
     return vendor || undefined;
   }
 
+  async getEquipmentVendorBySlug(slug: string): Promise<EquipmentVendor | undefined> {
+    const [vendor] = await db.select().from(equipmentVendors).where(eq(equipmentVendors.slug, slug));
+    return vendor || undefined;
+  }
+
   async createEquipmentVendor(data: InsertEquipmentVendor): Promise<EquipmentVendor> {
     const [vendor] = await db.insert(equipmentVendors).values(data).returning();
     return vendor;

@@ -2,6 +2,238 @@ import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
 import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
 
+// Mapa OUI (primeiros 3 bytes do MAC) -> Vendor slug
+// OUI identifica o fabricante do dispositivo
+const OUI_VENDOR_MAP: Record<string, string> = {
+  // Mikrotik
+  "d4:ca:6d": "mikrotik",
+  "e4:8d:8c": "mikrotik",
+  "6c:3b:6b": "mikrotik",
+  "4c:5e:0c": "mikrotik",
+  "2c:c8:1b": "mikrotik",
+  "74:4d:28": "mikrotik",
+  "b8:69:f4": "mikrotik",
+  "dc:2c:6e": "mikrotik",
+  "48:a9:8a": "mikrotik",
+  "64:d1:54": "mikrotik",
+  "cc:2d:e0": "mikrotik",
+  "c4:ad:34": "mikrotik",
+  "18:fd:74": "mikrotik",
+  "08:55:31": "mikrotik",
+  
+  // Huawei
+  "00:18:82": "huawei",
+  "00:1e:10": "huawei",
+  "00:25:9e": "huawei",
+  "00:e0:fc": "huawei",
+  "04:02:1f": "huawei",
+  "04:bd:70": "huawei",
+  "08:63:61": "huawei",
+  "0c:37:dc": "huawei",
+  "10:1b:54": "huawei",
+  "24:09:95": "huawei",
+  "28:6e:d4": "huawei",
+  "34:6a:c2": "huawei",
+  "48:00:31": "huawei",
+  "54:89:98": "huawei",
+  "5c:7d:5e": "huawei",
+  "60:de:44": "huawei",
+  "70:7b:e8": "huawei",
+  "80:fb:06": "huawei",
+  "88:66:39": "huawei",
+  "ac:cf:85": "huawei",
+  "c4:05:28": "huawei",
+  "d4:40:f0": "huawei",
+  "e0:24:7f": "huawei",
+  "e8:68:e7": "huawei",
+  "f4:4c:7f": "huawei",
+  "f8:01:13": "huawei",
+  "fc:48:ef": "huawei",
+  
+  // Intelbras
+  "00:1a:3f": "intelbras",
+  "78:c2:c0": "intelbras",
+  "00:0d:2b": "intelbras",
+  "ac:84:c6": "intelbras",
+  "dc:5e:6a": "intelbras",
+  "d8:a7:56": "intelbras",
+  "e0:37:bf": "intelbras",
+  "b0:4e:26": "intelbras",
+  "88:c3:97": "intelbras",
+  
+  // Cisco
+  "00:00:0c": "cisco",
+  "00:01:42": "cisco",
+  "00:01:43": "cisco",
+  "00:01:63": "cisco",
+  "00:01:64": "cisco",
+  "00:01:96": "cisco",
+  "00:01:97": "cisco",
+  "00:02:16": "cisco",
+  "00:02:17": "cisco",
+  "00:02:3d": "cisco",
+  "00:02:4a": "cisco",
+  "00:02:4b": "cisco",
+  
+  // TP-Link
+  "00:27:19": "tp-link",
+  "10:fe:ed": "tp-link",
+  "14:cc:20": "tp-link",
+  "18:a6:f7": "tp-link",
+  "1c:3b:f3": "tp-link",
+  "30:b5:c2": "tp-link",
+  "50:c7:bf": "tp-link",
+  "54:c8:0f": "tp-link",
+  "60:e3:27": "tp-link",
+  "64:66:b3": "tp-link",
+  "6c:5a:b5": "tp-link",
+  "78:44:76": "tp-link",
+  "90:f6:52": "tp-link",
+  "98:da:c4": "tp-link",
+  "a0:f3:c1": "tp-link",
+  "c0:25:e9": "tp-link",
+  "d8:07:b6": "tp-link",
+  "e8:94:f6": "tp-link",
+  "f4:ec:38": "tp-link",
+  "f8:1a:67": "tp-link",
+  
+  // Ubiquiti
+  "00:15:6d": "ubiquiti",
+  "00:27:22": "ubiquiti",
+  "04:18:d6": "ubiquiti",
+  "24:a4:3c": "ubiquiti",
+  "44:d9:e7": "ubiquiti",
+  "60:22:32": "ubiquiti",
+  "68:72:51": "ubiquiti",
+  "74:83:c2": "ubiquiti",
+  "78:8a:20": "ubiquiti",
+  "80:2a:a8": "ubiquiti",
+  "dc:9f:db": "ubiquiti",
+  "e0:63:da": "ubiquiti",
+  "f0:9f:c2": "ubiquiti",
+  "fc:ec:da": "ubiquiti",
+  
+  // ZTE
+  "00:19:c6": "zte",
+  "00:22:93": "zte",
+  "00:25:12": "zte",
+  "00:26:ed": "zte",
+  "1c:1d:67": "zte",
+  "28:28:5d": "zte",
+  "34:4b:50": "zte",
+  "54:22:f8": "zte",
+  "58:2a:f7": "zte",
+  "64:13:6c": "zte",
+  "74:a7:8e": "zte",
+  "78:31:c1": "zte",
+  "84:74:2a": "zte",
+  "90:4e:2b": "zte",
+  "a0:ec:80": "zte",
+  "b4:b3:62": "zte",
+  "c8:7b:5b": "zte",
+  "cc:a2:23": "zte",
+  "d4:6e:5c": "zte",
+  "e4:3e:d7": "zte",
+  "f8:6e:cf": "zte",
+  "fc:2d:5e": "zte",
+  
+  // Fiberhome
+  "00:25:68": "fiberhome",
+  "1c:a0:b8": "fiberhome",
+  "24:c4:2f": "fiberhome",
+  "48:2c:a0": "fiberhome",
+  "54:be:53": "fiberhome",
+  "58:ba:d4": "fiberhome",
+  "60:45:cb": "fiberhome",
+  "6c:5c:3d": "fiberhome",
+  "74:2b:0f": "fiberhome",
+  "7c:a2:3e": "fiberhome",
+  "88:ce:fa": "fiberhome",
+  "90:47:3c": "fiberhome",
+  "a4:8e:af": "fiberhome",
+  "b0:26:28": "fiberhome",
+  "cc:50:0a": "fiberhome",
+  "d8:1b:be": "fiberhome",
+  "e4:f3:e8": "fiberhome",
+  "f8:59:71": "fiberhome",
+  
+  // Datacom
+  "00:04:38": "datacom",
+  
+  // Nokia (Alcatel-Lucent)
+  "00:1d:b5": "nokia",
+  "00:20:da": "nokia",
+  "38:22:d6": "nokia",
+  "3c:fa:d3": "nokia",
+  "48:a9:d2": "nokia",
+  "60:eb:69": "nokia",
+  "74:a0:2f": "nokia",
+  "c8:b5:b7": "nokia",
+  "d4:64:e0": "nokia",
+  
+  // Juniper
+  "00:05:85": "juniper",
+  "00:10:db": "juniper",
+  "00:12:1e": "juniper",
+  "00:14:f6": "juniper",
+  "00:17:cb": "juniper",
+  "00:19:e2": "juniper",
+  "00:1b:c0": "juniper",
+  "00:1f:12": "juniper",
+  "00:21:59": "juniper",
+  "00:22:83": "juniper",
+  "00:23:9c": "juniper",
+  "00:24:dc": "juniper",
+  "00:26:88": "juniper",
+  
+  // Fortinet
+  "00:09:0f": "fortinet",
+  "00:0c:e6": "fortinet",
+  "08:5b:0e": "fortinet",
+  "70:4c:a5": "fortinet",
+  "90:6c:ac": "fortinet",
+  
+  // Aruba
+  "00:0b:86": "aruba",
+  "00:1a:1e": "aruba",
+  "00:24:6c": "aruba",
+  "04:bd:88": "aruba",
+  "18:64:72": "aruba",
+  "20:4c:03": "aruba",
+  "24:de:c6": "aruba",
+  "40:e3:d6": "aruba",
+  "6c:f3:7f": "aruba",
+  "84:d4:7e": "aruba",
+  "94:b4:0f": "aruba",
+  "9c:1c:12": "aruba",
+  "a8:bd:27": "aruba",
+  "d8:c7:c8": "aruba",
+};
+
+/**
+ * Detecta o vendor slug pelo MAC address (OUI lookup)
+ * @param macAddress MAC address no formato XX:XX:XX:XX:XX:XX ou XX-XX-XX-XX-XX-XX
+ * @returns Vendor slug ou null se não encontrado
+ */
+export function detectVendorByMac(macAddress: string | null | undefined): string | null {
+  if (!macAddress) return null;
+  
+  // Normalizar MAC para lowercase com ":"
+  const normalizedMac = macAddress.toLowerCase().replace(/-/g, ":");
+  
+  // Extrair OUI (primeiros 3 bytes = 8 caracteres com ":")
+  const oui = normalizedMac.substring(0, 8);
+  
+  const vendorSlug = OUI_VENDOR_MAP[oui];
+  if (vendorSlug) {
+    console.log(`[OUI Lookup] MAC ${macAddress} -> Vendor: ${vendorSlug}`);
+    return vendorSlug;
+  }
+  
+  console.log(`[OUI Lookup] MAC ${macAddress} -> Vendor não identificado (OUI: ${oui})`);
+  return null;
+}
+
 export interface PppoeSessionInfo {
   username: string;
   ipAddress: string | null;

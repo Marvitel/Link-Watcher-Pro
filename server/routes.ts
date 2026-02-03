@@ -4738,7 +4738,7 @@ export async function registerRoutes(
         console.log(`[Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...`);
         
         try {
-          const { lookupCorporateLinkInfo } = await import("./concentrator");
+          const { lookupCorporateLinkInfo, detectVendorByMac } = await import("./concentrator");
           
           // Get all corporate links with vlanInterface but no IP
           const importedLinks = await storage.getLinks();
@@ -4825,7 +4825,51 @@ export async function registerRoutes(
                       }
                       
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}, ipBlock=${corpInfo.ipBlock || link.ipBlock || 'N/A'} (via ${usedConcentrator.name})`);
+                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}, MAC=${corpInfo.macAddress || 'N/A'}, ipBlock=${corpInfo.ipBlock || link.ipBlock || 'N/A'} (via ${usedConcentrator.name})`);
+                      
+                      // Criar CPE automaticamente se descobriu MAC e IP
+                      if (corpInfo.macAddress && corpInfo.ipAddress) {
+                        try {
+                          // Verificar se já existe CPE associado ao link
+                          const existingLinkCpes = await storage.getLinkCpes(link.id);
+                          if (existingLinkCpes.length === 0) {
+                            const vendorSlug = detectVendorByMac(corpInfo.macAddress);
+                            let vendorId: number | null = null;
+                            
+                            // Buscar vendor ID pelo slug
+                            if (vendorSlug) {
+                              const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
+                              if (vendor) {
+                                vendorId = vendor.id;
+                                console.log(`[Voalle Import] ${link.name}: Vendor detectado pelo MAC: ${vendor.name}`);
+                              }
+                            }
+                            
+                            // Criar CPE com os dados descobertos
+                            const cpeName = `CPE ${link.name}`;
+                            const newCpe = await storage.createCpe({
+                              name: cpeName,
+                              type: 'cpe',
+                              vendorId: vendorId,
+                              ipAddress: corpInfo.ipAddress,
+                              hasAccess: true,
+                              ownership: 'client',
+                              isStandard: false,
+                            });
+                            
+                            // Associar CPE ao link via tabela linkCpes
+                            await storage.addCpeToLink({
+                              linkId: link.id,
+                              cpeId: newCpe.id,
+                              role: 'primary',
+                              showInEquipmentTab: true,
+                            });
+                            console.log(`[Voalle Import] ${link.name}: CPE criado automaticamente (ID: ${newCpe.id}, Vendor: ${vendorSlug || 'desconhecido'}, IP: ${corpInfo.ipAddress})`);
+                          }
+                        } catch (cpeErr: any) {
+                          console.error(`[Voalle Import] ${link.name}: Erro ao criar CPE: ${cpeErr.message}`);
+                        }
+                      }
                     }
                   } catch (linkErr: any) {
                     console.error(`[Voalle Import] Erro ao buscar info corporativa para ${link.name}: ${linkErr.message}`);
