@@ -4738,9 +4738,9 @@ export async function registerRoutes(
           
           console.log(`[Voalle Import] Busca de IPs concluída: ${pppoeIpsFound} IPs encontrados`);
           
-          // Vincular links PPPoE a CPE padrão por fabricante (detectado via MAC da sessão)
+          // Vincular links PPPoE a CPE padrão por fabricante (detectado via MAC)
           try {
-            const { detectVendorByMac } = await import("./concentrator");
+            const { detectVendorByMac, discoverMacForLink } = await import("./concentrator");
             
             // Buscar todos os links PPPoE que têm IP mas não têm CPE vinculado ainda
             const allLinks = await storage.getLinks();
@@ -4750,7 +4750,7 @@ export async function registerRoutes(
               l.monitoredIp
             );
             
-            console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE para vincular CPE (${pppoeSessionMacs.size} MACs conhecidos)`);
+            console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE para vincular CPE`);
             
             let cpesLinkedByVendor = 0;
             let cpesLinkedGeneric = 0;
@@ -4781,12 +4781,36 @@ export async function registerRoutes(
               
               let linkedCpe = null;
               
-              // Usar MAC da sessão PPPoE (se disponível)
-              const mac = pppoeSessionMacs.get(link.id);
-              if (mac) {
-                console.log(`[Voalle Import] ${link.name}: MAC da sessão: ${mac}`);
-                const vendorSlug = detectVendorByMac(mac);
-                console.log(`[Voalle Import] ${link.name}: Vendor slug detectado: ${vendorSlug || 'nenhum'}`);
+              // Descobrir MAC via ARP nos equipamentos do link (OLT > Switch > Concentrador)
+              console.log(`[Voalle Import] ${link.name}: Buscando MAC para IP ${link.monitoredIp}...`);
+              
+              // Preparar equipamentos para busca
+              let olt = null;
+              let accessSwitch = null;
+              let concentrator = null;
+              
+              if (link.oltId) {
+                olt = await storage.getOlt(link.oltId);
+              }
+              if (link.accessPointId) {
+                accessSwitch = await storage.getSwitch(link.accessPointId);
+              }
+              if (link.concentratorId) {
+                concentrator = await storage.getConcentrator(link.concentratorId);
+              }
+              
+              const macResult = await discoverMacForLink(
+                link.monitoredIp,
+                olt,
+                accessSwitch,
+                concentrator,
+                storage.getSnmpProfile.bind(storage)
+              );
+              
+              if (macResult.mac) {
+                console.log(`[Voalle Import] ${link.name}: MAC=${macResult.mac} (via ${macResult.source})`);
+                const vendorSlug = detectVendorByMac(macResult.mac);
+                console.log(`[Voalle Import] ${link.name}: Vendor slug: ${vendorSlug || 'não detectado'}`);
                 if (vendorSlug) {
                   const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
                   if (vendor) {
@@ -4805,7 +4829,7 @@ export async function registerRoutes(
                   }
                 }
               } else {
-                console.log(`[Voalle Import] ${link.name}: MAC não disponível na sessão PPPoE`);
+                console.log(`[Voalle Import] ${link.name}: MAC não encontrado em nenhum equipamento`);
               }
               
               // Fallback: usar CPE padrão genérica

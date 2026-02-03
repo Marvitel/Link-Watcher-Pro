@@ -1526,3 +1526,69 @@ export async function lookupMacFromArpByIp(
     return null;
   }
 }
+
+/**
+ * Interface genérica para equipamentos SNMP (OLT, Switch, Concentrador)
+ */
+interface SnmpEquipment {
+  id: number;
+  name: string;
+  ipAddress: string;
+  snmpProfileId?: number | null;
+}
+
+/**
+ * Descobre o MAC de um link buscando na tabela ARP do equipamento apropriado.
+ * Ordem de prioridade: OLT > Switch de acesso > Concentrador
+ * Funciona tanto para PPPoE quanto para links corporativos.
+ */
+export async function discoverMacForLink(
+  targetIp: string,
+  olt: SnmpEquipment | null,
+  accessSwitch: SnmpEquipment | null,
+  concentrator: SnmpEquipment | null,
+  getSnmpProfile: (id: number) => Promise<SnmpProfile | null>
+): Promise<{ mac: string | null; source: string }> {
+  
+  // Lista de equipamentos para tentar, em ordem de prioridade
+  const equipments: { equipment: SnmpEquipment; type: string }[] = [];
+  
+  if (olt) equipments.push({ equipment: olt, type: 'OLT' });
+  if (accessSwitch) equipments.push({ equipment: accessSwitch, type: 'Switch' });
+  if (concentrator) equipments.push({ equipment: concentrator, type: 'Concentrador' });
+  
+  if (equipments.length === 0) {
+    console.log(`[MAC Discovery] Nenhum equipamento disponível para buscar MAC do IP ${targetIp}`);
+    return { mac: null, source: 'none' };
+  }
+  
+  for (const { equipment, type } of equipments) {
+    console.log(`[MAC Discovery] Tentando ${type}: ${equipment.name} (${equipment.ipAddress})`);
+    
+    try {
+      let snmpProfile: SnmpProfile | null = null;
+      if (equipment.snmpProfileId) {
+        snmpProfile = await getSnmpProfile(equipment.snmpProfileId);
+      }
+      
+      const mac = await lookupMacFromArpByIp(
+        { 
+          ipAddress: equipment.ipAddress, 
+          name: equipment.name 
+        } as SnmpConcentrator,
+        targetIp,
+        snmpProfile
+      );
+      
+      if (mac) {
+        console.log(`[MAC Discovery] MAC ${mac} encontrado via ${type}: ${equipment.name}`);
+        return { mac, source: type };
+      }
+    } catch (err: any) {
+      console.log(`[MAC Discovery] Erro ao buscar no ${type} ${equipment.name}: ${err.message}`);
+    }
+  }
+  
+  console.log(`[MAC Discovery] MAC não encontrado para IP ${targetIp} em nenhum equipamento`);
+  return { mac: null, source: 'none' };
+}
