@@ -263,6 +263,7 @@ interface ConcentratorSnmpProfile {
 const PPPOE_OIDS_MIKROTIK = {
   pppActiveUser: "1.3.6.1.4.1.14988.1.1.5.1.1.1",
   pppActiveAddress: "1.3.6.1.4.1.14988.1.1.5.1.1.2",
+  pppActiveCallerID: "1.3.6.1.4.1.14988.1.1.5.1.1.4", // MAC address do cliente
 };
 
 // Mikrotik PPP Secret MIB alternativo (outra branch da MIB)
@@ -545,6 +546,7 @@ async function lookupPppoeViaSNMP(
       oidSets.push({ 
         user: PPPOE_OIDS_MIKROTIK.pppActiveUser, 
         ip: PPPOE_OIDS_MIKROTIK.pppActiveAddress,
+        mac: PPPOE_OIDS_MIKROTIK.pppActiveCallerID, // MAC do cliente
         name: "Mikrotik PPP Active"
       });
       oidSets.push({ 
@@ -562,18 +564,29 @@ async function lookupPppoeViaSNMP(
 
     let usersData: { index: string; value: string }[] = [];
     let addressData: { index: string; value: string }[] = [];
+    let macData: { index: string; value: string }[] = [];
     let usedOidSet = "";
 
     // Tentar cada conjunto de OIDs até encontrar os usuários específicos que buscamos
     for (const oidSet of oidSets) {
       console.log(`[PPPoE SNMP] Tentando OIDs: ${oidSet.name}`);
       
-      const [users, addresses] = await Promise.all([
+      const walkPromises: Promise<{ index: string; value: string }[]>[] = [
         snmpSubtreeWalk(session, oidSet.user),
         snmpSubtreeWalk(session, oidSet.ip),
-      ]);
+      ];
+      
+      // Adicionar walk do MAC se disponível
+      if ((oidSet as any).mac) {
+        walkPromises.push(snmpSubtreeWalk(session, (oidSet as any).mac));
+      }
+      
+      const walkResults = await Promise.all(walkPromises);
+      const users = walkResults[0];
+      const addresses = walkResults[1];
+      const macs = walkResults[2] || [];
 
-      console.log(`[PPPoE SNMP] ${oidSet.name}: ${users.length} usuários, ${addresses.length} IPs`);
+      console.log(`[PPPoE SNMP] ${oidSet.name}: ${users.length} usuários, ${addresses.length} IPs, ${macs.length} MACs`);
 
       if (users.length > 0) {
         // Verificar se encontramos pelo menos um dos usuários que buscamos
@@ -592,6 +605,7 @@ async function lookupPppoeViaSNMP(
           // Encontramos o usuário alvo OU é nossa primeira opção com dados
           usersData = users;
           addressData = addresses;
+          macData = macs;
           usedOidSet = oidSet.name;
           if (foundTarget) {
             console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo encontrado, usando este OID set`);
