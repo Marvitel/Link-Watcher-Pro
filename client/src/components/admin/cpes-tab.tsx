@@ -663,6 +663,7 @@ export function CpesTab() {
                   <TableHead>IP</TableHead>
                   <TableHead>Proprietário</TableHead>
                   <TableHead>Acesso</TableHead>
+                  <TableHead>Padrão</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -692,6 +693,13 @@ export function CpesTab() {
                           <ShieldOff className="w-3 h-3 mr-1" />
                           Não
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {cpe.isStandard ? (
+                        <Badge variant="default" className="bg-blue-600">Sim</Badge>
+                      ) : (
+                        <Badge variant="outline">Não</Badge>
                       )}
                     </TableCell>
                     <TableCell>
