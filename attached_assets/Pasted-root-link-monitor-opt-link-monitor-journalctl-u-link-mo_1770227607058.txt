@@ -1,0 +1,69 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -E "Mikrotik API"
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] Buscando MAC para IP 100.80.7.123 em 191.52.248.238:8728 (user: marcus.melo, pppoe: moises.gomes)
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] Conectado a 191.52.248.238:8728
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] ARP: 0 entradas para IP 100.80.7.123
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] Buscando PPPoE active para usuário: moises.gomes
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] PPPoE active: 1 sessões para moises.gomes
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] Sessão encontrada: {"$$path":"/ppp/active","id":"*800017E4","name":"moises.gomes","service":"pppoe","callerId":"98:25:4A:BC:D0:AA","address":"100.80.7.123","uptime":"2w4d23h13m24s","encoding":"","sessionId":"0x81A017E4","limitBytesIn":0,"limitBytesOut":0,"radius":true}
+fev 04 14:48:45 link-monitor npm[2484994]: [Mikrotik API] MAC encontrado via PPPoE active (moises.gomes): 98:25:4a:bc:d0:aa
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] Buscando MAC para IP 100.80.7.123 em 191.52.248.238:8728 (user: link.monitor, pppoe: moises.gomes)
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] Conectado a 191.52.248.238:8728
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] ARP: 0 entradas para IP 100.80.7.123
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] Buscando PPPoE active para usuário: moises.gomes
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] PPPoE active: 1 sessões para moises.gomes
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] Sessão encontrada: {"$$path":"/ppp/active","id":"*800017E4","name":"moises.gomes","service":"pppoe","callerId":"98:25:4A:BC:D0:AA","address":"100.80.7.123","uptime":"2w4d23h16m44s","encoding":"","sessionId":"0x81A017E4","limitBytesIn":0,"limitBytesOut":0,"radius":true}
+fev 04 14:52:05 link-monitor npm[2484994]: [Mikrotik API] MAC encontrado via PPPoE active (moises.gomes): 98:25:4a:bc:d0:aa
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -E "Voalle"
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5664, clientName: MOISES SANTANA GOMES (1143932579)
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Found existing client by slug: moises-santana-gomes, updating/reactivating with voalleId: 5664
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 155, oltName: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Access point "BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE" isOlt: true
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] OLT from existing: 13
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Link FT581EDW: clientId=38, concentratorId=10, oltId=13, switchId=null
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Creating new link FT581EDW with accessPointId=13
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 04 14:48:43 link-monitor npm[2484994]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE : BCQ-MVT-RB-BARRA (SNMP: SNMP MARVITEL V2)
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: IP=100.80.7.123, ifIndex=15790327, ifName=<pppoe-moises.gomes>, ipBlock=N/A
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] 2 links PPPoE para vincular CPE
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Buscando MAC para IP 100.80.7.123...
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: MAC=98:25:4a:bc:d0:aa (via Concentrador (API))
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Vendor slug: tplink
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Vendor: TP-Link (ID: 8)
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] moises.gomes: CPE padrão vinculada: ONT TPLINK
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] CPEs vinculadas: 1 por vendor, 0 genéricas
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
+fev 04 14:48:45 link-monitor npm[2484994]: [Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (4) - vinculação automática ignorada
+fev 04 14:49:26 link-monitor npm[2484994]: [Voalle Contract Tags] Buscando etiquetas para cliente 38
+fev 04 14:49:26 link-monitor npm[2484994]: [Voalle Contract Tags] Cliente: MOISES SANTANA GOMES, CNPJ: 1143932579, VoalleCustomerId: 5664
+fev 04 14:49:26 link-monitor npm[2484994]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 04 14:49:26 link-monitor npm[2484994]: [Voalle Contract Tags] voalleCustomerId: 5664, CNPJ: 1143932579, portalUser: definido, portalPass: [presente]
+fev 04 14:49:26 link-monitor npm[2484994]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 5664, user: moises.santana@hotmail.com)
+fev 04 14:49:26 link-monitor npm[2484994]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 04 14:49:27 link-monitor npm[2484994]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+fev 04 14:49:27 link-monitor npm[2484994]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 1143932579): /contractservicetagspaged?txId=1143932579&Page=1&PageSize=50
+fev 04 14:49:27 link-monitor npm[2484994]: [VoalleAdapter] API antiga: resposta sem dados: {
+fev 04 14:49:27 link-monitor npm[2484994]: [Voalle Contract Tags] Encontradas 0 etiquetas
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5664, clientName: MOISES SANTANA GOMES (1143932579)
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Found existing client by slug: moises-santana-gomes, updating/reactivating with voalleId: 5664
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 155, oltName: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Access point "BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE" isOlt: true
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] OLT from existing: 13
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Link FT581EDW: clientId=38, concentratorId=10, oltId=13, switchId=null
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Creating new link FT581EDW with accessPointId=13
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 04 14:52:03 link-monitor npm[2484994]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE : BCQ-MVT-RB-BARRA (SNMP: SNMP MARVITEL V2)
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: IP=100.80.7.123, ifIndex=15790327, ifName=<pppoe-moises.gomes>, ipBlock=N/A
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] 2 links PPPoE para vincular CPE
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Buscando MAC para IP 100.80.7.123...
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: MAC=98:25:4a:bc:d0:aa (via Concentrador (API))
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Vendor slug: tplink
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: Vendor: TP-Link (ID: 8)
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] moises.gomes: CPE padrão vinculada: ONT TPLINK
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] CPEs vinculadas: 1 por vendor, 0 genéricas
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
+fev 04 14:52:05 link-monitor npm[2484994]: [Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (4) - vinculação automática ignorada
+root@link-monitor:/opt/link-monitor# 
