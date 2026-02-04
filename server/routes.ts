@@ -5127,6 +5127,31 @@ export async function registerRoutes(
             linksByOlt.get(oltId)!.push(link);
           }
           
+          // Função helper para delay
+          const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+          
+          // Função helper para retry com backoff exponencial
+          const retryWithBackoff = async <T>(
+            fn: () => Promise<T>,
+            maxRetries: number = 3,
+            baseDelay: number = 2000
+          ): Promise<T> => {
+            let lastError: any;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                return await fn();
+              } catch (err: any) {
+                lastError = err;
+                if (attempt < maxRetries - 1) {
+                  const waitTime = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
+                  console.log(`[Voalle Import] Retry ${attempt + 1}/${maxRetries} após ${waitTime}ms...`);
+                  await delay(waitTime);
+                }
+              }
+            }
+            throw lastError;
+          };
+          
           for (const [oltId, links] of linksByOlt) {
             const olt = await storage.getOlt(oltId);
             if (!olt) {
@@ -5134,11 +5159,24 @@ export async function registerRoutes(
               continue;
             }
             
-            console.log(`[Voalle Import] Buscando ONU ID em ${olt.name} para ${links.length} links...`);
+            console.log(`[Voalle Import] Buscando ONU ID em ${olt.name} para ${links.length} links (com delay de 1s entre cada)...`);
             
-            for (const link of links) {
+            for (let i = 0; i < links.length; i++) {
+              const link = links[i];
+              
+              // Delay entre conexões para evitar congestionamento (exceto primeira)
+              if (i > 0) {
+                await delay(1000); // 1 segundo entre cada consulta
+              }
+              
               try {
-                const result = await searchOnuBySerial(olt, link.equipmentSerialNumber!);
+                // Retry automático com backoff exponencial
+                const result = await retryWithBackoff(
+                  () => searchOnuBySerial(olt, link.equipmentSerialNumber!),
+                  3, // máximo 3 tentativas
+                  2000 // delay base de 2 segundos
+                );
+                
                 if (result.success && result.onuId) {
                   await storage.updateLink(link.id, { onuId: result.onuId });
                   console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}`);
@@ -5147,9 +5185,12 @@ export async function registerRoutes(
                   console.log(`[Voalle Import] ${link.name}: ONU não encontrada (${result.message})`);
                 }
               } catch (onuErr: any) {
-                console.error(`[Voalle Import] ${link.name}: Erro ao buscar ONU: ${onuErr.message}`);
+                console.error(`[Voalle Import] ${link.name}: Erro ao buscar ONU após 3 tentativas: ${onuErr.message}`);
               }
             }
+            
+            // Delay entre OLTs diferentes para evitar sobrecarga geral
+            await delay(2000);
           }
           
           if (onuIdsDiscovered > 0) {
