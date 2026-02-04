@@ -4170,6 +4170,9 @@ export async function registerRoutes(
         failed: 0,
         errors: [] as Array<{ serviceTag: string; error: string }>,
       };
+      
+      // Rastrear IDs dos links processados (criados ou atualizados) para Etapa 6
+      const processedLinkIds: number[] = [];
 
       // Get or create client - group links by clientVoalleId
       const clientsCache = new Map<number, number>(); // voalleId -> clientId
@@ -4568,6 +4571,7 @@ export async function registerRoutes(
             // Update existing link with new data (including OLT/Switch)
             console.log(`[Voalle Import] Updating existing link ${link.serviceTag} (ID: ${existingLink.id}) with accessPointId=${linkOltId || linkSwitchId}`);
             await storage.updateLink(existingLink.id, parseResult.data);
+            processedLinkIds.push(existingLink.id);
             results.success++;
             
             // Log audit event for update
@@ -4588,7 +4592,8 @@ export async function registerRoutes(
           } else {
             // Create new link
             console.log(`[Voalle Import] Creating new link ${link.serviceTag} with accessPointId=${linkOltId || linkSwitchId}`);
-            await storage.createLink(parseResult.data);
+            const newLink = await storage.createLink(parseResult.data);
+            processedLinkIds.push(newLink.id);
             results.success++;
 
             // Log audit event for create
@@ -5096,8 +5101,6 @@ export async function registerRoutes(
         const { searchOnuBySerial } = await import("./olt");
         
         // Buscar links importados nesta sessão que têm OLT e serial mas não têm onuId
-        // Usa os IDs dos links processados (created + updated) em vez de filtrar por createdAt
-        const processedLinkIds = [...results.created.map((l: any) => l.id), ...results.updated.map((l: any) => l.id)];
         console.log(`[Voalle Import] Links processados para busca de ONU ID: ${processedLinkIds.length}`);
         
         const allLinks = await storage.getLinks();
