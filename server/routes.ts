@@ -5070,7 +5070,68 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ ...results, pppoeIpsFound, corporateIpsFound });
+      // Etapa 6: Descobrir ONU ID para links PPPoE que tenham OLT e Serial configurados
+      let onuIdsDiscovered = 0;
+      try {
+        const { searchOnuBySerial } = await import("./olt");
+        
+        // Buscar links PPPoE recém-criados que têm OLT e serial mas não têm onuId
+        const allLinks = await storage.getLinks();
+        const linksNeedingOnuId = allLinks.filter((l: typeof allLinks[0]) => 
+          l.authType === 'pppoe' && 
+          l.oltId && 
+          l.equipmentSerialNumber && 
+          !l.onuId &&
+          l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
+        );
+        
+        if (linksNeedingOnuId.length > 0) {
+          console.log(`[Voalle Import] Descobrindo ONU ID para ${linksNeedingOnuId.length} links...`);
+          
+          // Agrupar por OLT para otimizar conexões
+          const linksByOlt = new Map<number, typeof linksNeedingOnuId>();
+          for (const link of linksNeedingOnuId) {
+            const oltId = link.oltId!;
+            if (!linksByOlt.has(oltId)) {
+              linksByOlt.set(oltId, []);
+            }
+            linksByOlt.get(oltId)!.push(link);
+          }
+          
+          for (const [oltId, links] of linksByOlt) {
+            const olt = await storage.getOlt(oltId);
+            if (!olt) {
+              console.log(`[Voalle Import] OLT ${oltId} não encontrada`);
+              continue;
+            }
+            
+            console.log(`[Voalle Import] Buscando ONU ID em ${olt.name} para ${links.length} links...`);
+            
+            for (const link of links) {
+              try {
+                const result = await searchOnuBySerial(olt, link.equipmentSerialNumber!);
+                if (result.success && result.onuId) {
+                  await storage.updateLink(link.id, { onuId: result.onuId });
+                  console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}`);
+                  onuIdsDiscovered++;
+                } else {
+                  console.log(`[Voalle Import] ${link.name}: ONU não encontrada (${result.message})`);
+                }
+              } catch (onuErr: any) {
+                console.error(`[Voalle Import] ${link.name}: Erro ao buscar ONU: ${onuErr.message}`);
+              }
+            }
+          }
+          
+          if (onuIdsDiscovered > 0) {
+            console.log(`[Voalle Import] ONU IDs descobertos: ${onuIdsDiscovered}`);
+          }
+        }
+      } catch (onuError) {
+        console.error(`[Voalle Import] Erro na descoberta de ONU IDs:`, onuError);
+      }
+
+      res.json({ ...results, pppoeIpsFound, corporateIpsFound, onuIdsDiscovered });
 
     } catch (error: any) {
       console.error("Error in Voalle import:", error);
