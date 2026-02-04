@@ -4792,23 +4792,26 @@ export async function registerRoutes(
               if (link.oltId) {
                 const olt = await storage.getOlt(link.oltId);
                 if (olt) {
-                  // OLT tem campo vendor direto
-                  oltEquip = { ...olt, vendor: olt.vendor, username: olt.username, password: olt.password };
+                  // OLT tem campo vendor direto - descriptografar senha
+                  const oltPassword = olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null;
+                  oltEquip = { ...olt, vendor: olt.vendor, username: olt.username, password: oltPassword };
                 }
               }
               if (link.accessPointId) {
                 const sw = await storage.getSwitch(link.accessPointId);
                 if (sw) {
-                  // Switch tem vendor direto e sshUser/sshPassword
-                  switchEquip = { ...sw, username: sw.sshUser, password: sw.sshPassword };
+                  // Switch tem vendor direto e sshUser/sshPassword - descriptografar senha
+                  const swPassword = sw.sshPassword ? (isEncrypted(sw.sshPassword) ? decrypt(sw.sshPassword) : sw.sshPassword) : null;
+                  switchEquip = { ...sw, username: sw.sshUser, password: swPassword };
                 }
               }
               if (link.concentratorId) {
                 const conc = await storage.getConcentrator(link.concentratorId);
                 if (conc) {
-                  // Concentrador tem equipmentVendorId para buscar slug do vendor
+                  // Concentrador tem equipmentVendorId para buscar slug do vendor - descriptografar senha
                   const vendorObj = conc.equipmentVendorId ? await storage.getEquipmentVendor(conc.equipmentVendorId) : null;
-                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: conc.sshPassword, apiPort: 8728 };
+                  const concPassword = conc.sshPassword ? (isEncrypted(conc.sshPassword) ? decrypt(conc.sshPassword) : conc.sshPassword) : null;
+                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: concPassword, apiPort: 8728 };
                 }
               }
               
