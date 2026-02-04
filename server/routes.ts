@@ -1706,6 +1706,7 @@ export async function registerRoutes(
           isStandard: cpe.isStandard || false,
           model: cpe.model,
           manufacturer: vendor?.name || null,
+          macAddress: assoc.macAddress || null,
           role: assoc.role || "primary",
           ipOverride: assoc.ipOverride || null,
           showInEquipmentTab: assoc.showInEquipmentTab || false,
@@ -4855,13 +4856,14 @@ export async function registerRoutes(
                 cpesLinkedGeneric++;
               }
               
-              // Vincular CPE ao link
+              // Vincular CPE ao link (incluindo MAC se descoberto)
               if (linkedCpe) {
                 await storage.addCpeToLink({
                   linkId: link.id,
                   cpeId: linkedCpe.id,
                   role: 'primary',
                   ipOverride: link.monitoredIp,
+                  macAddress: macResult.mac || undefined,
                   showInEquipmentTab: true,
                 });
               }
@@ -4991,15 +4993,16 @@ export async function registerRoutes(
                                 // Buscar CPE padrão (isStandard=true) deste vendor
                                 const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
                                 if (vendorCpe) {
-                                  // Associar CPE padrão ao link
+                                  // Associar CPE padrão ao link (incluindo MAC)
                                   await storage.addCpeToLink({
                                     linkId: link.id,
                                     cpeId: vendorCpe.id,
                                     role: 'primary',
                                     ipOverride: corpInfo.ipAddress,
+                                    macAddress: corpInfo.macAddress || undefined,
                                     showInEquipmentTab: true,
                                   });
-                                  console.log(`[Voalle Import] ${link.name}: CPE padrão ${vendorCpe.name} vinculada (Vendor: ${vendor.name}, IP: ${corpInfo.ipAddress})`);
+                                  console.log(`[Voalle Import] ${link.name}: CPE padrão ${vendorCpe.name} vinculada (Vendor: ${vendor.name}, IP: ${corpInfo.ipAddress}, MAC: ${corpInfo.macAddress || 'N/A'})`);
                                 } else {
                                   console.log(`[Voalle Import] ${link.name}: Nenhuma CPE padrão para vendor ${vendor.name} - verifique isStandard=true`);
                                 }

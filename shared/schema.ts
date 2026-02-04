@@ -390,6 +390,8 @@ export const linkCpes = pgTable("link_cpes", {
   role: varchar("role", { length: 30 }).default("primary"), // primary, backup, firewall
   // IP específico para este link (usado quando CPE é isStandard=true ou para override)
   ipOverride: varchar("ip_override", { length: 45 }),
+  // MAC address descoberto via API/SNMP durante importação
+  macAddress: varchar("mac_address", { length: 17 }),
   // Se true, este CPE aparece na aba "Equipamento" nos detalhes do link
   showInEquipmentTab: boolean("show_in_equipment_tab").notNull().default(false),
   notes: text("notes"),

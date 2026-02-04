@@ -1602,6 +1602,7 @@ interface CpeDeviceInfo extends DeviceInfo {
   role?: string;
   manufacturer?: string | null;
   model?: string | null;
+  macAddress?: string | null;
   hasAccess?: boolean;
   cpuUsage?: number | null;
   memoryUsage?: number | null;
@@ -2109,7 +2110,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   </div>
                   {cpe.available && (
                     <p className="text-xs text-muted-foreground">
-                      {cpe.ip} {cpe.manufacturer && `- ${cpe.manufacturer}`} {cpe.model && cpe.model}
+                      {cpe.ip} {cpe.macAddress && `(${cpe.macAddress})`} {cpe.manufacturer && `- ${cpe.manufacturer}`} {cpe.model && cpe.model}
                     </p>
                   )}
                   {!cpe.hasAccess && (
