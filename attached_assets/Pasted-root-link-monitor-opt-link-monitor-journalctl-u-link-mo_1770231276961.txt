@@ -1,0 +1,31 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -i voalle
+fev 04 15:51:18 link-monitor npm[2519162]: [VoalleAdapter] Buscando solicitações: /solicitationlist/5664?allAssignments=False
+fev 04 15:51:19 link-monitor npm[2519162]: [VoalleAdapter] Encontradas 0 solicitações
+fev 04 15:51:19 link-monitor npm[2519162]: [Voalle Solicitations] Filtro aplicado: 0 total -> 0 para link moises.gomes (serviceTag: FT581EDW)
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 5664, clientName: MOISES SANTANA GOMES (1143932579)
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Found existing client by slug: moises-santana-gomes, updating/reactivating with voalleId: 5664
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 155, oltName: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Access point "BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE" isOlt: true
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] OLT from existing: 13
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Link FT581EDW: clientId=38, concentratorId=10, oltId=13, switchId=null
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Creating new link FT581EDW with accessPointId=13
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 04 15:53:49 link-monitor npm[2523095]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE : BCQ-MVT-RB-BARRA (SNMP: SNMP MARVITEL V2)
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: IP=100.80.7.123, ifIndex=15790327, ifName=<pppoe-moises.gomes>, ipBlock=N/A
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] 2 links PPPoE para vincular CPE
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: Buscando MAC para IP 100.80.7.123...
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: MAC=98:25:4a:bc:d0:aa (via Concentrador (API))
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: Vendor slug: tplink
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: Vendor: TP-Link (ID: 8)
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] moises.gomes: CPE padrão vinculada: ONT TPLINK
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] CPEs vinculadas: 1 por vendor, 0 genéricas
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (4) - vinculação automática ignorada
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Links processados para busca de ONU ID: 1
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Links que precisam de ONU ID: 1
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Descobrindo ONU ID para 1 links...
+fev 04 15:53:51 link-monitor npm[2523095]: [Voalle Import] Buscando ONU ID em BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE para 1 links...
+fev 04 15:53:53 link-monitor npm[2523095]: [Voalle Import] moises.gomes: ONU não encontrada (All configured authentication methods failed)
+root@link-monitor:/opt/link-monitor# 
