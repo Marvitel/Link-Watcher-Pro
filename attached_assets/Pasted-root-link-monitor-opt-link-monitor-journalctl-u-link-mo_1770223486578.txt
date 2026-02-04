@@ -1,0 +1,24 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "10 minutes ago" | grep -E "Mikrotik API|MAC Discovery"
+fev 04 13:38:40 link-monitor npm[2455185]: [MAC Discovery] Tentando OLT: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE (100.65.128.246)
+fev 04 13:38:40 link-monitor npm[2455185]: [MAC Discovery] Tentando Concentrador: CE : BCQ-MVT-RB-BARRA (191.52.248.238)
+fev 04 13:38:40 link-monitor npm[2455185]: [MAC Discovery] Tentando API Mikrotik em CE : BCQ-MVT-RB-BARRA...
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] Buscando MAC para IP 100.80.7.123 em 191.52.248.238:8728 (user: link.monitor, pppoe: moises.gomes)
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] Conectado a 191.52.248.238:8728
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] ARP: 0 entradas para IP 100.80.7.123
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] Buscando PPPoE active para usuário: moises.gomes
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] PPPoE active: 1 sessões para moises.gomes
+fev 04 13:38:40 link-monitor npm[2455185]: [Mikrotik API] MAC não encontrado para IP 100.80.7.123
+fev 04 13:38:40 link-monitor npm[2455185]: [MAC Discovery] API Mikrotik não retornou MAC, tentando SNMP...
+fev 04 13:38:41 link-monitor npm[2455185]: [MAC Discovery] MAC não encontrado para IP 100.80.7.123 em nenhum equipamento
+fev 04 13:43:42 link-monitor npm[2458037]: [MAC Discovery] Tentando OLT: BCQ-MVT-OLT-DATACOM-TERRAS_ALPHA_VILLE (100.65.128.246)
+fev 04 13:43:43 link-monitor npm[2458037]: [MAC Discovery] Tentando Concentrador: CE : BCQ-MVT-RB-BARRA (191.52.248.238)
+fev 04 13:43:43 link-monitor npm[2458037]: [MAC Discovery] Tentando API Mikrotik em CE : BCQ-MVT-RB-BARRA...
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] Buscando MAC para IP 100.80.7.123 em 191.52.248.238:8728 (user: link.monitor, pppoe: moises.gomes)
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] Conectado a 191.52.248.238:8728
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] ARP: 0 entradas para IP 100.80.7.123
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] Buscando PPPoE active para usuário: moises.gomes
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] PPPoE active: 1 sessões para moises.gomes
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] Sessão encontrada: {"$$path":"/ppp/active","id":"*800017E4","name":"moises.gomes","service":"pppoe","callerId":"98:25:4A:BC:D0:AA","address":"100.80.7.123","uptime":"2w4d22h8m22s","encoding":"","sessionId":"0x81A017E4","limitBytesIn":0,"limitBytesOut":0,"radius":true}
+fev 04 13:43:43 link-monitor npm[2458037]: [Mikrotik API] MAC encontrado via PPPoE active (moises.gomes): 98:25:4a:bc:d0:aa
+fev 04 13:43:43 link-monitor npm[2458037]: [MAC Discovery] MAC 98:25:4a:bc:d0:aa encontrado via API Concentrador: CE : BCQ-MVT-RB-BARRA
+root@link-monitor:/opt/link-monitor
