@@ -62,10 +62,17 @@ export async function lookupMacViaMikrotikApi(
         
         console.log(`[Mikrotik API] PPPoE active: ${pppoeActives.length} sessões para ${pppoeUser}`);
         
-        if (pppoeActives.length > 0 && pppoeActives[0]['caller-id']) {
-          const mac = pppoeActives[0]['caller-id'].toLowerCase();
-          console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${pppoeUser}): ${mac}`);
-          return mac;
+        if (pppoeActives.length > 0) {
+          const session = pppoeActives[0];
+          console.log(`[Mikrotik API] Sessão encontrada:`, JSON.stringify(session));
+          
+          // Tentar diferentes nomes de campo para o MAC
+          const mac = session['caller-id'] || session['callerId'] || (session as any)['caller_id'];
+          if (mac) {
+            const macLower = mac.toLowerCase();
+            console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${pppoeUser}): ${macLower}`);
+            return macLower;
+          }
         }
       } catch (e: any) {
         console.log(`[Mikrotik API] Erro ao buscar PPPoE active por nome: ${e.message}`);
