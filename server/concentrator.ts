@@ -1,104 +1,63 @@
 import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
 import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
+import { RouterOSClient } from "routeros-client";
 
 /**
- * Busca MAC na tabela ARP do Mikrotik via API REST
- * Mais rápido e confiável que SNMP para RouterOS
+ * Busca MAC na tabela ARP do Mikrotik via API binária (porta 8728/8729)
+ * Funciona em todas as versões do RouterOS
  */
 export async function lookupMacViaMikrotikApi(
   ipAddress: string,
   targetIp: string,
   username: string,
   password: string,
-  port: number = 443
+  port: number = 8728
 ): Promise<string | null> {
+  let client: RouterOSClient | null = null;
+  
   try {
     console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username})`);
     
-    // Mikrotik REST API usa autenticação básica
-    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    // Conectar via API binária do Mikrotik (porta 8728 padrão, 8729 para SSL)
+    client = new RouterOSClient({
+      host: ipAddress,
+      user: username,
+      password: password,
+      port: port,
+      timeout: 10000,
+      tls: port === 8729 ? { rejectUnauthorized: false } : undefined,
+    });
     
-    // Tentar HTTPS primeiro (porta 443), depois HTTP (porta 80)
-    // Se porta especificada for 80, só tenta HTTP
-    const attempts = port === 80 
-      ? [{ protocol: 'http', port: 80 }]
-      : [{ protocol: 'https', port: port }, { protocol: 'http', port: 80 }];
+    await client.connect();
+    console.log(`[Mikrotik API] Conectado a ${ipAddress}:${port}`);
     
-    for (const attempt of attempts) {
-      try {
-        const url = `${attempt.protocol}://${ipAddress}:${attempt.port}/rest/ip/arp?address=${targetIp}`;
-        console.log(`[Mikrotik API] Tentando: ${url}`);
-        
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        
-        // Desabilitar verificação SSL temporariamente para certificados auto-assinados
-        const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-        if (attempt.protocol === 'https') {
-          process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-        }
-        
-        let response: Response;
-        try {
-          response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Basic ${auth}`,
-              'Content-Type': 'application/json',
-            },
-            signal: controller.signal,
-          });
-        } finally {
-          // Restaurar configuração original
-          if (attempt.protocol === 'https') {
-            if (originalRejectUnauthorized !== undefined) {
-              process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
-            } else {
-              delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-            }
-          }
-        }
-        
-        clearTimeout(timeout);
-        
-        console.log(`[Mikrotik API] Resposta ${attempt.protocol.toUpperCase()}: status=${response.status}`);
-        
-        if (!response.ok) {
-          console.log(`[Mikrotik API] ${attempt.protocol.toUpperCase()} falhou: ${response.status} ${response.statusText}`);
-          continue;
-        }
-        
-        const data = await response.json() as Array<{ address?: string; 'mac-address'?: string }>;
-        console.log(`[Mikrotik API] Dados recebidos: ${JSON.stringify(data).substring(0, 200)}`);
-        
-        if (Array.isArray(data) && data.length > 0) {
-          const entry = data.find(e => e.address === targetIp);
-          if (entry && entry['mac-address']) {
-            const mac = entry['mac-address'].toLowerCase();
-            console.log(`[Mikrotik API] MAC encontrado: ${mac}`);
-            return mac;
-          }
-        }
-        
-        console.log(`[Mikrotik API] IP ${targetIp} não encontrado na tabela ARP (${data.length} entradas)`);
-        return null;
-        
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log(`[Mikrotik API] Timeout em ${attempt.protocol}://${ipAddress}:${attempt.port}`);
-        } else {
-          console.log(`[Mikrotik API] Erro em ${attempt.protocol}://${ipAddress}:${attempt.port}: ${err.message}`);
-        }
-        // Tentar próximo protocolo
-      }
+    // Buscar na tabela ARP filtrando pelo IP
+    const arpMenu = client.menu('/ip/arp');
+    const arpEntries = await arpMenu.where('address', targetIp).get() as Array<{ address?: string; 'mac-address'?: string }>;
+    
+    console.log(`[Mikrotik API] Encontradas ${arpEntries.length} entradas ARP para IP ${targetIp}`);
+    
+    if (arpEntries.length > 0 && arpEntries[0]['mac-address']) {
+      const mac = arpEntries[0]['mac-address'].toLowerCase();
+      console.log(`[Mikrotik API] MAC encontrado: ${mac}`);
+      return mac;
     }
     
-    console.log(`[Mikrotik API] Todas as tentativas falharam para ${ipAddress}`);
+    console.log(`[Mikrotik API] IP ${targetIp} não encontrado na tabela ARP`);
     return null;
+    
   } catch (error: any) {
-    console.error(`[Mikrotik API] Erro geral: ${error.message}`);
+    console.log(`[Mikrotik API] Erro em ${ipAddress}:${port}: ${error.message}`);
     return null;
+  } finally {
+    if (client) {
+      try {
+        await client.close();
+      } catch (e) {
+        // Ignorar erro ao fechar
+      }
+    }
   }
 }
 
@@ -1685,7 +1644,7 @@ export async function discoverMacForLink(
           targetIp,
           equipment.username,
           equipment.password,
-          equipment.apiPort || 443
+          equipment.apiPort || 8728
         );
         
         if (mac) {

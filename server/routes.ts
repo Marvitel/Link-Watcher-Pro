@@ -4808,7 +4808,7 @@ export async function registerRoutes(
                 if (conc) {
                   // Concentrador tem equipmentVendorId para buscar slug do vendor
                   const vendorObj = conc.equipmentVendorId ? await storage.getEquipmentVendor(conc.equipmentVendorId) : null;
-                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: conc.sshPassword, apiPort: conc.webPort };
+                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: conc.sshPassword, apiPort: 8728 };
                 }
               }
               
