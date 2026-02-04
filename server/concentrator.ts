@@ -49,53 +49,44 @@ export async function lookupMacViaMikrotikApi(
       console.log(`[Mikrotik API] Erro ao buscar ARP: ${e.message}`);
     }
     
-    // 2. Tentar buscar na interface PPPoE ativa pelo IP remoto
+    // 2. Se tiver usuário PPPoE, buscar diretamente pelo nome (mais eficiente)
+    if (pppoeUser) {
+      try {
+        console.log(`[Mikrotik API] Buscando PPPoE active para usuário: ${pppoeUser}`);
+        const pppoeActives = await client.menu('/ppp/active').where('name', pppoeUser).get() as Array<{ 
+          name?: string; 
+          address?: string; 
+          'caller-id'?: string;
+          uptime?: string;
+        }>;
+        
+        console.log(`[Mikrotik API] PPPoE active: ${pppoeActives.length} sessões para ${pppoeUser}`);
+        
+        if (pppoeActives.length > 0 && pppoeActives[0]['caller-id']) {
+          const mac = pppoeActives[0]['caller-id'].toLowerCase();
+          console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${pppoeUser}): ${mac}`);
+          return mac;
+        }
+      } catch (e: any) {
+        console.log(`[Mikrotik API] Erro ao buscar PPPoE active por nome: ${e.message}`);
+      }
+    }
+    
+    // 3. Se não tiver usuário ou não encontrou, buscar por IP em todas sessões
     try {
-      const pppoeActives = await client.menu('/ppp/active').get() as Array<{ 
+      const allActives = await client.menu('/ppp/active').where('address', targetIp).get() as Array<{ 
         name?: string; 
         address?: string; 
         'caller-id'?: string;
-        uptime?: string;
       }>;
-      console.log(`[Mikrotik API] PPPoE active: ${pppoeActives.length} sessões`);
       
-      // Buscar por IP ou por nome de usuário PPPoE
-      for (const session of pppoeActives) {
-        if (session.address === targetIp || (pppoeUser && session.name === pppoeUser)) {
-          if (session['caller-id']) {
-            const mac = session['caller-id'].toLowerCase();
-            console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${session.name}): ${mac}`);
-            return mac;
-          }
-        }
+      if (allActives.length > 0 && allActives[0]['caller-id']) {
+        const mac = allActives[0]['caller-id'].toLowerCase();
+        console.log(`[Mikrotik API] MAC encontrado via PPPoE active por IP (${allActives[0].name}): ${mac}`);
+        return mac;
       }
     } catch (e: any) {
-      console.log(`[Mikrotik API] Erro ao buscar PPPoE active: ${e.message}`);
-    }
-    
-    // 3. Tentar buscar no log de autenticação PPPoE (últimas entradas)
-    if (pppoeUser) {
-      try {
-        const logs = await client.menu('/log').where('topics', 'pppoe').get() as Array<{
-          time?: string;
-          message?: string;
-        }>;
-        
-        // Procurar por log de conexão do usuário com MAC
-        // Formato típico: "pppoe-user logged in, 00:11:22:33:44:55"
-        for (const log of logs.slice(-50)) { // últimas 50 entradas
-          if (log.message && log.message.includes(pppoeUser)) {
-            const macMatch = log.message.match(/([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/);
-            if (macMatch) {
-              const mac = macMatch[0].toLowerCase().replace(/-/g, ':');
-              console.log(`[Mikrotik API] MAC encontrado via log: ${mac}`);
-              return mac;
-            }
-          }
-        }
-      } catch (e: any) {
-        console.log(`[Mikrotik API] Erro ao buscar logs: ${e.message}`);
-      }
+      console.log(`[Mikrotik API] Erro ao buscar PPPoE active por IP: ${e.message}`);
     }
     
     console.log(`[Mikrotik API] MAC não encontrado para IP ${targetIp}`);
