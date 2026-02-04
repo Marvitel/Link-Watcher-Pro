@@ -1,0 +1,37 @@
+fev 04 13:46:41 link-monitor npm[2458037]: [Monitor/CPE] Coleta de CPEs concluída
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] Iniciando coleta de métricas de CPEs...
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] CPEs ativos encontrados: 6, instâncias para coleta: 25
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] RB MIKROTIK: IP=100.65.129.178 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] RB MIKROTIK: IP=191.52.250.52 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] EDD CLIENTE: IP=172.26.254.10 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] EDD CLIENTE: IP=172.26.254.114 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONT TPLINK: IP=100.80.16.10 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONT TPLINK: IP=100.80.16.11 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.1.191 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONU Padrão: IP=100.80.7.123 (fonte: override)
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] Coletando métricas de 6 instâncias...
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONT TPLINK (100.80.16.11) [linkCpe=16]: CPU=0.0%, Mem=0.0%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] ONT TPLINK (100.80.16.10) [linkCpe=15]: CPU=0.0%, Mem=0.0%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] RB MIKROTIK (191.52.250.52) [linkCpe=14]: CPU=11.0%, Mem=21.4%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] EDD CLIENTE (172.26.254.114) [linkCpe=13]: CPU=17.9%, Mem=67.0%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] EDD CLIENTE (172.26.254.10) [linkCpe=9]: CPU=18.9%, Mem=71.0%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] RB MIKROTIK (100.65.129.178) [linkCpe=22]: CPU=1.0%, Mem=20.9%
+fev 04 13:47:02 link-monitor npm[2458037]: [Monitor/CPE] Coleta de CPEs concluída
+root@link-monitor:/opt/link-monitor# 
