@@ -5090,20 +5090,26 @@ export async function registerRoutes(
         }
       }
 
-      // Etapa 6: Descobrir ONU ID para links PPPoE que tenham OLT e Serial configurados
+      // Etapa 6: Descobrir ONU ID para links importados que tenham OLT e Serial configurados
       let onuIdsDiscovered = 0;
       try {
         const { searchOnuBySerial } = await import("./olt");
         
-        // Buscar links recém-criados (PPPoE e corporativos) que têm OLT e serial mas não têm onuId
+        // Buscar links importados nesta sessão que têm OLT e serial mas não têm onuId
+        // Usa os IDs dos links processados (created + updated) em vez de filtrar por createdAt
+        const processedLinkIds = [...results.created.map((l: any) => l.id), ...results.updated.map((l: any) => l.id)];
+        console.log(`[Voalle Import] Links processados para busca de ONU ID: ${processedLinkIds.length}`);
+        
         const allLinks = await storage.getLinks();
         const linksNeedingOnuId = allLinks.filter((l: typeof allLinks[0]) => 
+          processedLinkIds.includes(l.id) &&
           (l.authType === 'pppoe' || l.authType === 'corporate') && 
           l.oltId && 
           l.equipmentSerialNumber && 
-          !l.onuId &&
-          l.createdAt && new Date(l.createdAt).getTime() > Date.now() - 600000 // Criados nos últimos 10 minutos
+          !l.onuId
         );
+        
+        console.log(`[Voalle Import] Links que precisam de ONU ID: ${linksNeedingOnuId.length}`);
         
         if (linksNeedingOnuId.length > 0) {
           console.log(`[Voalle Import] Descobrindo ONU ID para ${linksNeedingOnuId.length} links...`);
