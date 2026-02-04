@@ -14,13 +14,14 @@ export async function lookupMacViaMikrotikApi(
   password: string,
   port: number = 8728
 ): Promise<string | null> {
+  let api: any = null;
   let client: any = null;
   
   try {
     console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username})`);
     
     // Conectar via API binária do Mikrotik (porta 8728 padrão, 8729 para SSL)
-    client = new RouterOSClient({
+    api = new RouterOSClient({
       host: ipAddress,
       user: username,
       password: password,
@@ -29,12 +30,12 @@ export async function lookupMacViaMikrotikApi(
       tls: port === 8729 ? { rejectUnauthorized: false } : undefined,
     });
     
-    await client.connect();
+    // connect() retorna o client que tem o método menu()
+    client = await api.connect();
     console.log(`[Mikrotik API] Conectado a ${ipAddress}:${port}`);
     
     // Buscar na tabela ARP filtrando pelo IP
-    const arpMenu = client.menu('/ip/arp');
-    const arpEntries = await arpMenu.where('address', targetIp).get() as Array<{ address?: string; 'mac-address'?: string }>;
+    const arpEntries = await client.menu('/ip/arp').where('address', targetIp).get() as Array<{ address?: string; 'mac-address'?: string }>;
     
     console.log(`[Mikrotik API] Encontradas ${arpEntries.length} entradas ARP para IP ${targetIp}`);
     
@@ -51,9 +52,9 @@ export async function lookupMacViaMikrotikApi(
     console.log(`[Mikrotik API] Erro em ${ipAddress}:${port}: ${error.message}`);
     return null;
   } finally {
-    if (client) {
+    if (api) {
       try {
-        await client.close();
+        await api.close();
       } catch (e) {
         // Ignorar erro ao fechar
       }
