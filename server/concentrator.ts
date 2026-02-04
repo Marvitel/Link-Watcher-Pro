@@ -1,7 +1,6 @@
 import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
 import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
-import { RouterOSClient } from "routeros-client";
 
 /**
  * Busca MAC na tabela ARP do Mikrotik via API binária (porta 8728/8729)
@@ -14,10 +13,13 @@ export async function lookupMacViaMikrotikApi(
   password: string,
   port: number = 8728
 ): Promise<string | null> {
-  let client: RouterOSClient | null = null;
+  let client: any = null;
   
   try {
     console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username})`);
+    
+    // Import dinâmico para incluir no bundle de produção
+    const { RouterOSClient } = await import("routeros-client");
     
     // Conectar via API binária do Mikrotik (porta 8728 padrão, 8729 para SSL)
     client = new RouterOSClient({

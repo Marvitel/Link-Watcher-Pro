@@ -1,0 +1,36 @@
+oot@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f
+fev 04 10:12:22 link-monitor npm[2357643]:   requireStack: [ '/opt/link-monitor/dist/index.cjs' ]
+fev 04 10:12:22 link-monitor npm[2357643]: }
+fev 04 10:12:22 link-monitor npm[2357643]: Node.js v20.19.6
+fev 04 10:12:22 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+fev 04 10:12:22 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+fev 04 10:12:22 link-monitor systemd[1]: link-monitor.service: Consumed 1.246s CPU time.
+fev 04 10:12:32 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 20.
+fev 04 10:12:32 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+fev 04 10:12:32 link-monitor systemd[1]: link-monitor.service: Consumed 1.246s CPU time.
+fev 04 10:12:32 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+fev 04 10:12:32 link-monitor npm[2357650]: > rest-express@1.0.0 start
+fev 04 10:12:32 link-monitor npm[2357650]: > NODE_ENV=production node dist/index.cjs
+fev 04 10:12:33 link-monitor npm[2357663]: node:internal/modules/cjs/loader:1210
+fev 04 10:12:33 link-monitor npm[2357663]:   throw err;
+fev 04 10:12:33 link-monitor npm[2357663]:   ^
+fev 04 10:12:33 link-monitor npm[2357663]: Error: Cannot find module 'routeros-client'
+fev 04 10:12:33 link-monitor npm[2357663]: Require stack:
+fev 04 10:12:33 link-monitor npm[2357663]: - /opt/link-monitor/dist/index.cjs
+fev 04 10:12:33 link-monitor npm[2357663]:     at Module._resolveFilename (node:internal/modules/cjs/loader:1207:15)
+fev 04 10:12:33 link-monitor npm[2357663]:     at Module._load (node:internal/modules/cjs/loader:1038:27)
+fev 04 10:12:33 link-monitor npm[2357663]:     at Module.require (node:internal/modules/cjs/loader:1289:19)
+fev 04 10:12:33 link-monitor npm[2357663]:     at require (node:internal/modules/helpers:182:18)
+fev 04 10:12:33 link-monitor npm[2357663]:     at /opt/link-monitor/dist/index.cjs:220:9301
+fev 04 10:12:33 link-monitor npm[2357663]:     at /opt/link-monitor/dist/index.cjs:1:225
+fev 04 10:12:33 link-monitor npm[2357663]:     at /opt/link-monitor/dist/index.cjs:220:70705
+fev 04 10:12:33 link-monitor npm[2357663]:     at /opt/link-monitor/dist/index.cjs:1:225
+fev 04 10:12:33 link-monitor npm[2357663]:     at Object.<anonymous> (/opt/link-monitor/dist/index.cjs:230:278)
+fev 04 10:12:33 link-monitor npm[2357663]:     at Module._compile (node:internal/modules/cjs/loader:1521:14) {
+fev 04 10:12:33 link-monitor npm[2357663]:   code: 'MODULE_NOT_FOUND',
+fev 04 10:12:33 link-monitor npm[2357663]:   requireStack: [ '/opt/link-monitor/dist/index.cjs' ]
+fev 04 10:12:33 link-monitor npm[2357663]: }
+fev 04 10:12:33 link-monitor npm[2357663]: Node.js v20.19.6
+fev 04 10:12:33 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+fev 04 10:12:33 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+fev 04 10:12:33 link-monitor systemd[1]: link-monitor.service: Consumed 1.438s CPU time.
