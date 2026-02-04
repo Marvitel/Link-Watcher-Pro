@@ -14,38 +14,63 @@ export async function lookupMacViaMikrotikApi(
   port: number = 443
 ): Promise<string | null> {
   try {
-    console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}`);
+    console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username})`);
     
     // Mikrotik REST API usa autenticação básica
     const auth = Buffer.from(`${username}:${password}`).toString('base64');
     
-    // Tentar HTTPS primeiro, depois HTTP
-    const protocols = port === 80 ? ['http'] : ['https', 'http'];
+    // Tentar HTTPS primeiro (porta 443), depois HTTP (porta 80)
+    // Se porta especificada for 80, só tenta HTTP
+    const attempts = port === 80 
+      ? [{ protocol: 'http', port: 80 }]
+      : [{ protocol: 'https', port: port }, { protocol: 'http', port: 80 }];
     
-    for (const protocol of protocols) {
+    for (const attempt of attempts) {
       try {
-        const url = `${protocol}://${ipAddress}:${port}/rest/ip/arp?address=${targetIp}`;
+        const url = `${attempt.protocol}://${ipAddress}:${attempt.port}/rest/ip/arp?address=${targetIp}`;
+        console.log(`[Mikrotik API] Tentando: ${url}`);
         
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
         
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        });
+        // Desabilitar verificação SSL temporariamente para certificados auto-assinados
+        const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+        if (attempt.protocol === 'https') {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        }
+        
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${auth}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+        } finally {
+          // Restaurar configuração original
+          if (attempt.protocol === 'https') {
+            if (originalRejectUnauthorized !== undefined) {
+              process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+            } else {
+              delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+            }
+          }
+        }
         
         clearTimeout(timeout);
         
+        console.log(`[Mikrotik API] Resposta ${attempt.protocol.toUpperCase()}: status=${response.status}`);
+        
         if (!response.ok) {
-          console.log(`[Mikrotik API] ${protocol.toUpperCase()} falhou: ${response.status}`);
+          console.log(`[Mikrotik API] ${attempt.protocol.toUpperCase()} falhou: ${response.status} ${response.statusText}`);
           continue;
         }
         
         const data = await response.json() as Array<{ address?: string; 'mac-address'?: string }>;
+        console.log(`[Mikrotik API] Dados recebidos: ${JSON.stringify(data).substring(0, 200)}`);
         
         if (Array.isArray(data) && data.length > 0) {
           const entry = data.find(e => e.address === targetIp);
@@ -56,20 +81,23 @@ export async function lookupMacViaMikrotikApi(
           }
         }
         
-        console.log(`[Mikrotik API] IP ${targetIp} não encontrado na ARP`);
+        console.log(`[Mikrotik API] IP ${targetIp} não encontrado na tabela ARP (${data.length} entradas)`);
         return null;
         
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          console.log(`[Mikrotik API] Timeout em ${protocol}://${ipAddress}`);
+          console.log(`[Mikrotik API] Timeout em ${attempt.protocol}://${ipAddress}:${attempt.port}`);
+        } else {
+          console.log(`[Mikrotik API] Erro em ${attempt.protocol}://${ipAddress}:${attempt.port}: ${err.message}`);
         }
         // Tentar próximo protocolo
       }
     }
     
+    console.log(`[Mikrotik API] Todas as tentativas falharam para ${ipAddress}`);
     return null;
   } catch (error: any) {
-    console.error(`[Mikrotik API] Erro: ${error.message}`);
+    console.error(`[Mikrotik API] Erro geral: ${error.message}`);
     return null;
   }
 }
