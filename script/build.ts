@@ -25,6 +25,7 @@ const allowlist = [
   "passport-local",
   "pg",
   "routeros-client",
+  "source-map-support",
   "stripe",
   "uuid",
   "ws",
