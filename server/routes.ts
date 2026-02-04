@@ -5095,10 +5095,10 @@ export async function registerRoutes(
       try {
         const { searchOnuBySerial } = await import("./olt");
         
-        // Buscar links PPPoE recém-criados que têm OLT e serial mas não têm onuId
+        // Buscar links recém-criados (PPPoE e corporativos) que têm OLT e serial mas não têm onuId
         const allLinks = await storage.getLinks();
         const linksNeedingOnuId = allLinks.filter((l: typeof allLinks[0]) => 
-          l.authType === 'pppoe' && 
+          (l.authType === 'pppoe' || l.authType === 'corporate') && 
           l.oltId && 
           l.equipmentSerialNumber && 
           !l.onuId &&
