@@ -135,6 +135,9 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 8. **Biblioteca de Comandos CPE**: Sistema completo com templates de comandos SSH por fabricante/modelo, categorias, substituição de parâmetros ({IP}, {INTERFACE}, etc), IPs de diagnóstico configuráveis por cliente, e histórico de execução
 9. **Schema**: Novas tabelas `cpeCommandTemplates`, `cpeCommandHistory`, `diagnosticTargets` para gerenciamento de comandos CPE
 10. **Importação CSV Voalle**: Nova aba "Importar Voalle" no admin para importação em massa de links a partir de CSVs exportados do Voalle (contract_service_tags, authentication_contracts, authentication_concentrators, authentication_access_points, person_users). Inclui preview, validação de schema, detecção de duplicatas, e log de auditoria.
+11. **API Mikrotik para MAC Discovery**: Conexão via API binária (porta 8728) para buscar MAC do cliente em sessões PPPoE ativas (`/ppp/active`). Usa campo `callerId` para extrair MAC. Fallback para SNMP se API falhar.
+12. **Vinculação Automática de CPE por Vendor**: Durante importação Voalle, detecta fabricante do CPE pelo OUI do MAC e vincula automaticamente a CPE padrão (`isStandard=true`) do vendor correspondente.
+13. **Mapeamento OUI expandido**: Adicionados novos OUIs para TP-Link (98:25:4a, 70:cd:91) e corrigido slug para "tplink".
 
 ### Versão em Produção
 - **Commit**: `5f1095bb`
