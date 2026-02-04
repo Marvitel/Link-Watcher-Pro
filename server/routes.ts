@@ -4820,7 +4820,8 @@ export async function registerRoutes(
                 oltEquip,
                 switchEquip,
                 concEquip,
-                storage.getSnmpProfile.bind(storage)
+                storage.getSnmpProfile.bind(storage),
+                link.pppoeUser
               );
               
               if (macResult.mac) {

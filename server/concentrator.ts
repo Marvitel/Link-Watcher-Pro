@@ -12,13 +12,14 @@ export async function lookupMacViaMikrotikApi(
   targetIp: string,
   username: string,
   password: string,
-  port: number = 8728
+  port: number = 8728,
+  pppoeUser?: string | null
 ): Promise<string | null> {
   let api: any = null;
   let client: any = null;
   
   try {
-    console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username})`);
+    console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username}, pppoe: ${pppoeUser || 'N/A'})`);
     
     // Conectar via API binária do Mikrotik (porta 8728 padrão, 8729 para SSL)
     api = new RouterOSClient({
@@ -34,18 +35,70 @@ export async function lookupMacViaMikrotikApi(
     client = await api.connect();
     console.log(`[Mikrotik API] Conectado a ${ipAddress}:${port}`);
     
-    // Buscar na tabela ARP filtrando pelo IP
-    const arpEntries = await client.menu('/ip/arp').where('address', targetIp).get() as Array<{ address?: string; 'mac-address'?: string }>;
-    
-    console.log(`[Mikrotik API] Encontradas ${arpEntries.length} entradas ARP para IP ${targetIp}`);
-    
-    if (arpEntries.length > 0 && arpEntries[0]['mac-address']) {
-      const mac = arpEntries[0]['mac-address'].toLowerCase();
-      console.log(`[Mikrotik API] MAC encontrado: ${mac}`);
-      return mac;
+    // 1. Tentar buscar na tabela ARP filtrando pelo IP
+    try {
+      const arpEntries = await client.menu('/ip/arp').where('address', targetIp).get() as Array<{ address?: string; 'mac-address'?: string }>;
+      console.log(`[Mikrotik API] ARP: ${arpEntries.length} entradas para IP ${targetIp}`);
+      
+      if (arpEntries.length > 0 && arpEntries[0]['mac-address']) {
+        const mac = arpEntries[0]['mac-address'].toLowerCase();
+        console.log(`[Mikrotik API] MAC encontrado via ARP: ${mac}`);
+        return mac;
+      }
+    } catch (e: any) {
+      console.log(`[Mikrotik API] Erro ao buscar ARP: ${e.message}`);
     }
     
-    console.log(`[Mikrotik API] IP ${targetIp} não encontrado na tabela ARP`);
+    // 2. Tentar buscar na interface PPPoE ativa pelo IP remoto
+    try {
+      const pppoeActives = await client.menu('/ppp/active').get() as Array<{ 
+        name?: string; 
+        address?: string; 
+        'caller-id'?: string;
+        uptime?: string;
+      }>;
+      console.log(`[Mikrotik API] PPPoE active: ${pppoeActives.length} sessões`);
+      
+      // Buscar por IP ou por nome de usuário PPPoE
+      for (const session of pppoeActives) {
+        if (session.address === targetIp || (pppoeUser && session.name === pppoeUser)) {
+          if (session['caller-id']) {
+            const mac = session['caller-id'].toLowerCase();
+            console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${session.name}): ${mac}`);
+            return mac;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.log(`[Mikrotik API] Erro ao buscar PPPoE active: ${e.message}`);
+    }
+    
+    // 3. Tentar buscar no log de autenticação PPPoE (últimas entradas)
+    if (pppoeUser) {
+      try {
+        const logs = await client.menu('/log').where('topics', 'pppoe').get() as Array<{
+          time?: string;
+          message?: string;
+        }>;
+        
+        // Procurar por log de conexão do usuário com MAC
+        // Formato típico: "pppoe-user logged in, 00:11:22:33:44:55"
+        for (const log of logs.slice(-50)) { // últimas 50 entradas
+          if (log.message && log.message.includes(pppoeUser)) {
+            const macMatch = log.message.match(/([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}/);
+            if (macMatch) {
+              const mac = macMatch[0].toLowerCase().replace(/-/g, ':');
+              console.log(`[Mikrotik API] MAC encontrado via log: ${mac}`);
+              return mac;
+            }
+          }
+        }
+      } catch (e: any) {
+        console.log(`[Mikrotik API] Erro ao buscar logs: ${e.message}`);
+      }
+    }
+    
+    console.log(`[Mikrotik API] MAC não encontrado para IP ${targetIp}`);
     return null;
     
   } catch (error: any) {
@@ -1612,7 +1665,8 @@ export async function discoverMacForLink(
   olt: SnmpEquipment | null,
   accessSwitch: SnmpEquipment | null,
   concentrator: SnmpEquipment | null,
-  getSnmpProfile: (id: number) => Promise<SnmpProfile | null>
+  getSnmpProfile: (id: number) => Promise<SnmpProfile | null>,
+  pppoeUser?: string | null
 ): Promise<{ mac: string | null; source: string }> {
   
   // Lista de equipamentos para tentar, em ordem de prioridade
@@ -1645,7 +1699,8 @@ export async function discoverMacForLink(
           targetIp,
           equipment.username,
           equipment.password,
-          equipment.apiPort || 8728
+          equipment.apiPort || 8728,
+          pppoeUser
         );
         
         if (mac) {
