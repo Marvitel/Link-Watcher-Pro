@@ -4784,26 +4784,39 @@ export async function registerRoutes(
               // Descobrir MAC via ARP nos equipamentos do link (OLT > Switch > Concentrador)
               console.log(`[Voalle Import] ${link.name}: Buscando MAC para IP ${link.monitoredIp}...`);
               
-              // Preparar equipamentos para busca
-              let olt = null;
-              let accessSwitch = null;
-              let concentrator = null;
+              // Preparar equipamentos para busca (com credenciais para API Mikrotik)
+              let oltEquip = null;
+              let switchEquip = null;
+              let concEquip = null;
               
               if (link.oltId) {
-                olt = await storage.getOlt(link.oltId);
+                const olt = await storage.getOlt(link.oltId);
+                if (olt) {
+                  // OLT tem campo vendor direto
+                  oltEquip = { ...olt, vendor: olt.vendor, username: olt.username, password: olt.password };
+                }
               }
               if (link.accessPointId) {
-                accessSwitch = await storage.getSwitch(link.accessPointId);
+                const sw = await storage.getSwitch(link.accessPointId);
+                if (sw) {
+                  // Switch tem vendor direto e sshUser/sshPassword
+                  switchEquip = { ...sw, username: sw.sshUser, password: sw.sshPassword };
+                }
               }
               if (link.concentratorId) {
-                concentrator = await storage.getConcentrator(link.concentratorId);
+                const conc = await storage.getConcentrator(link.concentratorId);
+                if (conc) {
+                  // Concentrador tem equipmentVendorId para buscar slug do vendor
+                  const vendorObj = conc.equipmentVendorId ? await storage.getEquipmentVendor(conc.equipmentVendorId) : null;
+                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: conc.sshPassword, apiPort: conc.webPort };
+                }
               }
               
               const macResult = await discoverMacForLink(
                 link.monitoredIp,
-                olt,
-                accessSwitch,
-                concentrator,
+                oltEquip,
+                switchEquip,
+                concEquip,
                 storage.getSnmpProfile.bind(storage)
               );
               

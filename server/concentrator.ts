@@ -2,6 +2,78 @@ import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
 import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
 
+/**
+ * Busca MAC na tabela ARP do Mikrotik via API REST
+ * Mais rápido e confiável que SNMP para RouterOS
+ */
+export async function lookupMacViaMikrotikApi(
+  ipAddress: string,
+  targetIp: string,
+  username: string,
+  password: string,
+  port: number = 443
+): Promise<string | null> {
+  try {
+    console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}`);
+    
+    // Mikrotik REST API usa autenticação básica
+    const auth = Buffer.from(`${username}:${password}`).toString('base64');
+    
+    // Tentar HTTPS primeiro, depois HTTP
+    const protocols = port === 80 ? ['http'] : ['https', 'http'];
+    
+    for (const protocol of protocols) {
+      try {
+        const url = `${protocol}://${ipAddress}:${port}/rest/ip/arp?address=${targetIp}`;
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeout);
+        
+        if (!response.ok) {
+          console.log(`[Mikrotik API] ${protocol.toUpperCase()} falhou: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json() as Array<{ address?: string; 'mac-address'?: string }>;
+        
+        if (Array.isArray(data) && data.length > 0) {
+          const entry = data.find(e => e.address === targetIp);
+          if (entry && entry['mac-address']) {
+            const mac = entry['mac-address'].toLowerCase();
+            console.log(`[Mikrotik API] MAC encontrado: ${mac}`);
+            return mac;
+          }
+        }
+        
+        console.log(`[Mikrotik API] IP ${targetIp} não encontrado na ARP`);
+        return null;
+        
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log(`[Mikrotik API] Timeout em ${protocol}://${ipAddress}`);
+        }
+        // Tentar próximo protocolo
+      }
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error(`[Mikrotik API] Erro: ${error.message}`);
+    return null;
+  }
+}
+
 // Mapa OUI (primeiros 3 bytes do MAC) -> Vendor slug
 // OUI identifica o fabricante do dispositivo
 const OUI_VENDOR_MAP: Record<string, string> = {
@@ -1535,11 +1607,16 @@ interface SnmpEquipment {
   name: string;
   ipAddress: string;
   snmpProfileId?: number | null;
+  vendor?: string | null;
+  username?: string | null;
+  password?: string | null;
+  apiPort?: number | null;
 }
 
 /**
  * Descobre o MAC de um link buscando na tabela ARP do equipamento apropriado.
  * Ordem de prioridade: OLT > Switch de acesso > Concentrador
+ * Para Mikrotik, tenta API REST primeiro (mais rápido), depois SNMP.
  * Funciona tanto para PPPoE quanto para links corporativos.
  */
 export async function discoverMacForLink(
@@ -1566,12 +1643,37 @@ export async function discoverMacForLink(
     console.log(`[MAC Discovery] Tentando ${type}: ${equipment.name} (${equipment.ipAddress})`);
     
     try {
+      let mac: string | null = null;
+      
+      // Para Mikrotik, tentar API REST primeiro (mais rápido e confiável)
+      const isMikrotik = equipment.vendor?.toLowerCase().includes('mikrotik') ||
+                         equipment.vendor?.toLowerCase().includes('routeros') ||
+                         equipment.name?.toLowerCase().includes('mikrotik');
+      
+      if (isMikrotik && equipment.username && equipment.password) {
+        console.log(`[MAC Discovery] Tentando API Mikrotik em ${equipment.name}...`);
+        mac = await lookupMacViaMikrotikApi(
+          equipment.ipAddress,
+          targetIp,
+          equipment.username,
+          equipment.password,
+          equipment.apiPort || 443
+        );
+        
+        if (mac) {
+          console.log(`[MAC Discovery] MAC ${mac} encontrado via API ${type}: ${equipment.name}`);
+          return { mac, source: `${type} (API)` };
+        }
+        console.log(`[MAC Discovery] API Mikrotik não retornou MAC, tentando SNMP...`);
+      }
+      
+      // Fallback para SNMP
       let snmpProfile: SnmpProfile | null = null;
       if (equipment.snmpProfileId) {
         snmpProfile = await getSnmpProfile(equipment.snmpProfileId);
       }
       
-      const mac = await lookupMacFromArpByIp(
+      mac = await lookupMacFromArpByIp(
         { 
           ipAddress: equipment.ipAddress, 
           name: equipment.name 
@@ -1581,8 +1683,8 @@ export async function discoverMacForLink(
       );
       
       if (mac) {
-        console.log(`[MAC Discovery] MAC ${mac} encontrado via ${type}: ${equipment.name}`);
-        return { mac, source: type };
+        console.log(`[MAC Discovery] MAC ${mac} encontrado via SNMP ${type}: ${equipment.name}`);
+        return { mac, source: `${type} (SNMP)` };
       }
     } catch (err: any) {
       console.log(`[MAC Discovery] Erro ao buscar no ${type} ${equipment.name}: ${err.message}`);
