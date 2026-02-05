@@ -6,6 +6,7 @@ import path from "path";
 import CryptoJS from "crypto-js";
 // @ts-ignore - js-md4 lacks type definitions
 import md4 from "js-md4";
+import pg from "pg";
 import { decrypt } from "./crypto";
 
 // Load Microsoft vendor-specific dictionary for MS-CHAPv2
@@ -726,4 +727,234 @@ export async function authenticateWithFailover(
   }
   
   return { ...primaryResult, usedServer: "primary" };
+}
+
+// ============================================================================
+// RADIUS Database Query Functions (PostgreSQL)
+// Consultas diretas ao banco de dados do FreeRADIUS para obter informações
+// de sessões ativas como MAC address (Calling-Station-Id)
+// ============================================================================
+
+const { Pool } = pg;
+
+let radiusDbPool: pg.Pool | null = null;
+
+function getRadiusDbPool(): pg.Pool | null {
+  if (radiusDbPool) {
+    return radiusDbPool;
+  }
+
+  const host = process.env.RADIUS_DB_HOST;
+  const port = parseInt(process.env.RADIUS_DB_PORT || "5432", 10);
+  const database = process.env.RADIUS_DB_NAME;
+  const user = process.env.RADIUS_DB_USER;
+  const password = process.env.RADIUS_DB_PASSWORD;
+
+  if (!host || !database || !user || !password) {
+    return null;
+  }
+
+  try {
+    radiusDbPool = new Pool({
+      host,
+      port,
+      database,
+      user,
+      password,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    console.log(`[RADIUS DB] Pool de conexão criado para ${host}:${port}/${database}`);
+    return radiusDbPool;
+  } catch (error) {
+    console.error("[RADIUS DB] Erro ao criar pool de conexão:", error);
+    return null;
+  }
+}
+
+export interface RadiusDbSession {
+  username: string;
+  framedIpAddress: string | null;
+  callingStationId: string | null;
+  nasIpAddress: string;
+  nasPortId: string | null;
+  acctStartTime: Date | null;
+  acctUpdateTime: Date | null;
+  acctSessionTime: number | null;
+  acctInputOctets: number | null;
+  acctOutputOctets: number | null;
+}
+
+export async function testRadiusDbConnection(): Promise<{ success: boolean; message: string; activeSessionsCount?: number }> {
+  const pool = getRadiusDbPool();
+  if (!pool) {
+    return { success: false, message: "Integração RADIUS DB não configurada (variáveis RADIUS_DB_* ausentes)" };
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      const result = await client.query("SELECT COUNT(*) as count FROM radacct WHERE acctstoptime IS NULL");
+      const count = parseInt(result.rows[0].count, 10);
+      return { 
+        success: true, 
+        message: `Conexão OK - ${count} sessões ativas`,
+        activeSessionsCount: count
+      };
+    } finally {
+      client.release();
+    }
+  } catch (error: any) {
+    return { success: false, message: `Erro de conexão: ${error.message}` };
+  }
+}
+
+export async function getRadiusSessionByUsername(username: string): Promise<RadiusDbSession | null> {
+  const pool = getRadiusDbPool();
+  if (!pool) {
+    return null;
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT 
+          username,
+          framedipaddress::text as framedipaddress,
+          callingstationid,
+          nasipaddress::text as nasipaddress,
+          nasportid,
+          acctstarttime,
+          acctupdatetime,
+          acctsessiontime,
+          acctinputoctets,
+          acctoutputoctets
+        FROM radacct 
+        WHERE username = $1 AND acctstoptime IS NULL
+        ORDER BY acctstarttime DESC
+        LIMIT 1`,
+        [username]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        username: row.username,
+        framedIpAddress: row.framedipaddress,
+        callingStationId: row.callingstationid,
+        nasIpAddress: row.nasipaddress,
+        nasPortId: row.nasportid,
+        acctStartTime: row.acctstarttime,
+        acctUpdateTime: row.acctupdatetime,
+        acctSessionTime: row.acctsessiontime ? parseInt(row.acctsessiontime, 10) : null,
+        acctInputOctets: row.acctinputoctets ? parseInt(row.acctinputoctets, 10) : null,
+        acctOutputOctets: row.acctoutputoctets ? parseInt(row.acctoutputoctets, 10) : null,
+      };
+    } finally {
+      client.release();
+    }
+  } catch (error: any) {
+    console.error(`[RADIUS DB] Erro ao buscar sessão por username ${username}:`, error.message);
+    return null;
+  }
+}
+
+export async function getRadiusSessionByIp(ip: string): Promise<RadiusDbSession | null> {
+  const pool = getRadiusDbPool();
+  if (!pool) {
+    return null;
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT 
+          username,
+          framedipaddress::text as framedipaddress,
+          callingstationid,
+          nasipaddress::text as nasipaddress,
+          nasportid,
+          acctstarttime,
+          acctupdatetime,
+          acctsessiontime,
+          acctinputoctets,
+          acctoutputoctets
+        FROM radacct 
+        WHERE framedipaddress = $1::inet AND acctstoptime IS NULL
+        ORDER BY acctstarttime DESC
+        LIMIT 1`,
+        [ip]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        username: row.username,
+        framedIpAddress: row.framedipaddress,
+        callingStationId: row.callingstationid,
+        nasIpAddress: row.nasipaddress,
+        nasPortId: row.nasportid,
+        acctStartTime: row.acctstarttime,
+        acctUpdateTime: row.acctupdatetime,
+        acctSessionTime: row.acctsessiontime ? parseInt(row.acctsessiontime, 10) : null,
+        acctInputOctets: row.acctinputoctets ? parseInt(row.acctinputoctets, 10) : null,
+        acctOutputOctets: row.acctoutputoctets ? parseInt(row.acctoutputoctets, 10) : null,
+      };
+    } finally {
+      client.release();
+    }
+  } catch (error: any) {
+    console.error(`[RADIUS DB] Erro ao buscar sessão por IP ${ip}:`, error.message);
+    return null;
+  }
+}
+
+function normalizeRadiusMac(mac: string): string {
+  const cleaned = mac.replace(/[^a-fA-F0-9]/g, "").toLowerCase();
+  
+  if (cleaned.length !== 12) {
+    return mac.toLowerCase();
+  }
+  
+  return cleaned.match(/.{2}/g)?.join(":") || mac.toLowerCase();
+}
+
+export async function getMacFromRadiusByUsername(username: string): Promise<string | null> {
+  const session = await getRadiusSessionByUsername(username);
+  if (!session || !session.callingStationId) {
+    return null;
+  }
+  
+  const mac = normalizeRadiusMac(session.callingStationId);
+  console.log(`[RADIUS DB] MAC encontrado para ${username}: ${mac}`);
+  return mac;
+}
+
+export async function getMacFromRadiusByIp(ip: string): Promise<string | null> {
+  const session = await getRadiusSessionByIp(ip);
+  if (!session || !session.callingStationId) {
+    return null;
+  }
+  
+  const mac = normalizeRadiusMac(session.callingStationId);
+  console.log(`[RADIUS DB] MAC encontrado para IP ${ip}: ${mac}`);
+  return mac;
+}
+
+export async function closeRadiusDbPool(): Promise<void> {
+  if (radiusDbPool) {
+    await radiusDbPool.end();
+    radiusDbPool = null;
+    console.log("[RADIUS DB] Pool de conexão fechado");
+  }
 }
