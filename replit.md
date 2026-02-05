@@ -44,6 +44,13 @@ Links support three traffic data sources configured via `trafficSourceType`:
 - **Concentrator**: Uses the associated concentrator's IP and profile
 - **Access Point (Switch/PE)**: For L2 links with RSTP where concentrator cannot identify which route is active. Traffic is collected from the access switch using `accessPointId` and `accessPointInterfaceIndex`
 
+### Cisco ASR Concentrator Integration
+For Cisco ASR/ISR routers serving as PPPoE concentrators:
+- **Interface Discovery**: Uses ipCidrRouteIfIndex (1.3.6.1.2.1.4.24.4.1.5) to find traffic interface by mapping PPPoE session IP
+- **PPPoE Username**: Retrieved via ifAlias (1.3.6.1.2.1.31.1.1.1.18) OID using the interface index
+- **MAC Limitation**: MAC addresses NOT available via SNMP for PPPoE sessions (ipNetToMedia OID returns empty). Detection logic skips MAC lookup on Cisco PPPoE concentrators (vendor='cisco' AND name contains 'asr'/'concentrador'/'pppoe'/'bras').
+- **ONU ID**: Collected via OLT when link has associated OLT configuration
+
 ### Corporate Link Discovery (authType='corporate')
 For corporate links (non-PPPoE connections identified during Voalle import by absence of pppoeUser):
 - **VLAN Interface Detection**: Uses `vlanInterface` field to find ifIndex via SNMP ifDescr walk
