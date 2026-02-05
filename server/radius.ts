@@ -930,8 +930,20 @@ function normalizeRadiusMac(mac: string): string {
 }
 
 export async function getMacFromRadiusByUsername(username: string): Promise<string | null> {
+  const pool = getRadiusDbPool();
+  if (!pool) {
+    console.log(`[RADIUS DB] Pool não disponível para buscar MAC de ${username} (variáveis RADIUS_DB_* não configuradas)`);
+    return null;
+  }
+  
   const session = await getRadiusSessionByUsername(username);
-  if (!session || !session.callingStationId) {
+  if (!session) {
+    console.log(`[RADIUS DB] Nenhuma sessão ativa encontrada para ${username}`);
+    return null;
+  }
+  
+  if (!session.callingStationId) {
+    console.log(`[RADIUS DB] Sessão encontrada para ${username} mas sem Calling-Station-Id (MAC)`);
     return null;
   }
   
