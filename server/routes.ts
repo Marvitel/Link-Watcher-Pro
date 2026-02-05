@@ -4892,13 +4892,12 @@ export async function registerRoutes(
               
               if (finalMac) {
                 console.log(`[Voalle Import] ${link.name}: MAC=${finalMac} (via ${macSource})`);
-                const vendorSlug = detectVendorByMac(finalMac);
+                const vendorSlug = await detectVendorByMac(finalMac);
                 console.log(`[Voalle Import] ${link.name}: Vendor slug: ${vendorSlug || 'não detectado'}`);
                 if (vendorSlug) {
                   const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
                   if (vendor) {
                     console.log(`[Voalle Import] ${link.name}: Vendor: ${vendor.name} (ID: ${vendor.id})`);
-                    // Buscar CPE padrão deste vendor
                     const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
                     if (vendorCpe) {
                       linkedCpe = vendorCpe;
@@ -5047,7 +5046,7 @@ export async function registerRoutes(
                           // Verificar se já existe CPE associado ao link
                           const existingLinkCpes = await storage.getLinkCpes(link.id);
                           if (existingLinkCpes.length === 0) {
-                            const vendorSlug = detectVendorByMac(corpInfo.macAddress);
+                            const vendorSlug = await detectVendorByMac(corpInfo.macAddress);
                             
                             // Buscar CPE cadastrada com esse vendor
                             if (vendorSlug) {

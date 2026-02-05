@@ -324,24 +324,131 @@ const OUI_VENDOR_MAP: Record<string, string> = {
   "d8:c7:c8": "aruba",
 };
 
+const VENDOR_NAME_TO_SLUG: Record<string, string> = {
+  "mikrotikls": "mikrotik",
+  "mikrotik": "mikrotik",
+  "routerboard": "mikrotik",
+  "huawei": "huawei",
+  "huaweitechnologies": "huawei",
+  "intelbras": "intelbras",
+  "cisco": "cisco",
+  "ciscosystems": "cisco",
+  "ciscosystemsinc": "cisco",
+  "tplink": "tplink",
+  "tplinktechnologies": "tplink",
+  "tplinksystems": "tplink",
+  "tplinksystemsinc": "tplink",
+  "ubiquiti": "ubiquiti",
+  "ubiquitiinc": "ubiquiti",
+  "ubiquitinetworks": "ubiquiti",
+  "ubiquitinetworksinc": "ubiquiti",
+  "zte": "zte",
+  "ztecorporation": "zte",
+  "fiberhome": "fiberhome",
+  "fiberhometelecommunication": "fiberhome",
+  "fiberhometelecommunicationtechnologies": "fiberhome",
+  "datacom": "datacom",
+  "datacomelecja": "datacom",
+  "nokia": "nokia",
+  "nokiacorporation": "nokia",
+  "alcatellucent": "nokia",
+  "juniper": "juniper",
+  "junipernetworks": "juniper",
+  "junipernetworksinc": "juniper",
+  "fortinet": "fortinet",
+  "fortinetinc": "fortinet",
+  "aruba": "aruba",
+  "arubanetworks": "aruba",
+  "arubaacompanybyhewlettpackardenterprise": "aruba",
+  "hewlettpackard": "aruba",
+};
+
+const onlineOuiCache = new Map<string, { slug: string | null; timestamp: number }>();
+const OUI_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function companyNameToSlug(companyName: string): string | null {
+  const normalized = companyName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  if (VENDOR_NAME_TO_SLUG[normalized]) {
+    return VENDOR_NAME_TO_SLUG[normalized];
+  }
+  
+  for (const [key, slug] of Object.entries(VENDOR_NAME_TO_SLUG)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return slug;
+    }
+  }
+  
+  return null;
+}
+
+async function lookupOuiOnline(oui: string): Promise<string | null> {
+  const cached = onlineOuiCache.get(oui);
+  if (cached && Date.now() - cached.timestamp < OUI_CACHE_TTL) {
+    console.log(`[OUI Online] Cache hit para OUI ${oui}: ${cached.slug || 'desconhecido'}`);
+    return cached.slug;
+  }
+  
+  try {
+    const macQuery = oui.replace(/:/g, "");
+    const response = await fetch(`https://api.maclookup.app/v2/macs/${macQuery}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    
+    if (!response.ok) {
+      console.log(`[OUI Online] API retornou status ${response.status} para OUI ${oui}`);
+      return null;
+    }
+    
+    const data = await response.json() as { success?: boolean; found?: boolean; company?: string };
+    
+    if (data.found && data.company) {
+      console.log(`[OUI Online] OUI ${oui} -> Fabricante: ${data.company}`);
+      const slug = companyNameToSlug(data.company);
+      
+      if (slug) {
+        OUI_VENDOR_MAP[oui] = slug;
+        console.log(`[OUI Online] OUI ${oui} adicionado ao mapa local: ${slug}`);
+      } else {
+        console.log(`[OUI Online] OUI ${oui} fabricante "${data.company}" não mapeado para nenhum vendor slug conhecido`);
+      }
+      
+      onlineOuiCache.set(oui, { slug, timestamp: Date.now() });
+      return slug;
+    }
+    
+    console.log(`[OUI Online] OUI ${oui} não encontrado na API online`);
+    onlineOuiCache.set(oui, { slug: null, timestamp: Date.now() });
+    return null;
+  } catch (err: any) {
+    console.log(`[OUI Online] Erro ao consultar API para OUI ${oui}: ${err.message}`);
+    return null;
+  }
+}
+
 /**
  * Detecta o vendor slug pelo MAC address (OUI lookup)
+ * Primeiro consulta tabela local, depois faz fallback para API online
  * @param macAddress MAC address no formato XX:XX:XX:XX:XX:XX ou XX-XX-XX-XX-XX-XX
  * @returns Vendor slug ou null se não encontrado
  */
-export function detectVendorByMac(macAddress: string | null | undefined): string | null {
+export async function detectVendorByMac(macAddress: string | null | undefined): Promise<string | null> {
   if (!macAddress) return null;
   
-  // Normalizar MAC para lowercase com ":"
   const normalizedMac = macAddress.toLowerCase().replace(/-/g, ":");
-  
-  // Extrair OUI (primeiros 3 bytes = 8 caracteres com ":")
   const oui = normalizedMac.substring(0, 8);
   
   const vendorSlug = OUI_VENDOR_MAP[oui];
   if (vendorSlug) {
     console.log(`[OUI Lookup] MAC ${macAddress} -> Vendor: ${vendorSlug}`);
     return vendorSlug;
+  }
+  
+  console.log(`[OUI Lookup] MAC ${macAddress} -> OUI ${oui} não encontrado localmente, consultando API online...`);
+  const onlineSlug = await lookupOuiOnline(oui);
+  if (onlineSlug) {
+    console.log(`[OUI Lookup] MAC ${macAddress} -> Vendor: ${onlineSlug} (via API online)`);
+    return onlineSlug;
   }
   
   console.log(`[OUI Lookup] MAC ${macAddress} -> Vendor não identificado (OUI: ${oui})`);
