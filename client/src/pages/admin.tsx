@@ -3589,6 +3589,250 @@ function OZmapIntegration() {
   );
 }
 
+function RadiusDbIntegration() {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const { data: integrations, refetch } = useQuery<ExternalIntegration[]>({
+    queryKey: ["/api/external-integrations"],
+  });
+
+  const radiusDbIntegration = integrations?.find(i => i.provider === "radius_db");
+
+  const [formData, setFormData] = useState({
+    host: "191.52.248.174",
+    port: "5432",
+    database: "radius",
+    user: "syntesisus",
+    password: "",
+    isActive: true,
+  });
+
+  useEffect(() => {
+    if (radiusDbIntegration) {
+      try {
+        const connData = JSON.parse(radiusDbIntegration.apiUrl || "{}");
+        setFormData({
+          host: connData.host || "",
+          port: connData.port || "5432",
+          database: connData.database || "",
+          user: connData.user || "",
+          password: "",
+          isActive: radiusDbIntegration.isActive,
+        });
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, [radiusDbIntegration]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const payload = {
+        name: "FreeRADIUS PostgreSQL",
+        provider: "radius_db",
+        isActive: data.isActive,
+        apiKey: data.password,
+        apiUrl: JSON.stringify({ host: data.host, port: data.port, database: data.database, user: data.user }),
+      };
+      return await apiRequest("POST", "/api/external-integrations", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração RADIUS DB criada com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar integração", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
+      const payload: Record<string, unknown> = {
+        name: "FreeRADIUS PostgreSQL",
+        isActive: data.isActive,
+        apiUrl: JSON.stringify({ host: data.host, port: data.port, database: data.database, user: data.user }),
+      };
+      if (data.password) {
+        payload.apiKey = data.password;
+      }
+      return await apiRequest("PATCH", `/api/external-integrations/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/external-integrations"] });
+      toast({ title: "Integração RADIUS DB atualizada" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar integração", variant: "destructive" });
+    },
+  });
+
+  const testConnection = async () => {
+    if (!radiusDbIntegration) return;
+    setTesting(true);
+    try {
+      const response = await apiRequest("POST", `/api/external-integrations/${radiusDbIntegration.id}/test`);
+      const result = await response.json() as { success: boolean; message?: string; error?: string };
+      if (result.success) {
+        toast({ title: result.message || "Conexão RADIUS DB bem-sucedida!" });
+      } else {
+        toast({ title: "Falha na conexão", description: result.error, variant: "destructive" });
+      }
+      refetch();
+    } catch (error) {
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    if (!formData.host.trim() || !formData.database.trim() || !formData.user.trim()) {
+      toast({ title: "Host, banco de dados e usuário são obrigatórios", variant: "destructive" });
+      return;
+    }
+    if (!radiusDbIntegration && !formData.password.trim()) {
+      toast({ title: "Senha é obrigatória para nova integração", variant: "destructive" });
+      return;
+    }
+
+    if (radiusDbIntegration) {
+      updateMutation.mutate({ id: radiusDbIntegration.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="w-5 h-5" />
+          FreeRADIUS - Banco de Dados PostgreSQL
+        </CardTitle>
+        <CardDescription>
+          Conexão com o banco de dados do FreeRADIUS para busca de MAC address (Calling-Station-Id) em sessões PPPoE ativas
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="radius-db-host">Host</Label>
+            <Input
+              id="radius-db-host"
+              value={formData.host}
+              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+              placeholder="191.52.248.174"
+              data-testid="input-radius-db-host"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radius-db-port">Porta</Label>
+            <Input
+              id="radius-db-port"
+              value={formData.port}
+              onChange={(e) => setFormData({ ...formData, port: e.target.value })}
+              placeholder="5432"
+              data-testid="input-radius-db-port"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="radius-db-database">Banco de Dados</Label>
+            <Input
+              id="radius-db-database"
+              value={formData.database}
+              onChange={(e) => setFormData({ ...formData, database: e.target.value })}
+              placeholder="radius"
+              data-testid="input-radius-db-database"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radius-db-user">Usuário</Label>
+            <Input
+              id="radius-db-user"
+              value={formData.user}
+              onChange={(e) => setFormData({ ...formData, user: e.target.value })}
+              placeholder="syntesisus"
+              data-testid="input-radius-db-user"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="radius-db-password">Senha</Label>
+            <div className="flex gap-2">
+              <Input
+                id="radius-db-password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder={radiusDbIntegration ? "••••••••" : "Digite a senha"}
+                data-testid="input-radius-db-password"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword(!showPassword)}
+                data-testid="button-toggle-radius-password"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="radius-db-active"
+            checked={formData.isActive}
+            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+            data-testid="switch-radius-db-active"
+          />
+          <Label htmlFor="radius-db-active">Integração Ativa</Label>
+        </div>
+
+        <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+          <p>Utilizado como fallback para descoberta de MAC address quando SNMP e Mikrotik API não conseguem encontrar.</p>
+          <p className="mt-1">Consulta a tabela <code className="text-xs bg-background px-1 py-0.5 rounded">radacct</code> buscando sessões ativas (acctstoptime IS NULL) pelo username PPPoE ou IP.</p>
+        </div>
+
+        {radiusDbIntegration && (
+          <div className="text-sm text-muted-foreground space-y-1">
+            {radiusDbIntegration.lastTestedAt && (
+              <p>
+                Último teste: {new Date(radiusDbIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                <Badge variant={radiusDbIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
+                  {radiusDbIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
+                </Badge>
+              </p>
+            )}
+            {radiusDbIntegration.lastTestError && (
+              <p className="text-destructive">Erro: {radiusDbIntegration.lastTestError}</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-radius-db">
+            {isSaving ? "Salvando..." : "Salvar"}
+          </Button>
+          {radiusDbIntegration && (
+            <Button variant="outline" onClick={testConnection} disabled={testing} data-testid="button-test-radius-db">
+              {testing ? "Testando..." : "Testar Conexão"}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 const ERP_PROVIDERS = [
   { value: "voalle", label: "Voalle" },
   { value: "ixc", label: "IXC Soft" },
@@ -5429,6 +5673,7 @@ export default function Admin() {
 
           <HetrixToolsIntegration />
           <OZmapIntegration />
+          <RadiusDbIntegration />
           <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
         </TabsContent>

@@ -81,6 +81,26 @@ export async function registerRoutes(
   await storage.initializeDefaultData();
   storage.startMetricCollection();
 
+  // Registrar fetcher de configuração RADIUS DB a partir da tabela de integrações
+  const { setRadiusDbConfigFetcher, resetRadiusDbPool } = await import("./radius");
+  setRadiusDbConfigFetcher(async () => {
+    try {
+      const integrations = await storage.getExternalIntegrations();
+      const radiusDb = integrations.find(i => i.provider === "radius_db" && i.isActive);
+      if (!radiusDb || !radiusDb.apiUrl || !radiusDb.apiKey) return null;
+      const connData = JSON.parse(radiusDb.apiUrl);
+      return {
+        host: connData.host,
+        port: parseInt(connData.port || "5432", 10),
+        database: connData.database,
+        user: connData.user,
+        password: radiusDb.apiKey,
+      };
+    } catch {
+      return null;
+    }
+  });
+
   // Endpoint de versão para verificação de atualizações pelo frontend
   // IMPORTANTE: Headers anti-cache para garantir que proxies/CDN não cacheiem
   app.get("/api/version", (_req, res) => {
@@ -7026,6 +7046,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Dados inválidos", details: parsed.error });
       }
       const integration = await storage.createExternalIntegration(parsed.data);
+      if (integration.provider === "radius_db") {
+        resetRadiusDbPool();
+      }
       const { apiKey, ...rest } = integration;
       res.status(201).json({ ...rest, hasApiKey: !!apiKey });
     } catch (error) {
@@ -7042,6 +7065,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Integração não encontrada" });
       }
       await storage.updateExternalIntegration(id, req.body);
+      if (existing.provider === "radius_db") {
+        resetRadiusDbPool();
+      }
       const updated = await storage.getExternalIntegration(id);
       if (!updated) {
         return res.status(500).json({ error: "Erro ao recuperar integração atualizada" });
@@ -7060,6 +7086,9 @@ export async function registerRoutes(
       const existing = await storage.getExternalIntegration(id);
       if (!existing) {
         return res.status(404).json({ error: "Integração não encontrada" });
+      }
+      if (existing.provider === "radius_db") {
+        resetRadiusDbPool();
       }
       await storage.deleteExternalIntegration(id);
       res.json({ success: true });
@@ -7128,6 +7157,55 @@ export async function registerRoutes(
               lastTestError: `HTTP ${response.status}: ${errorText.substring(0, 200)}`,
             });
             res.json({ success: false, error: `HTTP ${response.status}` });
+          }
+        } catch (error: any) {
+          await storage.updateExternalIntegration(id, {
+            lastTestedAt: new Date(),
+            lastTestStatus: "error",
+            lastTestError: error.message || "Erro desconhecido",
+          });
+          res.json({ success: false, error: error.message });
+        }
+      } else if (integration.provider === "radius_db") {
+        try {
+          let connData: { host?: string; port?: string; database?: string; user?: string };
+          try {
+            connData = JSON.parse(integration.apiUrl || "{}");
+          } catch {
+            throw new Error("Dados de conexão inválidos (JSON malformado)");
+          }
+          const password = integration.apiKey || "";
+          
+          if (!connData.host || !connData.database || !connData.user || !password) {
+            throw new Error("Dados de conexão incompletos");
+          }
+
+          const { Pool } = (await import("pg")).default;
+          const testPool = new Pool({
+            host: connData.host,
+            port: parseInt(connData.port || "5432", 10),
+            database: connData.database,
+            user: connData.user,
+            password: password,
+            max: 1,
+            connectionTimeoutMillis: 10000,
+          });
+
+          const client = await testPool.connect();
+          try {
+            const result = await client.query("SELECT COUNT(*) as count FROM radacct WHERE acctstoptime IS NULL");
+            const count = parseInt(result.rows[0].count, 10);
+            
+            await storage.updateExternalIntegration(id, {
+              lastTestedAt: new Date(),
+              lastTestStatus: "success",
+              lastTestError: null,
+            });
+            
+            res.json({ success: true, message: `Conexão OK - ${count} sessões ativas` });
+          } finally {
+            client.release();
+            await testPool.end();
           }
         } catch (error: any) {
           await storage.updateExternalIntegration(id, {

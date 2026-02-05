@@ -738,12 +738,13 @@ export async function authenticateWithFailover(
 const { Pool } = pg;
 
 let radiusDbPool: pg.Pool | null = null;
+let radiusDbConfigFetcher: (() => Promise<{ host: string; port: number; database: string; user: string; password: string } | null>) | null = null;
 
-function getRadiusDbPool(): pg.Pool | null {
-  if (radiusDbPool) {
-    return radiusDbPool;
-  }
+export function setRadiusDbConfigFetcher(fetcher: () => Promise<{ host: string; port: number; database: string; user: string; password: string } | null>) {
+  radiusDbConfigFetcher = fetcher;
+}
 
+function getRadiusDbPoolFromEnv(): pg.Pool | null {
   const host = process.env.RADIUS_DB_HOST;
   const port = parseInt(process.env.RADIUS_DB_PORT || "5432", 10);
   const database = process.env.RADIUS_DB_NAME;
@@ -766,11 +767,51 @@ function getRadiusDbPool(): pg.Pool | null {
       connectionTimeoutMillis: 10000,
     });
 
-    console.log(`[RADIUS DB] Pool de conexão criado para ${host}:${port}/${database}`);
+    console.log(`[RADIUS DB] Pool de conexão criado via env para ${host}:${port}/${database}`);
     return radiusDbPool;
   } catch (error) {
     console.error("[RADIUS DB] Erro ao criar pool de conexão:", error);
     return null;
+  }
+}
+
+async function getRadiusDbPool(): Promise<pg.Pool | null> {
+  if (radiusDbPool) {
+    return radiusDbPool;
+  }
+
+  const envPool = getRadiusDbPoolFromEnv();
+  if (envPool) return envPool;
+
+  if (radiusDbConfigFetcher) {
+    try {
+      const config = await radiusDbConfigFetcher();
+      if (config) {
+        radiusDbPool = new Pool({
+          host: config.host,
+          port: config.port,
+          database: config.database,
+          user: config.user,
+          password: config.password,
+          max: 5,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        });
+        console.log(`[RADIUS DB] Pool de conexão criado via integração para ${config.host}:${config.port}/${config.database}`);
+        return radiusDbPool;
+      }
+    } catch (error) {
+      console.error("[RADIUS DB] Erro ao buscar config da integração:", error);
+    }
+  }
+
+  return null;
+}
+
+export function resetRadiusDbPool() {
+  if (radiusDbPool) {
+    radiusDbPool.end().catch(() => {});
+    radiusDbPool = null;
   }
 }
 
@@ -788,7 +829,7 @@ export interface RadiusDbSession {
 }
 
 export async function testRadiusDbConnection(): Promise<{ success: boolean; message: string; activeSessionsCount?: number }> {
-  const pool = getRadiusDbPool();
+  const pool = await getRadiusDbPool();
   if (!pool) {
     return { success: false, message: "Integração RADIUS DB não configurada (variáveis RADIUS_DB_* ausentes)" };
   }
@@ -812,7 +853,7 @@ export async function testRadiusDbConnection(): Promise<{ success: boolean; mess
 }
 
 export async function getRadiusSessionByUsername(username: string): Promise<RadiusDbSession | null> {
-  const pool = getRadiusDbPool();
+  const pool = await getRadiusDbPool();
   if (!pool) {
     return null;
   }
@@ -866,7 +907,7 @@ export async function getRadiusSessionByUsername(username: string): Promise<Radi
 }
 
 export async function getRadiusSessionByIp(ip: string): Promise<RadiusDbSession | null> {
-  const pool = getRadiusDbPool();
+  const pool = await getRadiusDbPool();
   if (!pool) {
     return null;
   }
@@ -930,9 +971,9 @@ function normalizeRadiusMac(mac: string): string {
 }
 
 export async function getMacFromRadiusByUsername(username: string): Promise<string | null> {
-  const pool = getRadiusDbPool();
+  const pool = await getRadiusDbPool();
   if (!pool) {
-    console.log(`[RADIUS DB] Pool não disponível para buscar MAC de ${username} (variáveis RADIUS_DB_* não configuradas)`);
+    console.log(`[RADIUS DB] Pool não disponível para buscar MAC de ${username} (não configurado via env nem integração)`);
     return null;
   }
   
@@ -953,9 +994,9 @@ export async function getMacFromRadiusByUsername(username: string): Promise<stri
 }
 
 export async function getMacFromRadiusByIp(ip: string): Promise<string | null> {
-  const pool = getRadiusDbPool();
+  const pool = await getRadiusDbPool();
   if (!pool) {
-    console.log(`[RADIUS DB] Pool não disponível para buscar MAC por IP ${ip} (variáveis RADIUS_DB_* não configuradas)`);
+    console.log(`[RADIUS DB] Pool não disponível para buscar MAC por IP ${ip} (não configurado via env nem integração)`);
     return null;
   }
   
