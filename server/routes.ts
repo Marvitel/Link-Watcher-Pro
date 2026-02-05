@@ -4836,9 +4836,27 @@ export async function registerRoutes(
                 link.pppoeUser
               );
               
-              if (macResult.mac) {
-                console.log(`[Voalle Import] ${link.name}: MAC=${macResult.mac} (via ${macResult.source})`);
-                const vendorSlug = detectVendorByMac(macResult.mac);
+              let finalMac = macResult.mac;
+              let macSource = macResult.source;
+              
+              // Se não encontrou MAC via SNMP/API, tentar via RADIUS DB
+              if (!finalMac && link.pppoeUser) {
+                try {
+                  const { getMacFromRadiusByUsername } = await import("./radius");
+                  const radiusMac = await getMacFromRadiusByUsername(link.pppoeUser);
+                  if (radiusMac) {
+                    finalMac = radiusMac;
+                    macSource = "RADIUS DB";
+                    console.log(`[Voalle Import] ${link.name}: MAC=${radiusMac} (via RADIUS DB)`);
+                  }
+                } catch (radiusErr: any) {
+                  console.log(`[Voalle Import] ${link.name}: Erro ao buscar MAC via RADIUS: ${radiusErr.message}`);
+                }
+              }
+              
+              if (finalMac) {
+                console.log(`[Voalle Import] ${link.name}: MAC=${finalMac} (via ${macSource})`);
+                const vendorSlug = detectVendorByMac(finalMac);
                 console.log(`[Voalle Import] ${link.name}: Vendor slug: ${vendorSlug || 'não detectado'}`);
                 if (vendorSlug) {
                   const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
@@ -4858,7 +4876,7 @@ export async function registerRoutes(
                   }
                 }
               } else {
-                console.log(`[Voalle Import] ${link.name}: MAC não encontrado em nenhum equipamento`);
+                console.log(`[Voalle Import] ${link.name}: MAC não encontrado em nenhum equipamento nem RADIUS`);
               }
               
               // Fallback: usar CPE padrão genérica
@@ -4874,7 +4892,7 @@ export async function registerRoutes(
                   cpeId: linkedCpe.id,
                   role: 'primary',
                   ipOverride: link.monitoredIp,
-                  macAddress: macResult.mac || undefined,
+                  macAddress: finalMac || undefined,
                   showInEquipmentTab: true,
                 });
               }
@@ -7827,6 +7845,37 @@ export async function registerRoutes(
       res.json({ success: true, message: "Métricas resetadas com sucesso" });
     } catch (error) {
       res.status(500).json({ error: "Erro ao resetar métricas" });
+    }
+  });
+
+  // Diagnóstico da conexão RADIUS DB (FreeRADIUS PostgreSQL)
+  app.get("/api/admin/diagnostics/radius", requireDiagnosticsAccess, async (_req, res) => {
+    try {
+      const { testRadiusDbConnection } = await import("./radius");
+      const result = await testRadiusDbConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        message: `Erro ao testar conexão RADIUS: ${error.message}` 
+      });
+    }
+  });
+
+  // Buscar sessão RADIUS por username PPPoE
+  app.get("/api/admin/diagnostics/radius/session/:username", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const { getRadiusSessionByUsername } = await import("./radius");
+      const session = await getRadiusSessionByUsername(req.params.username);
+      if (!session) {
+        return res.json({ found: false, message: "Sessão ativa não encontrada para este username" });
+      }
+      res.json({ found: true, session });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        message: `Erro ao buscar sessão RADIUS: ${error.message}` 
+      });
     }
   });
 
