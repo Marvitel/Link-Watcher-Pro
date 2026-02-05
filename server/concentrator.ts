@@ -67,7 +67,7 @@ export async function lookupMacViaMikrotikApi(
           console.log(`[Mikrotik API] Sessão encontrada:`, JSON.stringify(session));
           
           // Tentar diferentes nomes de campo para o MAC
-          const mac = session['caller-id'] || session['callerId'] || (session as any)['caller_id'];
+          const mac = session['caller-id'] || (session as any)['callerId'] || (session as any)['caller_id'];
           if (mac) {
             const macLower = mac.toLowerCase();
             console.log(`[Mikrotik API] MAC encontrado via PPPoE active (${pppoeUser}): ${macLower}`);
@@ -632,7 +632,7 @@ async function lookupPppoeViaSNMP(
     }
 
     // Definir lista de OIDs a tentar baseado no vendor
-    type OidPair = { user: string; ip: string; name: string };
+    type OidPair = { user: string; ip: string; name: string; mac?: string };
     const oidSets: OidPair[] = [];
 
     if (vendor === "cisco") {
@@ -1716,6 +1716,20 @@ export async function discoverMacForLink(
         snmpProfile = await getSnmpProfile(equipment.snmpProfileId);
       }
       
+      // Detectar se é Cisco ASR/concentrador PPPoE (não tem MAC na tabela ARP para sessões PPPoE)
+      // Cisco ASR, ISR e outros roteadores não populam ipNetToMedia para sessões PPPoE
+      const nameLower = (equipment.name || '').toLowerCase();
+      const vendorLower = (equipment.vendor || '').toLowerCase();
+      const isCiscoPppoeConcentrator = vendorLower === 'cisco' && 
+        (nameLower.includes('asr') || nameLower.includes('concentrador') || 
+         nameLower.includes('pppoe') || nameLower.includes('bras'));
+      
+      // Para concentradores Cisco com sessões PPPoE, pular busca de MAC (não disponível via SNMP ARP)
+      if (isCiscoPppoeConcentrator && type === 'Concentrador') {
+        console.log(`[MAC Discovery] Concentrador Cisco PPPoE detectado - MAC não disponível via SNMP ARP para sessões PPPoE, pulando...`);
+        continue;
+      }
+      
       mac = await lookupMacFromArpByIp(
         { 
           ipAddress: equipment.ipAddress, 
@@ -1726,9 +1740,13 @@ export async function discoverMacForLink(
       );
       
       if (mac) {
-        console.log(`[MAC Discovery] MAC ${mac} encontrado via SNMP ${type}: ${equipment.name}`);
-        return { mac, source: `${type} (SNMP)` };
+        console.log(`[MAC Discovery] MAC ${mac} encontrado via SNMP ARP ${type}: ${equipment.name}`);
+        return { mac, source: `${type} (SNMP ARP)` };
       }
+      
+      // Nota: Bridge table (FDB) não é usada porque requer mapeamento IP->port->MAC
+      // que é complexo e varia por vendor. O MAC deve vir da sessão PPPoE (caller-id)
+      // no concentrador Mikrotik ou da tabela de ONUs na OLT.
     } catch (err: any) {
       console.log(`[MAC Discovery] Erro ao buscar no ${type} ${equipment.name}: ${err.message}`);
     }

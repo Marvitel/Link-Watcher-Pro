@@ -4634,13 +4634,14 @@ export async function registerRoutes(
         try {
           const { lookupMultiplePppoeSessions, lookupIpBlockFromRouteTable } = await import("./concentrator");
           
-          // Get all PPPoE links (not corporate) with pppoeUser but no IP
+          // Get all PPPoE links (not corporate) with pppoeUser that need IP or interface discovery
           const importedLinks = await storage.getLinks();
           const linksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
             l.pppoeUser && 
             l.authType !== 'corporate' && // Exclude corporate links - they use VLAN/ARP lookup
-            (!l.monitoredIp || l.monitoredIp === "") && 
-            l.concentratorId
+            l.concentratorId &&
+            // Need IP OR need interface for traffic collection
+            ((!l.monitoredIp || l.monitoredIp === "") || !l.snmpInterfaceIndex)
           );
           
           if (linksNeedingIp.length > 0) {
@@ -4821,12 +4822,17 @@ export async function registerRoutes(
                 }
               }
               
+              const getSnmpProfileNullable = async (id: number) => {
+                const profile = await storage.getSnmpProfile(id);
+                return profile ?? null;
+              };
+              
               const macResult = await discoverMacForLink(
-                link.monitoredIp,
+                link.monitoredIp || '',
                 oltEquip,
                 switchEquip,
                 concEquip,
-                storage.getSnmpProfile.bind(storage),
+                getSnmpProfileNullable,
                 link.pppoeUser
               );
               
