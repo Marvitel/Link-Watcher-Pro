@@ -1,0 +1,25 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -i voalle
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 3558, clientName: ASSOCIACAO SERGIPANA DE KARTS (32845737000100)
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Checking slug: associacao-sergipana-de-karts, exists in usedSlugs: false
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Creating client with slug: associacao-sergipana-de-karts, voalleId: 3558
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Cliente criado: ASSOCIACAO SERGIPANA DE KARTS, portalUser: 32845737000100, portalPass: [ENCRYPTED]
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 33, oltName: OLT-DATACOM-HOSPITAL-10G
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Access point "OLT-DATACOM-HOSPITAL-10G" isOlt: true
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] OLT from existing: 1
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Link 2VH92R1S: clientId=39, concentratorId=4, oltId=1, switchId=null
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Creating new link 2VH92R1S with accessPointId=1
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] Busca de IPs concluída: 0 IPs encontrados
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] 3 links PPPoE para vincular CPE
+fev 05 09:56:16 link-monitor npm[2527182]: [Voalle Import] associacao.karts: Buscando MAC para IP 191.52.255.22...
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] associacao.karts: MAC não encontrado em nenhum equipamento
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] CPEs vinculadas: 0 por vendor, 1 genéricas
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Busca corporativa concluída: 0 IPs encontrados
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (4) - vinculação automática ignorada
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Links processados para busca de ONU ID: 1
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Links que precisam de ONU ID: 1
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Descobrindo ONU ID para 1 links...
+fev 05 09:56:17 link-monitor npm[2527182]: [Voalle Import] Buscando ONU ID em OLT-DTC-HSP para 1 links...
+fev 05 09:56:19 link-monitor npm[2527182]: [Voalle Import] associacao.karts: ONU não encontrada (No response from server)
+root@link-monitor:/opt/link-monitor# 
