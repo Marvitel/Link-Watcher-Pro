@@ -1,7 +1,7 @@
 # Link Monitor - Sistema de Monitoramento de Links de Internet
 
 ## Overview
-The Link Monitor is a multi-tenant SaaS application developed by Marvitel Telecomunicações for real-time monitoring of dedicated fiber optic internet links. It provides services to Marvitel's clients, including SLA/ANS compliance tracking, DDoS attack detection, and incident management. The system is a full-stack TypeScript application, utilizing React for the frontend, Express for the backend, and PostgreSQL for data persistence. Its core purpose is to offer a robust and scalable solution for network performance and security monitoring.
+The Link Monitor is a multi-tenant SaaS application by Marvitel Telecomunicações for real-time monitoring of dedicated fiber optic internet links. It tracks SLA/ANS compliance, detects DDoS attacks, and manages incidents for Marvitel's clients. This full-stack TypeScript application uses React, Express, and PostgreSQL, providing a robust and scalable solution for network performance and security monitoring with a focus on business vision, market potential, and project ambitions.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Portuguese).
@@ -17,86 +17,38 @@ Preferred communication style: Simple, everyday language (Portuguese).
 
 ## System Architecture
 
-### Multi-Tenant Architecture
-The system enforces data isolation per client (`clientId`) and offers a Super Admin role for global management. Access control is managed through Role-Based Access Control (RBAC). Core tables include `clientId` for data partitioning, and an `/admin` interface facilitates client, link, and host management.
+### Multi-Tenant & Security
+The system features a multi-tenant architecture with data isolation per `clientId`, RBAC for access control, and a Super Admin role. Critical data tables include `clientId` for partitioning. Authentication is localStorage-based using a React context and Express sessions. A dual-port architecture allows separate public and restricted admin portals, with optional IP whitelisting for the admin port. An application firewall (`firewallSettings`, `firewallWhitelist`) provides whitelist-based access control for administrative areas and SSH.
 
-### Frontend Architecture
-Built with React 18 and TypeScript, the frontend uses Wouter for routing, TanStack Query for real-time server state management (5-second polling), and shadcn/ui (Radix UI-based) for components. Styling is handled with Tailwind CSS, supporting light/dark modes and custom theming. Recharts provides data visualization for bandwidth and latency, with a design inspired by Material Design 3 and Grafana.
+### Frontend
+Built with React 18 and TypeScript, the frontend uses Wouter for routing, TanStack Query for real-time data polling, and shadcn/ui (Radix UI-based) for components. Styling is managed with Tailwind CSS, supporting light/dark modes and custom theming. Recharts is used for data visualization (bandwidth, latency), inspired by Material Design 3 and Grafana. Kiosk mode (`?kiosk=true`) supports 24/7 display screens with silent auto-reload and session persistence.
 
-### Backend Architecture
-The backend uses Node.js with Express and TypeScript (ESM modules), exposing RESTful API endpoints under `/api/*`. `esbuild` is used for production bundling.
+### Backend
+The backend leverages Node.js with Express and TypeScript (ESM modules), exposing RESTful API endpoints under `/api/*`. `esbuild` handles production bundling.
 
 ### Data Layer
-PostgreSQL is the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. The shared schema (`shared/schema.ts`) defines core tables for clients, users, links, hosts, metrics, events, DDoS events, incidents, client settings, and RBAC-related tables. SNMP configurations are also stored here.
+PostgreSQL serves as the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. The shared schema defines core tables for clients, users, links, hosts, metrics, events, DDoS events, incidents, client settings, and RBAC. Data retention is set to 6 months with automatic cleanup. An `audit_logs` table tracks all system events, masking sensitive data.
 
-### Authentication
-Authentication is localStorage-based, managed by a React context, and uses Express sessions with `MemoryStore`. User authentication data is stored in `link_monitor_auth_user` in localStorage.
+### Monorepo Structure & Design Patterns
+The project is organized as a monorepo (`client/`, `server/`, `shared/`) using path aliases. It includes features like bandwidth direction inversion, versioning with auto-reload for frontend updates, and a system for simulating real-time network metrics every 5 seconds.
 
-### Dual-Port Architecture
-For production security, the system can run on two separate ports: Port 5000 for the public client portal and Port 5001 for a restricted admin portal. Access to the admin port can be further secured with an IP whitelist (`ADMIN_IP_WHITELIST`).
+### SNMP Traffic Collection
+Supports three traffic data sources (`trafficSourceType`): Manual (IP), Concentrator, and Access Point (Switch/PE). Metrics are collected from additional interfaces (`linkTrafficInterfaces`) in parallel with main link metrics, with per-minute timestamp alignment.
 
-### Key Design Patterns
-The system uses a monorepo structure (`client/`, `server/`, `shared/`), path aliases (`@/`, `@shared/`), and simulates real-time network metrics every 5 seconds. It includes automatic data cleanup (6 months retention), bandwidth direction inversion for concentrator interface monitoring, and a versioning system with auto-reload for frontend updates. Kiosk mode (`?kiosk=true`) supports 24/7 display screens with features like silent auto-reload and session persistence.
-
-### SNMP Traffic Collection Sources
-Links support three traffic data sources configured via `trafficSourceType`:
-- **Manual (IP)**: Direct SNMP collection from the link's router IP
-- **Concentrator**: Uses the associated concentrator's IP and profile
-- **Access Point (Switch/PE)**: For L2 links with RSTP where concentrator cannot identify which route is active. Traffic is collected from the access switch using `accessPointId` and `accessPointInterfaceIndex`
-
-### Cisco ASR Concentrator Integration
-For Cisco ASR/ISR routers serving as PPPoE concentrators:
-- **Interface Discovery**: Uses ipCidrRouteIfIndex (1.3.6.1.2.1.4.24.4.1.5) to find traffic interface by mapping PPPoE session IP
-- **PPPoE Username**: Retrieved via ifAlias (1.3.6.1.2.1.31.1.1.1.18) OID using the interface index
-- **MAC Limitation**: MAC addresses NOT available via SNMP for PPPoE sessions (ipNetToMedia OID returns empty). Detection logic skips MAC lookup on Cisco PPPoE concentrators (vendor='cisco' AND name contains 'asr'/'concentrador'/'pppoe'/'bras').
-- **ONU ID**: Collected via OLT when link has associated OLT configuration
-
-### Corporate Link Discovery (authType='corporate')
-For corporate links (non-PPPoE connections identified during Voalle import by absence of pppoeUser):
-- **VLAN Interface Detection**: Uses `vlanInterface` field to find ifIndex via SNMP ifDescr walk
-- **ARP Table IP Discovery**: Queries ipNetToMedia OID (1.3.6.1.2.1.4.22.1.3) to find client IP from ARP table
-- **Backup Concentrator Failover**: Supports automatic failover to backup concentrator when VLAN interface not found on primary
-- **Auto-Discovery Trigger**: Uses vlanInterface for initial discovery even without snmpInterfaceName (enables first-time setup)
-- **Vendor Auto-Detection**: Concentrator vendor (cisco/huawei/mikrotik) derived from name/model patterns, no manual selection needed
-
-### Multiple Traffic Interfaces per Link
-Links can have additional traffic interfaces for composite monitoring (e.g., L2+L3 on same chart):
-- **Table**: `linkTrafficInterfaces` stores additional interfaces with label, color, source type (manual/concentrator/switch), SNMP settings
-- **Metrics**: `trafficInterfaceMetrics` stores collected metrics (download/upload in bps) per interface
-- **Collection**: Monitoring collects metrics from additional interfaces in parallel with main metrics, using per-minute timestamp alignment
-- **Visualization**: `MultiTrafficChart` component renders multiple series with custom colors and legends when additional interfaces exist
-- **Security**: CRUD endpoints validate that interfaces belong to specified link before update/delete operations
-
-### Link Groups (Grupos de Links)
-Supports grouping links with different profiles:
-- **Redundancy (Ativo/Passivo)**: For failover scenarios, determining status based on active members.
-- **Agregação (Dual-Stack/Bonding)**: Sums bandwidth for aggregated links (e.g., IPv4+IPv6).
-- **Shared (Banda Compartilhada)**: For multiple links/VLANs sharing a single contracted bandwidth.
-Member roles (`primary`, `backup`, `ipv4`, `ipv6`, `member`) define behavior within groups.
+### Concentrator Integration
+Integrates with Cisco ASR/ISR routers for PPPoE concentrator functions, including interface discovery via `ipCidrRouteIfIndex` and PPPoE username retrieval via `ifAlias`. It handles MAC address limitations on Cisco concentrators and collects ONU ID via OLT when configured. For corporate links (`authType='corporate'`), it uses VLAN interface detection and ARP table IP discovery via SNMP, supporting backup concentrator failover and vendor auto-detection.
 
 ### Optical Signal Monitoring
-Features per-link optical signal monitoring with centralized OID configuration per OLT vendor. It supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) with specific SNMP index calculation formulas. It can also fall back to Zabbix MySQL database for OLT RX data when SNMP is unavailable. Thresholds for normal, warning, and critical signal levels are defined, along with delta detection. A "Sinal Óptico" tab provides visual meters and historical graphs. The `splitters` table enables correlation for mass event detection.
+Provides per-link optical signal monitoring with OLT vendor-specific OID configurations (Huawei, ZTE, Fiberhome, Nokia, Datacom), including fallback to Zabbix MySQL for OLT RX data. It defines thresholds for normal, warning, and critical signal levels and detects optical signal deltas. For Cisco Nexus, it automatically discovers SFP optical sensors via SNMP.
 
-### Cisco Nexus Entity MIB Discovery
-For Cisco Nexus switches, the system performs automatic SFP optical sensor discovery via SNMP walk on `entPhysicalName` to map port names to `entPhysicalIndex`, storing this in a `switchSensorCache` table. It collects optical data using specific Cisco OIDs, handling values returned in hundredths of dBm.
+### CPE Command Library
+Offers pre-configured command templates for CPE devices, categorized by manufacturer/model. It includes `cpeCommandTemplates`, `cpeCommandHistory`, and `diagnosticTargets` tables. Templates support placeholders for dynamic substitution and are copied to the clipboard for analyst review.
 
-### Sistema de Auditoria
-An `audit_logs` table records all system audit events, including authentication and CRUD operations, automatically masking sensitive data. Events capture IP addresses and User Agent information. An interface allows filtering and viewing audit logs.
+### SLA Monitoring
+Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours).
 
-### Firewall de Aplicação
-A whitelist-based application firewall controls access to administrative areas and SSH. It uses `firewallSettings` and `firewallWhitelist` tables, supports IPv4/IPv6 addresses and CIDR notation, and allows granular permissions (`allowAdmin`, `allowSsh`, `allowApi`). Changes are recorded in audit logs.
-
-### CPE Command Library (Biblioteca de Comandos CPE)
-Pre-configured command templates for CPE devices organized by manufacturer/model to assist analysts who don't remember command syntax:
-- **Tables**: `cpeCommandTemplates` (templates with vendor/model/category/placeholders), `cpeCommandHistory` (execution log), `diagnosticTargets` (configurable diagnostic IPs per client or global)
-- **Categories**: logs, hardware, network, diagnostic, backup, config, interface, routing, other
-- **Parameter Substitution**: Templates support placeholders like `{IP}`, `{INTERFACE}`, `{VLAN}` that are prompted when copying
-- **Security**: Commands are copied to clipboard (not auto-executed) allowing analysts to review before pasting in terminal. Diagnostic targets are multi-tenant scoped by clientId.
-- **Admin Interface**: CommandTemplatesTab and DiagnosticTargetsTab in admin page for CRUD management
-- **User Interface**: CpeCommandLibrary component in link detail page Tools tab alongside SSH terminals
-
-### SLA Requirements
-The system monitors for SLA compliance, with targets for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours). Data is retained for 6 months.
+### Link Groups
+Supports grouping links with different profiles for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
 
 ## External Dependencies
 
@@ -104,10 +56,12 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 - **PostgreSQL**: Primary data store.
 
 ### Third-Party Integrations
-- **Wanguard (Andrisoft)**: For DDoS detection and mitigation, integrated via a REST API.
-- **HetrixTools**: For IP/CIDR blacklist monitoring, storing results in `blacklistChecks` and influencing link status.
-- **Voalle ERP**: Dual API integration for ticket/incident management, contract tag retrieval, and client authentication/auto-registration. Voalle Portal passwords are encrypted. Includes CSV bulk import for creating links from Voalle exports (contract_service_tags, authentication_contracts, authentication_concentrators, authentication_access_points, person_users).
-- **OZmap**: Fiber optic route tracking integration. Uses `ozmapTag` field in links to query OZmap API for potency/route data including splitters, fusions, cables, boxes, DIOs, total length, and calculated optical power. Configuration via Global Integrations (provider "ozmap" in `externalIntegrations` table).
+- **Wanguard (Andrisoft)**: DDoS detection and mitigation via REST API.
+- **HetrixTools**: IP/CIDR blacklist monitoring.
+- **Voalle ERP**: Dual API integration for ticket/incident management, contract tags, client authentication/auto-registration, and bulk CSV import of link data.
+- **OZmap**: Fiber optic route tracking integration for potency/route data.
+- **FreeRADIUS PostgreSQL**: Used for MAC address lookup when SNMP/API methods fail, querying the `radacct` table.
+- **Mikrotik API**: Used for MAC discovery in PPPoE sessions via binary API (port 8728).
 
 ### Third-Party Libraries
 - **Radix UI**: Accessible component primitives.
@@ -123,34 +77,3 @@ The system monitors for SLA compliance, with targets for Availability (≥99%), 
 ### Fonts
 - **Inter**: Primary UI font.
 - **JetBrains Mono**: Monospace font.
-
-## Histórico de Versões (Deploy)
-
-### Versão Atual para Deploy
-- **Commit**: `498e8d14` (498e8d1)
-- **Data**: 2026-01-28
-- **Descrição**: Prevent version checks from causing page reloads during development
-
-### Mudanças desde produção (5f1095bb):
-1. Reorganização visual do formulário de cadastro de link (títulos de seção coloridos)
-2. Sistema de gráfico principal configurável (modo primary/single/aggregate)
-3. Correção de loops de reload no sistema de verificação de versão
-4. Remoção de logs de debug em monitoring e charts
-5. **Integração OZmap**: Configuração global + campo ozmapTag no link + visualização de rota de fibra
-6. **Schema**: Novos campos `mainGraphMode`, `mainGraphInterfaceIds`, e `ozmapTag` na tabela links
-7. **RADIUS para Dispositivos**: Novo campo `useRadiusForDevices` permite usar credenciais RADIUS do operador para acessar dispositivos de rede (OLT, switch, concentrador, CPE) via SSH, com fallback automático para credenciais locais
-8. **Biblioteca de Comandos CPE**: Sistema completo com templates de comandos SSH por fabricante/modelo, categorias, substituição de parâmetros ({IP}, {INTERFACE}, etc), IPs de diagnóstico configuráveis por cliente, e histórico de execução
-9. **Schema**: Novas tabelas `cpeCommandTemplates`, `cpeCommandHistory`, `diagnosticTargets` para gerenciamento de comandos CPE
-10. **Importação CSV Voalle**: Nova aba "Importar Voalle" no admin para importação em massa de links a partir de CSVs exportados do Voalle (contract_service_tags, authentication_contracts, authentication_concentrators, authentication_access_points, person_users). Inclui preview, validação de schema, detecção de duplicatas, e log de auditoria.
-11. **API Mikrotik para MAC Discovery**: Conexão via API binária (porta 8728) para buscar MAC do cliente em sessões PPPoE ativas (`/ppp/active`). Usa campo `callerId` para extrair MAC. Fallback para SNMP se API falhar.
-12. **Vinculação Automática de CPE por Vendor**: Durante importação Voalle, detecta fabricante do CPE pelo OUI do MAC e vincula automaticamente a CPE padrão (`isStandard=true`) do vendor correspondente.
-13. **Mapeamento OUI expandido**: Adicionados novos OUIs para TP-Link (98:25:4a, 70:cd:91) e corrigido slug para "tplink".
-
-### Versão em Produção
-- **Commit**: `5f1095bb`
-- **Status**: Estável
-
-### Instruções de Deploy
-1. Fazer backup do banco de dados
-2. Executar `npm run db:push` para aplicar novos campos
-3. Realizar deploy via Replit
