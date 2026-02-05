@@ -953,8 +953,20 @@ export async function getMacFromRadiusByUsername(username: string): Promise<stri
 }
 
 export async function getMacFromRadiusByIp(ip: string): Promise<string | null> {
+  const pool = getRadiusDbPool();
+  if (!pool) {
+    console.log(`[RADIUS DB] Pool não disponível para buscar MAC por IP ${ip} (variáveis RADIUS_DB_* não configuradas)`);
+    return null;
+  }
+  
   const session = await getRadiusSessionByIp(ip);
-  if (!session || !session.callingStationId) {
+  if (!session) {
+    console.log(`[RADIUS DB] Nenhuma sessão ativa encontrada para IP ${ip}`);
+    return null;
+  }
+  
+  if (!session.callingStationId) {
+    console.log(`[RADIUS DB] Sessão encontrada para IP ${ip} (user: ${session.username}) mas sem Calling-Station-Id (MAC)`);
     return null;
   }
   

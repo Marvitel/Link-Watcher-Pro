@@ -4839,15 +4839,31 @@ export async function registerRoutes(
               let finalMac = macResult.mac;
               let macSource = macResult.source;
               
-              // Se não encontrou MAC via SNMP/API, tentar via RADIUS DB
-              if (!finalMac && link.pppoeUser) {
+              // Se não encontrou MAC via SNMP/API, tentar via RADIUS DB (por username e por IP)
+              if (!finalMac) {
                 try {
-                  const { getMacFromRadiusByUsername } = await import("./radius");
-                  const radiusMac = await getMacFromRadiusByUsername(link.pppoeUser);
-                  if (radiusMac) {
-                    finalMac = radiusMac;
-                    macSource = "RADIUS DB";
-                    console.log(`[Voalle Import] ${link.name}: MAC=${radiusMac} (via RADIUS DB)`);
+                  const { getMacFromRadiusByUsername, getMacFromRadiusByIp } = await import("./radius");
+                  
+                  // Tentar por username PPPoE primeiro
+                  if (link.pppoeUser) {
+                    console.log(`[Voalle Import] ${link.name}: Tentando RADIUS DB por username ${link.pppoeUser}...`);
+                    const radiusMac = await getMacFromRadiusByUsername(link.pppoeUser);
+                    if (radiusMac) {
+                      finalMac = radiusMac;
+                      macSource = "RADIUS DB (username)";
+                      console.log(`[Voalle Import] ${link.name}: MAC=${radiusMac} (via RADIUS DB username)`);
+                    }
+                  }
+                  
+                  // Se não encontrou por username, tentar por IP
+                  if (!finalMac && link.monitoredIp) {
+                    console.log(`[Voalle Import] ${link.name}: Tentando RADIUS DB por IP ${link.monitoredIp}...`);
+                    const radiusMacByIp = await getMacFromRadiusByIp(link.monitoredIp);
+                    if (radiusMacByIp) {
+                      finalMac = radiusMacByIp;
+                      macSource = "RADIUS DB (IP)";
+                      console.log(`[Voalle Import] ${link.name}: MAC=${radiusMacByIp} (via RADIUS DB IP)`);
+                    }
                   }
                 } catch (radiusErr: any) {
                   console.log(`[Voalle Import] ${link.name}: Erro ao buscar MAC via RADIUS: ${radiusErr.message}`);
