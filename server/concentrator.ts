@@ -206,6 +206,7 @@ const OUI_VENDOR_MAP: Record<string, string> = {
   "a0:f3:c1": "tplink",
   "c0:25:e9": "tplink",
   "d8:07:b6": "tplink",
+  "dc:62:79": "tplink",
   "e8:94:f6": "tplink",
   "f4:ec:38": "tplink",
   "f8:1a:67": "tplink",

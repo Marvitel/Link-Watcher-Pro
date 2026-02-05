@@ -5112,8 +5112,9 @@ export async function registerRoutes(
             }
             
             if (standardCpeCpes.length > 1) {
-              console.log(`[Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (${standardCpeCpes.length}) - vinculação automática ignorada`);
-            } else {
+              console.log(`[Voalle Import] Múltiplas CPEs padrão tipo CPE encontradas (${standardCpeCpes.length}) - usando a primeira: ${standardCpeCpes[0].name} (ID: ${standardCpeCpes[0].id})`);
+            }
+            {
               const standardCpe = standardCpeCpes[0];
               console.log(`[Voalle Import] CPE padrão (corporativo) encontrada: ${standardCpe.name} (ID: ${standardCpe.id})`);
               
