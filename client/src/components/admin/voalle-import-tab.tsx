@@ -539,28 +539,30 @@ export function VoalleImportTab() {
       for (const contrato of contratosAtivos) {
         // Pega o número do contrato (pode vir como "Nº Contrato", "nº contrato", "N Contrato", "Contrato", etc)
         const numContrato = contrato['Nº Contrato'] || contrato['nº contrato'] || contrato['numero contrato'] || contrato['N Contrato'] || contrato['Contrato'] || contrato['contrato'] || contrato['N° Contrato'] || contrato['Numero Contrato'];
+        // TAMBÉM pega "Código do Contrato" - é um ID diferente de "Nº Contrato"
+        const codigoContrato = contrato['Código do Contrato'] || contrato['Codigo do Contrato'] || contrato['código do contrato'] || contrato['codigo do contrato'];
         // Pega o tipo do contrato para verificar se é TI/internet
         const tipoContrato = (contrato['Tipo'] || contrato['tipo'] || contrato['Descrição'] || contrato['descricao'] || '').toLowerCase();
         
-        if (numContrato) {
-          const original = String(numContrato).trim();
-          // Versão sem prefixo M-
+        const addVariations = (value: string) => {
+          const original = String(value).trim();
+          if (!original) return;
           const semPrefixo = original.replace(/^M-/i, '');
-          // Versão sem pontos decimais
           const semPonto = semPrefixo.replace(/\./g, '');
           
-          // Adiciona todas as variações
-          contratosAtivosSet.add(original);           // M-24
-          contratosAtivosSet.add(semPrefixo);         // 24
-          contratosAtivosSet.add(semPonto);           // 24 (ou 10362 para 1036.2)
-          contratosAtivosSet.add(`M-${semPrefixo}`);  // M-24 (garantir prefixo)
+          contratosAtivosSet.add(original);
+          contratosAtivosSet.add(semPrefixo);
+          contratosAtivosSet.add(semPonto);
+          contratosAtivosSet.add(`M-${semPrefixo}`);
           
-          // Mapeia o tipo do contrato para todas as variações do contract_id
           contratoTipoMap.set(original, tipoContrato);
           contratoTipoMap.set(semPrefixo, tipoContrato);
           contratoTipoMap.set(semPonto, tipoContrato);
           contratoTipoMap.set(`M-${semPrefixo}`, tipoContrato);
-        }
+        };
+        
+        if (numContrato) addVariations(String(numContrato));
+        if (codigoContrato) addVariations(String(codigoContrato));
       }
       const hasContratosAtivosFilter = contratosAtivosSet.size > 0;
       

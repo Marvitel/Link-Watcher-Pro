@@ -1,0 +1,38 @@
+[Info] Successfully preconnected to https://fonts.googleapis.com/
+[Info] Successfully preconnected to https://fonts.gstatic.com/
+[Log] [Voalle Import] Campos contratos_ativos.csv: – ["Código do Contrato", "Cod. Cliente", "Cliente", …] (8) (index-B8IDB4GO.js, line 225)
+["Código do Contrato", "Cod. Cliente", "Cliente", "Nº Contrato", "Descrição", "Tipo", "Situação", "Status"]Array (8)
+[Log] [Voalle Import] Exemplo linha contratos_ativos: – {Código do Contrato: 2384, Cod. Cliente: 5756, Cliente: "BRUNA NUNES DA CRUZ", …} (index-B8IDB4GO.js, line 225)
+{Código do Contrato: 2384, Cod. Cliente: 5756, Cliente: "BRUNA NUNES DA CRUZ", Nº Contrato: 2384, Descrição: "Contrato 2384 - BRUNA NUNES DA CRUZ (JD Europa sala 921)", …}Object
+[Log] [Voalle Import] contratosAtivosSet: 2178 variações (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] Conexões mapeadas via auth_contracts: 1564, sem correspondência: 4 (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] conexoesMap: 1563 tags mapeadas, authContractByTagMap: 0, authContractByContractMap: 2336 (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] service_tag_id 2495 no conexoesMap? true (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Dados para tag 2495: – "{\"tipoConexao\":2,\"usuario\":null}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495 encontrada em contractTags: – "{\"id\":2495,\"service_tag\":\"08G6BQKE\",\"contract_id\":42,\"active\":true}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Conexão 655 encontrada no CSV: (index-B8IDB4GO.js, line 225)
+"{\"Código da Conexão\":655,\"Código do Contrato\":42,\"Descrição do Contrato\":\"Contrato M-47 - REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALAR LTDA\",\"Nome do Cliente\":\"REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALAR LTDA\",\"Código do Serviço\":2266,\"Serviço\":\"Serviço de Comunicação de Dados MPLS 10Giga\",\"Cód. Item de Contrato\":3319,\"Usuário\":null,\"Senha do Usuário\":null,\"MAC\":null,\"Senha EAP/PSK\":null,\"IP Válido LAN\":null,\"Classe IP LAN\":null,\"Código Concentrador\":2,\"Concentrador\":\"CE: AJU-MVT-RB-SIQUEIRA\",\"Código do Ponto de Acesso\":2,\"Ponto de Acesso\":\"AJU-MVT-RB-SIQUEIRA\",\"Código do IP\":null,\"IP\":null,\"Código do Address List\":1,\"Address List\":\"Normal\",\"Tipo de Equipamento\":1,\"Usuário do Equipamento\":null,\"Senha do Equipamento\":null,\"Porta do Equipamento\":80,\"CEP\":\"49075-000\",\"Número\":823,\"Bairro\":\"Siqueira Campos\",\"Rua\":\"Rua Bahia\",\"Cidade\":\"Aracaju\",\"Estado\":\"SE\",\"Latitude\":-10.911608,\"Longitude\":-37.07012,\"Código da Etiqueta\":1176,\"Etiqueta\":\"Serviço de Comunicação de Dados MPLS 10Gbps - REDE PRIMAVERA (POLICLIN SIQUEIRA)\",\"Tipo de Conexão\":4,\"Complemento\":\"MPLS REDE PRIMAVERA - Policlin Siqueira\",\"Ativo\":\"Sim\",\"Tipo de IP\":2,\"Data de Ativação\":\"25/06/2019\",\"Data Criação\":\"25/06/2019\",\"Data Modificação\":\"11/01/2023\",\"Cidade do Cliente\":\"Aracaju\",\"Bairro do Cliente\":\"Jardins\"}"
+[Log] [Voalle Debug] Auth contract id=655: – "{\"id\":655,\"service_tag_id\":1176,\"contract_id\":42}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 1176: contract_id=42, service_tag=1959CTHW (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 1176 FILTRADA: contrato 42 NÃO está em contratos_ativos (testou: "42", "42", "42", "M-42") (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495: contract_id=42, service_tag=08G6BQKE (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495 FILTRADA: contrato 42 NÃO está em contratos_ativos (testou: "42", "42", "42", "M-42") (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] Resumo do processamento: – {totalTags: 3620, linksGerados: 1205, pulados: {inativos: 227, porTitulo: 267, contratosNaoAtivos: 1921}} (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] Campos contratos_ativos.csv: – ["Código do Contrato", "Cod. Cliente", "Cliente", …] (9) (index-B8IDB4GO.js, line 225)
+["Código do Contrato", "Cod. Cliente", "Cliente", "Nº Contrato", "Descrição", "Tipo", "Dt. Cadastro", "Situação", "Status"]Array (9)
+[Log] [Voalle Import] Exemplo linha contratos_ativos: – {Código do Contrato: 2384, Cod. Cliente: 5756, Cliente: "BRUNA NUNES DA CRUZ", …} (index-B8IDB4GO.js, line 225)
+{Código do Contrato: 2384, Cod. Cliente: 5756, Cliente: "BRUNA NUNES DA CRUZ", Nº Contrato: 2384, Descrição: "Contrato 2384 - BRUNA NUNES DA CRUZ (JD Europa sala 921)", …}Object
+[Log] [Voalle Import] contratosAtivosSet: 2188 variações (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] Conexões mapeadas via auth_contracts: 1564, sem correspondência: 4 (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] conexoesMap: 1563 tags mapeadas, authContractByTagMap: 0, authContractByContractMap: 2336 (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] service_tag_id 2495 no conexoesMap? true (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Dados para tag 2495: – "{\"tipoConexao\":2,\"usuario\":null}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495 encontrada em contractTags: – "{\"id\":2495,\"service_tag\":\"08G6BQKE\",\"contract_id\":42,\"active\":true}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Conexão 655 encontrada no CSV: – "{\"Código da Conexão\":655,\"Código do Contrato\":42,\"Descrição do Contrato\":\"Contrato M-47 - REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALA…" (index-B8IDB4GO.js, line 225)
+"{\"Código da Conexão\":655,\"Código do Contrato\":42,\"Descrição do Contrato\":\"Contrato M-47 - REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALAR LTDA\",\"Nome do Cliente\":\"REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALAR LTDA\",\"Código do Serviço\":2266,\"Serviço\":\"Serviço de Comunicação de Dados MPLS 10Giga\",\"Cód. Item de Contrato\":3319,\"Usuário\":null,\"Senha do Usuário\":null,\"MAC\":null,\"Senha EAP/PSK\":null,\"IP Válido LAN\":null,\"Classe IP LAN\":null,\"Código Concentrador\":2,\"Concentrador\":\"CE: AJU-MVT-RB-SIQUEIRA\",\"Código do Ponto de Acesso\":2,\"Ponto de Acesso\":\"AJU-MVT-RB-SIQUEIRA\",\"Código do IP\":null,\"IP\":null,\"Código do Address List\":1,\"Address List\":\"Normal\",\"Tipo de Equipamento\":1,\"Usuário do Equipamento\":null,\"Senha do Equipamento\":null,\"Porta do Equipamento\":80,\"CEP\":\"49075-000\",\"Número\":823,\"Bairro\":\"Siqueira Campos\",\"Rua\":\"Rua Bahia\",\"Cidade\":\"Aracaju\",\"Estado\":\"SE\",\"Latitude\":-10.911608,\"Longitude\":-37.07012,\"Código da Etiqueta\":1176,\"Etiqueta\":\"Serviço de Comunicação de Dados MPLS 10Gbps - REDE PRIMAVERA (POLICLIN SIQUEIRA)\",\"Tipo de Conexão\":4,\"Complemento\":\"MPLS REDE PRIMAVERA - Policlin Siqueira\",\"Ativo\":\"Sim\",\"Tipo de IP\":2,\"Data de Ativação\":\"25/06/2019\",\"Data Criação\":\"25/06/2019\",\"Data Modificação\":\"11/01/2023\",\"Cidade do Cliente\":\"Aracaju\",\"Bairro do Cliente\":\"Jardins\"}"
+[Log] [Voalle Debug] Auth contract id=655: – "{\"id\":655,\"service_tag_id\":1176,\"contract_id\":42}" (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 1176: contract_id=42, service_tag=1959CTHW (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 1176 FILTRADA: contrato 42 NÃO está em contratos_ativos (testou: "42", "42", "42", "M-42") (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495: contract_id=42, service_tag=08G6BQKE (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Debug] Tag 2495 FILTRADA: contrato 42 NÃO está em contratos_ativos (testou: "42", "42", "42", "M-42") (index-B8IDB4GO.js, line 225)
+[Log] [Voalle Import] Resumo do processamento: – {totalTags: 3620, linksGerados: 1204, pulados: {inativos: 227, porTitulo: 270, contratosNaoAtivos: 1919}} (index-B8IDB4GO.js, line 225)
