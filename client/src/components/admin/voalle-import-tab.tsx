@@ -699,18 +699,19 @@ export function VoalleImportTab() {
         // REGRA DE OURO: 3 requisitos obrigatórios:
         // 1. Etiqueta ativa (já verificado acima)
         // 2. Contrato na planilha contratos_ativos (já verificado acima)
-        // 3. Ter usuário PPPoE OU interface VLAN (verificar agora)
-        // IMPORTANTE: Usar APENAS dados do conexao (por tag.id) para evitar mistura
-        // entre serviços do mesmo contrato (ex: internet vs VoIP)
+        // 3. Ter usuário PPPoE OU interface VLAN OU VLAN (verificar agora)
+        // REGRA PRIORITÁRIA: Coluna "Tipo de Conexão" do conexoes.csv (1=PPPoE, 4=Corporativo)
+        const tipoConexaoRaw = conexao?.['Tipo de Conexão'] || conexao?.['Tipo de conexão'] || null;
+        const tipoConexao = tipoConexaoRaw ? String(tipoConexaoRaw).trim() : null;
+        
         const pppoeUserFromConexaoOnly = conexao?.['Usuário'] || null;
         const vlanInterfaceFromConexaoOnly = conexao?.['Interface VLAN'] || null;
         const vlanFromConexaoOnly = conexao?.['VLAN'] || null;
         
         const hasPppoeOrVlan = !!(pppoeUserFromConexaoOnly || vlanInterfaceFromConexaoOnly || vlanFromConexaoOnly);
+        const hasValidTipoConexao = tipoConexao === '1' || tipoConexao === '4';
         
-        // Se não tem PPPoE nem VLAN no conexoes.csv para ESTA etiqueta → NÃO IMPORTAR
-        // Isso evita importar etiquetas de VoIP com dados de internet do mesmo contrato
-        if (!hasPppoeOrVlan) {
+        if (!hasPppoeOrVlan && !hasValidTipoConexao) {
           skippedByTitle++;
           continue;
         }
@@ -797,15 +798,9 @@ export function VoalleImportTab() {
           monitoredIp: monitoredIpFromConexao,
           // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
           linkType: detectLinkType(accessPoint?.title || conexao?.['Ponto de Acesso'] || null),
-          authType: (() => {
-            const tipoConexao = conexao?.['Tipo de Conexão'] || conexao?.['Tipo de conexão'] || null;
-            if (tipoConexao) {
-              const tipo = String(tipoConexao).trim();
-              if (tipo === '1') return 'pppoe';
-              if (tipo === '4') return 'corporate';
-            }
-            return (authContract?.user || pppoeUserFromConexao) ? 'pppoe' : 'corporate';
-          })(),
+          authType: tipoConexao === '1' ? 'pppoe' 
+            : tipoConexao === '4' ? 'corporate' 
+            : (authContract?.user || pppoeUserFromConexao) ? 'pppoe' : 'corporate',
           selected: true,
           status: 'new',
         };
