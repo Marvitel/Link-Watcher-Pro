@@ -699,8 +699,14 @@ export function VoalleImportTab() {
         console.log(`[Voalle Debug] Auth contract id=655 NÃO encontrado. Total auth_contracts: ${authContracts.length}`);
       }
 
+      // IDs de tags para debug detalhado
+      const debugTagIds = new Set([2495, 1176]);
+      
       for (const tag of contractTags) {
+        const isDebug = debugTagIds.has(tag.id) || debugTagIds.has(Number(tag.id));
+        
         if (!tag.active) {
+          if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: inativa`);
           skippedInactive++;
           continue;
         }
@@ -710,6 +716,8 @@ export function VoalleImportTab() {
         const semPonto = semPrefixo.replace(/\./g, '');
         const comPrefixo = `M-${semPrefixo}`;
         
+        if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: contract_id=${contractId}, service_tag=${tag.service_tag}`);
+        
         if (hasContratosAtivosFilter) {
           const isActive = contratosAtivosSet.has(contractId) || 
                           contratosAtivosSet.has(semPrefixo) || 
@@ -717,9 +725,11 @@ export function VoalleImportTab() {
                           contratosAtivosSet.has(comPrefixo);
           
           if (!isActive) {
+            if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: contrato ${contractId} NÃO está em contratos_ativos (testou: "${contractId}", "${semPrefixo}", "${semPonto}", "${comPrefixo}")`);
             skippedByContratosAtivos++;
             continue;
           }
+          if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: contrato ${contractId} APROVADO em contratos_ativos`);
         }
 
         const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
@@ -729,6 +739,8 @@ export function VoalleImportTab() {
           || authContractByContractMap.get(comPrefixo);
         
         const conexao = conexoesMap.get(tag.id);
+        
+        if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: conexao=${!!conexao}, authContract=${!!authContract}`);
         
         // REGRA DE OURO - Requisito 3:
         // REGRA PRIORITÁRIA: Coluna "Tipo de Conexão" do conexoes.csv (1=PPPoE, 2=Corporativo, 4=Corporativo)
@@ -742,10 +754,15 @@ export function VoalleImportTab() {
         const hasPppoeOrVlan = !!(pppoeUserFromConexaoOnly || vlanInterfaceFromConexaoOnly || vlanFromConexaoOnly);
         const hasValidTipoConexao = tipoConexao === '1' || tipoConexao === '2' || tipoConexao === '4';
         
+        if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: tipoConexao=${tipoConexao}, hasPppoeOrVlan=${hasPppoeOrVlan}, hasValidTipoConexao=${hasValidTipoConexao}`);
+        
         if (!hasPppoeOrVlan && !hasValidTipoConexao) {
+          if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: sem PPPoE/VLAN e tipoConexao inválido`);
           skippedByTitle++;
           continue;
         }
+        
+        if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} APROVADA na Regra de Ouro!`);
         
         // Dados finais de PPPoE/VLAN para esta etiqueta específica
         const pppoeUser = pppoeUserFromConexaoOnly;
