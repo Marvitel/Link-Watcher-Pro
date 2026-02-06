@@ -658,6 +658,47 @@ export function VoalleImportTab() {
       let skippedByTitle = 0;
       let skippedByContratosAtivos = 0;
 
+      // Debug: verificar se a tag correspondente à conexão 655 existe no conexoesMap
+      const debugServiceTagIds = [2495];
+      for (const dId of debugServiceTagIds) {
+        const inMap = conexoesMap.has(dId);
+        console.log(`[Voalle Debug] service_tag_id ${dId} no conexoesMap? ${inMap}`);
+        if (inMap) {
+          const c = conexoesMap.get(dId);
+          console.log(`[Voalle Debug] Dados para tag ${dId}:`, JSON.stringify({ tipoConexao: c?.['Tipo de Conexão'] || c?.['Tipo de conexão'], usuario: c?.['Usuário'], vlan: c?.['VLAN'], interfaceVlan: c?.['Interface VLAN'] }));
+        }
+      }
+      // Debug: verificar se tag.id 2495 existe nas contractTags
+      const debugTag = contractTags.find((t: any) => t.id === 2495 || String(t.id) === '2495');
+      if (debugTag) {
+        console.log(`[Voalle Debug] Tag 2495 encontrada em contractTags:`, JSON.stringify({ id: debugTag.id, service_tag: debugTag.service_tag, contract_id: debugTag.contract_id, active: debugTag.active }));
+      } else {
+        console.log(`[Voalle Debug] Tag 2495 NÃO encontrada em contractTags. Total tags: ${contractTags.length}`);
+        // Procurar por contract_id 42 (contrato do REDE PRIMAVERA)
+        const tagsContrato42 = contractTags.filter((t: any) => String(t.contract_id).trim() === '42');
+        console.log(`[Voalle Debug] Tags com contract_id=42: ${tagsContrato42.length}`, tagsContrato42.map((t: any) => ({ id: t.id, service_tag: t.service_tag, active: t.active })));
+      }
+      // Debug: procurar conexão 655 diretamente no array de conexões
+      const conexao655 = conexoes.find((c: any) => {
+        const cod = c['Código da Conexão'] || c['Código Conexão'] || c['Cod. Conexão'] || c['Cód. da Conexão'];
+        return cod && String(cod).trim() === '655';
+      });
+      if (conexao655) {
+        console.log(`[Voalle Debug] Conexão 655 encontrada no CSV:`, JSON.stringify(conexao655));
+      } else {
+        // Mostrar nomes das colunas para identificar o nome correto
+        if (conexoes.length > 0) {
+          console.log(`[Voalle Debug] Colunas do conexoes.csv:`, JSON.stringify(Object.keys(conexoes[0])));
+        }
+      }
+      // Debug: verificar auth_contract com id=655
+      const authContract655 = authContracts.find((ac: any) => String(ac.id).trim() === '655');
+      if (authContract655) {
+        console.log(`[Voalle Debug] Auth contract id=655:`, JSON.stringify({ id: authContract655.id, service_tag_id: authContract655.service_tag_id, contract_id: authContract655.contract_id }));
+      } else {
+        console.log(`[Voalle Debug] Auth contract id=655 NÃO encontrado. Total auth_contracts: ${authContracts.length}`);
+      }
+
       for (const tag of contractTags) {
         if (!tag.active) {
           skippedInactive++;
