@@ -662,17 +662,51 @@ export function VoalleImportTab() {
       let skippedByTitle = 0;
       let skippedByContratosAtivos = 0;
 
+      const debugConexaoIds = [655];
+      const debugConexaoFound = conexoesMap.has(655);
+      console.log(`[Voalle Debug] Conexão 655 existe no conexoesMap? ${debugConexaoFound}`);
+      if (debugConexaoFound) {
+        const c655 = conexoesMap.get(655);
+        console.log(`[Voalle Debug] Dados conexão 655:`, JSON.stringify(c655));
+      } else {
+        const allConexoesIds = Array.from(conexoesMap.keys()).sort((a, b) => a - b);
+        const nearby = allConexoesIds.filter(id => id >= 650 && id <= 660);
+        console.log(`[Voalle Debug] IDs próximos de 655 no conexoesMap: ${JSON.stringify(nearby)}`);
+        console.log(`[Voalle Debug] Total de IDs no conexoesMap: ${allConexoesIds.length}`);
+        
+        const conexao655ByCol = conexoes.find((c: any) => {
+          const cod = c['Código da Conexão'] || c['Código Conexão'] || c['Cod. Conexão'] || c['Cód. da Conexão'];
+          return cod && String(cod).trim() === '655';
+        });
+        if (conexao655ByCol) {
+          console.log(`[Voalle Debug] Conexão 655 encontrada por "Código da Conexão":`, JSON.stringify(conexao655ByCol));
+          const etiquetaCod = conexao655ByCol['Código da Etiqueta'] || conexao655ByCol['Código Etiqueta'];
+          console.log(`[Voalle Debug] "Código da Etiqueta" da conexão 655: ${etiquetaCod}`);
+        } else {
+          console.log(`[Voalle Debug] Conexão 655 NÃO encontrada nem por "Código da Conexão"`);
+          const colNames = conexoes.length > 0 ? Object.keys(conexoes[0]) : [];
+          const codCols = colNames.filter(c => c.toLowerCase().includes('cód') || c.toLowerCase().includes('cod') || c.toLowerCase().includes('conexão') || c.toLowerCase().includes('conexao'));
+          console.log(`[Voalle Debug] Colunas relacionadas a código no CSV: ${JSON.stringify(codCols)}`);
+        }
+      }
+
       for (const tag of contractTags) {
+        const isDebugTag = debugConexaoIds.includes(tag.id);
+        
         if (!tag.active) {
+          if (isDebugTag) console.log(`[Voalle Debug] Tag ${tag.id} (service_tag=${tag.service_tag}) FILTRADA: inativa`);
           skippedInactive++;
           continue;
         }
         
-        // Primeiro: verificar se está nos contratos ativos (obrigatório se planilha disponível)
         const contractId = String(tag.contract_id || '').trim();
         const semPrefixo = contractId.replace(/^M-/i, '');
         const semPonto = semPrefixo.replace(/\./g, '');
         const comPrefixo = `M-${semPrefixo}`;
+        
+        if (isDebugTag) {
+          console.log(`[Voalle Debug] Tag ${tag.id}: active=${tag.active}, contract_id=${contractId}, service_tag=${tag.service_tag}`);
+        }
         
         if (hasContratosAtivosFilter) {
           const isActive = contratosAtivosSet.has(contractId) || 
@@ -681,26 +715,34 @@ export function VoalleImportTab() {
                           contratosAtivosSet.has(comPrefixo);
           
           if (!isActive) {
+            if (isDebugTag) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: contrato ${contractId} não está em contratos_ativos (verificou: ${contractId}, ${semPrefixo}, ${semPonto}, ${comPrefixo})`);
             skippedByContratosAtivos++;
-            continue; // Pula contratos não ativos
+            continue;
           }
+          if (isDebugTag) console.log(`[Voalle Debug] Tag ${tag.id}: contrato ${contractId} APROVADO em contratos_ativos`);
         }
 
-        // Buscar authContract primeiro por etiqueta (mais específico), depois por contract_id (fallback)
         const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
           || authContractByContractMap.get(contractId)
           || authContractByContractMap.get(semPrefixo)
           || authContractByContractMap.get(semPonto)
           || authContractByContractMap.get(comPrefixo);
         
-        // Buscar dados do conexoes.csv para verificar PPPoE e VLAN
         const conexao = conexoesMap.get(tag.id);
         
-        // REGRA DE OURO: 3 requisitos obrigatórios:
-        // 1. Etiqueta ativa (já verificado acima)
-        // 2. Contrato na planilha contratos_ativos (já verificado acima)
-        // 3. Ter usuário PPPoE OU interface VLAN OU VLAN (verificar agora)
-        // REGRA PRIORITÁRIA: Coluna "Tipo de Conexão" do conexoes.csv (1=PPPoE, 4=Corporativo)
+        if (isDebugTag) {
+          console.log(`[Voalle Debug] Tag ${tag.id}: conexao encontrada? ${!!conexao}, authContract encontrado? ${!!authContract}`);
+          if (conexao) {
+            console.log(`[Voalle Debug] Tag ${tag.id} conexao dados:`, JSON.stringify({
+              usuario: conexao['Usuário'],
+              interfaceVlan: conexao['Interface VLAN'],
+              vlan: conexao['VLAN'],
+              tipoConexao: conexao['Tipo de Conexão'] || conexao['Tipo de conexão'],
+              ip: conexao['IP'],
+            }));
+          }
+        }
+        
         const tipoConexaoRaw = conexao?.['Tipo de Conexão'] || conexao?.['Tipo de conexão'] || null;
         const tipoConexao = tipoConexaoRaw ? String(tipoConexaoRaw).trim() : null;
         
@@ -712,9 +754,12 @@ export function VoalleImportTab() {
         const hasValidTipoConexao = tipoConexao === '1' || tipoConexao === '4';
         
         if (!hasPppoeOrVlan && !hasValidTipoConexao) {
+          if (isDebugTag) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: sem PPPoE/VLAN e sem Tipo de Conexão válido (tipoConexao=${tipoConexao})`);
           skippedByTitle++;
           continue;
         }
+        
+        if (isDebugTag) console.log(`[Voalle Debug] Tag ${tag.id} APROVADA na Regra de Ouro! hasPppoeOrVlan=${hasPppoeOrVlan}, hasValidTipoConexao=${hasValidTipoConexao}, tipoConexao=${tipoConexao}`);
         
         // Dados finais de PPPoE/VLAN para esta etiqueta específica
         const pppoeUser = pppoeUserFromConexaoOnly;
