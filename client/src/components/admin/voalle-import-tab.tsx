@@ -797,8 +797,15 @@ export function VoalleImportTab() {
           monitoredIp: monitoredIpFromConexao,
           // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
           linkType: detectLinkType(accessPoint?.title || conexao?.['Ponto de Acesso'] || null),
-          // Detecta tipo de autenticação: se tem usuário PPPoE é PPPoE, senão é Corporate
-          authType: (authContract?.user || pppoeUserFromConexao) ? 'pppoe' : 'corporate',
+          authType: (() => {
+            const tipoConexao = conexao?.['Tipo de Conexão'] || conexao?.['Tipo de conexão'] || null;
+            if (tipoConexao) {
+              const tipo = String(tipoConexao).trim();
+              if (tipo === '1') return 'pppoe';
+              if (tipo === '4') return 'corporate';
+            }
+            return (authContract?.user || pppoeUserFromConexao) ? 'pppoe' : 'corporate';
+          })(),
           selected: true,
           status: 'new',
         };
