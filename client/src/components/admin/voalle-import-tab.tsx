@@ -402,6 +402,7 @@ export function VoalleImportTab() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const [filterText, setFilterText] = useState<string>('');
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -907,14 +908,49 @@ export function VoalleImportTab() {
     }
   };
 
+  const BATCH_SIZE = 50;
+  
   const importMutation = useMutation({
     mutationFn: async (links: ParsedLink[]) => {
-      const response = await apiRequest("POST", "/api/admin/voalle-import", {
-        links: links.filter(l => l.selected),
-        targetClientId: selectedClientId === "auto" ? null : parseInt(selectedClientId),
-        lookupPppoeIps,
-      });
-      return response.json();
+      const selectedLinks = links.filter(l => l.selected);
+      const totalLinks = selectedLinks.length;
+      
+      if (totalLinks === 0) throw new Error("Nenhum link selecionado");
+      
+      const accumulated: ImportResult = { success: 0, failed: 0, errors: [], pppoeIpsFound: 0 };
+      const totalBatches = Math.ceil(totalLinks / BATCH_SIZE);
+      
+      for (let i = 0; i < totalLinks; i += BATCH_SIZE) {
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const batch = selectedLinks.slice(i, i + BATCH_SIZE);
+        
+        setImportProgress({
+          current: i,
+          total: totalLinks,
+          phase: `Enviando lote ${batchNum}/${totalBatches} (${batch.length} links)...`,
+        });
+        
+        const response = await apiRequest("POST", "/api/admin/voalle-import", {
+          links: batch,
+          targetClientId: selectedClientId === "auto" ? null : parseInt(selectedClientId),
+          lookupPppoeIps,
+        });
+        const result: ImportResult = await response.json();
+        
+        accumulated.success += result.success;
+        accumulated.failed += result.failed;
+        accumulated.errors.push(...(result.errors || []));
+        accumulated.pppoeIpsFound = (accumulated.pppoeIpsFound || 0) + (result.pppoeIpsFound || 0);
+        
+        setImportProgress({
+          current: Math.min(i + BATCH_SIZE, totalLinks),
+          total: totalLinks,
+          phase: `Lote ${batchNum}/${totalBatches} concluído - ${accumulated.success} importados`,
+        });
+      }
+      
+      setImportProgress(null);
+      return accumulated;
     },
     onSuccess: (data: ImportResult) => {
       setImportResult(data);
@@ -927,6 +963,7 @@ export function VoalleImportTab() {
       });
     },
     onError: (error) => {
+      setImportProgress(null);
       toast({
         title: "Erro na importação",
         description: error instanceof Error ? error.message : "Erro desconhecido",
@@ -1185,6 +1222,29 @@ export function VoalleImportTab() {
                   </Button>
                 </div>
               </div>
+
+              {importProgress && (
+                <Card className="border-blue-200 dark:border-blue-800">
+                  <CardContent className="pt-4 pb-4 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500 shrink-0" />
+                        <span className="text-sm text-muted-foreground truncate" data-testid="text-import-phase">
+                          {importProgress.phase}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium whitespace-nowrap" data-testid="text-import-count">
+                        {importProgress.current} / {importProgress.total}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0} 
+                      className="h-2"
+                      data-testid="progress-import"
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
               <ScrollArea className="h-[600px] border rounded-lg">
                 <div className="min-w-[1400px]">
