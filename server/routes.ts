@@ -4129,6 +4129,152 @@ export async function registerRoutes(
     }
   });
 
+  // Voalle CSV Import - Importação separada de Concentradores e Pontos de Acesso
+  app.post("/api/admin/voalle-import-equipment", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins podem importar equipamentos" });
+      }
+
+      const { concentrators, accessPoints } = req.body as {
+        concentrators: Array<{ id: string; title: string; server_ip: string }>;
+        accessPoints: Array<{ id: string; title: string; ip: string; manufacturer_id?: string }>;
+      };
+
+      const results = {
+        concentratorsCreated: 0,
+        concentratorsUpdated: 0,
+        concentratorsSkipped: 0,
+        accessPointsCreated: 0,
+        accessPointsUpdated: 0,
+        accessPointsSkipped: 0,
+        oltsUpdated: 0,
+        switchesUpdated: 0,
+        oltsCreated: 0,
+        switchesCreated: 0,
+        errors: [] as Array<{ name: string; error: string }>,
+      };
+
+      // Import concentrators
+      if (concentrators && concentrators.length > 0) {
+        const existingConcs = await storage.getConcentrators();
+        const existingByVoalleId = new Map(existingConcs.filter(c => c.voalleId).map(c => [c.voalleId!, c]));
+        const existingByIp = new Map(existingConcs.map(c => [c.ipAddress, c]));
+
+        for (const conc of concentrators) {
+          try {
+            const voalleId = parseInt(conc.id, 10);
+            if (isNaN(voalleId) || !conc.server_ip) {
+              results.concentratorsSkipped++;
+              continue;
+            }
+
+            const existing = existingByVoalleId.get(voalleId) || existingByIp.get(conc.server_ip);
+            if (existing) {
+              if (!existing.voalleId || existing.voalleId !== voalleId) {
+                await storage.updateConcentrator(existing.id, { voalleId, name: conc.title || existing.name });
+                results.concentratorsUpdated++;
+              } else {
+                results.concentratorsSkipped++;
+              }
+            } else {
+              await storage.createConcentrator({
+                name: conc.title || `Concentrador Voalle #${voalleId}`,
+                ipAddress: conc.server_ip,
+                voalleId: voalleId,
+                isActive: true,
+              });
+              results.concentratorsCreated++;
+            }
+          } catch (err: any) {
+            results.errors.push({ name: conc.title || conc.id, error: err.message });
+          }
+        }
+      }
+
+      // Import access points (OLTs and Switches)
+      if (accessPoints && accessPoints.length > 0) {
+        const existingOlts = await storage.getOlts();
+        const existingOltsByVoalleId = new Map(existingOlts.filter(o => o.voalleId).map(o => [o.voalleId!, o]));
+        const existingOltsByIp = new Map(existingOlts.filter(o => o.ipAddress && o.ipAddress !== '0.0.0.0').map(o => [o.ipAddress, o]));
+        const existingSwitches = await storage.getSwitches();
+        const existingSwitchesByVoalleId = new Map(existingSwitches.filter(s => s.voalleId).map(s => [s.voalleId!, s]));
+        const existingSwitchesByIp = new Map(existingSwitches.filter(s => s.ipAddress && s.ipAddress !== '0.0.0.0').map(s => [s.ipAddress, s]));
+
+        for (const ap of accessPoints) {
+          try {
+            const voalleId = parseInt(ap.id, 10);
+            if (isNaN(voalleId)) {
+              results.accessPointsSkipped++;
+              continue;
+            }
+
+            const name = ap.title || '';
+            const ipAddr = ap.ip || '';
+            const isOlt = name.toUpperCase().includes('OLT');
+
+            if (isOlt) {
+              const existing = existingOltsByVoalleId.get(voalleId) || (ipAddr ? existingOltsByIp.get(ipAddr) : undefined);
+              if (existing) {
+                if (!existing.voalleId || existing.voalleId !== voalleId || (ipAddr && existing.ipAddress !== ipAddr)) {
+                  await storage.updateOlt(existing.id, { 
+                    voalleId, 
+                    name: name || existing.name,
+                    ...(ipAddr && ipAddr !== '0.0.0.0' ? { ipAddress: ipAddr } : {}),
+                  });
+                  results.accessPointsUpdated++;
+                } else {
+                  results.accessPointsSkipped++;
+                }
+              } else {
+                await storage.createOlt({
+                  name: name,
+                  ipAddress: ipAddr || "0.0.0.0",
+                  voalleId: voalleId,
+                  port: 23,
+                  username: "admin",
+                  password: "",
+                  connectionType: "telnet",
+                });
+                results.oltsCreated++;
+                results.accessPointsCreated++;
+              }
+            } else {
+              const existing = existingSwitchesByVoalleId.get(voalleId) || (ipAddr ? existingSwitchesByIp.get(ipAddr) : undefined);
+              if (existing) {
+                if (!existing.voalleId || existing.voalleId !== voalleId || (ipAddr && existing.ipAddress !== ipAddr)) {
+                  await storage.updateSwitch(existing.id, {
+                    voalleId,
+                    name: name || existing.name,
+                    ...(ipAddr && ipAddr !== '0.0.0.0' ? { ipAddress: ipAddr } : {}),
+                  });
+                  results.accessPointsUpdated++;
+                } else {
+                  results.accessPointsSkipped++;
+                }
+              } else {
+                await storage.createSwitch({
+                  name: name || `Switch Voalle #${voalleId}`,
+                  ipAddress: ipAddr || "0.0.0.0",
+                  voalleId: voalleId,
+                });
+                results.switchesCreated++;
+                results.accessPointsCreated++;
+              }
+            }
+          } catch (err: any) {
+            results.errors.push({ name: ap.title || ap.id, error: err.message });
+          }
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error("[Voalle Equipment Import] Error:", error);
+      res.status(500).json({ error: error.message || "Erro ao importar equipamentos" });
+    }
+  });
+
   // Voalle CSV Import - Importação em lote de links via CSV do Voalle
   app.post("/api/admin/voalle-import", requireAuth, async (req, res) => {
     try {

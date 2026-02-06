@@ -41,7 +41,9 @@ import {
   Download,
   RefreshCw,
   FileCheck,
-  Info
+  Info,
+  Server,
+  Network
 } from "lucide-react";
 import type { Client } from "@shared/schema";
 
@@ -403,6 +405,17 @@ export function VoalleImportTab() {
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const [filterText, setFilterText] = useState<string>('');
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
+  const [equipmentResult, setEquipmentResult] = useState<{
+    concentratorsCreated: number;
+    concentratorsUpdated: number;
+    concentratorsSkipped: number;
+    accessPointsCreated: number;
+    accessPointsUpdated: number;
+    accessPointsSkipped: number;
+    oltsCreated: number;
+    switchesCreated: number;
+    errors: Array<{ name: string; error: string }>;
+  } | null>(null);
 
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -908,6 +921,51 @@ export function VoalleImportTab() {
     }
   };
 
+  const equipmentImportMutation = useMutation({
+    mutationFn: async () => {
+      const concentrators = csvFiles.find(f => f.type === 'authentication_concentrators')?.data || [];
+      const accessPoints = csvFiles.find(f => f.type === 'authentication_access_points')?.data || [];
+      
+      if (concentrators.length === 0 && accessPoints.length === 0) {
+        throw new Error("Nenhum CSV de concentradores ou pontos de acesso carregado");
+      }
+      
+      const response = await apiRequest("POST", "/api/admin/voalle-import-equipment", {
+        concentrators: concentrators.map(c => ({
+          id: c.id || c.Id || c.ID,
+          title: c.title || c.Title || c.name || c.Name || '',
+          server_ip: c.server_ip || c.ip || c.IP || c['Server IP'] || '',
+        })),
+        accessPoints: accessPoints.map(ap => ({
+          id: ap.id || ap.Id || ap.ID,
+          title: ap.title || ap.Title || ap.name || ap.Name || '',
+          ip: ap.ip || ap.IP || ap['Server IP'] || ap.server_ip || '',
+          manufacturer_id: ap.manufacturer_id || ap.manufacturer || '',
+        })),
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setEquipmentResult(data);
+      queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/olts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/switches"] });
+      const totalCreated = (data.concentratorsCreated || 0) + (data.accessPointsCreated || 0);
+      const totalUpdated = (data.concentratorsUpdated || 0) + (data.accessPointsUpdated || 0);
+      toast({
+        title: "Equipamentos importados",
+        description: `${totalCreated} criados, ${totalUpdated} atualizados`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao importar equipamentos",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    },
+  });
+
   const BATCH_SIZE = 50;
   
   const importMutation = useMutation({
@@ -1113,6 +1171,88 @@ export function VoalleImportTab() {
                     })}
                   </div>
 
+                  {(csvFiles.some(f => f.type === 'authentication_concentrators') || csvFiles.some(f => f.type === 'authentication_access_points')) && (
+                    <Card className="border-amber-200 dark:border-amber-800">
+                      <CardContent className="pt-4 pb-4 space-y-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Server className="h-4 w-4 text-amber-600" />
+                          <span className="text-sm font-medium">Pré-importar Equipamentos</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Importe concentradores e pontos de acesso (OLTs/Switches) antes dos links.
+                          Isso garante que os equipamentos já existam quando os links forem criados.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => equipmentImportMutation.mutate()}
+                            disabled={equipmentImportMutation.isPending}
+                            data-testid="button-import-equipment"
+                          >
+                            {equipmentImportMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Network className="h-4 w-4 mr-2" />
+                            )}
+                            Importar {csvFiles.find(f => f.type === 'authentication_concentrators') ? `${csvFiles.find(f => f.type === 'authentication_concentrators')!.rowCount} Concentradores` : ''}
+                            {csvFiles.find(f => f.type === 'authentication_concentrators') && csvFiles.find(f => f.type === 'authentication_access_points') ? ' + ' : ''}
+                            {csvFiles.find(f => f.type === 'authentication_access_points') ? `${csvFiles.find(f => f.type === 'authentication_access_points')!.rowCount} Pontos de Acesso` : ''}
+                          </Button>
+                        </div>
+                        {equipmentResult && (
+                          <div className="text-sm space-y-1 pt-2 border-t">
+                            {equipmentResult.concentratorsCreated > 0 && (
+                              <p className="text-green-600 dark:text-green-400">
+                                <CheckCircle className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.concentratorsCreated} concentradores criados
+                              </p>
+                            )}
+                            {equipmentResult.concentratorsUpdated > 0 && (
+                              <p className="text-blue-600 dark:text-blue-400">
+                                <RefreshCw className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.concentratorsUpdated} concentradores atualizados
+                              </p>
+                            )}
+                            {equipmentResult.concentratorsSkipped > 0 && (
+                              <p className="text-muted-foreground">
+                                {equipmentResult.concentratorsSkipped} concentradores já existentes
+                              </p>
+                            )}
+                            {equipmentResult.oltsCreated > 0 && (
+                              <p className="text-green-600 dark:text-green-400">
+                                <CheckCircle className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.oltsCreated} OLTs criadas
+                              </p>
+                            )}
+                            {equipmentResult.switchesCreated > 0 && (
+                              <p className="text-green-600 dark:text-green-400">
+                                <CheckCircle className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.switchesCreated} Switches criados
+                              </p>
+                            )}
+                            {equipmentResult.accessPointsUpdated > 0 && (
+                              <p className="text-blue-600 dark:text-blue-400">
+                                <RefreshCw className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.accessPointsUpdated} pontos de acesso atualizados
+                              </p>
+                            )}
+                            {equipmentResult.accessPointsSkipped > 0 && (
+                              <p className="text-muted-foreground">
+                                {equipmentResult.accessPointsSkipped} pontos de acesso já existentes
+                              </p>
+                            )}
+                            {equipmentResult.errors.length > 0 && (
+                              <p className="text-red-600 dark:text-red-400">
+                                <AlertTriangle className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.errors.length} erros
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <div className="flex justify-end gap-2">
                     <Button
                       variant="outline"
@@ -1123,7 +1263,7 @@ export function VoalleImportTab() {
                     </Button>
                     <Button
                       onClick={processAndCombine}
-                      disabled={isProcessing || !csvFiles.some(f => f.type === 'contract_service_tags')}
+                      disabled={isProcessing || !(csvFiles.some(f => f.type === 'contract_service_tags') || csvFiles.some(f => f.type === 'conexoes'))}
                       data-testid="button-process-csv"
                     >
                       {isProcessing ? (
