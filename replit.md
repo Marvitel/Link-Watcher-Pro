@@ -58,7 +58,7 @@ Supports grouping links with different profiles for redundancy (Active/Passive),
 ### Third-Party Integrations
 - **Wanguard (Andrisoft)**: DDoS detection and mitigation via REST API.
 - **HetrixTools**: IP/CIDR blacklist monitoring.
-- **Voalle ERP**: Dual API integration for ticket/incident management, contract tags, client authentication/auto-registration, and bulk CSV import of link data.
+- **Voalle ERP**: Dual API integration for ticket/incident management, contract tags, client authentication/auto-registration, and bulk CSV import of link data. CSV correlation chain: conexoes.csv "Código da conexão" → authentication_contracts.csv "id" → "service_tag_id" → contract_service_tags.csv "id". "Tipo de Conexão" column (1=PPPoE, 2=Corporate, 4=Corporate) is the priority rule for Golden Rule filter and authType.
 - **OZmap**: Fiber optic route tracking integration for potency/route data.
 - **FreeRADIUS PostgreSQL**: Used for MAC address lookup when SNMP/API methods fail, querying the `radacct` table.
 - **Mikrotik API**: Used for MAC discovery in PPPoE sessions via binary API (port 8728).
