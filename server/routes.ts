@@ -5750,7 +5750,13 @@ export async function registerRoutes(
   app.patch("/api/olts/:id", requireSuperAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const olt = await storage.updateOlt(id, req.body);
+      const data = { ...req.body };
+      if (data.voalleIds !== undefined) {
+        const trimmed = String(data.voalleIds ?? '').trim();
+        if (!trimmed) delete data.voalleIds;
+        else data.voalleIds = trimmed;
+      }
+      const olt = await storage.updateOlt(id, data);
       if (!olt) {
         return res.status(404).json({ error: "OLT não encontrada" });
       }
@@ -5960,7 +5966,16 @@ export async function registerRoutes(
   app.patch("/api/switches/:id", requireSuperAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const sw = await storage.updateSwitch(id, req.body);
+      const data = { ...req.body };
+      if (data.voalleIds !== undefined) {
+        const trimmed = String(data.voalleIds ?? '').trim();
+        if (!trimmed) delete data.voalleIds;
+        else data.voalleIds = trimmed;
+      }
+      if (!data.sshPassword) {
+        delete data.sshPassword;
+      }
+      const sw = await storage.updateSwitch(id, data);
       if (!sw) {
         return res.status(404).json({ error: "Switch não encontrado" });
       }
@@ -6261,7 +6276,16 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id, 10);
       const data = { ...req.body };
-      // Não sobrescrever senha se estiver vazia (manter a atual)
+      if (data.voalleIds !== undefined) {
+        const trimmed = String(data.voalleIds ?? '').trim();
+        if (!trimmed) delete data.voalleIds;
+        else data.voalleIds = trimmed;
+      }
+      if (data.voalleAccessPointIds !== undefined) {
+        const trimmed = String(data.voalleAccessPointIds ?? '').trim();
+        if (!trimmed) delete data.voalleAccessPointIds;
+        else data.voalleAccessPointIds = trimmed;
+      }
       if (!data.sshPassword) {
         delete data.sshPassword;
       }
@@ -8242,6 +8266,91 @@ export async function registerRoutes(
         success: false, 
         message: `Erro ao buscar sessão RADIUS: ${error.message}` 
       });
+    }
+  });
+
+  app.get("/api/admin/diagnostics/equipment-voalle-ids", requireDiagnosticsAccess, async (_req, res) => {
+    try {
+      const concentrators = await storage.getConcentrators();
+      const oltList = await storage.getOlts();
+      const switchList = await storage.getSwitches();
+
+      res.json({
+        concentrators: concentrators.map(c => ({
+          id: c.id,
+          name: c.name,
+          ipAddress: c.ipAddress,
+          voalleIds: c.voalleIds,
+          voalleAccessPointIds: c.voalleAccessPointIds,
+          isAccessPoint: c.isAccessPoint,
+        })),
+        olts: oltList.map(o => ({
+          id: o.id,
+          name: o.name,
+          ipAddress: o.ipAddress,
+          voalleIds: o.voalleIds,
+        })),
+        switches: switchList.map(s => ({
+          id: s.id,
+          name: s.name,
+          ipAddress: s.ipAddress,
+          voalleIds: s.voalleIds,
+        })),
+        summary: {
+          concentratorsTotal: concentrators.length,
+          concentratorsWithVoalleIds: concentrators.filter(c => c.voalleIds).length,
+          concentratorsMissing: concentrators.filter(c => !c.voalleIds).map(c => ({ id: c.id, name: c.name })),
+          oltsTotal: oltList.length,
+          oltsWithVoalleIds: oltList.filter(o => o.voalleIds).length,
+          oltsMissing: oltList.filter(o => !o.voalleIds).map(o => ({ id: o.id, name: o.name })),
+          switchesTotal: switchList.length,
+          switchesWithVoalleIds: switchList.filter(s => s.voalleIds).length,
+          switchesMissing: switchList.filter(s => !s.voalleIds).map(s => ({ id: s.id, name: s.name })),
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/diagnostics/restore-voalle-ids", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const { updates } = req.body as {
+        updates: Array<{
+          type: 'concentrator' | 'olt' | 'switch';
+          id: number;
+          voalleIds: string;
+        }>;
+      };
+
+      if (!updates || !Array.isArray(updates)) {
+        return res.status(400).json({ error: "Campo 'updates' é obrigatório e deve ser um array" });
+      }
+
+      const results = { updated: 0, errors: [] as string[] };
+
+      for (const update of updates) {
+        try {
+          if (!update.voalleIds || !update.id || !update.type) {
+            results.errors.push(`Update inválido: ${JSON.stringify(update)}`);
+            continue;
+          }
+          if (update.type === 'concentrator') {
+            await storage.updateConcentrator(update.id, { voalleIds: update.voalleIds });
+          } else if (update.type === 'olt') {
+            await storage.updateOlt(update.id, { voalleIds: update.voalleIds });
+          } else if (update.type === 'switch') {
+            await storage.updateSwitch(update.id, { voalleIds: update.voalleIds });
+          }
+          results.updated++;
+        } catch (err: any) {
+          results.errors.push(`${update.type} #${update.id}: ${err.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
