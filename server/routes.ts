@@ -4239,6 +4239,10 @@ export async function registerRoutes(
             if (conc.web_port) concData.webPort = parseIntSafe(conc.web_port) || 80;
             if (conc.web_protocol) concData.webProtocol = conc.web_protocol.toLowerCase();
             if (conc.winbox_port) concData.winboxPort = parseIntSafe(conc.winbox_port) || 8291;
+            if (conc.is_access_point !== undefined || conc.ponto_de_acesso !== undefined) {
+              const val = (conc.is_access_point || conc.ponto_de_acesso || '').toString().toLowerCase().trim();
+              concData.isAccessPoint = val === '1' || val === 'true' || val === 'sim' || val === 'yes' || val === 's';
+            }
 
             const existing = existingByVoalleId.get(voalleId) || existingByIp.get(ip);
             if (existing) {
@@ -4632,12 +4636,19 @@ export async function registerRoutes(
         }
       }
 
-      // Returns { oltId, switchId } - one or the other based on access point name
-      const getOrCreateAccessPoint = async (link: typeof links[0]): Promise<{ oltId: number | null; switchId: number | null }> => {
+      // Returns { oltId, switchId, concentratorAsAccessPointId } - one based on access point name or concentrator match
+      const getOrCreateAccessPoint = async (link: typeof links[0]): Promise<{ oltId: number | null; switchId: number | null; concentratorAsAccessPointId: number | null }> => {
         console.log(`[Voalle Import] getOrCreateAccessPoint - accessPointId: ${link.accessPointId}, oltName: ${link.oltName}`);
-        if (!link.accessPointId) return { oltId: null, switchId: null };
+        if (!link.accessPointId) return { oltId: null, switchId: null, concentratorAsAccessPointId: null };
         const voalleId = parseInt(link.accessPointId, 10);
-        if (isNaN(voalleId)) return { oltId: null, switchId: null };
+        if (isNaN(voalleId)) return { oltId: null, switchId: null, concentratorAsAccessPointId: null };
+
+        // Check if access point ID matches a concentrator marked as access point
+        const concAsAP = existingConcentratorsByVoalleId.get(voalleId);
+        if (concAsAP && concAsAP.isAccessPoint) {
+          console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concAsAP.name}" marked as access point`);
+          return { oltId: null, switchId: null, concentratorAsAccessPointId: concAsAP.id };
+        }
 
         const accessPointName = link.oltName || '';
         const isOlt = accessPointName.toUpperCase().includes('OLT');
@@ -4648,14 +4659,14 @@ export async function registerRoutes(
           const cachedOlt = oltsCache.get(voalleId);
           if (cachedOlt) {
             console.log(`[Voalle Import] OLT from cache: ${cachedOlt}`);
-            return { oltId: cachedOlt, switchId: null };
+            return { oltId: cachedOlt, switchId: null, concentratorAsAccessPointId: null };
           }
 
           const existingOlt = existingOltsByVoalleId.get(voalleId);
           if (existingOlt) {
             console.log(`[Voalle Import] OLT from existing: ${existingOlt.id}`);
             oltsCache.set(voalleId, existingOlt.id);
-            return { oltId: existingOlt.id, switchId: null };
+            return { oltId: existingOlt.id, switchId: null, concentratorAsAccessPointId: null };
           }
 
           if (accessPointName) {
@@ -4672,7 +4683,7 @@ export async function registerRoutes(
             console.log(`[Voalle Import] Created OLT ID: ${newOlt.id}`);
             oltsCache.set(voalleId, newOlt.id);
             existingOltsByVoalleId.set(voalleId, newOlt);
-            return { oltId: newOlt.id, switchId: null };
+            return { oltId: newOlt.id, switchId: null, concentratorAsAccessPointId: null };
           }
           console.log(`[Voalle Import] OLT: No name to create`);
         } else {
@@ -4680,13 +4691,13 @@ export async function registerRoutes(
           const cachedSwitch = switchesCache.get(voalleId);
           if (cachedSwitch) {
             console.log(`[Voalle Import] Switch from cache: ${cachedSwitch}`);
-            return { oltId: null, switchId: cachedSwitch };
+            return { oltId: null, switchId: cachedSwitch, concentratorAsAccessPointId: null };
           }
 
           const existingSwitch = existingSwitchesByVoalleId.get(voalleId);
           if (existingSwitch) {
             switchesCache.set(voalleId, existingSwitch.id);
-            return { oltId: null, switchId: existingSwitch.id };
+            return { oltId: null, switchId: existingSwitch.id, concentratorAsAccessPointId: null };
           }
 
           if (accessPointName) {
@@ -4699,12 +4710,12 @@ export async function registerRoutes(
             console.log(`[Voalle Import] Created Switch ID: ${newSwitch.id}`);
             switchesCache.set(voalleId, newSwitch.id);
             existingSwitchesByVoalleId.set(voalleId, newSwitch);
-            return { oltId: null, switchId: newSwitch.id };
+            return { oltId: null, switchId: newSwitch.id, concentratorAsAccessPointId: null };
           }
         }
 
         console.log(`[Voalle Import] No access point name, returning null`);
-        return { oltId: null, switchId: null };
+        return { oltId: null, switchId: null, concentratorAsAccessPointId: null };
       };
 
       // Get existing links to check for duplicates
@@ -4755,9 +4766,12 @@ export async function registerRoutes(
           // Get or create client, concentrator and OLT for this link
           const linkClientId = await getOrCreateClientForLink(link);
           const linkConcentratorId = await getOrCreateConcentrator(link);
-          const { oltId: linkOltId, switchId: linkSwitchId } = await getOrCreateAccessPoint(link);
+          const { oltId: linkOltId, switchId: linkSwitchId, concentratorAsAccessPointId } = await getOrCreateAccessPoint(link);
+          // Concentrator-as-access-point takes priority (client connects directly to it for traffic collection)
+          // Falls back to PPPoE concentrator if no access point concentrator was found
+          const finalConcentratorId = concentratorAsAccessPointId || linkConcentratorId;
           
-          console.log(`[Voalle Import] Link ${link.serviceTag}: clientId=${linkClientId}, concentratorId=${linkConcentratorId}, oltId=${linkOltId}, switchId=${linkSwitchId}`);
+          console.log(`[Voalle Import] Link ${link.serviceTag}: clientId=${linkClientId}, concentratorId=${finalConcentratorId}, oltId=${linkOltId}, switchId=${linkSwitchId}, concAsAP=${concentratorAsAccessPointId}`);
 
           // Prepare link data with safe type coercion
           const rawLinkData = {
@@ -4785,11 +4799,11 @@ export async function registerRoutes(
             onuSearchString: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             equipmentSerialNumber: link.equipmentSerial ? String(link.equipmentSerial).trim() : null,
             // Concentrator, OLT and Access Point (Switch) - usando IDs do Link Monitor
-            concentratorId: linkConcentratorId,
+            concentratorId: finalConcentratorId,
             oltId: linkOltId, // OLT for GPON links
             accessPointId: linkSwitchId, // Switch for PTP/L2 links
             // Origem de dados de tráfego: concentrator > accessPoint (switch) > manual
-            trafficSourceType: linkConcentratorId ? 'concentrator' : (linkSwitchId ? 'accessPoint' : 'manual'),
+            trafficSourceType: finalConcentratorId ? 'concentrator' : (linkSwitchId ? 'accessPoint' : 'manual'),
             // Para links corporativos, usar vlanInterface como snmpInterfaceName (será resolvido para ifIndex via SNMP)
             snmpInterfaceName: link.authType === 'corporate' && link.vlanInterface ? String(link.vlanInterface).trim() : null,
             // CPE credentials

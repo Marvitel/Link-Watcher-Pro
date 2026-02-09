@@ -9123,6 +9123,7 @@ interface SnmpConcentrator {
   model: string | null;
   description: string | null;
   backupConcentratorId: number | null;
+  isAccessPoint: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -9172,6 +9173,7 @@ function ConcentratorsTab() {
     winboxPort: 8291,
     vendor: "",
     backupConcentratorId: null as number | null,
+    isAccessPoint: false,
   });
 
   const resetForm = () => {
@@ -9193,6 +9195,7 @@ function ConcentratorsTab() {
       isActive: true,
       voalleIds: null,
       backupConcentratorId: null,
+      isAccessPoint: false,
     });
     setEditingConcentrator(undefined);
     setIsCreatingProfile(false);
@@ -9247,6 +9250,7 @@ function ConcentratorsTab() {
       winboxPort: concentrator.winboxPort || 8291,
       vendor: concentrator.vendor || "",
       backupConcentratorId: concentrator.backupConcentratorId || null,
+      isAccessPoint: concentrator.isAccessPoint || false,
     });
     setDialogOpen(true);
   };
@@ -9518,6 +9522,23 @@ function ConcentratorsTab() {
                   Concentrador alternativo para failover PPPoE (busca interface se principal falhar)
                 </p>
               </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="concentrator-is-access-point">Funciona como Ponto de Acesso</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Marcar quando clientes conectam diretamente neste concentrador (sem OLT/Switch separado)
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  id="concentrator-is-access-point"
+                  checked={formData.isAccessPoint}
+                  onChange={(e) => setFormData({ ...formData, isAccessPoint: e.target.checked })}
+                  className="h-4 w-4"
+                  data-testid="checkbox-concentrator-is-access-point"
+                />
+              </div>
               
               {/* Credenciais SSH */}
               <div className="space-y-2 pt-2 border-t">
@@ -9669,6 +9690,11 @@ function ConcentratorsTab() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {concentrator.isAccessPoint && (
+                      <Badge variant="outline" className="text-xs">
+                        Ponto de Acesso
+                      </Badge>
+                    )}
                     <Badge variant={concentrator.isActive ? "default" : "secondary"}>
                       {concentrator.isActive ? "Ativo" : "Inativo"}
                     </Badge>
