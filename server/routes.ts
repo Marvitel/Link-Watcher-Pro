@@ -5761,8 +5761,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "OLT não encontrada" });
       }
       res.json(olt);
-    } catch (error) {
-      res.status(500).json({ error: "Falha ao atualizar OLT" });
+    } catch (error: any) {
+      console.error("[OLT PATCH] Erro ao atualizar OLT:", error?.message || error);
+      res.status(500).json({ error: "Falha ao atualizar OLT", details: error?.message });
     }
   });
 
