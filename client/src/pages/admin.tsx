@@ -639,11 +639,11 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     queryKey: ["/api/olts"],
   });
 
-  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean; voalleId: number | null; snmpProfileId: number | null }>>({
+  const { data: switches } = useQuery<Array<{ id: number; name: string; ipAddress: string; vendor: string | null; model: string | null; isActive: boolean; voalleIds: string | null; snmpProfileId: number | null }>>({
     queryKey: ["/api/switches"],
   });
 
-  const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleId: number | null; snmpProfileId: number | null; isActive: boolean }>>({
+  const { data: concentrators } = useQuery<Array<{ id: number; name: string; ipAddress: string; voalleIds: string | null; snmpProfileId: number | null; isActive: boolean }>>({
     queryKey: ["/api/concentrators"],
   });
 
@@ -801,7 +801,12 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       return;
     }
 
-    // Tentar match automático de OLT pelo voalleId (authenticationAccessPoint)
+    const matchVoalleId = (voalleIds: string | null | undefined, targetId: number | undefined): boolean => {
+      if (!voalleIds || targetId === undefined) return false;
+      return voalleIds.split(',').map(s => parseInt(s.trim(), 10)).includes(targetId);
+    };
+
+    // Tentar match automático de OLT pelo voalleIds (authenticationAccessPoint)
     let matchedOltId: number | null = null;
     let matchedSwitchId: number | null = null;
     let matchedLinkType: "gpon" | "ptp" = "gpon";
@@ -809,7 +814,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     if (tag.oltId) {
       // Primeiro tentar match com OLT
       if (olts) {
-        const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
+        const matchedOlt = olts.find(olt => matchVoalleId((olt as any).voalleIds, tag.oltId));
         if (matchedOlt) {
           matchedOltId = matchedOlt.id;
           matchedLinkType = "gpon";
@@ -817,7 +822,7 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       }
       // Se não encontrou OLT, tentar match com Switch (PTP)
       if (!matchedOltId && switches) {
-        const matchedSwitch = switches.find(sw => sw.voalleId === tag.oltId);
+        const matchedSwitch = switches.find(sw => matchVoalleId(sw.voalleIds, tag.oltId));
         if (matchedSwitch) {
           matchedSwitchId = matchedSwitch.id;
           matchedLinkType = "ptp";
@@ -825,10 +830,10 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
       }
     }
 
-    // Tentar match automático de Concentrador pelo voalleId (authenticationConcentrator)
+    // Tentar match automático de Concentrador pelo voalleIds (authenticationConcentrator)
     let matchedConcentratorId: number | null = null;
     if (tag.concentratorId && concentrators) {
-      const matchedConc = concentrators.find(c => c.voalleId === tag.concentratorId);
+      const matchedConc = concentrators.find(c => matchVoalleId(c.voalleIds, tag.concentratorId));
       if (matchedConc) {
         matchedConcentratorId = matchedConc.id;
       }
@@ -916,31 +921,36 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
         return;
       }
 
-      // Tentar match automático de OLT ou Switch pelo voalleId (authenticationAccessPoint)
+      const matchVoalleId = (voalleIds: string | null | undefined, targetId: number): boolean => {
+        if (!voalleIds) return false;
+        return voalleIds.split(',').map(s => parseInt(s.trim(), 10)).includes(targetId);
+      };
+
+      // Tentar match automático de OLT ou Switch pelo voalleIds (authenticationAccessPoint)
       let matchedOltId: number | null = null;
       let matchedSwitchId: number | null = null;
       
       if (tag.oltId) {
         // Primeiro tentar match com OLT
         if (olts) {
-          const matchedOlt = olts.find(olt => (olt as any).voalleId === tag.oltId);
+          const matchedOlt = olts.find(olt => matchVoalleId((olt as any).voalleIds, tag.oltId));
           if (matchedOlt) {
             matchedOltId = matchedOlt.id;
           }
         }
         // Se não encontrou OLT, tentar match com Switch (PTP)
         if (!matchedOltId && switches) {
-          const matchedSwitch = switches.find(sw => sw.voalleId === tag.oltId);
+          const matchedSwitch = switches.find(sw => matchVoalleId(sw.voalleIds, tag.oltId));
           if (matchedSwitch) {
             matchedSwitchId = matchedSwitch.id;
           }
         }
       }
 
-      // Tentar match automático de Concentrador pelo voalleId (authenticationConcentrator)
+      // Tentar match automático de Concentrador pelo voalleIds (authenticationConcentrator)
       let matchedConcentratorId: number | null = null;
       if (tag.concentratorId && concentrators) {
-        const matchedConc = concentrators.find(c => c.voalleId === tag.concentratorId);
+        const matchedConc = concentrators.find(c => matchVoalleId(c.voalleIds, tag.concentratorId));
         if (matchedConc) {
           matchedConcentratorId = matchedConc.id;
         }
@@ -8200,7 +8210,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
     diagnosisKeyTemplate: "",
     snmpProfileId: null as number | null,
     isActive: true,
-    voalleId: null as number | null,
+    voalleIds: null as string | null,
   });
 
   const resetForm = () => {
@@ -8218,7 +8228,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       diagnosisKeyTemplate: "",
       snmpProfileId: null,
       isActive: true,
-      voalleId: null,
+      voalleIds: null,
     });
     setEditingOlt(undefined);
   };
@@ -8239,7 +8249,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
       diagnosisKeyTemplate: (olt as any).diagnosisKeyTemplate || "",
       snmpProfileId: (olt as any).snmpProfileId || null,
       isActive: olt.isActive,
-      voalleId: (olt as any).voalleId || null,
+      voalleIds: (olt as any).voalleIds || null,
     });
     setDialogOpen(true);
   };
@@ -8460,13 +8470,12 @@ function OltsTab({ clients }: { clients: Client[] }) {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="olt-voalle-id">ID Voalle (Access Point)</Label>
+                <Label htmlFor="olt-voalle-id">IDs Voalle (Access Point)</Label>
                 <Input
                   id="olt-voalle-id"
-                  type="number"
-                  value={formData.voalleId ?? ""}
-                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  placeholder="Ex: 123"
+                  value={formData.voalleIds ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleIds: e.target.value || null })}
+                  placeholder="IDs separados por vírgula (ex: 123,456)"
                   data-testid="input-olt-voalle-id"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -8676,7 +8685,7 @@ function OltsTab({ clients }: { clients: Client[] }) {
 
 interface SwitchType {
   id: number;
-  voalleId: number | null;
+  voalleIds: string | null;
   name: string;
   ipAddress: string;
   vendor: string | null;
@@ -8734,7 +8743,7 @@ function SwitchesTab() {
     opticalTxOidTemplate: "",
     portIndexTemplate: "",
     isActive: true,
-    voalleId: null as number | null,
+    voalleIds: null as string | null,
   });
 
   const resetForm = () => {
@@ -8755,7 +8764,7 @@ function SwitchesTab() {
       opticalTxOidTemplate: "",
       portIndexTemplate: "",
       isActive: true,
-      voalleId: null,
+      voalleIds: null,
     });
     setEditingSwitch(undefined);
   };
@@ -8779,7 +8788,7 @@ function SwitchesTab() {
       opticalTxOidTemplate: sw.opticalTxOidTemplate || "",
       portIndexTemplate: sw.portIndexTemplate || "",
       isActive: sw.isActive,
-      voalleId: sw.voalleId || null,
+      voalleIds: sw.voalleIds || null,
     });
     setDialogOpen(true);
   };
@@ -8922,13 +8931,12 @@ function SwitchesTab() {
                 />
               </div>
               <div>
-                <Label htmlFor="switch-voalle-id">ID Voalle (Access Point)</Label>
+                <Label htmlFor="switch-voalle-id">IDs Voalle (Access Point)</Label>
                 <Input
                   id="switch-voalle-id"
-                  type="number"
-                  value={formData.voalleId ?? ""}
-                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  placeholder="Ex: 70"
+                  value={formData.voalleIds ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleIds: e.target.value || null })}
+                  placeholder="IDs separados por vírgula (ex: 123,456)"
                   data-testid="input-switch-voalle-id"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -9054,7 +9062,7 @@ function SwitchesTab() {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       IP: {sw.ipAddress} | {sw.vendor || "N/A"} {sw.model || ""}
-                      {sw.voalleId && <span> | Voalle: #{sw.voalleId}</span>}
+                      {sw.voalleIds && <span> | Voalle: #{sw.voalleIds}</span>}
                     </div>
                     {sw.snmpProfileId && (
                       <div className="text-xs text-muted-foreground">
@@ -9107,7 +9115,7 @@ function SwitchesTab() {
 
 interface SnmpConcentrator {
   id: number;
-  voalleId: number | null;
+  voalleIds: string | null;
   name: string;
   ipAddress: string;
   snmpProfileId: number | null;
@@ -9154,7 +9162,7 @@ function ConcentratorsTab() {
     model: "",
     description: "",
     isActive: true,
-    voalleId: null as number | null,
+    voalleIds: null as string | null,
     sshUser: "",
     sshPassword: "",
     sshPort: 22,
@@ -9183,7 +9191,7 @@ function ConcentratorsTab() {
       model: "",
       description: "",
       isActive: true,
-      voalleId: null,
+      voalleIds: null,
       backupConcentratorId: null,
     });
     setEditingConcentrator(undefined);
@@ -9229,7 +9237,7 @@ function ConcentratorsTab() {
       model: concentrator.model || "",
       description: concentrator.description || "",
       isActive: concentrator.isActive,
-      voalleId: concentrator.voalleId,
+      voalleIds: concentrator.voalleIds,
       sshUser: concentrator.sshUser || "",
       sshPassword: "", // Nunca retorna a senha, só permite sobrescrever
       sshPort: concentrator.sshPort || 22,
@@ -9475,13 +9483,12 @@ function ConcentratorsTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="concentrator-voalle-id">ID Voalle (Concentrator)</Label>
+                <Label htmlFor="concentrator-voalle-id">IDs Voalle (Concentrator)</Label>
                 <Input
                   id="concentrator-voalle-id"
-                  type="number"
-                  value={formData.voalleId ?? ""}
-                  onChange={(e) => setFormData({ ...formData, voalleId: e.target.value ? parseInt(e.target.value, 10) : null })}
-                  placeholder="Ex: 456"
+                  value={formData.voalleIds ?? ""}
+                  onChange={(e) => setFormData({ ...formData, voalleIds: e.target.value || null })}
+                  placeholder="IDs separados por vírgula (ex: 123,456)"
                   data-testid="input-concentrator-voalle-id"
                 />
                 <p className="text-xs text-muted-foreground">
@@ -9655,9 +9662,9 @@ function ConcentratorsTab() {
                         Modelo: {concentrator.model}
                       </div>
                     )}
-                    {concentrator.voalleId && (
+                    {concentrator.voalleIds && (
                       <Badge variant="outline" className="text-xs">
-                        Voalle ID: {concentrator.voalleId}
+                        Voalle IDs: {concentrator.voalleIds}
                       </Badge>
                     )}
                   </div>

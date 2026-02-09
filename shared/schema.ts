@@ -723,7 +723,7 @@ export const clientEventSettings = pgTable("client_event_settings", {
 // Cadastro global com fabricante e configuração SNMP
 export const snmpConcentrators = pgTable("snmp_concentrators", {
   id: serial("id").primaryKey(),
-  voalleId: integer("voalle_id"), // ID do concentrador no Voalle (authenticationConcentrator.id)
+  voalleIds: text("voalle_ids"), // IDs do concentrador no Voalle (authenticationConcentrator.id) - múltiplos separados por vírgula
   name: text("name").notNull(), // Ex: "CE: AJU-MVT-BORDA-HSP"
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
   snmpProfileId: integer("snmp_profile_id"), // Perfil SNMP para coleta de tráfego
@@ -750,7 +750,7 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
 // connectionType pode ser: telnet, ssh, mysql (para consultas ao banco Zabbix)
 export const olts = pgTable("olts", {
   id: serial("id").primaryKey(),
-  voalleId: integer("voalle_id"), // ID da OLT/Access Point no Voalle (authenticationAccessPoint.id)
+  voalleIds: text("voalle_ids"), // IDs da OLT/Access Point no Voalle (authenticationAccessPoint.id) - múltiplos separados por vírgula
   name: text("name").notNull(),
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
   port: integer("port").notNull().default(23),
@@ -775,7 +775,7 @@ export const olts = pgTable("olts", {
 // A relação cliente-Switch é feita através dos links (link.switchId + link.clientId)
 export const switches = pgTable("switches", {
   id: serial("id").primaryKey(),
-  voalleId: integer("voalle_id"), // ID do Switch/Access Point no Voalle (authenticationAccessPoint.id)
+  voalleIds: text("voalle_ids"), // IDs do Switch/Access Point no Voalle (authenticationAccessPoint.id) - múltiplos separados por vírgula
   name: text("name").notNull(),
   ipAddress: varchar("ip_address", { length: 45 }).notNull(),
   vendor: varchar("vendor", { length: 50 }), // Slug do fabricante (ex: "mikrotik", "datacom") - legado

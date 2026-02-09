@@ -4190,10 +4190,25 @@ export async function registerRoutes(
         return isNaN(n) ? undefined : n;
       };
 
+      const parseVoalleIds = (ids: string | null | undefined): number[] => {
+        if (!ids) return [];
+        return ids.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+      };
+      const mergeVoalleIds = (existing: string | null | undefined, newId: number): string => {
+        const ids = parseVoalleIds(existing);
+        if (!ids.includes(newId)) ids.push(newId);
+        return ids.join(',');
+      };
+
       // Import concentrators
       if (concentrators && concentrators.length > 0) {
         const existingConcs = await storage.getConcentrators();
-        const existingByVoalleId = new Map(existingConcs.filter(c => c.voalleId).map(c => [c.voalleId!, c]));
+        const existingByVoalleId = new Map<number, typeof existingConcs[0]>();
+        for (const c of existingConcs) {
+          for (const vid of parseVoalleIds(c.voalleIds)) {
+            existingByVoalleId.set(vid, c);
+          }
+        }
         const existingByIp = new Map(existingConcs.map(c => [c.ipAddress, c]));
 
         for (const conc of concentrators) {
@@ -4206,7 +4221,7 @@ export async function registerRoutes(
             }
 
             const concData: any = {
-              voalleId,
+              voalleIds: String(voalleId),
               name: conc.title || `Concentrador Voalle #${voalleId}`,
               ipAddress: ip,
               isActive: conc.is_active !== undefined ? conc.is_active !== '0' && conc.is_active.toLowerCase() !== 'false' && conc.is_active.toLowerCase() !== 'nao' && conc.is_active.toLowerCase() !== 'não' : true,
@@ -4227,6 +4242,7 @@ export async function registerRoutes(
 
             const existing = existingByVoalleId.get(voalleId) || existingByIp.get(ip);
             if (existing) {
+              concData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
               await storage.updateConcentrator(existing.id, concData);
               results.concentratorsUpdated++;
             } else {
@@ -4242,10 +4258,20 @@ export async function registerRoutes(
       // Import access points (OLTs and Switches)
       if (accessPoints && accessPoints.length > 0) {
         const existingOlts = await storage.getOlts();
-        const existingOltsByVoalleId = new Map(existingOlts.filter(o => o.voalleId).map(o => [o.voalleId!, o]));
+        const existingOltsByVoalleId = new Map<number, typeof existingOlts[0]>();
+        for (const o of existingOlts) {
+          for (const vid of parseVoalleIds(o.voalleIds)) {
+            existingOltsByVoalleId.set(vid, o);
+          }
+        }
         const existingOltsByIp = new Map(existingOlts.filter(o => o.ipAddress && o.ipAddress !== '0.0.0.0').map(o => [o.ipAddress, o]));
         const existingSwitches = await storage.getSwitches();
-        const existingSwitchesByVoalleId = new Map(existingSwitches.filter(s => s.voalleId).map(s => [s.voalleId!, s]));
+        const existingSwitchesByVoalleId = new Map<number, typeof existingSwitches[0]>();
+        for (const s of existingSwitches) {
+          for (const vid of parseVoalleIds(s.voalleIds)) {
+            existingSwitchesByVoalleId.set(vid, s);
+          }
+        }
         const existingSwitchesByIp = new Map(existingSwitches.filter(s => s.ipAddress && s.ipAddress !== '0.0.0.0').map(s => [s.ipAddress, s]));
 
         for (const ap of accessPoints) {
@@ -4263,7 +4289,7 @@ export async function registerRoutes(
 
             if (isOlt) {
               const oltData: any = {
-                voalleId,
+                voalleIds: String(voalleId),
                 name: name || `OLT Voalle #${voalleId}`,
                 ipAddress: ipAddr || "0.0.0.0",
                 port: parseIntSafe(ap.port) || 23,
@@ -4281,6 +4307,7 @@ export async function registerRoutes(
 
               const existing = existingOltsByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingOltsByIp.get(ipAddr) : undefined);
               if (existing) {
+                oltData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
                 await storage.updateOlt(existing.id, oltData);
                 results.accessPointsUpdated++;
                 results.oltsUpdated++;
@@ -4291,7 +4318,7 @@ export async function registerRoutes(
               }
             } else {
               const switchData: any = {
-                voalleId,
+                voalleIds: String(voalleId),
                 name: name || `Switch Voalle #${voalleId}`,
                 ipAddress: ipAddr || "0.0.0.0",
               };
@@ -4314,6 +4341,7 @@ export async function registerRoutes(
 
               const existing = existingSwitchesByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingSwitchesByIp.get(ipAddr) : undefined);
               if (existing) {
+                switchData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
                 await storage.updateSwitch(existing.id, switchData);
                 results.accessPointsUpdated++;
                 results.switchesUpdated++;
@@ -4541,8 +4569,10 @@ export async function registerRoutes(
       const existingConcentrators = await storage.getConcentrators();
       const existingConcentratorsByVoalleId = new Map<number, typeof existingConcentrators[0]>();
       for (const conc of existingConcentrators) {
-        if (conc.voalleId) {
-          existingConcentratorsByVoalleId.set(conc.voalleId, conc);
+        if (conc.voalleIds) {
+          for (const vid of conc.voalleIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))) {
+            existingConcentratorsByVoalleId.set(vid, conc);
+          }
         }
       }
 
@@ -4567,7 +4597,7 @@ export async function registerRoutes(
           const newConc = await storage.createConcentrator({
             name: link.concentratorName || `Concentrador Voalle #${voalleId}`,
             ipAddress: link.concentratorIp,
-            voalleId: voalleId,
+            voalleIds: String(voalleId),
             isActive: true,
           });
           concentratorsCache.set(voalleId, newConc.id);
@@ -4583,8 +4613,10 @@ export async function registerRoutes(
       const existingOlts = await storage.getOlts();
       const existingOltsByVoalleId = new Map<number, typeof existingOlts[0]>();
       for (const olt of existingOlts) {
-        if (olt.voalleId) {
-          existingOltsByVoalleId.set(olt.voalleId, olt);
+        if (olt.voalleIds) {
+          for (const vid of olt.voalleIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))) {
+            existingOltsByVoalleId.set(vid, olt);
+          }
         }
       }
 
@@ -4593,8 +4625,10 @@ export async function registerRoutes(
       const existingSwitches = await storage.getSwitches();
       const existingSwitchesByVoalleId = new Map<number, typeof existingSwitches[0]>();
       for (const sw of existingSwitches) {
-        if (sw.voalleId) {
-          existingSwitchesByVoalleId.set(sw.voalleId, sw);
+        if (sw.voalleIds) {
+          for (const vid of sw.voalleIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))) {
+            existingSwitchesByVoalleId.set(vid, sw);
+          }
         }
       }
 
@@ -4629,7 +4663,7 @@ export async function registerRoutes(
             const newOlt = await storage.createOlt({
               name: accessPointName,
               ipAddress: link.oltIp || "0.0.0.0",
-              voalleId: voalleId,
+              voalleIds: String(voalleId),
               port: 23,
               username: "admin",
               password: "",
@@ -4660,7 +4694,7 @@ export async function registerRoutes(
             const newSwitch = await storage.createSwitch({
               name: accessPointName,
               ipAddress: link.oltIp || "0.0.0.0",
-              voalleId: voalleId,
+              voalleIds: String(voalleId),
             });
             console.log(`[Voalle Import] Created Switch ID: ${newSwitch.id}`);
             switchesCache.set(voalleId, newSwitch.id);
