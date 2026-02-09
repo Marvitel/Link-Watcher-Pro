@@ -150,8 +150,8 @@ const CSV_TYPES: Record<string, { label: string; description: string; requiredFi
     requiredFieldsDisplay: ["id", "server_ip"]
   },
   authentication_access_points: {
-    label: "Pontos de Acesso (OLTs)",
-    description: "Contém IP e credenciais das OLTs",
+    label: "Pontos de Acesso (OLTs/Switches)",
+    description: "OLTs e Switches - use coluna 'tipo' para diferenciar (OLT ou Switch)",
     requiredFields: [["id"], ["ip"]],
     requiredFieldsDisplay: ["id", "ip"]
   },
@@ -413,7 +413,9 @@ export function VoalleImportTab() {
     accessPointsUpdated: number;
     accessPointsSkipped: number;
     oltsCreated: number;
+    oltsUpdated: number;
     switchesCreated: number;
+    switchesUpdated: number;
     errors: Array<{ name: string; error: string }>;
   } | null>(null);
 
@@ -930,18 +932,68 @@ export function VoalleImportTab() {
         throw new Error("Nenhum CSV de concentradores ou pontos de acesso carregado");
       }
       
+      const normalizeKey = (key: string): string => {
+        return key
+          .toLowerCase()
+          .trim()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, '_');
+      };
+      const normalizeRow = (row: Record<string, any>) => {
+        const normalized: Record<string, string> = {};
+        for (const [key, value] of Object.entries(row)) {
+          normalized[normalizeKey(key)] = String(value ?? '').trim();
+        }
+        return normalized;
+      };
+
       const response = await apiRequest("POST", "/api/admin/voalle-import-equipment", {
-        concentrators: concentrators.map(c => ({
-          id: c.id || c.Id || c.ID,
-          title: c.title || c.Title || c.name || c.Name || '',
-          server_ip: c.server_ip || c.ip || c.IP || c['Server IP'] || '',
-        })),
-        accessPoints: accessPoints.map(ap => ({
-          id: ap.id || ap.Id || ap.ID,
-          title: ap.title || ap.Title || ap.name || ap.Name || '',
-          ip: ap.ip || ap.IP || ap['Server IP'] || ap.server_ip || '',
-          manufacturer_id: ap.manufacturer_id || ap.manufacturer || '',
-        })),
+        concentrators: concentrators.map(c => {
+          const n = normalizeRow(c);
+          return {
+            id: n.id || '',
+            title: n.title || n.name || '',
+            server_ip: n.server_ip || n.ip || '',
+            model: n.model || n.modelo || '',
+            description: n.description || n.descricao || n.descrição || '',
+            vendor: n.vendor || n.fabricante || '',
+            ssh_user: n.ssh_user || n.usuario_ssh || '',
+            ssh_password: n.ssh_password || n.senha_ssh || '',
+            ssh_port: n.ssh_port || n.porta_ssh || '',
+            web_port: n.web_port || n.porta_web || '',
+            web_protocol: n.web_protocol || n.protocolo_web || n.protocolo || '',
+            winbox_port: n.winbox_port || n.porta_winbox || '',
+            is_active: n.is_active || n.ativo || '',
+          };
+        }),
+        accessPoints: accessPoints.map(ap => {
+          const n = normalizeRow(ap);
+          return {
+            id: n.id || '',
+            title: n.title || n.name || '',
+            ip: n.ip || n.server_ip || '',
+            tipo: n.tipo || n.type || n.tipo_equipamento || '',
+            vendor: n.vendor || n.fabricante || '',
+            model: n.model || n.modelo || '',
+            port: n.port || n.porta || '',
+            username: n.username || n.user || n.usuario || '',
+            password: n.password || n.senha || '',
+            connection_type: n.connection_type || n.tipo_conexao || n.tipo_de_conexao || '',
+            ssh_user: n.ssh_user || n.usuario_ssh || '',
+            ssh_password: n.ssh_password || n.senha_ssh || '',
+            ssh_port: n.ssh_port || n.porta_ssh || '',
+            web_port: n.web_port || n.porta_web || '',
+            web_protocol: n.web_protocol || n.protocolo_web || n.protocolo || '',
+            winbox_port: n.winbox_port || n.porta_winbox || '',
+            database: n.database || n.banco || '',
+            search_onu_command: n.search_onu_command || n.comando_busca_onu || '',
+            diagnosis_key_template: n.diagnosis_key_template || n.template_diagnostico || '',
+            optical_rx_oid_template: n.optical_rx_oid_template || n.oid_rx || '',
+            optical_tx_oid_template: n.optical_tx_oid_template || n.oid_tx || '',
+            port_index_template: n.port_index_template || n.formula_indice || '',
+            is_active: n.is_active || n.ativo || '',
+          };
+        }),
       });
       return response.json();
     },
@@ -950,8 +1002,8 @@ export function VoalleImportTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/concentrators"] });
       queryClient.invalidateQueries({ queryKey: ["/api/olts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/switches"] });
-      const totalCreated = (data.concentratorsCreated || 0) + (data.accessPointsCreated || 0);
-      const totalUpdated = (data.concentratorsUpdated || 0) + (data.accessPointsUpdated || 0);
+      const totalCreated = (data.concentratorsCreated || 0) + (data.oltsCreated || 0) + (data.switchesCreated || 0);
+      const totalUpdated = (data.concentratorsUpdated || 0) + (data.oltsUpdated || 0) + (data.switchesUpdated || 0);
       toast({
         title: "Equipamentos importados",
         description: `${totalCreated} criados, ${totalUpdated} atualizados`,
@@ -1224,21 +1276,27 @@ export function VoalleImportTab() {
                                 {equipmentResult.oltsCreated} OLTs criadas
                               </p>
                             )}
+                            {equipmentResult.oltsUpdated > 0 && (
+                              <p className="text-blue-600 dark:text-blue-400">
+                                <RefreshCw className="h-3 w-3 inline mr-1" />
+                                {equipmentResult.oltsUpdated} OLTs atualizadas
+                              </p>
+                            )}
                             {equipmentResult.switchesCreated > 0 && (
                               <p className="text-green-600 dark:text-green-400">
                                 <CheckCircle className="h-3 w-3 inline mr-1" />
                                 {equipmentResult.switchesCreated} Switches criados
                               </p>
                             )}
-                            {equipmentResult.accessPointsUpdated > 0 && (
+                            {equipmentResult.switchesUpdated > 0 && (
                               <p className="text-blue-600 dark:text-blue-400">
                                 <RefreshCw className="h-3 w-3 inline mr-1" />
-                                {equipmentResult.accessPointsUpdated} pontos de acesso atualizados
+                                {equipmentResult.switchesUpdated} Switches atualizados
                               </p>
                             )}
                             {equipmentResult.accessPointsSkipped > 0 && (
                               <p className="text-muted-foreground">
-                                {equipmentResult.accessPointsSkipped} pontos de acesso já existentes
+                                {equipmentResult.accessPointsSkipped} pontos de acesso sem alteração
                               </p>
                             )}
                             {equipmentResult.errors.length > 0 && (

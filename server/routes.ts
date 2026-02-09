@@ -4137,8 +4137,8 @@ export async function registerRoutes(
       }
 
       const { concentrators, accessPoints } = req.body as {
-        concentrators: Array<{ id: string; title: string; server_ip: string }>;
-        accessPoints: Array<{ id: string; title: string; ip: string; manufacturer_id?: string }>;
+        concentrators: Array<Record<string, string>>;
+        accessPoints: Array<Record<string, string>>;
       };
 
       const results = {
@@ -4148,11 +4148,46 @@ export async function registerRoutes(
         accessPointsCreated: 0,
         accessPointsUpdated: 0,
         accessPointsSkipped: 0,
-        oltsUpdated: 0,
-        switchesUpdated: 0,
         oltsCreated: 0,
+        oltsUpdated: 0,
         switchesCreated: 0,
+        switchesUpdated: 0,
         errors: [] as Array<{ name: string; error: string }>,
+      };
+
+      const equipVendors = await storage.getEquipmentVendors();
+      const vendorBySlug = new Map(equipVendors.map(v => [v.slug.toLowerCase(), v]));
+      const vendorByName = new Map(equipVendors.map(v => [v.name.toLowerCase(), v]));
+
+      const resolveVendorId = (vendorStr?: string): number | undefined => {
+        if (!vendorStr) return undefined;
+        const lower = vendorStr.trim().toLowerCase();
+        const bySlug = vendorBySlug.get(lower);
+        if (bySlug) return bySlug.id;
+        const byName = vendorByName.get(lower);
+        if (byName) return byName.id;
+        for (const entry of Array.from(vendorByName.entries())) {
+          if (entry[0].includes(lower) || lower.includes(entry[0])) return entry[1].id;
+        }
+        return undefined;
+      };
+
+      const resolveVendorSlug = (vendorStr?: string): string | undefined => {
+        if (!vendorStr) return undefined;
+        const lower = vendorStr.trim().toLowerCase();
+        if (vendorBySlug.has(lower)) return lower;
+        const byName = vendorByName.get(lower);
+        if (byName) return byName.slug;
+        for (const entry of Array.from(vendorByName.entries())) {
+          if (entry[0].includes(lower) || lower.includes(entry[0])) return entry[1].slug;
+        }
+        return lower;
+      };
+
+      const parseIntSafe = (val?: string): number | undefined => {
+        if (!val) return undefined;
+        const n = parseInt(val, 10);
+        return isNaN(n) ? undefined : n;
       };
 
       // Import concentrators
@@ -4164,26 +4199,38 @@ export async function registerRoutes(
         for (const conc of concentrators) {
           try {
             const voalleId = parseInt(conc.id, 10);
-            if (isNaN(voalleId) || !conc.server_ip) {
+            const ip = conc.server_ip || '';
+            if (isNaN(voalleId) || !ip) {
               results.concentratorsSkipped++;
               continue;
             }
 
-            const existing = existingByVoalleId.get(voalleId) || existingByIp.get(conc.server_ip);
+            const concData: any = {
+              voalleId,
+              name: conc.title || `Concentrador Voalle #${voalleId}`,
+              ipAddress: ip,
+              isActive: conc.is_active !== undefined ? conc.is_active !== '0' && conc.is_active.toLowerCase() !== 'false' && conc.is_active.toLowerCase() !== 'nao' && conc.is_active.toLowerCase() !== 'não' : true,
+            };
+            if (conc.model) concData.model = conc.model;
+            if (conc.description) concData.description = conc.description;
+            if (conc.vendor) {
+              concData.vendor = resolveVendorSlug(conc.vendor);
+              const vid = resolveVendorId(conc.vendor);
+              if (vid) concData.equipmentVendorId = vid;
+            }
+            if (conc.ssh_user) concData.sshUser = conc.ssh_user;
+            if (conc.ssh_password) concData.sshPassword = conc.ssh_password;
+            if (conc.ssh_port) concData.sshPort = parseIntSafe(conc.ssh_port) || 22;
+            if (conc.web_port) concData.webPort = parseIntSafe(conc.web_port) || 80;
+            if (conc.web_protocol) concData.webProtocol = conc.web_protocol.toLowerCase();
+            if (conc.winbox_port) concData.winboxPort = parseIntSafe(conc.winbox_port) || 8291;
+
+            const existing = existingByVoalleId.get(voalleId) || existingByIp.get(ip);
             if (existing) {
-              if (!existing.voalleId || existing.voalleId !== voalleId) {
-                await storage.updateConcentrator(existing.id, { voalleId, name: conc.title || existing.name });
-                results.concentratorsUpdated++;
-              } else {
-                results.concentratorsSkipped++;
-              }
+              await storage.updateConcentrator(existing.id, concData);
+              results.concentratorsUpdated++;
             } else {
-              await storage.createConcentrator({
-                name: conc.title || `Concentrador Voalle #${voalleId}`,
-                ipAddress: conc.server_ip,
-                voalleId: voalleId,
-                isActive: true,
-              });
+              await storage.createConcentrator(concData);
               results.concentratorsCreated++;
             }
           } catch (err: any) {
@@ -4211,53 +4258,67 @@ export async function registerRoutes(
 
             const name = ap.title || '';
             const ipAddr = ap.ip || '';
-            const isOlt = name.toUpperCase().includes('OLT');
+            const tipoCol = (ap.tipo || ap.type || '').trim().toLowerCase();
+            const isOlt = tipoCol === 'olt' || (tipoCol !== 'switch' && name.toUpperCase().includes('OLT'));
 
             if (isOlt) {
-              const existing = existingOltsByVoalleId.get(voalleId) || (ipAddr ? existingOltsByIp.get(ipAddr) : undefined);
+              const oltData: any = {
+                voalleId,
+                name: name || `OLT Voalle #${voalleId}`,
+                ipAddress: ipAddr || "0.0.0.0",
+                port: parseIntSafe(ap.port) || 23,
+                username: ap.username || ap.user || "admin",
+                password: ap.password || "",
+                connectionType: ap.connection_type || "telnet",
+              };
+              if (ap.vendor) oltData.vendor = resolveVendorSlug(ap.vendor);
+              if (ap.model) oltData.model = ap.model;
+              if (ap.winbox_port) oltData.winboxPort = parseIntSafe(ap.winbox_port) || 8291;
+              if (ap.database) oltData.database = ap.database;
+              if (ap.search_onu_command) oltData.searchOnuCommand = ap.search_onu_command;
+              if (ap.diagnosis_key_template) oltData.diagnosisKeyTemplate = ap.diagnosis_key_template;
+              if (ap.is_active !== undefined) oltData.isActive = ap.is_active !== '0' && ap.is_active.toLowerCase() !== 'false' && ap.is_active.toLowerCase() !== 'nao' && ap.is_active.toLowerCase() !== 'não';
+
+              const existing = existingOltsByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingOltsByIp.get(ipAddr) : undefined);
               if (existing) {
-                if (!existing.voalleId || existing.voalleId !== voalleId || (ipAddr && existing.ipAddress !== ipAddr)) {
-                  await storage.updateOlt(existing.id, { 
-                    voalleId, 
-                    name: name || existing.name,
-                    ...(ipAddr && ipAddr !== '0.0.0.0' ? { ipAddress: ipAddr } : {}),
-                  });
-                  results.accessPointsUpdated++;
-                } else {
-                  results.accessPointsSkipped++;
-                }
+                await storage.updateOlt(existing.id, oltData);
+                results.accessPointsUpdated++;
+                results.oltsUpdated++;
               } else {
-                await storage.createOlt({
-                  name: name,
-                  ipAddress: ipAddr || "0.0.0.0",
-                  voalleId: voalleId,
-                  port: 23,
-                  username: "admin",
-                  password: "",
-                  connectionType: "telnet",
-                });
+                await storage.createOlt(oltData);
                 results.oltsCreated++;
                 results.accessPointsCreated++;
               }
             } else {
-              const existing = existingSwitchesByVoalleId.get(voalleId) || (ipAddr ? existingSwitchesByIp.get(ipAddr) : undefined);
+              const switchData: any = {
+                voalleId,
+                name: name || `Switch Voalle #${voalleId}`,
+                ipAddress: ipAddr || "0.0.0.0",
+              };
+              if (ap.vendor) {
+                switchData.vendor = resolveVendorSlug(ap.vendor);
+                const vid = resolveVendorId(ap.vendor);
+                if (vid) switchData.vendorId = vid;
+              }
+              if (ap.model) switchData.model = ap.model;
+              if (ap.ssh_user) switchData.sshUser = ap.ssh_user;
+              if (ap.ssh_password) switchData.sshPassword = ap.ssh_password;
+              if (ap.ssh_port) switchData.sshPort = parseIntSafe(ap.ssh_port) || 22;
+              if (ap.web_port) switchData.webPort = parseIntSafe(ap.web_port) || 80;
+              if (ap.web_protocol) switchData.webProtocol = ap.web_protocol.toLowerCase();
+              if (ap.winbox_port) switchData.winboxPort = parseIntSafe(ap.winbox_port) || 8291;
+              if (ap.optical_rx_oid_template) switchData.opticalRxOidTemplate = ap.optical_rx_oid_template;
+              if (ap.optical_tx_oid_template) switchData.opticalTxOidTemplate = ap.optical_tx_oid_template;
+              if (ap.port_index_template) switchData.portIndexTemplate = ap.port_index_template;
+              if (ap.is_active !== undefined) switchData.isActive = ap.is_active !== '0' && ap.is_active.toLowerCase() !== 'false' && ap.is_active.toLowerCase() !== 'nao' && ap.is_active.toLowerCase() !== 'não';
+
+              const existing = existingSwitchesByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingSwitchesByIp.get(ipAddr) : undefined);
               if (existing) {
-                if (!existing.voalleId || existing.voalleId !== voalleId || (ipAddr && existing.ipAddress !== ipAddr)) {
-                  await storage.updateSwitch(existing.id, {
-                    voalleId,
-                    name: name || existing.name,
-                    ...(ipAddr && ipAddr !== '0.0.0.0' ? { ipAddress: ipAddr } : {}),
-                  });
-                  results.accessPointsUpdated++;
-                } else {
-                  results.accessPointsSkipped++;
-                }
+                await storage.updateSwitch(existing.id, switchData);
+                results.accessPointsUpdated++;
+                results.switchesUpdated++;
               } else {
-                await storage.createSwitch({
-                  name: name || `Switch Voalle #${voalleId}`,
-                  ipAddress: ipAddr || "0.0.0.0",
-                  voalleId: voalleId,
-                });
+                await storage.createSwitch(switchData);
                 results.switchesCreated++;
                 results.accessPointsCreated++;
               }
