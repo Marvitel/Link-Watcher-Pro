@@ -4243,6 +4243,11 @@ export async function registerRoutes(
               const val = (conc.is_access_point || conc.ponto_de_acesso || '').toString().toLowerCase().trim();
               concData.isAccessPoint = val === '1' || val === 'true' || val === 'sim' || val === 'yes' || val === 's';
             }
+            const apIds = conc.voalle_access_point_ids || conc.ids_ponto_de_acesso || conc.access_point_ids || '';
+            if (apIds) {
+              concData.voalleAccessPointIds = String(apIds).trim();
+              concData.isAccessPoint = true;
+            }
 
             const existing = existingByVoalleId.get(voalleId) || existingByIp.get(ip);
             if (existing) {
@@ -4572,10 +4577,16 @@ export async function registerRoutes(
       const concentratorsCache = new Map<number, number>(); // voalleId -> concentratorId
       const existingConcentrators = await storage.getConcentrators();
       const existingConcentratorsByVoalleId = new Map<number, typeof existingConcentrators[0]>();
+      const existingConcentratorsByAccessPointVoalleId = new Map<number, typeof existingConcentrators[0]>();
       for (const conc of existingConcentrators) {
         if (conc.voalleIds) {
           for (const vid of conc.voalleIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))) {
             existingConcentratorsByVoalleId.set(vid, conc);
+          }
+        }
+        if (conc.isAccessPoint && conc.voalleAccessPointIds) {
+          for (const vid of conc.voalleAccessPointIds.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))) {
+            existingConcentratorsByAccessPointVoalleId.set(vid, conc);
           }
         }
       }
@@ -4643,10 +4654,16 @@ export async function registerRoutes(
         const voalleId = parseInt(link.accessPointId, 10);
         if (isNaN(voalleId)) return { oltId: null, switchId: null, concentratorAsAccessPointId: null };
 
-        // Check if access point ID matches a concentrator marked as access point
+        // Check if access point ID matches a concentrator's voalleAccessPointIds
+        const concByAPId = existingConcentratorsByAccessPointVoalleId.get(voalleId);
+        if (concByAPId) {
+          console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concByAPId.name}" via voalleAccessPointIds`);
+          return { oltId: null, switchId: null, concentratorAsAccessPointId: concByAPId.id };
+        }
+        // Fallback: check if access point ID matches a concentrator's main voalleIds and it's marked as access point
         const concAsAP = existingConcentratorsByVoalleId.get(voalleId);
         if (concAsAP && concAsAP.isAccessPoint) {
-          console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concAsAP.name}" marked as access point`);
+          console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concAsAP.name}" marked as access point (via main voalleIds)`);
           return { oltId: null, switchId: null, concentratorAsAccessPointId: concAsAP.id };
         }
 

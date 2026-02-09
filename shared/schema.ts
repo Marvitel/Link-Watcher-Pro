@@ -741,6 +741,7 @@ export const snmpConcentrators = pgTable("snmp_concentrators", {
   vendor: varchar("vendor", { length: 50 }), // mikrotik, cisco, huawei, etc
   backupConcentratorId: integer("backup_concentrator_id"), // Concentrador backup para failover PPPoE
   isAccessPoint: boolean("is_access_point").notNull().default(false), // Concentrador também funciona como ponto de acesso (clientes conectados diretamente)
+  voalleAccessPointIds: text("voalle_access_point_ids"), // IDs do ponto de acesso no Voalle (authenticationAccessPoint.id) - diferentes do voalleIds de concentrador
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -965,6 +965,7 @@ export function VoalleImportTab() {
             winbox_port: n.winbox_port || n.porta_winbox || '',
             is_active: n.is_active || n.ativo || '',
             is_access_point: n.is_access_point || n.ponto_de_acesso || '',
+            voalle_access_point_ids: n.voalle_access_point_ids || n.ids_ponto_de_acesso || n.access_point_ids || '',
           };
         }),
         accessPoints: accessPoints.map(ap => {

@@ -9124,6 +9124,7 @@ interface SnmpConcentrator {
   description: string | null;
   backupConcentratorId: number | null;
   isAccessPoint: boolean;
+  voalleAccessPointIds: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -9174,6 +9175,7 @@ function ConcentratorsTab() {
     vendor: "",
     backupConcentratorId: null as number | null,
     isAccessPoint: false,
+    voalleAccessPointIds: null as string | null,
   });
 
   const resetForm = () => {
@@ -9196,6 +9198,7 @@ function ConcentratorsTab() {
       voalleIds: null,
       backupConcentratorId: null,
       isAccessPoint: false,
+      voalleAccessPointIds: null,
     });
     setEditingConcentrator(undefined);
     setIsCreatingProfile(false);
@@ -9251,6 +9254,7 @@ function ConcentratorsTab() {
       vendor: concentrator.vendor || "",
       backupConcentratorId: concentrator.backupConcentratorId || null,
       isAccessPoint: concentrator.isAccessPoint || false,
+      voalleAccessPointIds: concentrator.voalleAccessPointIds || null,
     });
     setDialogOpen(true);
   };
@@ -9539,6 +9543,22 @@ function ConcentratorsTab() {
                   data-testid="checkbox-concentrator-is-access-point"
                 />
               </div>
+
+              {formData.isAccessPoint && (
+                <div className="space-y-2">
+                  <Label htmlFor="concentrator-voalle-ap-ids">IDs Voalle de Ponto de Acesso</Label>
+                  <Input
+                    id="concentrator-voalle-ap-ids"
+                    placeholder="Ex: 100,200,300"
+                    value={formData.voalleAccessPointIds || ""}
+                    onChange={(e) => setFormData({ ...formData, voalleAccessPointIds: e.target.value || null })}
+                    data-testid="input-concentrator-voalle-ap-ids"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    IDs do authenticationAccessPoint no Voalle (separados por virgula). Diferentes do ID de concentrador.
+                  </p>
+                </div>
+              )}
               
               {/* Credenciais SSH */}
               <div className="space-y-2 pt-2 border-t">
