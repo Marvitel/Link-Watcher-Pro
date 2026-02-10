@@ -1476,7 +1476,6 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   let trafficSourceProfileId = link.snmpProfileId;
   
   if (link.trafficSourceType === 'accessPoint' && link.accessPointId) {
-    // Fetch switch data for access point mode
     const accessPointSwitch = await db.select().from(switches).where(eq(switches.id, link.accessPointId)).limit(1);
     if (accessPointSwitch.length > 0) {
       const sw = accessPointSwitch[0];
@@ -1485,13 +1484,30 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       trafficSourceIfIndex = link.accessPointInterfaceIndex || null;
       console.log(`[Monitor] ${link.name}: Using access point (${sw.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}`);
     }
+  } else if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
+    const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+    if (concentrator) {
+      if (!trafficSourceIp) {
+        trafficSourceIp = concentrator.ipAddress;
+      }
+      if (!trafficSourceProfileId && concentrator.snmpProfileId) {
+        trafficSourceProfileId = concentrator.snmpProfileId;
+      }
+      if (!trafficSourceIfIndex && link.snmpInterfaceIndex) {
+        trafficSourceIfIndex = link.snmpInterfaceIndex;
+      }
+      console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
+    }
   }
 
+  if (!trafficSourceProfileId || !trafficSourceIp) {
+    console.log(`[Monitor] ${link.name}: Cannot collect traffic - missing trafficSourceIp=${trafficSourceIp}, profileId=${trafficSourceProfileId}, ifIndex=${trafficSourceIfIndex}, sourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}`);
+  }
+  
   if (trafficSourceProfileId && trafficSourceIp) {
     const profile = await getSnmpProfile(trafficSourceProfileId);
 
     if (profile) {
-      // Collect traffic data if interface index is configured
       if (trafficSourceIfIndex) {
         const trafficData = await getInterfaceTraffic(
           trafficSourceIp,
@@ -1508,9 +1524,13 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             const bandwidth = calculateBandwidth(trafficData, previousData);
             downloadMbps = bandwidth.downloadMbps;
             uploadMbps = bandwidth.uploadMbps;
+          } else {
+            console.log(`[Monitor] ${link.name}: First traffic reading stored (need 2 readings to calculate bandwidth). inOctets=${trafficData.inOctets}, outOctets=${trafficData.outOctets}`);
           }
 
           previousTrafficData.set(link.id, trafficData);
+        } else {
+          console.log(`[Monitor] ${link.name}: SNMP traffic collection returned null. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}, profileId=${trafficSourceProfileId}`);
         }
         
         // Handle auto-discovery of ifIndex when collection fails
@@ -1524,8 +1544,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         const canDoCorporateDiscovery = link.authType === 'corporate' && link.trafficSourceType === 'concentrator' && link.concentratorId && link.vlanInterface;
         const canDoConcentratorDiscovery = canDoPppoeDiscovery || canDoCorporateDiscovery;
         
-        // Para links corporativos, usar vlanInterface como gatilho se snmpInterfaceName não existir
-        const hasInterfaceForDiscovery = link.snmpInterfaceName || (link.authType === 'corporate' && link.vlanInterface);
+        const hasInterfaceForDiscovery = link.snmpInterfaceName || (link.authType === 'corporate' && link.vlanInterface) || (link.trafficSourceType === 'concentrator' && link.pppoeUser);
         if (hasInterfaceForDiscovery && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
