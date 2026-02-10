@@ -5063,6 +5063,7 @@ export async function registerRoutes(
                     if (session.ipAddress) {
                       updateData.monitoredIp = session.ipAddress;
                       pppoeIpsFound++;
+                      importJobStatus.pppoeIpsFound = pppoeIpsFound;
                     }
                     
                     // Salvar ifIndex, ifName, ifAlias para coleta de tráfego via concentrador
@@ -5377,6 +5378,7 @@ export async function registerRoutes(
                       if (corpInfo.ipAddress) {
                         updateData.monitoredIp = corpInfo.ipAddress;
                         corporateIpsFound++;
+                        importJobStatus.corporateIpsFound = corporateIpsFound;
                       }
                       
                       // Se o link não tem ipBlock definido (não veio validLanIp no CSV), usar o do SNMP
@@ -5592,6 +5594,7 @@ export async function registerRoutes(
                   await storage.updateLink(link.id, { onuId: result.onuId });
                   console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}`);
                   onuIdsDiscovered++;
+                  importJobStatus.onuIdsDiscovered = onuIdsDiscovered;
                 } else {
                   console.log(`[Voalle Import] ${link.name}: ONU não encontrada (${result.message})`);
                 }
