@@ -207,7 +207,7 @@ const OUI_VENDOR_MAP: Record<string, string> = {
   "60:e3:27": "tplink",
   "64:66:b3": "tplink",
   "6c:5a:b5": "tplink",
-  "70:cd:91": "tplink",
+  // 70:cd:91 é Teracom Telematica (Datacom) - NÃO é TP-Link
   "78:44:76": "tplink",
   "90:f6:52": "tplink",
   "98:25:4a": "tplink",
@@ -280,8 +280,11 @@ const OUI_VENDOR_MAP: Record<string, string> = {
   "e4:f3:e8": "fiberhome",
   "f8:59:71": "fiberhome",
   
-  // Datacom
+  // Datacom (Teracom Telematica S.A.)
   "00:04:38": "datacom",
+  "00:04:df": "datacom",
+  "18:81:ed": "datacom",
+  "70:cd:91": "datacom",
   
   // Nokia (Alcatel-Lucent)
   "00:1d:b5": "nokia",
@@ -358,6 +361,9 @@ const VENDOR_NAME_TO_SLUG: Record<string, string> = {
   "fiberhometelecommunicationtechnologies": "fiberhome",
   "datacom": "datacom",
   "datacomelecja": "datacom",
+  "teracom": "datacom",
+  "teracomtelematica": "datacom",
+  "teracomtelematicasa": "datacom",
   "nokia": "nokia",
   "nokiacorporation": "nokia",
   "alcatellucent": "nokia",
