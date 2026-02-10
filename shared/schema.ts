@@ -75,7 +75,7 @@ export const groupPermissions = pgTable("group_permissions", {
 export const links = pgTable("links", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull(),
-  identifier: varchar("identifier", { length: 50 }).notNull(),
+  identifier: varchar("identifier", { length: 100 }).notNull(),
   name: text("name").notNull(),
   location: text("location").notNull(),
   address: text("address").notNull(),
