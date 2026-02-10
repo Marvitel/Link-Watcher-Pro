@@ -1,0 +1,48 @@
+ev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 94, clientName: PARK VILLE CONDOMINIUM (13390850000195)
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Found existing client by slug: park-ville-condominium, updating/reactivating with voalleId: 94
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 119, oltName: OLT-DATACOM-PARKVILLE
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Access point "OLT-DATACOM-PARKVILLE" isOlt: true
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] OLT from existing: 22
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Link CASA_72_PKV_0AFQLRMX: clientId=40, concentratorId=33, oltId=22, switchId=null, concAsAP=null
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Updating existing link CASA_72_PKV_0AFQLRMX (ID: 111) with accessPointId=22
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 10 12:11:08 link-monitor npm[2566793]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: AJU-PKV-RB-1009 (SNMP: SNMP MARVITEL V2)
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Buscando 1 sessões em CE: AJU-PKV-RB-1009 (mikrotik) via SNMP
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Conectando em 191.52.251.102:161 (2c, community: marvitel)
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Conectividade OK - RouterOS CCR1009-7G-1C-1S+...
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Tentando OIDs: IF-MIB Standard
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] IF-MIB Standard: 102 usuários, 8 IPs, 0 MACs
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] IF-MIB Standard: Usuário alvo encontrado, usando este OID set
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Walk final: 102 usuários ativos usando "IF-MIB Standard"
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Amostra de usuários ativos: sfp-sfpplus1, combo1, ether1, ether2-RB1, ether3...
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Buscando usuários: casa_72
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Buscando ifName e ifAlias...
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] ifName: 102, ifAlias: 3 entradas
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Buscando tabela de rotas IP (ipRouteIfIndex)...
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Tabela de rotas: 95 entradas
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Mapeamento ifIndex->IP: 94 entradas
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Índice ifAlias->ifIndex: 3 entradas
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Amostra ifAlias: link 2 marvitel, pabbx-digitro, pc-monitoramento
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Usuário "casa_72" -> ifIndex 15747084 (via userIndex), ifName: <pppoe-casa_72>, ifAlias: N/A, IP: 100.80.8.10
+fev 10 12:11:08 link-monitor npm[2566793]: [PPPoE SNMP] Encontradas 1 sessões de 1 buscadas (SNMP retornou 94 mapeamentos IP)
+fev 10 12:11:09 link-monitor npm[2566793]: [Corporate SNMP] Tabela de rotas CIDR: 95 entradas
+fev 10 12:11:09 link-monitor npm[2566793]: [Corporate SNMP] Rota ignorada (IP privado/CGNAT): 100.80.8.10/32
+fev 10 12:11:09 link-monitor npm[2566793]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): IP=100.80.8.10, ifIndex=15747084, ifName=<pppoe-casa_72>, ipBlock=N/A
+fev 10 12:11:09 link-monitor npm[2566793]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: CISCO ASR1002 (SNMP: SNMP MARVITEL V2)
+fev 10 12:11:09 link-monitor npm[2566793]: [PPPoE SNMP] Buscando 1 sessões em CE: CISCO ASR1002 (cisco) via SNMP
+fev 10 12:11:09 link-monitor npm[2566793]: [PPPoE SNMP] Conectando em 191.52.255.254:161 (2c, community: marvitel)
+fev 10 12:11:09 link-monitor npm[2566793]: [PPPoE SNMP] Conectividade OK - Cisco IOS Software, ASR1000 Software (PPC_LINUX_IOSD-ADVIPSERVICESK9-M), Version...
+fev 10 12:11:09 link-monitor npm[2566793]: [PPPoE SNMP] Tentando OIDs: Cisco Subscriber
+fev 10 12:11:11 link-monitor npm[2566793]: [PPPoE SNMP] Cisco Subscriber: 1 usuários, 0 IPs, 0 MACs
+fev 10 12:11:11 link-monitor npm[2566793]: [PPPoE SNMP] Cisco Subscriber: Usuário alvo NÃO encontrado, tentando próximo OID set...
+fev 10 12:11:11 link-monitor npm[2566793]: [PPPoE SNMP] Tentando OIDs: Cisco ASR ifAlias
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Cisco ASR ifAlias: 74 usuários, 112 IPs, 0 MACs
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Walk final: 1 usuários ativos usando "Cisco Subscriber"
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Amostra de usuários ativos: 38554
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Buscando usuários: rp.rualaranjeiras
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Usuário "rp.rualaranjeiras" não encontrado no índice
+fev 10 12:11:12 link-monitor npm[2566793]: [PPPoE SNMP] Encontradas 0 sessões de 1 buscadas (SNMP retornou 0 mapeamentos IP)

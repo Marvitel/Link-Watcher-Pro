@@ -56,6 +56,23 @@ declare global {
   }
 }
 
+interface ImportJobStatus {
+  jobId: string;
+  status: 'running' | 'completed' | 'error';
+  phase: 'discovery' | 'pppoe_lookup' | 'corporate_lookup' | 'onu_discovery' | 'done';
+  linksImported: number;
+  linksFailed: number;
+  pppoeIpsFound: number;
+  corporateIpsFound: number;
+  onuIdsDiscovered: number;
+  errors: Array<{ serviceTag: string; error: string }>;
+  startedAt: string;
+  completedAt?: string;
+  bgError?: string;
+}
+
+const activeImportJobs = new Map<string, ImportJobStatus>();
+
 function mapIncidentReasonToEventType(failureReason: string): string {
   const reasonMap: Record<string, string> = {
     "fibra_rompida": "link_down",
@@ -4939,10 +4956,44 @@ export async function registerRoutes(
         }
       }
 
+      // Return results immediately - run discovery in background to avoid nginx 504 timeout
+      // Use client-provided jobId if available, otherwise generate one
+      const jobId = (req.body.importJobId as string) || `voalle-import-${Date.now()}`;
+      
+      // Reuse existing job if this is a subsequent batch
+      let importJobStatus = activeImportJobs.get(jobId);
+      if (importJobStatus) {
+        importJobStatus.linksImported += results.success;
+        importJobStatus.linksFailed += results.failed;
+        importJobStatus.errors.push(...results.errors);
+      } else {
+        importJobStatus = {
+          jobId,
+          status: 'running',
+          phase: 'discovery',
+          linksImported: results.success,
+          linksFailed: results.failed,
+          pppoeIpsFound: 0,
+          corporateIpsFound: 0,
+          onuIdsDiscovered: 0,
+          errors: results.errors,
+          startedAt: new Date().toISOString(),
+        };
+        activeImportJobs.set(jobId, importJobStatus);
+      }
+
+      // Send response immediately
+      res.json({ ...results, pppoeIpsFound: 0, corporateIpsFound: 0, onuIdsDiscovered: 0, jobId });
+
+      // Run heavy discovery operations in background (fire-and-forget)
+      const runBackgroundDiscovery = async () => {
+        try {
+
       // Optional: Lookup PPPoE IPs from concentrators
       let pppoeIpsFound = 0;
       if (lookupPppoeIps && results.success > 0) {
         console.log(`[Voalle Import] Iniciando busca de IPs via PPPoE...`);
+        importJobStatus.phase = 'pppoe_lookup';
         
         // Mapa global de MACs descobertos por link (para vinculação de CPE)
         const pppoeSessionMacs = new Map<number, string>();
@@ -5245,6 +5296,7 @@ export async function registerRoutes(
       let corporateIpsFound = 0;
       if (results.success > 0) {
         console.log(`[Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...`);
+        importJobStatus.phase = 'corporate_lookup';
         
         try {
           const { lookupCorporateLinkInfo, detectVendorByMac } = await import("./concentrator");
@@ -5452,6 +5504,9 @@ export async function registerRoutes(
       }
 
       // Etapa 6: Descobrir ONU ID para links importados que tenham OLT e Serial configurados
+      importJobStatus.phase = 'onu_discovery';
+      importJobStatus.pppoeIpsFound = pppoeIpsFound;
+      importJobStatus.corporateIpsFound = corporateIpsFound;
       let onuIdsDiscovered = 0;
       try {
         const { searchOnuBySerial } = await import("./olt");
@@ -5557,12 +5612,55 @@ export async function registerRoutes(
         console.error(`[Voalle Import] Erro na descoberta de ONU IDs:`, onuError);
       }
 
-      res.json({ ...results, pppoeIpsFound, corporateIpsFound, onuIdsDiscovered });
+      // Update final job status
+      importJobStatus.pppoeIpsFound = pppoeIpsFound;
+      importJobStatus.corporateIpsFound = corporateIpsFound;
+      importJobStatus.onuIdsDiscovered = onuIdsDiscovered;
+      importJobStatus.status = 'completed';
+      importJobStatus.phase = 'done';
+      importJobStatus.completedAt = new Date().toISOString();
+      console.log(`[Voalle Import] Background discovery completed: PPPoE=${pppoeIpsFound}, Corporate=${corporateIpsFound}, ONU=${onuIdsDiscovered}`);
+
+      // Clean up job after 10 minutes
+      setTimeout(() => activeImportJobs.delete(jobId), 600000);
+
+        } catch (bgError: any) {
+          console.error("[Voalle Import] Background discovery error:", bgError);
+          importJobStatus.status = 'error';
+          importJobStatus.phase = 'done';
+          importJobStatus.completedAt = new Date().toISOString();
+          importJobStatus.bgError = bgError?.message;
+          setTimeout(() => activeImportJobs.delete(jobId), 600000);
+        }
+      };
+      
+      // Fire and forget - don't await
+      runBackgroundDiscovery().catch(err => {
+        console.error("[Voalle Import] Fatal background error:", err);
+      });
 
     } catch (error: any) {
       console.error("Error in Voalle import:", error);
       console.error("Error stack:", error?.stack);
-      res.status(500).json({ error: "Falha na importação do Voalle", details: error?.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Falha na importação do Voalle", details: error?.message });
+      }
+    }
+  });
+
+  // Voalle Import Job Status - polling endpoint for background discovery progress
+  app.get("/api/admin/voalle-import-status/:jobId", requireAuth, async (req, res) => {
+    try {
+      if (!req.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Apenas super admins" });
+      }
+      const job = activeImportJobs.get(req.params.jobId);
+      if (!job) {
+        return res.status(404).json({ status: 'not_found', phase: 'done', jobId: req.params.jobId });
+      }
+      res.json(job);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao verificar status" });
     }
   });
 

@@ -106,7 +106,33 @@ interface ImportResult {
   failed: number;
   errors: Array<{ serviceTag: string; error: string }>;
   pppoeIpsFound?: number;
+  corporateIpsFound?: number;
+  onuIdsDiscovered?: number;
+  jobId?: string;
 }
+
+interface ImportJobStatus {
+  jobId: string;
+  status: 'running' | 'completed' | 'error';
+  phase: 'discovery' | 'pppoe_lookup' | 'corporate_lookup' | 'onu_discovery' | 'done';
+  linksImported: number;
+  linksFailed: number;
+  pppoeIpsFound: number;
+  corporateIpsFound: number;
+  onuIdsDiscovered: number;
+  errors: Array<{ serviceTag: string; error: string }>;
+  startedAt: string;
+  completedAt?: string;
+  bgError?: string;
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  discovery: 'Iniciando descoberta...',
+  pppoe_lookup: 'Descobrindo IPs via PPPoE/SNMP...',
+  corporate_lookup: 'Buscando IPs corporativos via VLAN/ARP...',
+  onu_discovery: 'Descobrindo ONU IDs via OLT...',
+  done: 'Concluído',
+};
 
 function normalizeFieldName(field: string): string {
   return field
@@ -410,6 +436,7 @@ export function VoalleImportTab() {
   const [step, setStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const [filterText, setFilterText] = useState<string>('');
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
+  const [bgDiscovery, setBgDiscovery] = useState<ImportJobStatus | null>(null);
   const [equipmentResult, setEquipmentResult] = useState<{
     concentratorsCreated: number;
     concentratorsUpdated: number;
@@ -1156,6 +1183,7 @@ export function VoalleImportTab() {
       
       const accumulated: ImportResult = { success: 0, failed: 0, errors: [], pppoeIpsFound: 0 };
       const totalBatches = Math.ceil(totalLinks / BATCH_SIZE);
+      const importJobId = `voalle-import-${Date.now()}`;
       
       for (let i = 0; i < totalLinks; i += BATCH_SIZE) {
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
@@ -1171,13 +1199,13 @@ export function VoalleImportTab() {
           links: batch,
           targetClientId: selectedClientId === "auto" ? null : parseInt(selectedClientId),
           lookupPppoeIps,
+          importJobId,
         });
         const result: ImportResult = await response.json();
         
         accumulated.success += result.success;
         accumulated.failed += result.failed;
         accumulated.errors.push(...(result.errors || []));
-        accumulated.pppoeIpsFound = (accumulated.pppoeIpsFound || 0) + (result.pppoeIpsFound || 0);
         
         setImportProgress({
           current: Math.min(i + BATCH_SIZE, totalLinks),
@@ -1187,6 +1215,47 @@ export function VoalleImportTab() {
       }
       
       setImportProgress(null);
+      accumulated.jobId = importJobId;
+      
+      // Start background polling for discovery progress
+      setBgDiscovery({
+        jobId: importJobId,
+        status: 'running',
+        phase: 'discovery',
+        linksImported: accumulated.success,
+        linksFailed: accumulated.failed,
+        pppoeIpsFound: 0,
+        corporateIpsFound: 0,
+        onuIdsDiscovered: 0,
+        errors: [],
+        startedAt: new Date().toISOString(),
+      });
+      
+      // Poll for status updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/admin/voalle-import-status/${importJobId}`, { credentials: 'include' });
+          if (statusRes.ok) {
+            const status: ImportJobStatus = await statusRes.json();
+            setBgDiscovery(status);
+            if (status.status === 'completed' || status.status === 'error' || status.phase === 'done') {
+              clearInterval(pollInterval);
+              queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+            }
+          } else if (statusRes.status === 404) {
+            // Job completed and was cleaned up
+            setBgDiscovery(prev => prev ? { ...prev, status: 'completed', phase: 'done' } : null);
+            clearInterval(pollInterval);
+            queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+          }
+        } catch {
+          // Ignore poll errors
+        }
+      }, 3000);
+      
+      // Safety: stop polling after 15 minutes
+      setTimeout(() => clearInterval(pollInterval), 900000);
+      
       return accumulated;
     },
     onSuccess: (data: ImportResult) => {
@@ -1795,20 +1864,71 @@ export function VoalleImportTab() {
                   </CardContent>
                 </Card>
 
-                {importResult.pppoeIpsFound !== undefined && (
-                  <Card className={`${importResult.pppoeIpsFound > 0 ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800' : ''}`}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
-                        <CheckCircle className={`h-10 w-10 ${importResult.pppoeIpsFound > 0 ? 'text-blue-600' : 'text-muted-foreground'}`} />
-                        <div>
-                          <p className="text-2xl font-bold">{importResult.pppoeIpsFound}</p>
-                          <p className="text-sm text-muted-foreground">IPs via PPPoE</p>
-                        </div>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4">
+                      {bgDiscovery && bgDiscovery.status === 'running' ? (
+                        <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
+                      ) : (
+                        <CheckCircle className={`h-10 w-10 ${(bgDiscovery?.pppoeIpsFound || 0) + (bgDiscovery?.corporateIpsFound || 0) > 0 ? 'text-blue-600' : 'text-muted-foreground'}`} />
+                      )}
+                      <div>
+                        <p className="text-2xl font-bold">
+                          {bgDiscovery ? `${bgDiscovery.pppoeIpsFound + bgDiscovery.corporateIpsFound}` : '...'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">IPs descobertos</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+
+              {bgDiscovery && bgDiscovery.status === 'running' && (
+                <Alert>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertTitle>Descoberta em andamento</AlertTitle>
+                  <AlertDescription>
+                    <p className="mb-1">{PHASE_LABELS[bgDiscovery.phase] || bgDiscovery.phase}</p>
+                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                      <span>PPPoE IPs: {bgDiscovery.pppoeIpsFound}</span>
+                      <span>Corporate IPs: {bgDiscovery.corporateIpsFound}</span>
+                      <span>ONU IDs: {bgDiscovery.onuIdsDiscovered}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Os links já foram importados. A descoberta de IPs e ONU IDs continua em segundo plano.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {bgDiscovery && bgDiscovery.status === 'completed' && (
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>Descoberta concluída</AlertTitle>
+                  <AlertDescription>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong></span>
+                      <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong></span>
+                      <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong></span>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {bgDiscovery && bgDiscovery.status === 'error' && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Erro na descoberta</AlertTitle>
+                  <AlertDescription>
+                    <p className="text-sm mb-1">{bgDiscovery.bgError || 'Erro durante a descoberta em segundo plano'}</p>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong></span>
+                      <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong></span>
+                      <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong></span>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {importResult.errors.length > 0 && (
                 <Alert variant="destructive">
@@ -1829,7 +1949,7 @@ export function VoalleImportTab() {
               )}
 
               <div className="flex justify-center">
-                <Button onClick={resetImport} data-testid="button-new-import">
+                <Button onClick={() => { resetImport(); setBgDiscovery(null); }} data-testid="button-new-import">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Nova Importação
                 </Button>
