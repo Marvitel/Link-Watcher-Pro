@@ -774,7 +774,7 @@ export function VoalleImportTab() {
           || authContractByContractMap.get(semPonto)
           || authContractByContractMap.get(comPrefixo);
         
-        const conexao = conexoesMap.get(tag.id);
+        const conexao = conexoesMap.get(Number(tag.id)) || conexoesMap.get(tag.id);
         
         if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: conexao=${!!conexao}, authContract=${!!authContract}`);
         
