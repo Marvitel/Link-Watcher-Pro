@@ -8191,6 +8191,10 @@ function OltsTab({ clients }: { clients: Client[] }) {
     queryKey: ["/api/olts"],
   });
 
+  const { data: equipmentVendorsList } = useQuery<Array<{ id: number; name: string; slug: string; isActive: boolean }>>({
+    queryKey: ["/api/equipment-vendors"],
+  });
+
   // Buscar perfis SNMP globais (de todos os clientes) para associar à OLT
   const { data: allSnmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number }>>({
     queryKey: ["/api/snmp-profiles"],
@@ -8443,17 +8447,14 @@ function OltsTab({ clients }: { clients: Client[] }) {
                     onValueChange={(v) => setFormData({ ...formData, vendor: v })}
                   >
                     <SelectTrigger data-testid="select-olt-vendor">
-                      <SelectValue placeholder="Selecione..." />
+                      <SelectValue placeholder="Selecione o fabricante..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="datacom">Datacom</SelectItem>
-                      <SelectItem value="zte">ZTE</SelectItem>
-                      <SelectItem value="furukawa">Furukawa</SelectItem>
-                      <SelectItem value="intelbras">Intelbras</SelectItem>
-                      <SelectItem value="tplink">TP-Link</SelectItem>
-                      <SelectItem value="huawei">Huawei</SelectItem>
-                      <SelectItem value="nokia">Nokia</SelectItem>
-                      <SelectItem value="fiberhome">Fiberhome</SelectItem>
+                      {equipmentVendorsList?.filter(v => v.isActive).map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.slug}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))}
                       <SelectItem value="zabbix">Zabbix (MySQL)</SelectItem>
                     </SelectContent>
                   </Select>
