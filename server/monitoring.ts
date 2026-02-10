@@ -1657,14 +1657,25 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           .limit(1);
         
         if (vendorBySlug.length > 0) {
-          const rxOid = vendorBySlug[0].opticalRxOid || null;
-          const txOid = vendorBySlug[0].opticalTxOid || null;
+          let rxOid = vendorBySlug[0].opticalRxOid || null;
+          let txOid = vendorBySlug[0].opticalTxOid || null;
           const oltRxOid = vendorBySlug[0].opticalOltRxOid || null;
           
-          // Verificar se pelo menos um OID óptico está configurado
+          // Fallback: se OIDs não configurados no fabricante, usar OIDs hardcoded do OPTICAL_OIDS
           if (!rxOid && !txOid && !oltRxOid) {
-            console.log(`[Monitor] ${link.name} - Óptico: OIDs não configurados para fabricante '${oltVendorSlug}' (${vendorBySlug[0].name}). Configure em Admin → Fabricantes.`);
-          } else {
+            const { OPTICAL_OIDS } = await import("./snmp");
+            const normalizedSlug = oltVendorSlug.toLowerCase().trim();
+            const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
+            if (fallbackOids) {
+              rxOid = fallbackOids.onuRxPower || null;
+              txOid = fallbackOids.onuTxPower || null;
+              console.log(`[Monitor] ${link.name} - Óptico: usando OIDs padrão para '${oltVendorSlug}' (RX=${rxOid}, TX=${txOid})`);
+            } else {
+              console.log(`[Monitor] ${link.name} - Óptico: OIDs não configurados para fabricante '${oltVendorSlug}' (${vendorBySlug[0].name}). Configure em Admin → Fabricantes.`);
+            }
+          }
+          
+          if (rxOid || txOid || oltRxOid) {
             const oltProfile = await getSnmpProfile(olt[0].snmpProfileId);
             if (oltProfile) {
               const onuParams = {
