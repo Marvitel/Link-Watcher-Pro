@@ -879,9 +879,112 @@ export function VoalleImportTab() {
         links.push(link);
       }
 
+      // Caminho alternativo: se não tem contract_service_tags, processar direto do conexoes.csv
+      if (contractTags.length === 0 && conexoes.length > 0) {
+        console.log(`[Voalle Import] Sem contract_service_tags - processando ${conexoes.length} conexões diretamente`);
+        
+        for (const conexao of conexoes) {
+          const codigoConexao = conexao['Código da Conexão'] || conexao['Código Conexão'] || conexao['Cod. Conexão'] || conexao['Cód. da Conexão'] || '';
+          const codigoContrato = conexao['Código do Contrato'] || conexao['Codigo do Contrato'] || conexao['código do contrato'] || '';
+          const contractIdStr = String(codigoContrato).trim();
+          
+          // Regra de Ouro - Requisito 2: Contrato ativo
+          if (hasContratosAtivosFilter) {
+            const semPrefixo = contractIdStr.replace(/^M-/i, '');
+            const semPonto = semPrefixo.replace(/\./g, '');
+            const comPrefixo = `M-${semPrefixo}`;
+            const isActive = contratosAtivosSet.has(contractIdStr) || 
+                            contratosAtivosSet.has(semPrefixo) || 
+                            contratosAtivosSet.has(semPonto) ||
+                            contratosAtivosSet.has(comPrefixo);
+            if (!isActive) {
+              skippedByContratosAtivos++;
+              continue;
+            }
+          }
+          
+          // Regra de Ouro - Requisito 3: PPPoE/VLAN/Tipo de Conexão
+          const tipoConexaoRaw = conexao['Tipo de Conexão'] || conexao['Tipo de conexão'] || null;
+          const tipoConexao = tipoConexaoRaw ? String(tipoConexaoRaw).trim() : null;
+          const pppoeUserVal = conexao['Usuário'] || null;
+          const vlanInterfaceVal = conexao['Interface VLAN'] || null;
+          const vlanVal = conexao['VLAN'] || null;
+          const hasPppoeOrVlan = !!(pppoeUserVal || vlanInterfaceVal || vlanVal);
+          const hasValidTipoConexao = tipoConexao === '1' || tipoConexao === '2' || tipoConexao === '4';
+          
+          if (!hasPppoeOrVlan && !hasValidTipoConexao) {
+            skippedByTitle++;
+            continue;
+          }
+          
+          const etiqueta = conexao['Etiqueta'] || conexao['etiqueta'] || '';
+          const servico = conexao['Serviço'] || conexao['Servico'] || '';
+          const monitoredIpFromConexao = conexao['IP'] || conexao['ip'] || null;
+          const address = [conexao['Rua'], conexao['Número'], conexao['Bairro']].filter(Boolean).join(', ');
+          const complementoConexao = conexao['Complemento'] || '';
+          const equipmentUser = conexao['Usuário do Equipamento'] || '';
+          const linkName = complementoConexao?.trim() || 
+            (equipmentUser.includes('===') ? equipmentUser.split('===')[0].trim() : (equipmentUser.trim() || null));
+          
+          const clientName = conexao['Nome do Cliente'] || conexao['nome do cliente'] || `Contrato ${contractIdStr}`;
+          const accessPointName = conexao['Ponto de Acesso'] || conexao['ponto de acesso'] || null;
+          
+          const link: ParsedLink = {
+            id: `voalle-con-${codigoConexao || Math.random().toString(36).substr(2, 9)}`,
+            serviceTag: etiqueta,
+            contractNumber: contractIdStr || null,
+            title: etiqueta || servico || `Conexão ${codigoConexao}`,
+            linkName,
+            clientName,
+            clientVoalleId: conexao['Código do Cliente'] ? parseInt(String(conexao['Código do Cliente'])) : null,
+            clientCpfCnpj: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
+            clientPortalUser: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
+            clientPortalPassword: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
+            bandwidth: extractBandwidth(etiqueta || servico || ''),
+            address,
+            city: conexao['Cidade'] || '',
+            lat: conexao['Latitude'] || null,
+            lng: conexao['Longitude'] || null,
+            slotOlt: conexao['Slot OLT'] ? parseInt(conexao['Slot OLT']) : null,
+            portOlt: conexao['Porta OLT'] ? parseInt(conexao['Porta OLT']) : null,
+            equipmentSerial: conexao['Serial do Equipamento'] || null,
+            concentratorId: conexao['Código Concentrador'] || conexao['Código do Concentrador'] || null,
+            concentratorIp: conexao['IP Concentrador'] || conexao['IP do Concentrador'] || null,
+            concentratorName: conexao['Concentrador'] || null,
+            accessPointId: conexao['Código do Ponto de Acesso'] || null,
+            oltIp: conexao['IP Ponto de Acesso'] || conexao['IP do Ponto de Acesso'] || null,
+            oltName: accessPointName,
+            cpeUser: conexao['Usuário do Equipamento'] || null,
+            cpePassword: conexao['Senha do Equipamento'] || null,
+            pppoeUser: pppoeUserVal,
+            pppoePassword: conexao['Senha do Usuário'] || conexao['Senha'] || null,
+            vlan: vlanVal ? parseInt(String(vlanVal)) : null,
+            vlanInterface: vlanInterfaceVal,
+            validLanIp: conexao['IP Válido LAN'] || null,
+            validLanIpClass: conexao['Classe IP LAN'] || null,
+            wifiName: conexao['Nome WiFi'] || null,
+            wifiPassword: conexao['Senha WiFi'] || null,
+            addressComplement: complementoConexao || null,
+            ipAuthenticationId: conexao['Código do IP'] || null,
+            monitoredIp: monitoredIpFromConexao,
+            linkType: detectLinkType(accessPointName),
+            authType: tipoConexao === '1' ? 'pppoe' 
+              : (tipoConexao === '2' || tipoConexao === '4') ? 'corporate' 
+              : pppoeUserVal ? 'pppoe' : 'corporate',
+            selected: true,
+            status: 'new',
+          };
+          
+          links.push(link);
+        }
+        
+        console.log(`[Voalle Import] Conexões processadas diretamente: ${links.length} links gerados`);
+      }
+
       // Log de debug: mostrar quantas etiquetas foram puladas por cada motivo
       console.log(`[Voalle Import] Resumo do processamento:`, {
         totalTags: contractTags.length,
+        totalConexoes: conexoes.length,
         linksGerados: links.length,
         pulados: {
           inativos: skippedInactive,
