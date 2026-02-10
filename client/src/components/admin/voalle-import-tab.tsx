@@ -1195,6 +1195,8 @@ export function VoalleImportTab() {
                   <div className="grid gap-3">
                     {Object.entries(CSV_TYPES).map(([type, info]) => {
                       const file = csvFiles.find(f => f.type === type);
+                      const isEquipmentType = type === 'authentication_concentrators' || type === 'authentication_access_points';
+                      if (!file && isEquipmentType) return null;
                       return (
                         <div 
                           key={type}
