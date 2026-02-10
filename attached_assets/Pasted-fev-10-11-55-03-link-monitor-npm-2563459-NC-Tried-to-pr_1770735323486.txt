@@ -1,0 +1,34 @@
+fev 10 11:55:03 link-monitor npm[2563459]: NC: Tried to process unknown reply: !empty
+fev 10 11:55:03 link-monitor npm[2563459]:     at VC.onUnknown (/opt/link-monitor/dist/index.cjs:221:14954)
+fev 10 11:55:03 link-monitor npm[2563459]:     at Object.onceWrapper (node:events:639:26)
+fev 10 11:55:03 link-monitor npm[2563459]:     at VC.emit (node:events:524:28)
+fev 10 11:55:03 link-monitor npm[2563459]:     at VC.processPacket (/opt/link-monitor/dist/index.cjs:221:14756)
+fev 10 11:55:03 link-monitor npm[2563459]:     at Object.callback (/opt/link-monitor/dist/index.cjs:221:14354)
+fev 10 11:55:03 link-monitor npm[2563459]:     at RC.sendTagData (/opt/link-monitor/dist/index.cjs:221:9338)
+fev 10 11:55:03 link-monitor npm[2563459]:     at e (/opt/link-monitor/dist/index.cjs:221:8783)
+fev 10 11:55:03 link-monitor npm[2563459]:     at RC.processSentence (/opt/link-monitor/dist/index.cjs:221:9224)
+fev 10 11:55:03 link-monitor npm[2563459]:     at RC.processRawData (/opt/link-monitor/dist/index.cjs:221:8126)
+fev 10 11:55:03 link-monitor npm[2563459]:     at BC.onData (/opt/link-monitor/dist/index.cjs:221:13438) {
+fev 10 11:55:03 link-monitor npm[2563459]:   errno: 'UNKNOWNREPLY'
+fev 10 11:55:03 link-monitor npm[2563459]: }
+fev 10 11:55:03 link-monitor npm[2563459]: Node.js v20.19.6
+fev 10 11:55:03 link-monitor systemd[1]: link-monitor.service: Main process exited, code=exited, status=1/FAILURE
+fev 10 11:55:03 link-monitor systemd[1]: link-monitor.service: Failed with result 'exit-code'.
+fev 10 11:55:03 link-monitor systemd[1]: link-monitor.service: Consumed 18.427s CPU time.
+fev 10 11:55:13 link-monitor systemd[1]: link-monitor.service: Scheduled restart job, restart counter is at 2.
+fev 10 11:55:13 link-monitor systemd[1]: Stopped link-monitor.service - Link Monitor - Marvitel.
+fev 10 11:55:13 link-monitor systemd[1]: link-monitor.service: Consumed 18.427s CPU time.
+fev 10 11:55:13 link-monitor systemd[1]: Started link-monitor.service - Link Monitor - Marvitel.
+fev 10 11:55:13 link-monitor npm[2564245]: > rest-express@1.0.0 start
+fev 10 11:55:13 link-monitor npm[2564245]: > NODE_ENV=production node dist/index.cjs
+fev 10 11:55:14 link-monitor npm[2564257]: [Security] Admin IP whitelist disabled (no ADMIN_IP_WHITELIST configured)
+fev 10 11:55:14 link-monitor npm[2564257]: [Firewall] Ativado com 4 entrada(s) na whitelist
+fev 10 11:55:14 link-monitor npm[2564257]: [Monitor] Starting real-time monitoring with 30s interval
+fev 10 11:55:14 link-monitor npm[2564257]: [Wanguard Auto-Sync] Sincronização automática iniciada (60s)
+fev 10 11:55:14 link-monitor npm[2564257]: [Aggregation] Starting aggregation jobs...
+fev 10 11:55:14 link-monitor npm[2564257]: [Aggregation] Jobs scheduled - Hourly at :05, Daily+Cleanup at 01:05
+fev 10 11:55:14 link-monitor npm[2564257]: [RADIUS] Microsoft dictionary loaded from: /opt/link-monitor/server/dictionaries/dictionary.microsoft
+fev 10 11:55:14 link-monitor npm[2564257]: [Monitor] Blacklist cache loaded: 2 links with blacklisted IPs
+fev 10 11:55:14 link-monitor npm[2564257]: [Monitor] Starting parallel collection for 38 links (10 workers)
+fev 10 11:55:14 link-monitor npm[2564257]: Ping failed for Rua Tenente Antônio Fontes Pitanga, 155, Farolândia: Command failed: ping -c 5 -W 3 -i 0.3 Rua Tenente Antônio Fontes Pitanga, 155, Farolândia 2>&1
+fev 10 11:55:14 link-monitor npm[2

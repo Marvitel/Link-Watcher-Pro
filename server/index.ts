@@ -7,6 +7,14 @@ import { createServer } from "http";
 import { setupTerminalWebSocket } from "./terminal";
 import { initializeFirewall, createFirewallMiddleware } from "./firewall";
 
+process.on('uncaughtException', (err) => {
+  console.error(`[Process] Uncaught exception (handled, not crashing): ${err.message}`);
+  if (err.stack) console.error(err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(`[Process] Unhandled rejection (handled, not crashing):`, reason);
+});
+
 const app = express();
 const httpServer = createServer(app);
 

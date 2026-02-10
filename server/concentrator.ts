@@ -21,7 +21,6 @@ export async function lookupMacViaMikrotikApi(
   try {
     console.log(`[Mikrotik API] Buscando MAC para IP ${targetIp} em ${ipAddress}:${port} (user: ${username}, pppoe: ${pppoeUser || 'N/A'})`);
     
-    // Conectar via API binária do Mikrotik (porta 8728 padrão, 8729 para SSL)
     api = new RouterOSClient({
       host: ipAddress,
       user: username,
@@ -31,8 +30,18 @@ export async function lookupMacViaMikrotikApi(
       tls: port === 8729 ? { rejectUnauthorized: false } : undefined,
     });
     
-    // connect() retorna o client que tem o método menu()
     client = await api.connect();
+    
+    if (client && typeof client.on === 'function') {
+      client.on('error', (err: any) => {
+        console.log(`[Mikrotik API] Client event error (handled): ${err?.message || err}`);
+      });
+    }
+    if (api && typeof api.on === 'function') {
+      api.on('error', (err: any) => {
+        console.log(`[Mikrotik API] API event error (handled): ${err?.message || err}`);
+      });
+    }
     console.log(`[Mikrotik API] Conectado a ${ipAddress}:${port}`);
     
     // 1. Tentar buscar na tabela ARP filtrando pelo IP
