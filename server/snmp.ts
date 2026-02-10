@@ -742,6 +742,12 @@ export const OPTICAL_OIDS = {
     onuTxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.14", // fkGponOnuTxOpticalPower (centésimos de dBm)
     onuDistance: "1.3.6.1.4.1.3979.6.4.2.1.2.1.1.1.21", // fkGponOnuDistance (metros)
   },
+  // Intelbras OLT 8820G / 110Gi
+  intelbras: {
+    onuRxPower: "1.3.6.1.4.1.26138.1.2.1.1.1.9",  // RX Power ONU (STRING dBm, "--" = offline)
+    oltRxPower: "1.3.6.1.4.1.26138.1.2.1.1.1.8",   // RX Power na OLT (STRING dBm)
+    onuAlerts:  "1.3.6.1.4.1.26138.1.2.1.1.1.10",  // Alertas da ONU
+  },
 };
 
 // Parâmetros da ONU para cálculo do índice SNMP
@@ -831,9 +837,15 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     
     case 'intelbras':
     case 'intelbras-olt':
-      // Intelbras: similar ao ZTE
-      const intelbrasIfIndex = (slot * 32768) + (port * 256) + 1;
-      return `${intelbrasIfIndex}.${onuId}`;
+    case 'intelbras-8820g':
+    case 'intelbras-110gi':
+      // Intelbras OLT 8820G/110Gi: índice simples sequencial
+      // 128 ONUs por PON, índice = (port - 1) * 128 + onuId
+      // Exemplo: PON 1 ONU 6 = (1-1)*128 + 6 = 6
+      // Exemplo: PON 3 ONU 10 = (3-1)*128 + 10 = 266
+      // Valores retornados como STRING ("-15.92" ou "--" para offline)
+      const intelbrasIndex = (port - 1) * 128 + onuId;
+      return intelbrasIndex.toString();
     
     default:
       // Formato genérico: slot.port.onuId
