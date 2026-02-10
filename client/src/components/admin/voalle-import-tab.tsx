@@ -877,7 +877,7 @@ export function VoalleImportTab() {
           // Usar CPF/CNPJ como usuário e senha do portal se não tiver person_users
           clientPortalUser: personUser?.username || clientDoc || null,
           clientPortalPassword: clientDoc || null,
-          bandwidth: extractBandwidth(tag.title || conexao?.['Serviço'] || ''),
+          bandwidth: extractBandwidth(conexao?.['Serviço'] || '') || extractBandwidth(tag.title || ''),
           address,
           // Priorizar conexoes.csv (por etiqueta) sobre authContract (por contrato)
           city: conexao?.['Cidade'] || authContract?.city || '',
@@ -980,7 +980,7 @@ export function VoalleImportTab() {
             clientCpfCnpj: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
             clientPortalUser: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
             clientPortalPassword: conexao['CPF/CNPJ'] || conexao['CNPJ/CPF'] || null,
-            bandwidth: extractBandwidth(etiqueta || servico || ''),
+            bandwidth: extractBandwidth(servico || '') || extractBandwidth(etiqueta || ''),
             address,
             city: conexao['Cidade'] || '',
             lat: conexao['Latitude'] || null,
