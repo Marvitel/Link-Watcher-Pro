@@ -710,6 +710,7 @@ export interface OpticalSignalData {
   rxPower: number | null;  // Potência RX na ONU (downstream) em dBm
   txPower: number | null;  // Potência TX na ONU (upstream) em dBm
   oltRxPower: number | null; // Potência RX na OLT (upstream do cliente) em dBm
+  onuDistance?: number | null; // Distância da ONU em metros (via SNMP da OLT)
 }
 
 // OIDs comuns para leitura de sinal óptico em ONUs
@@ -739,6 +740,7 @@ export const OPTICAL_OIDS = {
   furukawa: {
     onuRxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.15", // fkGponOnuRxOpticalPower (centésimos de dBm)
     onuTxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.14", // fkGponOnuTxOpticalPower (centésimos de dBm)
+    onuDistance: "1.3.6.1.4.1.3979.6.4.2.1.2.1.1.1.21", // fkGponOnuDistance (metros)
   },
 };
 
@@ -871,7 +873,8 @@ export async function getOpticalSignal(
   onuParams: OnuParams | null,
   baseRxOid?: string | null,
   baseTxOid?: string | null,
-  baseOltRxOid?: string | null
+  baseOltRxOid?: string | null,
+  baseDistanceOid?: string | null
 ): Promise<OpticalSignalData | null> {
   if (!baseRxOid && !baseTxOid && !baseOltRxOid) {
     return null; // Sem OIDs configurados
@@ -913,6 +916,11 @@ export async function getOpticalSignal(
       oidsToQuery.push(fullOid);
       oidMapping[fullOid] = 'oltRxPower';
     }
+    if (baseDistanceOid) {
+      const fullOid = buildOpticalOid(baseDistanceOid, onuIndex);
+      oidsToQuery.push(fullOid);
+      oidMapping[fullOid] = 'onuDistance';
+    }
     
     console.log(`[SNMP Optical] Consultando OIDs: ${oidsToQuery.join(', ')}`);
 
@@ -949,6 +957,7 @@ export async function getOpticalSignal(
             rxPower: null,
             txPower: null,
             oltRxPower: null,
+            onuDistance: null,
           };
           
           oidsToQuery.forEach((oid, index) => {
@@ -957,8 +966,6 @@ export async function getOpticalSignal(
               const key = oidMapping[oid];
               let value: number;
               
-              // O valor pode vir em diferentes formatos dependendo do fabricante
-              // Alguns retornam em décimos de dBm, outros em centésimos
               if (typeof varbind.value === 'number') {
                 value = varbind.value;
               } else if (Buffer.isBuffer(varbind.value)) {
@@ -967,17 +974,15 @@ export async function getOpticalSignal(
                 value = parseFloat(String(varbind.value));
               }
               
-              // Verifica se precisa converter (alguns equipamentos retornam em centésimos de dBm)
-              // Se o valor for muito grande (>100 ou <-100), provavelmente está em centésimos
               if (!isNaN(value)) {
-                if (value > 100 || value < -100) {
-                  value = value / 100; // Converte de centésimos para dBm
-                } else if (value > 10 || value < -50) {
-                  // Alguns retornam em décimos de dBm
-                  // Valores típicos de sinal são entre -5 dBm e -35 dBm
-                  // Se o valor estiver fora dessa faixa, pode precisar de conversão
+                if (key === 'onuDistance') {
+                  result[key] = value;
+                } else {
+                  if (value > 100 || value < -100) {
+                    value = value / 100;
+                  }
+                  result[key] = Math.round(value * 10) / 10;
                 }
-                result[key] = Math.round(value * 10) / 10; // Arredonda para 1 casa decimal
               }
             }
           });

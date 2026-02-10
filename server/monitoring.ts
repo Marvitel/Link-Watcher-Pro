@@ -1661,6 +1661,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           let txOid = vendorBySlug[0].opticalTxOid || null;
           const oltRxOid = vendorBySlug[0].opticalOltRxOid || null;
           
+          let distanceOid: string | null = null;
+          
           // Fallback: se OIDs não configurados no fabricante, usar OIDs hardcoded do OPTICAL_OIDS
           if (!rxOid && !txOid && !oltRxOid) {
             const { OPTICAL_OIDS } = await import("./snmp");
@@ -1669,9 +1671,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             if (fallbackOids) {
               rxOid = fallbackOids.onuRxPower || null;
               txOid = fallbackOids.onuTxPower || null;
-              console.log(`[Monitor] ${link.name} - Óptico: usando OIDs padrão para '${oltVendorSlug}' (RX=${rxOid}, TX=${txOid})`);
+              distanceOid = fallbackOids.onuDistance || null;
+              console.log(`[Monitor] ${link.name} - Óptico: usando OIDs padrão para '${oltVendorSlug}' (RX=${rxOid}, TX=${txOid}, Dist=${distanceOid})`);
             } else {
               console.log(`[Monitor] ${link.name} - Óptico: OIDs não configurados para fabricante '${oltVendorSlug}' (${vendorBySlug[0].name}). Configure em Admin → Fabricantes.`);
+            }
+          } else {
+            // Mesmo com OIDs do fabricante, buscar OID de distância do hardcoded se disponível
+            const { OPTICAL_OIDS } = await import("./snmp");
+            const normalizedSlug = oltVendorSlug.toLowerCase().trim();
+            const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
+            if (fallbackOids?.onuDistance) {
+              distanceOid = fallbackOids.onuDistance;
             }
           }
           
@@ -1693,13 +1704,19 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 onuParams,
                 rxOid,
                 txOid,
-                oltRxOid
+                oltRxOid,
+                distanceOid
               );
               
               if (opticalSignal) {
                 const hasValues = opticalSignal.rxPower !== null || opticalSignal.txPower !== null || opticalSignal.oltRxPower !== null;
                 if (hasValues) {
-                  console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm`);
+                  const distLog = opticalSignal.onuDistance != null ? ` Dist=${opticalSignal.onuDistance}m` : '';
+                  console.log(`[Monitor] ${link.name} - Óptico OK: RX=${opticalSignal.rxPower}dBm TX=${opticalSignal.txPower}dBm OLT_RX=${opticalSignal.oltRxPower}dBm${distLog}`);
+                  
+                  if (opticalSignal.onuDistance != null) {
+                    await db.update(links).set({ zabbixOnuDistance: String(opticalSignal.onuDistance) }).where(eq(links.id, link.id));
+                  }
                   
                   // Fallback para Zabbix: se OLT RX não veio via SNMP e temos serial da ONU, consultar Zabbix
                   // Usar equipmentSerialNumber (serial da ONU) ao invés de onuSearchString (comando CLI)
