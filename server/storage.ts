@@ -2629,14 +2629,16 @@ export class DatabaseStorage {
   }
 
   async getStandardCpeByVendor(vendorId: number): Promise<Cpe | undefined> {
-    const [cpe] = await db.select().from(cpes)
+    const results = await db.select().from(cpes)
       .where(and(
         eq(cpes.isStandard, true),
         eq(cpes.vendorId, vendorId),
         eq(cpes.isActive, true)
-      ))
-      .limit(1);
-    return cpe;
+      ));
+    if (results.length === 0) return undefined;
+    const cpeType = results.find(c => c.type === 'cpe');
+    if (cpeType) return cpeType;
+    return results[0];
   }
 
   async getStandardCpesByType(cpeType: string): Promise<Cpe[]> {
