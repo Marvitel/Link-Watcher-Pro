@@ -110,7 +110,7 @@ async function updateLinkZabbixSplitterData(
   }
 }
 
-const PARALLEL_WORKERS = 10;
+const PARALLEL_WORKERS = 5;
 const COLLECTION_TIMEOUT_MS = 30000;
 
 // ============ Moving Average & Persistence Alert System ============
@@ -1001,14 +1001,61 @@ function calculateBandwidth(
   return { downloadMbps, uploadMbps };
 }
 
+const snmpProfileCache = new Map<number, { profile: SnmpProfile; cachedAt: number }>();
+const vendorCache = new Map<number, { vendor: typeof equipmentVendors.$inferSelect; cachedAt: number }>();
+const concentratorCache = new Map<number, { concentrator: typeof snmpConcentrators.$inferSelect; cachedAt: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 async function getSnmpProfile(profileId: number): Promise<SnmpProfile | null> {
+  const cached = snmpProfileCache.get(profileId);
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
+    return cached.profile;
+  }
   const [profile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, profileId));
+  if (profile) {
+    snmpProfileCache.set(profileId, { profile, cachedAt: Date.now() });
+  }
   return profile || null;
 }
 
 async function getEquipmentVendor(vendorId: number): Promise<typeof equipmentVendors.$inferSelect | null> {
+  const cached = vendorCache.get(vendorId);
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
+    return cached.vendor;
+  }
   const [vendor] = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, vendorId));
+  if (vendor) {
+    vendorCache.set(vendorId, { vendor, cachedAt: Date.now() });
+  }
   return vendor || null;
+}
+
+async function getConcentrator(concentratorId: number): Promise<typeof snmpConcentrators.$inferSelect | null> {
+  const cached = concentratorCache.get(concentratorId);
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_TTL_MS) {
+    return cached.concentrator;
+  }
+  const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, concentratorId));
+  if (concentrator) {
+    concentratorCache.set(concentratorId, { concentrator, cachedAt: Date.now() });
+  }
+  return concentrator || null;
+}
+
+export function invalidateConcentratorCache(concentratorId?: number): void {
+  if (concentratorId) {
+    concentratorCache.delete(concentratorId);
+  } else {
+    concentratorCache.clear();
+  }
+}
+
+export function invalidateSnmpProfileCache(profileId?: number): void {
+  if (profileId) {
+    snmpProfileCache.delete(profileId);
+  } else {
+    snmpProfileCache.clear();
+  }
 }
 
 // Auto-discovery: Check and fix ifIndex when SNMP collection fails
@@ -1079,7 +1126,7 @@ async function handleIfIndexAutoDiscovery(
   
   if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
     // Buscar concentrador para obter IP e perfil SNMP
-    const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+    const concentrator = await getConcentrator(link.concentratorId);
     if (concentrator) {
       searchIp = concentrator.ipAddress;
       // Usar perfil SNMP do concentrador se configurado
@@ -1149,7 +1196,7 @@ async function handleIfIndexAutoDiscovery(
   if (useConcentratorCorporate && link.vlanInterface && link.concentratorId) {
     try {
       const { lookupCorporateLinkInfo } = await import("./concentrator");
-      const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      const concentrator = await getConcentrator(link.concentratorId);
       if (concentrator) {
         console.log(`[Monitor] ${link.name}: Using Corporate/VLAN lookup for "${link.vlanInterface}" on ${concentrator.name}`);
         
@@ -1180,7 +1227,7 @@ async function handleIfIndexAutoDiscovery(
   // PPPoE links: use PPPoE session lookup
   else if (useConcentratorPppoe && effectivePppoeUser && link.concentratorId) {
     try {
-      const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      const concentrator = await getConcentrator(link.concentratorId);
       if (concentrator) {
         const pppoeUserToSearch = effectivePppoeUser; // Already validated as non-null
         console.log(`[Monitor] ${link.name}: Using PPPoE lookup for "${pppoeUserToSearch}" on ${concentrator.name} (vendor: ${concentrator.vendor})`);
@@ -1288,7 +1335,7 @@ async function handleIfIndexAutoDiscovery(
     
     if (hasPppoeForBackup || hasCorporateForBackup) {
       // Get the current concentrator to check for backup
-      const [currentConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+      const currentConcentrator = await getConcentrator(link.concentratorId);
       
       console.log(`[Monitor] ${link.name}: Concentrador atual: ${currentConcentrator?.name || 'N/A'}, backupId=${currentConcentrator?.backupConcentratorId || 'NÃO CONFIGURADO'}`);
       
@@ -1297,7 +1344,7 @@ async function handleIfIndexAutoDiscovery(
         console.log(`[Monitor] ${link.name}: Interface não encontrada no concentrador principal. Tentando backup...`);
         
         // Get backup concentrator
-        const [backupConcentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, currentConcentrator.backupConcentratorId));
+        const backupConcentrator = await getConcentrator(currentConcentrator.backupConcentratorId);
         
         console.log(`[Monitor] ${link.name}: Backup concentrador: ${backupConcentrator?.name || 'NÃO ENCONTRADO'}, isActive=${backupConcentrator?.isActive}, backupId=${backupConcentrator?.backupConcentratorId}`);
         
@@ -1485,7 +1532,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       console.log(`[Monitor] ${link.name}: Using access point (${sw.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}`);
     }
   } else if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
-    const [concentrator] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId));
+    const concentrator = await getConcentrator(link.concentratorId);
     if (concentrator) {
       if (!trafficSourceIp) {
         trafficSourceIp = concentrator.ipAddress;
@@ -3306,10 +3353,10 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
     collectAllLinksMetrics();
   }, intervalSeconds * 1000);
 
-  // Sincronização do Wanguard a cada 60 segundos
+  // Sincronização do Wanguard a cada 120 segundos (reduzido de 60s para economizar CPU)
   wanguardSyncInterval = setInterval(() => {
     syncWanguardForAllClients();
-  }, 60 * 1000);
+  }, 120 * 1000);
   
   // Sincronização do OZmap - intervalo configurável
   getOzmapSyncInterval().then((intervalMinutes) => {
@@ -3320,7 +3367,7 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
     console.log(`[OZmap Auto-Sync] Sincronização automática iniciada (${intervalMinutes}min)`);
   });
   
-  console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (60s)`);
+  console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (120s)`);
 }
 
 export function stopMonitoring(): void {
