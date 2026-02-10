@@ -735,6 +735,11 @@ export const OPTICAL_OIDS = {
     onuRxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.7", // asamOpticalRxLevel
     onuTxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.8", // asamOpticalTxLevel
   },
+  // Furukawa FK-OLT-G4S / FK-OLT-G8S
+  furukawa: {
+    onuRxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.15", // fkGponOnuRxOpticalPower (centésimos de dBm)
+    onuTxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.14", // fkGponOnuTxOpticalPower (centésimos de dBm)
+  },
 };
 
 // Parâmetros da ONU para cálculo do índice SNMP
@@ -807,6 +812,16 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
       const datacomIndex = (slot * 16777216) + (onuId * 256) + (port - 1);
       return datacomIndex.toString();
     
+    case 'furukawa':
+    case 'furukawa-g4s':
+    case 'furukawa-g8s':
+      // Furukawa FK-OLT-G4S/G8S: índice = {portId}.{onuId}
+      // portId = 6000 + (slot * 100) + port
+      // Exemplo: slot=1, port=2 -> portId = 6102, ONU 1 -> index = 6102.1
+      // Confirmado via snmpwalk: .15.6101.1 = -1800, .15.6102.1 = -1500
+      const furukawaPortId = 6000 + (slot * 100) + port;
+      return `${furukawaPortId}.${onuId}`;
+
     case 'parks':
     case 'parks-fiberlink':
       // Parks FiberLink: formato slot.port.onuId
