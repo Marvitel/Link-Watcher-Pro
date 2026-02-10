@@ -3,6 +3,48 @@ import { Socket } from "net";
 import mysql from "mysql2/promise";
 import type { Olt } from "@shared/schema";
 
+export function hexToMixedSerial(hexSerial: string): string | null {
+  const clean = hexSerial.replace(/[^0-9A-Fa-f]/g, '');
+  if (clean.length < 8) return null;
+  const vendorHex = clean.substring(0, 8);
+  const rest = clean.substring(8);
+  let vendorAscii = '';
+  for (let i = 0; i < vendorHex.length; i += 2) {
+    const charCode = parseInt(vendorHex.substring(i, i + 2), 16);
+    if (charCode >= 32 && charCode <= 126) {
+      vendorAscii += String.fromCharCode(charCode);
+    } else {
+      return null;
+    }
+  }
+  return vendorAscii + rest.toUpperCase();
+}
+
+export function mixedToHexSerial(mixedSerial: string): string | null {
+  if (mixedSerial.length < 4) return null;
+  const vendor = mixedSerial.substring(0, 4);
+  const rest = mixedSerial.substring(4);
+  if (!/^[0-9A-Fa-f]+$/.test(rest)) return null;
+  let hexVendor = '';
+  for (let i = 0; i < vendor.length; i++) {
+    hexVendor += vendor.charCodeAt(i).toString(16).padStart(2, '0');
+  }
+  return (hexVendor + rest).toUpperCase();
+}
+
+export function getSerialVariants(serial: string): string[] {
+  const variants = [serial];
+  const isFullHex = /^[0-9A-Fa-f]+$/.test(serial) && serial.length >= 12;
+  if (isFullHex) {
+    const mixed = hexToMixedSerial(serial);
+    if (mixed && mixed !== serial) variants.push(mixed);
+  } else {
+    const hex = mixedToHexSerial(serial);
+    if (hex && hex !== serial) variants.push(hex);
+  }
+  return variants;
+}
+
 // Interface para resultado da consulta Zabbix
 interface ZabbixOnuResult {
   OLT: string;
@@ -431,7 +473,8 @@ async function queryZabbixMySQL(olt: Olt, serial: string): Promise<OltDiagnosis>
 // Consulta ao banco de dados MySQL Zabbix para buscar APENAS métricas ópticas por serial
 // Esta função é usada como fallback quando SNMP não retorna valores (ex: RSSI do Datacom)
 export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promise<ZabbixOpticalMetrics | null> {
-  console.log(`[OLT Zabbix Optical] Consultando MySQL ${olt.ipAddress}:${olt.port} por serial ${serial}...`);
+  const serialVariants = getSerialVariants(serial);
+  console.log(`[OLT Zabbix Optical] Consultando MySQL ${olt.ipAddress}:${olt.port} por serial ${serial} (variantes: ${serialVariants.join(', ')})...`);
   
   try {
     const connection = await mysql.createConnection({
@@ -440,10 +483,10 @@ export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promi
       user: olt.username,
       password: olt.password,
       database: olt.database || "db_django_olts",
-      connectTimeout: 10000, // Timeout menor para consultas de métricas
+      connectTimeout: 10000,
     });
 
-    // Query simplificada apenas para métricas ópticas
+    const placeholders = serialVariants.map(() => '?').join(', ');
     const query = `
       SELECT 
         fo.serial AS SN,
@@ -464,11 +507,11 @@ export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promi
           GROUP BY onu_fk_id
         ) AS foh_max ON foh.onu_fk_id = foh_max.onu_fk_id AND foh.timestamp = foh_max.max_timestamp
       ) AS h ON fo.id = h.onu_fk_id 
-      WHERE fo.serial = ?
+      WHERE fo.serial IN (${placeholders})
       LIMIT 1
     `;
 
-    const [rows] = await connection.execute(query, [serial]);
+    const [rows] = await connection.execute(query, serialVariants);
     await connection.end();
 
     const results = rows as Array<{
