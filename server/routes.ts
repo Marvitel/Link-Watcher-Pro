@@ -65,6 +65,17 @@ interface ImportJobStatus {
   pppoeIpsFound: number;
   corporateIpsFound: number;
   onuIdsDiscovered: number;
+  pppoeTotal: number;
+  pppoeCurrent: number;
+  corporateTotal: number;
+  corporateCurrent: number;
+  onuTotal: number;
+  onuCurrent: number;
+  retryRound: number;
+  maxRetryRounds: number;
+  pppoeFailed: number;
+  corporateFailed: number;
+  onuFailed: number;
   errors: Array<{ serviceTag: string; error: string }>;
   startedAt: string;
   completedAt?: string;
@@ -5004,6 +5015,17 @@ export async function registerRoutes(
           pppoeIpsFound: 0,
           corporateIpsFound: 0,
           onuIdsDiscovered: 0,
+          pppoeTotal: 0,
+          pppoeCurrent: 0,
+          corporateTotal: 0,
+          corporateCurrent: 0,
+          onuTotal: 0,
+          onuCurrent: 0,
+          retryRound: 1,
+          maxRetryRounds: 3,
+          pppoeFailed: 0,
+          corporateFailed: 0,
+          onuFailed: 0,
           errors: results.errors,
           startedAt: new Date().toISOString(),
         };
@@ -5023,24 +5045,33 @@ export async function registerRoutes(
         console.log(`[Voalle Import] Iniciando busca de IPs via PPPoE...`);
         importJobStatus.phase = 'pppoe_lookup';
         
-        // Mapa global de MACs descobertos por link (para vinculação de CPE)
         const pppoeSessionMacs = new Map<number, string>();
         
         try {
           const { lookupMultiplePppoeSessions, lookupIpBlockFromRouteTable } = await import("./concentrator");
           
-          // Get all PPPoE links (not corporate) with pppoeUser that need IP or interface discovery
           const importedLinks = await storage.getLinks();
-          const linksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
+          let linksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
             l.pppoeUser && 
-            l.authType !== 'corporate' && // Exclude corporate links - they use VLAN/ARP lookup
+            l.authType !== 'corporate' &&
             l.concentratorId &&
-            // Need IP OR need interface for traffic collection
             ((!l.monitoredIp || l.monitoredIp === "") || !l.snmpInterfaceIndex)
           );
           
-          if (linksNeedingIp.length > 0) {
-            // Group links by concentrator
+          importJobStatus.pppoeTotal = linksNeedingIp.length;
+          importJobStatus.maxRetryRounds = 3;
+          
+          const MAX_PPPOE_ROUNDS = 3;
+          for (let round = 1; round <= MAX_PPPOE_ROUNDS && linksNeedingIp.length > 0; round++) {
+            importJobStatus.retryRound = round;
+            importJobStatus.pppoeCurrent = 0;
+            importJobStatus.pppoeTotal = linksNeedingIp.length;
+            
+            if (round > 1) {
+              console.log(`[Voalle Import] PPPoE Retry round ${round}/${MAX_PPPOE_ROUNDS}: ${linksNeedingIp.length} links pendentes, aguardando 10s...`);
+              await new Promise(r => setTimeout(r, 10000));
+            }
+            
             const linksByConcentrator = new Map<number, typeof linksNeedingIp>();
             for (const link of linksNeedingIp) {
               if (link.concentratorId) {
@@ -5050,11 +5081,14 @@ export async function registerRoutes(
               }
             }
             
-            // Query each concentrator
+            const failedThisRound: typeof linksNeedingIp = [];
+            
             for (const [concentratorId, concentratorLinks] of Array.from(linksByConcentrator.entries())) {
               const concentrator = await storage.getConcentrator(concentratorId);
               if (!concentrator || !concentrator.sshUser) {
                 console.log(`[Voalle Import] Concentrador ${concentratorId} sem credenciais SSH, pulando...`);
+                failedThisRound.push(...concentratorLinks);
+                importJobStatus.pppoeCurrent += concentratorLinks.length;
                 continue;
               }
               
@@ -5064,82 +5098,80 @@ export async function registerRoutes(
               
               if (pppoeUsers.length === 0) continue;
               
-              // Buscar perfil SNMP do concentrador
               let snmpProfile = null;
               if (concentrator.snmpProfileId) {
                 snmpProfile = await storage.getSnmpProfile(concentrator.snmpProfileId);
               }
               
-              console.log(`[Voalle Import] Buscando ${pppoeUsers.length} sessões PPPoE no concentrador ${concentrator.name} (SNMP: ${snmpProfile ? snmpProfile.name : 'default'})`);
+              console.log(`[Voalle Import] [Round ${round}] Buscando ${pppoeUsers.length} sessões PPPoE no concentrador ${concentrator.name}`);
               
-              const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers, undefined, snmpProfile);
-              
-              // Update links with found IPs and interface indexes
-              for (const link of concentratorLinks) {
-                if (link.pppoeUser) {
-                  const session = sessions.get(link.pppoeUser);
-                  if (session) {
-                    const updateData: Record<string, any> = {};
-                    
-                    // Salvar MAC se encontrado (para vinculação de CPE depois)
-                    if (session.macAddress) {
-                      pppoeSessionMacs.set(link.id, session.macAddress);
-                      console.log(`[Voalle Import] ${link.name}: MAC da sessão PPPoE: ${session.macAddress}`);
-                    }
-                    
-                    // Salvar IP se encontrado
-                    if (session.ipAddress) {
-                      updateData.monitoredIp = session.ipAddress;
-                      pppoeIpsFound++;
-                      importJobStatus.pppoeIpsFound = pppoeIpsFound;
-                    }
-                    
-                    // Salvar ifIndex, ifName, ifAlias para coleta de tráfego via concentrador
-                    if (session.ifIndex) {
-                      updateData.snmpInterfaceIndex = session.ifIndex;
-                      updateData.trafficSourceType = 'concentrator'; // Usar concentrador para tráfego
+              try {
+                const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeUsers, undefined, snmpProfile);
+                
+                for (const link of concentratorLinks) {
+                  importJobStatus.pppoeCurrent++;
+                  if (link.pppoeUser) {
+                    const session = sessions.get(link.pppoeUser);
+                    if (session) {
+                      const updateData: Record<string, any> = {};
                       
-                      // Salvar nome e descrição da interface se disponíveis
-                      if (session.ifName) {
-                        updateData.snmpInterfaceName = session.ifName;
-                      }
-                      if (session.ifAlias) {
-                        updateData.snmpInterfaceDescr = session.ifAlias;
+                      if (session.macAddress) {
+                        pppoeSessionMacs.set(link.id, session.macAddress);
                       }
                       
-                      // Buscar bloco IP público na tabela de rotas (para blacklist)
-                      // Só busca se o link não tiver ipBlock definido (não veio validLanIp no CSV)
-                      if (!link.ipBlock) {
-                        try {
-                          const snmpProfileData = concentrator.snmpProfileId 
-                            ? await storage.getSnmpProfile(concentrator.snmpProfileId)
-                            : null;
-                          const ipBlock = await lookupIpBlockFromRouteTable(
-                            concentrator,
-                            session.ifIndex,
-                            snmpProfileData
-                          );
-                          if (ipBlock) {
-                            updateData.ipBlock = ipBlock;
-                            console.log(`[Voalle Import] ${link.name}: Bloco IP obtido via SNMP: ${ipBlock}`);
+                      if (session.ipAddress) {
+                        updateData.monitoredIp = session.ipAddress;
+                        pppoeIpsFound++;
+                        importJobStatus.pppoeIpsFound = pppoeIpsFound;
+                      }
+                      
+                      if (session.ifIndex) {
+                        updateData.snmpInterfaceIndex = session.ifIndex;
+                        updateData.trafficSourceType = 'concentrator';
+                        if (session.ifName) updateData.snmpInterfaceName = session.ifName;
+                        if (session.ifAlias) updateData.snmpInterfaceDescr = session.ifAlias;
+                        
+                        if (!link.ipBlock) {
+                          try {
+                            const snmpProfileData = concentrator.snmpProfileId 
+                              ? await storage.getSnmpProfile(concentrator.snmpProfileId) : null;
+                            const ipBlock = await lookupIpBlockFromRouteTable(concentrator, session.ifIndex, snmpProfileData);
+                            if (ipBlock) {
+                              updateData.ipBlock = ipBlock;
+                              console.log(`[Voalle Import] ${link.name}: Bloco IP via SNMP: ${ipBlock}`);
+                            }
+                          } catch (ipBlockErr: any) {
+                            console.log(`[Voalle Import] ${link.name}: Erro bloco IP: ${ipBlockErr.message}`);
                           }
-                        } catch (ipBlockErr: any) {
-                          console.log(`[Voalle Import] ${link.name}: Erro ao buscar bloco IP: ${ipBlockErr.message}`);
                         }
                       }
-                    }
-                    
-                    if (Object.keys(updateData).length > 0) {
-                      await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}, ifName=${session.ifName || 'N/A'}, ipBlock=${updateData.ipBlock || link.ipBlock || 'N/A'}`);
+                      
+                      if (Object.keys(updateData).length > 0) {
+                        await storage.updateLink(link.id, updateData);
+                        console.log(`[Voalle Import] ${link.name}: IP=${session.ipAddress || 'N/A'}, ifIndex=${session.ifIndex || 'N/A'}`);
+                      }
+                      
+                      if (!session.ipAddress && !session.ifIndex) {
+                        failedThisRound.push(link);
+                      }
+                    } else {
+                      failedThisRound.push(link);
                     }
                   }
                 }
+              } catch (concErr: any) {
+                console.error(`[Voalle Import] [Round ${round}] Erro no concentrador ${concentrator.name}: ${concErr.message}`);
+                failedThisRound.push(...concentratorLinks);
+                importJobStatus.pppoeCurrent += concentratorLinks.length;
               }
             }
+            
+            linksNeedingIp = failedThisRound;
+            importJobStatus.pppoeFailed = failedThisRound.length;
+            console.log(`[Voalle Import] [Round ${round}] PPPoE: ${pppoeIpsFound} IPs encontrados, ${failedThisRound.length} pendentes`);
           }
           
-          console.log(`[Voalle Import] Busca de IPs concluída: ${pppoeIpsFound} IPs encontrados`);
+          console.log(`[Voalle Import] Busca de IPs PPPoE concluída: ${pppoeIpsFound} IPs encontrados, ${linksNeedingIp.length} não resolvidos`);
           
           // Vincular links PPPoE a CPE padrão por fabricante (detectado via MAC)
           try {
@@ -5333,7 +5365,6 @@ export async function registerRoutes(
       }
 
       // Lookup Corporate links: ifIndex via VLAN interface + IP via ARP table
-      // Runs independently of lookupPppoeIps - corporate links always need VLAN/ARP lookup
       let corporateIpsFound = 0;
       if (results.success > 0) {
         console.log(`[Voalle Import] Iniciando busca de IPs para links corporativos via VLAN/ARP...`);
@@ -5342,19 +5373,30 @@ export async function registerRoutes(
         try {
           const { lookupCorporateLinkInfo, detectVendorByMac } = await import("./concentrator");
           
-          // Get all corporate links with vlanInterface but no IP
           const importedLinks = await storage.getLinks();
-          const corporateLinksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
+          let corporateLinksNeedingIp = importedLinks.filter((l: typeof importedLinks[0]) => 
             l.authType === 'corporate' &&
             l.vlanInterface && 
             (!l.monitoredIp || l.monitoredIp === "") && 
             l.concentratorId
           );
           
-          if (corporateLinksNeedingIp.length > 0) {
-            console.log(`[Voalle Import] Encontrados ${corporateLinksNeedingIp.length} links corporativos precisando de IP`);
+          importJobStatus.corporateTotal = corporateLinksNeedingIp.length;
+          importJobStatus.maxRetryRounds = 3;
+          
+          const MAX_CORP_ROUNDS = 3;
+          for (let round = 1; round <= MAX_CORP_ROUNDS && corporateLinksNeedingIp.length > 0; round++) {
+            importJobStatus.retryRound = round;
+            importJobStatus.corporateCurrent = 0;
+            importJobStatus.corporateTotal = corporateLinksNeedingIp.length;
             
-            // Group by concentrator
+            if (round > 1) {
+              console.log(`[Voalle Import] Corporate Retry round ${round}/${MAX_CORP_ROUNDS}: ${corporateLinksNeedingIp.length} links pendentes, aguardando 10s...`);
+              await new Promise(r => setTimeout(r, 10000));
+            }
+            
+            console.log(`[Voalle Import] [Round ${round}] ${corporateLinksNeedingIp.length} links corporativos precisando de IP`);
+            
             const linksByConcentrator = new Map<number, typeof corporateLinksNeedingIp>();
             for (const link of corporateLinksNeedingIp) {
               if (link.concentratorId) {
@@ -5364,31 +5406,29 @@ export async function registerRoutes(
               }
             }
             
-            // Query each concentrator
+            const failedThisRound: typeof corporateLinksNeedingIp = [];
+            
             for (const [concentratorId, concentratorLinks] of Array.from(linksByConcentrator.entries())) {
               const concentrator = await storage.getConcentrator(concentratorId);
               if (!concentrator) {
-                console.log(`[Voalle Import] Concentrador ${concentratorId} não encontrado, pulando...`);
+                failedThisRound.push(...concentratorLinks);
+                importJobStatus.corporateCurrent += concentratorLinks.length;
                 continue;
               }
               
-              // Buscar perfil SNMP do concentrador
               let snmpProfile = null;
               if (concentrator.snmpProfileId) {
                 snmpProfile = await storage.getSnmpProfile(concentrator.snmpProfileId);
               }
               
-              console.log(`[Voalle Import] Buscando info corporativa para ${concentratorLinks.length} links em ${concentrator.name}`);
-              
               for (const link of concentratorLinks) {
+                importJobStatus.corporateCurrent++;
                 if (link.vlanInterface) {
                   try {
                     let corpInfo = await lookupCorporateLinkInfo(concentrator, link.vlanInterface, snmpProfile);
                     let usedConcentrator = concentrator;
                     
-                    // Fallback para backup concentrator se não encontrou no principal
                     if (!corpInfo && concentrator.backupConcentratorId) {
-                      console.log(`[Voalle Import] Interface não encontrada em ${concentrator.name}, tentando backup...`);
                       const backupConcentrator = await storage.getConcentrator(concentrator.backupConcentratorId);
                       if (backupConcentrator) {
                         let backupSnmpProfile = null;
@@ -5396,10 +5436,7 @@ export async function registerRoutes(
                           backupSnmpProfile = await storage.getSnmpProfile(backupConcentrator.snmpProfileId);
                         }
                         corpInfo = await lookupCorporateLinkInfo(backupConcentrator, link.vlanInterface, backupSnmpProfile);
-                        if (corpInfo) {
-                          usedConcentrator = backupConcentrator;
-                          console.log(`[Voalle Import] Encontrado no backup: ${backupConcentrator.name}`);
-                        }
+                        if (corpInfo) usedConcentrator = backupConcentrator;
                       }
                     }
                     
@@ -5410,7 +5447,6 @@ export async function registerRoutes(
                         trafficSourceType: 'concentrator',
                       };
                       
-                      // Se encontrou no backup, atualizar o concentratorId do link
                       if (usedConcentrator.id !== concentrator.id) {
                         updateData.concentratorId = usedConcentrator.id;
                       }
@@ -5421,33 +5457,23 @@ export async function registerRoutes(
                         importJobStatus.corporateIpsFound = corporateIpsFound;
                       }
                       
-                      // Se o link não tem ipBlock definido (não veio validLanIp no CSV), usar o do SNMP
                       if (corpInfo.ipBlock && !link.ipBlock) {
                         updateData.ipBlock = corpInfo.ipBlock;
-                        console.log(`[Voalle Import] ${link.name}: Bloco IP obtido via SNMP: ${corpInfo.ipBlock}`);
                       }
                       
                       await storage.updateLink(link.id, updateData);
-                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}, MAC=${corpInfo.macAddress || 'N/A'}, ipBlock=${corpInfo.ipBlock || link.ipBlock || 'N/A'} (via ${usedConcentrator.name})`);
+                      console.log(`[Voalle Import] ${link.name}: VLAN=${corpInfo.vlanInterface}, ifIndex=${corpInfo.ifIndex}, IP=${corpInfo.ipAddress || 'N/A'}, MAC=${corpInfo.macAddress || 'N/A'} (via ${usedConcentrator.name})`);
                       
-                      // Vincular CPE automaticamente se descobriu MAC e IP
                       if (corpInfo.macAddress && corpInfo.ipAddress) {
                         try {
-                          // Verificar se já existe CPE associado ao link
                           const existingLinkCpes = await storage.getLinkCpes(link.id);
                           if (existingLinkCpes.length === 0) {
                             const vendorSlug = await detectVendorByMac(corpInfo.macAddress);
-                            
-                            // Buscar CPE cadastrada com esse vendor
                             if (vendorSlug) {
                               const vendor = await storage.getEquipmentVendorBySlug(vendorSlug);
                               if (vendor) {
-                                console.log(`[Voalle Import] ${link.name}: Vendor detectado pelo MAC: ${vendor.name} (ID: ${vendor.id})`);
-                                
-                                // Buscar CPE padrão (isStandard=true) deste vendor
                                 const vendorCpe = await storage.getStandardCpeByVendor(vendor.id);
                                 if (vendorCpe) {
-                                  // Associar CPE padrão ao link (incluindo MAC)
                                   await storage.addCpeToLink({
                                     linkId: link.id,
                                     cpeId: vendorCpe.id,
@@ -5456,31 +5482,36 @@ export async function registerRoutes(
                                     macAddress: corpInfo.macAddress || undefined,
                                     showInEquipmentTab: true,
                                   });
-                                  console.log(`[Voalle Import] ${link.name}: CPE padrão ${vendorCpe.name} vinculada (Vendor: ${vendor.name}, IP: ${corpInfo.ipAddress}, MAC: ${corpInfo.macAddress || 'N/A'})`);
-                                } else {
-                                  console.log(`[Voalle Import] ${link.name}: Nenhuma CPE padrão para vendor ${vendor.name} - verifique isStandard=true`);
+                                  console.log(`[Voalle Import] ${link.name}: CPE ${vendorCpe.name} vinculada`);
                                 }
-                              } else {
-                                console.log(`[Voalle Import] ${link.name}: Vendor ${vendorSlug} não encontrado no sistema`);
                               }
-                            } else {
-                              console.log(`[Voalle Import] ${link.name}: Vendor não identificado pelo MAC ${corpInfo.macAddress}`);
                             }
                           }
                         } catch (cpeErr: any) {
-                          console.error(`[Voalle Import] ${link.name}: Erro ao vincular CPE: ${cpeErr.message}`);
+                          console.error(`[Voalle Import] ${link.name}: Erro CPE: ${cpeErr.message}`);
                         }
                       }
+                      
+                      if (!corpInfo.ipAddress) {
+                        failedThisRound.push(link);
+                      }
+                    } else {
+                      failedThisRound.push(link);
                     }
                   } catch (linkErr: any) {
-                    console.error(`[Voalle Import] Erro ao buscar info corporativa para ${link.name}: ${linkErr.message}`);
+                    console.error(`[Voalle Import] Erro corporativo ${link.name}: ${linkErr.message}`);
+                    failedThisRound.push(link);
                   }
                 }
               }
             }
+            
+            corporateLinksNeedingIp = failedThisRound;
+            importJobStatus.corporateFailed = failedThisRound.length;
+            console.log(`[Voalle Import] [Round ${round}] Corporate: ${corporateIpsFound} IPs encontrados, ${failedThisRound.length} pendentes`);
           }
           
-          console.log(`[Voalle Import] Busca corporativa concluída: ${corporateIpsFound} IPs encontrados`);
+          console.log(`[Voalle Import] Busca corporativa concluída: ${corporateIpsFound} IPs encontrados, ${corporateLinksNeedingIp.length} não resolvidos`);
           
           // Vincular links corporativos sem CPE a CPE padrão tipo "cpe"
           try {
@@ -5549,15 +5580,13 @@ export async function registerRoutes(
       importJobStatus.phase = 'onu_discovery';
       importJobStatus.pppoeIpsFound = pppoeIpsFound;
       importJobStatus.corporateIpsFound = corporateIpsFound;
+      importJobStatus.retryRound = 1;
       let onuIdsDiscovered = 0;
       try {
         const { searchOnuBySerial } = await import("./olt");
         
-        // Buscar links importados nesta sessão que têm OLT e serial mas não têm onuId
-        console.log(`[Voalle Import] Links processados para busca de ONU ID: ${processedLinkIds.length}`);
-        
         const allLinks = await storage.getLinks();
-        const linksNeedingOnuId = allLinks.filter((l: typeof allLinks[0]) => 
+        let linksNeedingOnuId = allLinks.filter((l: typeof allLinks[0]) => 
           processedLinkIds.includes(l.id) &&
           (l.authType === 'pppoe' || l.authType === 'corporate') && 
           l.oltId && 
@@ -5565,102 +5594,81 @@ export async function registerRoutes(
           !l.onuId
         );
         
+        importJobStatus.onuTotal = linksNeedingOnuId.length;
+        importJobStatus.maxRetryRounds = 3;
         console.log(`[Voalle Import] Links que precisam de ONU ID: ${linksNeedingOnuId.length}`);
         
-        if (linksNeedingOnuId.length > 0) {
-          console.log(`[Voalle Import] Descobrindo ONU ID para ${linksNeedingOnuId.length} links...`);
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        
+        const MAX_ONU_ROUNDS = 3;
+        for (let round = 1; round <= MAX_ONU_ROUNDS && linksNeedingOnuId.length > 0; round++) {
+          importJobStatus.retryRound = round;
+          importJobStatus.onuCurrent = 0;
+          importJobStatus.onuTotal = linksNeedingOnuId.length;
           
-          // Agrupar por OLT para otimizar conexões
+          if (round > 1) {
+            console.log(`[Voalle Import] ONU Retry round ${round}/${MAX_ONU_ROUNDS}: ${linksNeedingOnuId.length} links pendentes, aguardando 15s...`);
+            await delay(15000);
+          }
+          
+          console.log(`[Voalle Import] [Round ${round}] Descobrindo ONU ID para ${linksNeedingOnuId.length} links...`);
+          
           const linksByOlt = new Map<number, typeof linksNeedingOnuId>();
           for (const link of linksNeedingOnuId) {
             const oltId = link.oltId!;
-            if (!linksByOlt.has(oltId)) {
-              linksByOlt.set(oltId, []);
-            }
+            if (!linksByOlt.has(oltId)) linksByOlt.set(oltId, []);
             linksByOlt.get(oltId)!.push(link);
           }
           
-          // Função helper para delay
-          const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+          const failedThisRound: typeof linksNeedingOnuId = [];
           
-          // Função helper para retry com backoff exponencial
-          const retryWithBackoff = async <T>(
-            fn: () => Promise<T>,
-            maxRetries: number = 3,
-            baseDelay: number = 2000
-          ): Promise<T> => {
-            let lastError: any;
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-              try {
-                return await fn();
-              } catch (err: any) {
-                lastError = err;
-                if (attempt < maxRetries - 1) {
-                  const waitTime = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
-                  console.log(`[Voalle Import] Retry ${attempt + 1}/${maxRetries} após ${waitTime}ms...`);
-                  await delay(waitTime);
-                }
-              }
-            }
-            throw lastError;
-          };
-          
-          for (const [oltId, links] of linksByOlt) {
+          for (const [oltId, links] of Array.from(linksByOlt.entries())) {
             const olt = await storage.getOlt(oltId);
             if (!olt) {
               console.log(`[Voalle Import] OLT ${oltId} não encontrada`);
+              failedThisRound.push(...links);
+              importJobStatus.onuCurrent += links.length;
               continue;
             }
             
-            console.log(`[Voalle Import] Buscando ONU ID em ${olt.name} para ${links.length} links (com delay de 1s entre cada)...`);
+            console.log(`[Voalle Import] [Round ${round}] Buscando ONU ID em ${olt.name} para ${links.length} links...`);
             
             for (let i = 0; i < links.length; i++) {
               const link = links[i];
+              importJobStatus.onuCurrent++;
               
-              // Delay entre conexões para evitar congestionamento (exceto primeira)
-              if (i > 0) {
-                await delay(1000); // 1 segundo entre cada consulta
-              }
+              if (i > 0) await delay(1000);
               
               try {
-                // Retry automático com backoff exponencial
-                const result = await retryWithBackoff(
-                  () => searchOnuBySerial(olt, link.equipmentSerialNumber!),
-                  3, // máximo 3 tentativas
-                  2000 // delay base de 2 segundos
-                );
+                const result = await searchOnuBySerial(olt, link.equipmentSerialNumber!);
                 
                 if (result.success && result.onuId) {
                   const updateData: any = { onuId: result.onuId };
-                  if (result.slotOlt !== undefined) {
-                    updateData.slotOlt = result.slotOlt;
-                  }
-                  if (result.portOlt !== undefined) {
-                    updateData.portOlt = result.portOlt;
-                  }
+                  if (result.slotOlt !== undefined) updateData.slotOlt = result.slotOlt;
+                  if (result.portOlt !== undefined) updateData.portOlt = result.portOlt;
                   await storage.updateLink(link.id, updateData);
-                  const slotPortLog = result.slotOlt !== undefined && result.portOlt !== undefined
-                    ? ` (slot=${result.slotOlt} port=${result.portOlt})`
-                    : '';
-                  console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}${slotPortLog}`);
+                  console.log(`[Voalle Import] ${link.name}: ONU ID=${result.onuId} (slot=${result.slotOlt} port=${result.portOlt})`);
                   onuIdsDiscovered++;
                   importJobStatus.onuIdsDiscovered = onuIdsDiscovered;
                 } else {
                   console.log(`[Voalle Import] ${link.name}: ONU não encontrada (${result.message})`);
+                  failedThisRound.push(link);
                 }
               } catch (onuErr: any) {
-                console.error(`[Voalle Import] ${link.name}: Erro ao buscar ONU após 3 tentativas: ${onuErr.message}`);
+                console.error(`[Voalle Import] ${link.name}: Erro ONU: ${onuErr.message}`);
+                failedThisRound.push(link);
               }
             }
             
-            // Delay entre OLTs diferentes para evitar sobrecarga geral
             await delay(2000);
           }
           
-          if (onuIdsDiscovered > 0) {
-            console.log(`[Voalle Import] ONU IDs descobertos: ${onuIdsDiscovered}`);
-          }
+          linksNeedingOnuId = failedThisRound;
+          importJobStatus.onuFailed = failedThisRound.length;
+          console.log(`[Voalle Import] [Round ${round}] ONU: ${onuIdsDiscovered} descobertos, ${failedThisRound.length} pendentes`);
         }
+        
+        console.log(`[Voalle Import] Descoberta ONU concluída: ${onuIdsDiscovered} descobertos, ${linksNeedingOnuId.length} não resolvidos`);
       } catch (onuError) {
         console.error(`[Voalle Import] Erro na descoberta de ONU IDs:`, onuError);
       }

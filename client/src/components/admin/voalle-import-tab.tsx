@@ -120,6 +120,17 @@ interface ImportJobStatus {
   pppoeIpsFound: number;
   corporateIpsFound: number;
   onuIdsDiscovered: number;
+  pppoeTotal: number;
+  pppoeCurrent: number;
+  corporateTotal: number;
+  corporateCurrent: number;
+  onuTotal: number;
+  onuCurrent: number;
+  retryRound: number;
+  maxRetryRounds: number;
+  pppoeFailed: number;
+  corporateFailed: number;
+  onuFailed: number;
   errors: Array<{ serviceTag: string; error: string }>;
   startedAt: string;
   completedAt?: string;
@@ -1226,6 +1237,17 @@ export function VoalleImportTab() {
         pppoeIpsFound: 0,
         corporateIpsFound: 0,
         onuIdsDiscovered: 0,
+        pppoeTotal: 0,
+        pppoeCurrent: 0,
+        corporateTotal: 0,
+        corporateCurrent: 0,
+        onuTotal: 0,
+        onuCurrent: 0,
+        retryRound: 1,
+        maxRetryRounds: 3,
+        pppoeFailed: 0,
+        corporateFailed: 0,
+        onuFailed: 0,
         errors: [],
         startedAt: new Date().toISOString(),
       });
@@ -1885,16 +1907,74 @@ export function VoalleImportTab() {
               {bgDiscovery && bgDiscovery.status === 'running' && (
                 <Alert>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <AlertTitle>Descoberta em andamento</AlertTitle>
+                  <AlertTitle>Descoberta em andamento {bgDiscovery.retryRound > 1 ? `(Tentativa ${bgDiscovery.retryRound}/${bgDiscovery.maxRetryRounds})` : ''}</AlertTitle>
                   <AlertDescription>
-                    <p className="mb-1">{PHASE_LABELS[bgDiscovery.phase] || bgDiscovery.phase}</p>
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      <span>PPPoE IPs: {bgDiscovery.pppoeIpsFound}</span>
-                      <span>Corporate IPs: {bgDiscovery.corporateIpsFound}</span>
-                      <span>ONU IDs: {bgDiscovery.onuIdsDiscovered}</span>
+                    <p className="mb-2 font-medium">{PHASE_LABELS[bgDiscovery.phase] || bgDiscovery.phase}</p>
+                    <div className="space-y-3">
+                      {bgDiscovery.pppoeTotal > 0 && (
+                        <div data-testid="progress-pppoe">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span>PPPoE IPs</span>
+                            <span className="text-muted-foreground">
+                              {bgDiscovery.pppoeIpsFound} encontrados
+                              {bgDiscovery.phase === 'pppoe_lookup' ? ` | ${bgDiscovery.pppoeCurrent}/${bgDiscovery.pppoeTotal} verificados` : ''}
+                              {bgDiscovery.pppoeFailed > 0 ? ` | ${bgDiscovery.pppoeFailed} pendentes` : ''}
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                              style={{ width: `${bgDiscovery.pppoeTotal > 0 ? Math.round((bgDiscovery.pppoeIpsFound / bgDiscovery.pppoeTotal) * 100) : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {bgDiscovery.corporateTotal > 0 && (
+                        <div data-testid="progress-corporate">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span>Corporate IPs</span>
+                            <span className="text-muted-foreground">
+                              {bgDiscovery.corporateIpsFound} encontrados
+                              {bgDiscovery.phase === 'corporate_lookup' ? ` | ${bgDiscovery.corporateCurrent}/${bgDiscovery.corporateTotal} verificados` : ''}
+                              {bgDiscovery.corporateFailed > 0 ? ` | ${bgDiscovery.corporateFailed} pendentes` : ''}
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                              style={{ width: `${bgDiscovery.corporateTotal > 0 ? Math.round((bgDiscovery.corporateIpsFound / bgDiscovery.corporateTotal) * 100) : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {bgDiscovery.onuTotal > 0 && (
+                        <div data-testid="progress-onu">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span>ONU IDs</span>
+                            <span className="text-muted-foreground">
+                              {bgDiscovery.onuIdsDiscovered} encontrados
+                              {bgDiscovery.phase === 'onu_discovery' ? ` | ${bgDiscovery.onuCurrent}/${bgDiscovery.onuTotal} verificados` : ''}
+                              {bgDiscovery.onuFailed > 0 ? ` | ${bgDiscovery.onuFailed} pendentes` : ''}
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                              style={{ width: `${bgDiscovery.onuTotal > 0 ? Math.round((bgDiscovery.onuIdsDiscovered / bgDiscovery.onuTotal) * 100) : 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {bgDiscovery.pppoeTotal === 0 && bgDiscovery.corporateTotal === 0 && bgDiscovery.onuTotal === 0 && (
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          <span>PPPoE IPs: {bgDiscovery.pppoeIpsFound}</span>
+                          <span>Corporate IPs: {bgDiscovery.corporateIpsFound}</span>
+                          <span>ONU IDs: {bgDiscovery.onuIdsDiscovered}</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Os links já foram importados. A descoberta de IPs e ONU IDs continua em segundo plano.
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Os links já foram importados. A descoberta continua em segundo plano com retentativas automáticas.
                     </p>
                   </AlertDescription>
                 </Alert>
@@ -1905,10 +1985,20 @@ export function VoalleImportTab() {
                   <CheckCircle className="h-4 w-4" />
                   <AlertTitle>Descoberta concluída</AlertTitle>
                   <AlertDescription>
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong></span>
-                      <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong></span>
-                      <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong></span>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong>{bgDiscovery.pppoeTotal > 0 ? ` / ${bgDiscovery.pppoeTotal}` : ''}</span>
+                        <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong>{bgDiscovery.corporateTotal > 0 ? ` / ${bgDiscovery.corporateTotal}` : ''}</span>
+                        <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong>{bgDiscovery.onuTotal > 0 ? ` / ${bgDiscovery.onuTotal}` : ''}</span>
+                      </div>
+                      {(bgDiscovery.pppoeFailed > 0 || bgDiscovery.corporateFailed > 0 || bgDiscovery.onuFailed > 0) && (
+                        <p className="text-xs text-muted-foreground">
+                          Não resolvidos: 
+                          {bgDiscovery.pppoeFailed > 0 ? ` PPPoE: ${bgDiscovery.pppoeFailed}` : ''}
+                          {bgDiscovery.corporateFailed > 0 ? ` Corporate: ${bgDiscovery.corporateFailed}` : ''}
+                          {bgDiscovery.onuFailed > 0 ? ` ONU: ${bgDiscovery.onuFailed}` : ''}
+                        </p>
+                      )}
                     </div>
                   </AlertDescription>
                 </Alert>
@@ -1921,9 +2011,9 @@ export function VoalleImportTab() {
                   <AlertDescription>
                     <p className="text-sm mb-1">{bgDiscovery.bgError || 'Erro durante a descoberta em segundo plano'}</p>
                     <div className="flex flex-wrap gap-4 text-sm">
-                      <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong></span>
-                      <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong></span>
-                      <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong></span>
+                      <span>PPPoE IPs: <strong>{bgDiscovery.pppoeIpsFound}</strong>{bgDiscovery.pppoeTotal > 0 ? ` / ${bgDiscovery.pppoeTotal}` : ''}</span>
+                      <span>Corporate IPs: <strong>{bgDiscovery.corporateIpsFound}</strong>{bgDiscovery.corporateTotal > 0 ? ` / ${bgDiscovery.corporateTotal}` : ''}</span>
+                      <span>ONU IDs: <strong>{bgDiscovery.onuIdsDiscovered}</strong>{bgDiscovery.onuTotal > 0 ? ` / ${bgDiscovery.onuTotal}` : ''}</span>
                     </div>
                   </AlertDescription>
                 </Alert>
