@@ -659,34 +659,32 @@ export function VoalleImportTab() {
       }
       console.log(`[Voalle Import] Conexões mapeadas via auth_contracts: ${conexoesMapped}, sem correspondência: ${conexoesUnmapped}`);
       
-      // Criar mapa de authContracts por etiqueta (service_tag) se disponível, senão por contract_id
-      // O Voalle pode ter múltiplas linhas no authentication_contracts para cada etiqueta
+      // Criar mapas de authContracts para lookup por diferentes chaves
+      // PRIORIDADE: service_tag_id (único por conexão) > service_tag > contract_id (pode ser compartilhado)
+      const authContractByServiceTagIdMap = new Map<number, any>();
       const authContractByTagMap = new Map<string, any>();
-      // Usar string como chave para suportar prefixos como "M-"
       const authContractByContractMap = new Map<string, any>();
       for (const ac of authContracts) {
-        // Verificar se tem service_tag no registro
+        // PRINCIPAL: Mapear por service_tag_id (campo que liga ao contract_service_tags.id = tag.id)
+        // Isso garante que cada tag receba seu auth_contract individual, mesmo quando compartilham contract_id
+        const serviceTagId = ac.service_tag_id ? parseInt(String(ac.service_tag_id).trim()) : NaN;
+        if (!isNaN(serviceTagId)) {
+          authContractByServiceTagIdMap.set(serviceTagId, ac);
+        }
+        // Mapear por service_tag como segundo recurso
         const serviceTag = ac.service_tag || ac.tag || ac.etiqueta;
         if (serviceTag) {
           authContractByTagMap.set(String(serviceTag).trim(), ac);
         }
-        // Também mapear por contract_id como fallback (múltiplas variações)
-        // Suporta: M-24, 24, 1036.2, M-441.2, etc.
+        // Fallback: mapear por contract_id (ATENÇÃO: sobrescreve quando múltiplas conexões compartilham o mesmo contrato)
         if (ac.contract_id) {
           const contractIdStr = String(ac.contract_id).trim();
-          // Mapear versão original
           authContractByContractMap.set(contractIdStr, ac);
-          
-          // Remover prefixo M- se existir
           const semPrefixo = contractIdStr.replace(/^M-/i, '');
           authContractByContractMap.set(semPrefixo, ac);
-          
-          // Adicionar prefixo M- se não tiver
           if (!/^M-/i.test(contractIdStr)) {
             authContractByContractMap.set(`M-${contractIdStr}`, ac);
           }
-          
-          // Versão sem ponto decimal (1036.2 -> 10362)
           const semPonto = semPrefixo.replace(/\./g, '');
           if (semPonto !== semPrefixo) {
             authContractByContractMap.set(semPonto, ac);
@@ -695,7 +693,7 @@ export function VoalleImportTab() {
         }
       }
       
-      console.log(`[Voalle Import] conexoesMap: ${conexoesMap.size} tags mapeadas, authContractByTagMap: ${authContractByTagMap.size}, authContractByContractMap: ${authContractByContractMap.size}`);
+      console.log(`[Voalle Import] conexoesMap: ${conexoesMap.size} tags mapeadas, authContractByServiceTagIdMap: ${authContractByServiceTagIdMap.size}, authContractByTagMap: ${authContractByTagMap.size}, authContractByContractMap: ${authContractByContractMap.size}`);
       
       const concentratorMap = new Map(concentrators.map(c => [c.id, c]));
       const accessPointMap = new Map(accessPoints.map(ap => [ap.id, ap]));
@@ -795,7 +793,8 @@ export function VoalleImportTab() {
           if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id}: contrato ${contractId} APROVADO em contratos_ativos`);
         }
 
-        const authContract = authContractByTagMap.get(String(tag.service_tag || '').trim()) 
+        const authContract = authContractByServiceTagIdMap.get(Number(tag.id))
+          || authContractByTagMap.get(String(tag.service_tag || '').trim()) 
           || authContractByContractMap.get(contractId)
           || authContractByContractMap.get(semPrefixo)
           || authContractByContractMap.get(semPonto)
