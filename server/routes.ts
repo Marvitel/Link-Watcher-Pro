@@ -3708,14 +3708,42 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/cpes/:id/linked-count", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const result = await storage.getLinkedLinkCountForCpe(id);
+      res.json({ count: result.count, linkNames: result.linkNames, hasMore: result.count > 10 });
+    } catch (error) {
+      console.error("Error checking CPE links:", error);
+      res.status(500).json({ error: "Falha ao verificar vínculos" });
+    }
+  });
+
   app.delete("/api/cpes/:id", requireAuth, async (req, res) => {
     try {
       if (!req.user?.isSuperAdmin) {
         return res.status(403).json({ error: "Apenas super admins podem excluir CPEs" });
       }
       const id = parseInt(req.params.id, 10);
-      await storage.deleteCpe(id);
-      res.json({ success: true });
+      const force = req.query.force === 'true';
+
+      const { count } = await storage.getLinkedLinkCountForCpe(id);
+
+      if (count > 0 && !force) {
+        return res.status(409).json({
+          error: `Esta CPE está vinculada a ${count} link(s). Confirme para excluir e remover todas as associações.`,
+          linkedCount: count,
+        });
+      }
+
+      if (count > 0 && force) {
+        const removed = await storage.deleteCpeForce(id);
+        console.log(`[CPE Delete] CPE ${id} excluída com ${removed} associações removidas`);
+        res.json({ success: true, removedAssociations: removed });
+      } else {
+        await storage.deleteCpe(id);
+        res.json({ success: true, removedAssociations: 0 });
+      }
     } catch (error) {
       console.error("Error deleting CPE:", error);
       res.status(500).json({ error: "Falha ao excluir CPE" });

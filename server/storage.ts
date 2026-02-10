@@ -2624,6 +2624,24 @@ export class DatabaseStorage {
     return cpe;
   }
 
+  async getLinkedLinkCountForCpe(cpeId: number): Promise<{ count: number; linkNames: string[] }> {
+    const linked = await db.select({ linkId: linkCpes.linkId }).from(linkCpes).where(eq(linkCpes.cpeId, cpeId));
+    const linkNames: string[] = [];
+    for (const ll of linked.slice(0, 10)) {
+      const [link] = await db.select({ name: links.name }).from(links).where(eq(links.id, ll.linkId));
+      if (link) linkNames.push(link.name);
+    }
+    return { count: linked.length, linkNames };
+  }
+
+  async deleteCpeForce(id: number): Promise<number> {
+    await db.delete(cpeCommandHistory).where(eq(cpeCommandHistory.cpeId, id));
+    await db.delete(cpePortStatus).where(eq(cpePortStatus.cpeId, id));
+    const deleted = await db.delete(linkCpes).where(eq(linkCpes.cpeId, id));
+    await db.update(cpes).set({ isActive: false, updatedAt: new Date() }).where(eq(cpes.id, id));
+    return deleted.rowCount ?? 0;
+  }
+
   async deleteCpe(id: number): Promise<void> {
     await db.update(cpes).set({ isActive: false, updatedAt: new Date() }).where(eq(cpes.id, id));
   }

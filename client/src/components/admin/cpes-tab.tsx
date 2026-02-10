@@ -199,8 +199,9 @@ export function CpesTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/cpes/${id}`);
+    mutationFn: async ({ id, force }: { id: number; force?: boolean }) => {
+      const url = force ? `/api/cpes/${id}?force=true` : `/api/cpes/${id}`;
+      return apiRequest("DELETE", url);
     },
     onSuccess: () => {
       toast({ title: "CPE excluído com sucesso" });
@@ -210,6 +211,27 @@ export function CpesTab() {
       toast({ title: "Erro ao excluir CPE", variant: "destructive" });
     },
   });
+
+  const handleDelete = async (cpe: any) => {
+    try {
+      const res = await fetch(`/api/cpes/${cpe.id}/linked-count`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.count > 0) {
+        const linkList = data.linkNames.join(', ');
+        const extra = data.hasMore ? ` e mais ${data.count - 10}...` : '';
+        const msg = `ATENÇÃO: Esta CPE "${cpe.name}" está vinculada a ${data.count} link(s):\n\n${linkList}${extra}\n\nAo excluir, todas as associações serão removidas dos links.\n\nDeseja continuar?`;
+        if (confirm(msg)) {
+          deleteMutation.mutate({ id: cpe.id, force: true });
+        }
+      } else {
+        if (confirm(`Tem certeza que deseja excluir a CPE "${cpe.name}"?`)) {
+          deleteMutation.mutate({ id: cpe.id });
+        }
+      }
+    } catch {
+      toast({ title: "Erro ao verificar vínculos da CPE", variant: "destructive" });
+    }
+  };
 
   const handleSubmit = () => {
     if (editingCpe) {
@@ -720,11 +742,7 @@ export function CpesTab() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            if (confirm("Tem certeza que deseja excluir este CPE?")) {
-                              deleteMutation.mutate(cpe.id);
-                            }
-                          }}
+                          onClick={() => handleDelete(cpe)}
                           data-testid={`button-delete-cpe-${cpe.id}`}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
