@@ -1,0 +1,35 @@
+id;title;description;server_ip;ssh_user;ssh_password;ssh_port;winbox_port;web_port;observation;vendor;community_snmp;is_active;voalle_access_point_ids
+5;CE: AJU-MVT-RB-TV-ATALAIA;AJU-MVT-RB-TV-ATALAIA;191.52.248.155;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+8;CE: CMP-MVT-RB-CARMELO;RB MONTE CARMELO;191.52.248.242;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;8
+7;CE: LGT-MVT-RB-RPRG;RB RADIO PROGRESSO FM DE LAGARTO.;191.52.248.243;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;7,54
+9;CE: AJU-MVT-RB-DMC;RB ED Domanni Citta;191.52.248.248;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;42,77
+40;CE: BCQ-MVT-CLT-COND-MAIKAI;RB DO CONDOMINIO MAIKAI;191.52.255.96;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+1;CE: AJU-MVT-BORDA-HSP;RB BORDA HSP;191.52.248.254;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;1,40
+20;CE: NSS-MVT-RB-POP-FBS;POP Fabise;191.52.248.253;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+222;CE: CISCO BGP ASR1004;;191.52.255.253;link.monitor;7g9xaQ93%2%7;22;;80;;cisco;marvitel;True;
+235;CE: RESERVA PARK;;191.52.253.223;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+34;CE: ITA-MVT-RB-PLC-POP;;191.52.248.224;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;36,132
+32;CE: PPA-MVT-RB-POP;;191.52.248.235;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;34
+21;CE: EST-MVT-POP-ESTANCIA;POP ESTANCIA;191.52.248.241;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;21
+182;CE: AJU-PMV-RB-HSP-MPLS;;10.1.254.130;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+33;CE: NSG-MVT-RB-NSG;;191.52.248.34;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;35
+236;AJU-MVT-NE8000-01-BGP;Roteador de Borda ;191.52.255.252;link.monitor;7g9xaQ93%2%7;22;;80;;huawei;marvitel;True;
+41;CE: AJU-MVT-RB-BTT;;191.52.248.111;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+232;CE2: BCQ-MVT-CLT-COND-MAIKAI;;191.52.255.192;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+22;CE: BCQ-MVT-RB-ILH;RB POP Barra Ilha FM;191.52.248.238;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;22
+230;CE: AQD-MVT-RB-POP-AQUIDABA;POP AQUIDABA;191.52.248.18;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+2;CE: AJU-MVT-RB-SIQUEIRA;RB SIQUEIRA;191.52.248.249;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;2
+38;CE: AJU-MVT-BORDA-OSPF2;AJU-MVT-BORDA-OSPF2;191.52.248.10;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;65
+223;CE: AJU-MVT-RB-MAUI;;191.52.250.15;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+25;CE: AJU-MVT-BORDA-OSPF;AJU-MVT-BORDA-OSPF;191.52.248.2;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+24;CE: AJU-MVT-RB-MVT;RB POP MARVITEL SEDE;191.52.248.240;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;24
+228;CE:AJU-MVT-RB-POP-SERRA;POP SERRA;191.52.248.255;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+18;CE: AJU-MVT-RB-POP-CLB;POP Calumbi;191.52.248.231;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;18
+233;CE: AJU-MVT-RB-VITTORIO-EMANUELE;;191.52.251.70;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+37;CE: LGT-MVT-RB-HRS;RB HARAS;191.52.248.74;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;63
+229;CE: AJU-MVT-RB-CONCENTRADOR-PPPoE;;191.52.248.22;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+231;CE:CONDOMINIO-TAHAA;Rb do Condominio Tahaa;191.52.249.187;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+11;CE: AJU-MVT-RB-MSQ;RB MOSQUEIRO;191.52.248.110;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;11,68
+225;CE: AJU-PKV-RB-1009;NOVA RB PARK VILLE;191.52.251.102;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;
+221;CE: CISCO ASR1002;;191.52.255.254;link.monitor;7g9xaQ93%2%7;22;;80;;cisco;marvitel;True;
+224;CE:THAI-RESIDENCE;;191.52.252.130;link.monitor;7g9xaQ93%2%7;2220;8291;80;;mikrotik;marvitel;True;

@@ -4194,9 +4194,12 @@ export async function registerRoutes(
         if (!ids) return [];
         return ids.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
       };
-      const mergeVoalleIds = (existing: string | null | undefined, newId: number): string => {
+      const mergeVoalleIds = (existing: string | null | undefined, newId: number | number[]): string => {
         const ids = parseVoalleIds(existing);
-        if (!ids.includes(newId)) ids.push(newId);
+        const newIds = Array.isArray(newId) ? newId : [newId];
+        for (const nid of newIds) {
+          if (!ids.includes(nid)) ids.push(nid);
+        }
         return ids.join(',');
       };
 
@@ -4213,15 +4216,17 @@ export async function registerRoutes(
 
         for (const conc of concentrators) {
           try {
-            const voalleId = parseInt(conc.id, 10);
+            const csvIdStr = String(conc.id || '').trim();
+            const csvVoalleIds = parseVoalleIds(csvIdStr);
+            const voalleId = csvVoalleIds[0];
             const ip = conc.server_ip || '';
-            if (isNaN(voalleId) || !ip) {
+            if (!voalleId || isNaN(voalleId) || !ip) {
               results.concentratorsSkipped++;
               continue;
             }
 
             const concData: any = {
-              voalleIds: String(voalleId),
+              voalleIds: csvVoalleIds.join(','),
               name: conc.title || `Concentrador Voalle #${voalleId}`,
               ipAddress: ip,
               isActive: conc.is_active !== undefined ? conc.is_active !== '0' && conc.is_active.toLowerCase() !== 'false' && conc.is_active.toLowerCase() !== 'nao' && conc.is_active.toLowerCase() !== 'não' : true,
@@ -4249,9 +4254,14 @@ export async function registerRoutes(
               concData.isAccessPoint = true;
             }
 
-            const existing = existingByVoalleId.get(voalleId) || existingByIp.get(ip);
+            let existing: typeof existingConcs[0] | undefined;
+            for (const vid of csvVoalleIds) {
+              existing = existingByVoalleId.get(vid);
+              if (existing) break;
+            }
+            if (!existing) existing = existingByIp.get(ip);
             if (existing) {
-              concData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
+              concData.voalleIds = mergeVoalleIds(existing.voalleIds, csvVoalleIds);
               await storage.updateConcentrator(existing.id, concData);
               results.concentratorsUpdated++;
             } else {
@@ -4285,8 +4295,10 @@ export async function registerRoutes(
 
         for (const ap of accessPoints) {
           try {
-            const voalleId = parseInt(ap.id, 10);
-            if (isNaN(voalleId)) {
+            const apIdStr = String(ap.id || '').trim();
+            const apVoalleIds = parseVoalleIds(apIdStr);
+            const voalleId = apVoalleIds[0];
+            if (!voalleId || isNaN(voalleId)) {
               results.accessPointsSkipped++;
               continue;
             }
@@ -4298,7 +4310,7 @@ export async function registerRoutes(
 
             if (isOlt) {
               const oltData: any = {
-                voalleIds: String(voalleId),
+                voalleIds: apVoalleIds.join(','),
                 name: name || `OLT Voalle #${voalleId}`,
                 ipAddress: ipAddr || "0.0.0.0",
                 port: parseIntSafe(ap.port) || 23,
@@ -4314,9 +4326,14 @@ export async function registerRoutes(
               if (ap.diagnosis_key_template) oltData.diagnosisKeyTemplate = ap.diagnosis_key_template;
               if (ap.is_active !== undefined) oltData.isActive = ap.is_active !== '0' && ap.is_active.toLowerCase() !== 'false' && ap.is_active.toLowerCase() !== 'nao' && ap.is_active.toLowerCase() !== 'não';
 
-              const existing = existingOltsByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingOltsByIp.get(ipAddr) : undefined);
+              let existing: typeof existingOlts[0] | undefined;
+              for (const vid of apVoalleIds) {
+                existing = existingOltsByVoalleId.get(vid);
+                if (existing) break;
+              }
+              if (!existing && ipAddr && ipAddr !== '0.0.0.0') existing = existingOltsByIp.get(ipAddr);
               if (existing) {
-                oltData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
+                oltData.voalleIds = mergeVoalleIds(existing.voalleIds, apVoalleIds);
                 await storage.updateOlt(existing.id, oltData);
                 results.accessPointsUpdated++;
                 results.oltsUpdated++;
@@ -4327,7 +4344,7 @@ export async function registerRoutes(
               }
             } else {
               const switchData: any = {
-                voalleIds: String(voalleId),
+                voalleIds: apVoalleIds.join(','),
                 name: name || `Switch Voalle #${voalleId}`,
                 ipAddress: ipAddr || "0.0.0.0",
               };
@@ -4348,10 +4365,15 @@ export async function registerRoutes(
               if (ap.port_index_template) switchData.portIndexTemplate = ap.port_index_template;
               if (ap.is_active !== undefined) switchData.isActive = ap.is_active !== '0' && ap.is_active.toLowerCase() !== 'false' && ap.is_active.toLowerCase() !== 'nao' && ap.is_active.toLowerCase() !== 'não';
 
-              const existing = existingSwitchesByVoalleId.get(voalleId) || (ipAddr && ipAddr !== '0.0.0.0' ? existingSwitchesByIp.get(ipAddr) : undefined);
-              if (existing) {
-                switchData.voalleIds = mergeVoalleIds(existing.voalleIds, voalleId);
-                await storage.updateSwitch(existing.id, switchData);
+              let existingSw: typeof existingSwitches[0] | undefined;
+              for (const vid of apVoalleIds) {
+                existingSw = existingSwitchesByVoalleId.get(vid);
+                if (existingSw) break;
+              }
+              if (!existingSw && ipAddr && ipAddr !== '0.0.0.0') existingSw = existingSwitchesByIp.get(ipAddr);
+              if (existingSw) {
+                switchData.voalleIds = mergeVoalleIds(existingSw.voalleIds, apVoalleIds);
+                await storage.updateSwitch(existingSw.id, switchData);
                 results.accessPointsUpdated++;
                 results.switchesUpdated++;
               } else {
