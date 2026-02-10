@@ -358,10 +358,9 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
       else if (lowerValue === 'false') value = false;
       else if (value === '' || lowerValue === 'null') value = null;
       else if (typeof value === 'string') {
-        // Remove separadores de milhar (vírgulas) para números
-        const numericValue = value.replace(/,/g, '').trim();
-        if (numericValue !== '' && !isNaN(Number(numericValue)) && /^-?\d+\.?\d*$/.test(numericValue)) {
-          value = Number(numericValue);
+        const trimmedVal = value.trim();
+        if (trimmedVal !== '' && !trimmedVal.includes(',') && !isNaN(Number(trimmedVal)) && /^-?\d+\.?\d*$/.test(trimmedVal)) {
+          value = Number(trimmedVal);
         }
       }
       row[header] = value;

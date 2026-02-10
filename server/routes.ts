@@ -4250,7 +4250,9 @@ export async function registerRoutes(
             }
             const apIds = conc.voalle_access_point_ids || conc.ids_ponto_de_acesso || conc.access_point_ids || '';
             if (apIds) {
-              concData.voalleAccessPointIds = String(apIds).trim();
+              const apIdsStr = String(apIds).trim();
+              console.log(`[Voalle Equipment Import] Concentrador "${concData.name}" voalleAccessPointIds raw="${apIds}" parsed="${apIdsStr}"`);
+              concData.voalleAccessPointIds = apIdsStr;
               concData.isAccessPoint = true;
             }
 
