@@ -5117,15 +5117,16 @@ export async function registerRoutes(
           try {
             const { detectVendorByMac, discoverMacForLink } = await import("./concentrator");
             
-            // Buscar todos os links PPPoE que têm IP mas não têm CPE vinculado ainda
+            // Buscar apenas links PPPoE importados NESTE LOTE que têm IP mas não têm CPE vinculado
             const allLinks = await storage.getLinks();
             const pppoeLinksWithIp = allLinks.filter((l: typeof allLinks[0]) => 
+              processedLinkIds.includes(l.id) &&
               l.authType === 'pppoe' && 
               l.pppoeUser && 
               l.monitoredIp
             );
             
-            console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE para vincular CPE`);
+            console.log(`[Voalle Import] ${pppoeLinksWithIp.length} links PPPoE deste lote para vincular CPE`);
             
             let cpesLinkedByVendor = 0;
             let cpesLinkedGeneric = 0;
@@ -5157,55 +5158,66 @@ export async function registerRoutes(
               let linkedCpe = null;
               
               // Descobrir MAC via ARP nos equipamentos do link (OLT > Switch > Concentrador)
+              // Com timeout de 30s para evitar travamento se equipamento não responder
               console.log(`[Voalle Import] ${link.name}: Buscando MAC para IP ${link.monitoredIp}...`);
               
-              // Preparar equipamentos para busca (com credenciais para API Mikrotik)
-              let oltEquip = null;
-              let switchEquip = null;
-              let concEquip = null;
+              let finalMac: string | null = null;
+              let macSource: string | null = null;
               
-              if (link.oltId) {
-                const olt = await storage.getOlt(link.oltId);
-                if (olt) {
-                  // OLT tem campo vendor direto - descriptografar senha
-                  const oltPassword = olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null;
-                  oltEquip = { ...olt, vendor: olt.vendor, username: olt.username, password: oltPassword };
-                }
+              try {
+                const macDiscoveryPromise = (async () => {
+                  let oltEquip = null;
+                  let switchEquip = null;
+                  let concEquip = null;
+                  
+                  if (link.oltId) {
+                    const olt = await storage.getOlt(link.oltId);
+                    if (olt) {
+                      const oltPassword = olt.password ? (isEncrypted(olt.password) ? decrypt(olt.password) : olt.password) : null;
+                      oltEquip = { ...olt, vendor: olt.vendor, username: olt.username, password: oltPassword };
+                    }
+                  }
+                  if (link.accessPointId) {
+                    const sw = await storage.getSwitch(link.accessPointId);
+                    if (sw) {
+                      const swPassword = sw.sshPassword ? (isEncrypted(sw.sshPassword) ? decrypt(sw.sshPassword) : sw.sshPassword) : null;
+                      switchEquip = { ...sw, username: sw.sshUser, password: swPassword };
+                    }
+                  }
+                  if (link.concentratorId) {
+                    const conc = await storage.getConcentrator(link.concentratorId);
+                    if (conc) {
+                      const vendorObj = conc.equipmentVendorId ? await storage.getEquipmentVendor(conc.equipmentVendorId) : null;
+                      const concPassword = conc.sshPassword ? (isEncrypted(conc.sshPassword) ? decrypt(conc.sshPassword) : conc.sshPassword) : null;
+                      concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: concPassword, apiPort: 8728 };
+                    }
+                  }
+                  
+                  const getSnmpProfileNullable = async (id: number) => {
+                    const profile = await storage.getSnmpProfile(id);
+                    return profile ?? null;
+                  };
+                  
+                  return await discoverMacForLink(
+                    link.monitoredIp || '',
+                    oltEquip,
+                    switchEquip,
+                    concEquip,
+                    getSnmpProfileNullable,
+                    link.pppoeUser
+                  );
+                })();
+                
+                const timeoutPromise = new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout 30s na busca de MAC')), 30000)
+                );
+                
+                const macResult = await Promise.race([macDiscoveryPromise, timeoutPromise]);
+                finalMac = macResult.mac;
+                macSource = macResult.source;
+              } catch (macErr: any) {
+                console.log(`[Voalle Import] ${link.name}: Erro/timeout na busca de MAC via equipamentos: ${macErr.message}`);
               }
-              if (link.accessPointId) {
-                const sw = await storage.getSwitch(link.accessPointId);
-                if (sw) {
-                  // Switch tem vendor direto e sshUser/sshPassword - descriptografar senha
-                  const swPassword = sw.sshPassword ? (isEncrypted(sw.sshPassword) ? decrypt(sw.sshPassword) : sw.sshPassword) : null;
-                  switchEquip = { ...sw, username: sw.sshUser, password: swPassword };
-                }
-              }
-              if (link.concentratorId) {
-                const conc = await storage.getConcentrator(link.concentratorId);
-                if (conc) {
-                  // Concentrador tem equipmentVendorId para buscar slug do vendor - descriptografar senha
-                  const vendorObj = conc.equipmentVendorId ? await storage.getEquipmentVendor(conc.equipmentVendorId) : null;
-                  const concPassword = conc.sshPassword ? (isEncrypted(conc.sshPassword) ? decrypt(conc.sshPassword) : conc.sshPassword) : null;
-                  concEquip = { ...conc, vendor: vendorObj?.slug || null, username: conc.sshUser, password: concPassword, apiPort: 8728 };
-                }
-              }
-              
-              const getSnmpProfileNullable = async (id: number) => {
-                const profile = await storage.getSnmpProfile(id);
-                return profile ?? null;
-              };
-              
-              const macResult = await discoverMacForLink(
-                link.monitoredIp || '',
-                oltEquip,
-                switchEquip,
-                concEquip,
-                getSnmpProfileNullable,
-                link.pppoeUser
-              );
-              
-              let finalMac = macResult.mac;
-              let macSource = macResult.source;
               
               // Se não encontrou MAC via SNMP/API, tentar via RADIUS DB (por username e por IP)
               if (!finalMac) {
