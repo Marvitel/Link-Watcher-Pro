@@ -91,6 +91,7 @@ declare module "http" {
 
 // Middleware de JSON para ambos os apps
 const jsonMiddleware = express.json({
+  limit: '50mb',
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   },
@@ -98,6 +99,7 @@ const jsonMiddleware = express.json({
 
 app.use(jsonMiddleware);
 adminApp.use(express.json({
+  limit: '50mb',
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   },
