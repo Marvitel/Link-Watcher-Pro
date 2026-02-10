@@ -725,11 +725,24 @@ export function VoalleImportTab() {
       // IDs de tags para debug detalhado
       const debugTagIds = new Set([2495, 1176]);
       
+      // Debug: mostrar valores únicos do campo active para diagnóstico
+      if (contractTags.length > 0) {
+        const activeValues = new Set(contractTags.map((t: any) => `${t.active}(${typeof t.active})`));
+        console.log(`[Voalle Import] Valores únicos de 'active' nas tags:`, Array.from(activeValues));
+        console.log(`[Voalle Import] Campos da primeira tag:`, Object.keys(contractTags[0]));
+        console.log(`[Voalle Import] Primeira tag completa:`, JSON.stringify(contractTags[0]));
+      }
+      
       for (const tag of contractTags) {
         const isDebug = debugTagIds.has(tag.id) || debugTagIds.has(Number(tag.id));
         
-        if (!tag.active) {
-          if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: inativa`);
+        // Suportar múltiplos formatos do campo active: true, "true", "t", "1", "sim", "yes", "s"
+        const activeVal = tag.active;
+        const isActive = activeVal === true || activeVal === 'true' || activeVal === 't' || activeVal === '1' || activeVal === 1 || 
+          (typeof activeVal === 'string' && ['sim', 'yes', 's'].includes(activeVal.toLowerCase()));
+        
+        if (!isActive) {
+          if (isDebug) console.log(`[Voalle Debug] Tag ${tag.id} FILTRADA: inativa (active=${activeVal}, tipo=${typeof activeVal})`);
           skippedInactive++;
           continue;
         }
@@ -1015,9 +1028,13 @@ export function VoalleImportTab() {
         });
       }
       
+      const detalhes = links.length === 0 
+        ? ` | Filtrados: ${skippedInactive} inativos, ${skippedByContratosAtivos} contratos não ativos, ${skippedByTitle} sem PPPoE/VLAN/TipoConexão`
+        : '';
       toast({
         title: "Processamento concluído",
-        description: `${links.length} links encontrados para importação`,
+        description: `${links.length} links encontrados para importação (de ${contractTags.length} tags + ${conexoes.length} conexões)${detalhes}`,
+        duration: links.length === 0 ? 15000 : 5000,
       });
 
     } catch (error) {
