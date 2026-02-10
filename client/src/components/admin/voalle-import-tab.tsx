@@ -1172,10 +1172,6 @@ export function VoalleImportTab() {
           targetClientId: selectedClientId === "auto" ? null : parseInt(selectedClientId),
           lookupPppoeIps,
         });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`Erro HTTP ${response.status}: ${text.substring(0, 200)}`);
-        }
         const result: ImportResult = await response.json();
         
         accumulated.success += result.success;
