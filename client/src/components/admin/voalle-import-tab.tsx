@@ -358,9 +358,15 @@ function parseCsv(text: string): { headers: string[]; data: any[]; errors: strin
       else if (lowerValue === 'false') value = false;
       else if (value === '' || lowerValue === 'null') value = null;
       else if (typeof value === 'string') {
-        const trimmedVal = value.trim();
-        if (trimmedVal !== '' && !trimmedVal.includes(',') && !isNaN(Number(trimmedVal)) && /^-?\d+\.?\d*$/.test(trimmedVal)) {
-          value = Number(trimmedVal);
+        const lowerHeader = header.toLowerCase();
+        const isIdField = lowerHeader === 'id' || lowerHeader.endsWith('_ids') || lowerHeader.endsWith('_id');
+        if (isIdField) {
+          // Campos de ID podem conter múltiplos IDs separados por vírgula - manter como string
+        } else {
+          const numericValue = value.replace(/,/g, '').trim();
+          if (numericValue !== '' && !isNaN(Number(numericValue)) && /^-?\d+\.?\d*$/.test(numericValue)) {
+            value = Number(numericValue);
+          }
         }
       }
       row[header] = value;
