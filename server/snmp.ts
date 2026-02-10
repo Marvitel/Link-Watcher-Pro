@@ -742,6 +742,13 @@ export const OPTICAL_OIDS = {
     onuTxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.14", // fkGponOnuTxOpticalPower (centésimos de dBm)
     onuDistance: "1.3.6.1.4.1.3979.6.4.2.1.2.1.1.1.21", // fkGponOnuDistance (metros)
   },
+  // Datacom DM4610/DM4615 (GPON-ONU-IF-MIB)
+  // NOTA: Datacom não expõe OLT RX via SNMP - usar fallback Zabbix para OLT_RX
+  datacom: {
+    onuRxPower: "1.3.6.1.4.1.3709.3.6.2.1.1.22", // onuIfOnuPowerRx (dBm, FLOAT) - RX na ONU
+    onuTxPower: "1.3.6.1.4.1.3709.3.6.2.1.1.21", // onuIfOnuPowerTx (dBm, FLOAT) - TX da ONU
+    // oltRxPower: não disponível via SNMP na Datacom - fallback Zabbix é usado automaticamente
+  },
   // Intelbras OLT 8820G / 110Gi
   intelbras: {
     onuRxPower: "1.3.6.1.4.1.26138.1.2.1.1.1.9",  // RX Power ONU (STRING dBm, "--" = offline)

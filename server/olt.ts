@@ -1471,7 +1471,7 @@ export async function queryOltAlarm(olt: Olt, onuId: string): Promise<OltDiagnos
 
 // Busca o ID da ONU via SSH usando o serial/string de busca
 // Usa o comando configurado na OLT ou fallback por vendor
-export async function searchOnuBySerial(olt: Olt, searchString: string): Promise<{ success: boolean; onuId: string | null; rawOutput: string; message: string }> {
+export async function searchOnuBySerial(olt: Olt, searchString: string): Promise<{ success: boolean; onuId: string | null; slotOlt?: number; portOlt?: number; rawOutput: string; message: string }> {
   try {
     const vendor = (olt.vendor || "").toLowerCase();
     
@@ -1507,22 +1507,27 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
     let onuId: string | null = null;
     const lines = rawOutput.split("\n").filter(l => l.trim());
     
+    let discoveredSlot: number | undefined;
+    let discoveredPort: number | undefined;
+    
     if (vendor.includes("datacom")) {
-      // Datacom: formato "1/1/1 2 TPLG150853A0 Down None ..."
-      // parts[0] = slot/port/pon (ex: 1/1/1)
-      // parts[1] = ID numérico da ONU (ex: 2)
-      // parts[2] = serial (ex: TPLG150853A0)
-      // Resultado: apenas o ID numérico (ex: 2)
+      // Datacom: formato "1/1/3 8 DACM91779D68 Up Active ..."
+      // parts[0] = slot/shelf/pon (ex: 1/1/3)
+      // parts[1] = ID numérico da ONU (ex: 8)
+      // parts[2] = serial (ex: DACM91779D68)
+      // Resultado: onuId = 8, slot = 1, port = 3
       for (const line of lines) {
         if (line.toLowerCase().includes(searchString.toLowerCase())) {
           const parts = line.trim().split(/\s+/);
-          // Verifica se tem formato esperado: slot/port/pon + ID + serial
           if (parts.length >= 3) {
-            const ponPath = parts[0]; // 1/1/1
-            const onuNumber = parts[1]; // 2
-            // Verifica se ponPath tem formato X/X/X e onuNumber é numérico
+            const ponPath = parts[0]; // 1/1/3
+            const onuNumber = parts[1]; // 8
             if (/^\d+\/\d+\/\d+$/.test(ponPath) && /^\d+$/.test(onuNumber)) {
-              onuId = onuNumber; // Apenas o ID numérico
+              onuId = onuNumber;
+              const pathParts = ponPath.split('/');
+              discoveredSlot = parseInt(pathParts[0], 10); // slot
+              discoveredPort = parseInt(pathParts[2], 10); // pon port (terceiro segmento)
+              console.log(`[OLT Search] Datacom ONU path: ${ponPath} -> slot=${discoveredSlot} port=${discoveredPort} onuId=${onuId}`);
               break;
             }
           }
@@ -1633,12 +1638,17 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
     }
     
     if (onuId) {
-      console.log(`[OLT Search] ONU encontrada: ${onuId}`);
+      const slotPortInfo = discoveredSlot !== undefined && discoveredPort !== undefined
+        ? ` (slot=${discoveredSlot} port=${discoveredPort})`
+        : '';
+      console.log(`[OLT Search] ONU encontrada: ${onuId}${slotPortInfo}`);
       return {
         success: true,
         onuId,
+        slotOlt: discoveredSlot,
+        portOlt: discoveredPort,
         rawOutput,
-        message: `ONU encontrada: ${onuId}`
+        message: `ONU encontrada: ${onuId}${slotPortInfo}`
       };
     } else {
       console.log(`[OLT Search] ONU não encontrada no output`);

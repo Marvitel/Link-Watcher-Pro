@@ -5631,8 +5631,18 @@ export async function registerRoutes(
                 );
                 
                 if (result.success && result.onuId) {
-                  await storage.updateLink(link.id, { onuId: result.onuId });
-                  console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}`);
+                  const updateData: any = { onuId: result.onuId };
+                  if (result.slotOlt !== undefined) {
+                    updateData.slotOlt = result.slotOlt;
+                  }
+                  if (result.portOlt !== undefined) {
+                    updateData.portOlt = result.portOlt;
+                  }
+                  await storage.updateLink(link.id, updateData);
+                  const slotPortLog = result.slotOlt !== undefined && result.portOlt !== undefined
+                    ? ` (slot=${result.slotOlt} port=${result.portOlt})`
+                    : '';
+                  console.log(`[Voalle Import] ${link.name}: ONU ID descoberto: ${result.onuId}${slotPortLog}`);
                   onuIdsDiscovered++;
                   importJobStatus.onuIdsDiscovered = onuIdsDiscovered;
                 } else {

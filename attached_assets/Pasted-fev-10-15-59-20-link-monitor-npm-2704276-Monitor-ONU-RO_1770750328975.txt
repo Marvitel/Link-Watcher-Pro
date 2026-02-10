@@ -1,0 +1,45 @@
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 15:59:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Querying OLT with key: show alarm | include 1/1/2/22
+fev 10 15:59:21 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT returned alarmType=null, diagnosis=Sem alarmes ativos
+fev 10 15:59:21 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 15:59:21 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 15:59:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 16:00:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 16:00:50 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 16:01:19 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 16:01:20 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 16:01:48 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=22
+fev 10 16:01:48 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 10 16:01:48 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780820...
+fev 10 16:01:48 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13) - Óptico Zabbix: OLT_RX=-24.95dBm
+fev 10 16:01:49 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): Offline detected, consulting OLT for diagnosis...
+fev 10 16:01:49 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 10 16:01:49 link-monitor npm[2704276]: [Monitor] ONU-ROUTER   User PPPoE (casa_13) senha: (casa_13): lat=0.0ms, loss=100.0%, status=offline
+fev 10 16:01:54 link-monitor npm[2704276]:   ozmapTag: 'CASA_13_PKV_FR3R3WG6',
