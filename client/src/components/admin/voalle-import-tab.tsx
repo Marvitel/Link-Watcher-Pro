@@ -1240,6 +1240,11 @@ export function VoalleImportTab() {
     setParsedLinks(links => links.map(l => ({ ...l, selected })));
   };
 
+  const selectFiltered = (selected: boolean) => {
+    const filteredIds = new Set(filteredLinks.map(l => l.id));
+    setParsedLinks(links => links.map(l => filteredIds.has(l.id) ? { ...l, selected } : l));
+  };
+
   const resetImport = () => {
     setCsvFiles([]);
     setParsedLinks([]);
@@ -1479,8 +1484,8 @@ export function VoalleImportTab() {
                   </Button>
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={selectedCount === parsedLinks.length}
-                      onCheckedChange={(checked) => selectAll(!!checked)}
+                      checked={filterText ? filteredLinks.every(l => l.selected) && filteredLinks.length > 0 : selectedCount === parsedLinks.length}
+                      onCheckedChange={(checked) => filterText ? selectFiltered(!!checked) : selectAll(!!checked)}
                       data-testid="checkbox-select-all"
                     />
                     <span className="text-sm">
@@ -1495,8 +1500,24 @@ export function VoalleImportTab() {
                     data-testid="input-filter"
                   />
                   {filterText && (
-                    <span className="text-sm text-muted-foreground">
-                      {filteredLinks.length} de {parsedLinks.length} exibidos
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span>{filteredLinks.length} de {parsedLinks.length} exibidos</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectFiltered(true)}
+                        data-testid="button-select-filtered"
+                      >
+                        Selecionar {filteredLinks.length} filtrados
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectFiltered(false)}
+                        data-testid="button-deselect-filtered"
+                      >
+                        Desmarcar filtrados
+                      </Button>
                     </span>
                   )}
                 </div>
