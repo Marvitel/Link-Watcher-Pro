@@ -1,0 +1,71 @@
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 94, clientName: PARK VILLE CONDOMINIUM (13390850000195)
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Found existing client by slug: park-ville-condominium, updating/reactivating with voalleId: 94
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 119, oltName: OLT-DATACOM-PARKVILLE
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Access point "OLT-DATACOM-PARKVILLE" isOlt: true
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] OLT from existing: 22
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Link CASA_72_PKV_0AFQLRMX: clientId=40, concentratorId=33, oltId=22, switchId=null, concAsAP=null
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Creating new link CASA_72_PKV_0AFQLRMX with accessPointId=22
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: CISCO ASR1002 (SNMP: SNMP MARVITEL V2)
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: AJU-PKV-RB-1009 (SNMP: SNMP MARVITEL V2)
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): IP=100.80.8.10, ifIndex=15747084, ifName=<pppoe-casa_72>, ipBlock=N/A
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] 12 links PPPoE para vincular CPE
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Buscando MAC para IP 100.80.8.10...
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): MAC=70:cd:91:77:80:10 (via Concentrador (API))
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Vendor slug: tplink
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Vendor: TP-Link (ID: 8)
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): CPE padrão vinculada: ONT TPLINK
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] RP PARK SHOP - 50M: Buscando MAC para IP 100.80.16.3...
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor --since "5 minutes ago" | grep -i voalle
+fev 10 12:22:46 link-monitor npm[2575562]: [Voalle Contract Tags] Buscando etiquetas para cliente 40
+fev 10 12:22:46 link-monitor npm[2575562]: [Voalle Contract Tags] Cliente: PARK VILLE CONDOMINIUM, CNPJ: 13390850000195, VoalleCustomerId: 94
+fev 10 12:22:46 link-monitor npm[2575562]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 10 12:22:46 link-monitor npm[2575562]: [Voalle Contract Tags] voalleCustomerId: 94, CNPJ: 13390850000195, portalUser: definido, portalPass: [presente]
+fev 10 12:22:46 link-monitor npm[2575562]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 94, user: parkville)
+fev 10 12:22:46 link-monitor npm[2575562]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 10 12:22:46 link-monitor npm[2575562]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+fev 10 12:22:46 link-monitor npm[2575562]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 13390850000195): /contractservicetagspaged?txId=13390850000195&Page=1&PageSize=50
+fev 10 12:22:46 link-monitor npm[2575562]: [VoalleAdapter] API antiga: 0 etiquetas encontradas
+fev 10 12:22:46 link-monitor npm[2575562]: [Voalle Contract Tags] Encontradas 0 etiquetas
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] getOrCreateClientForLink - clientVoalleId: 94, clientName: PARK VILLE CONDOMINIUM (13390850000195)
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Found existing client by slug: park-ville-condominium, updating/reactivating with voalleId: 94
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] getOrCreateAccessPoint - accessPointId: 119, oltName: OLT-DATACOM-PARKVILLE
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Access point "OLT-DATACOM-PARKVILLE" isOlt: true
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] OLT from existing: 22
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Link CASA_72_PKV_0AFQLRMX: clientId=40, concentratorId=33, oltId=22, switchId=null, concAsAP=null
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Creating new link CASA_72_PKV_0AFQLRMX with accessPointId=22
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Iniciando busca de IPs via PPPoE...
+fev 10 12:24:11 link-monitor npm[2580854]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: CISCO ASR1002 (SNMP: SNMP MARVITEL V2)
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] Buscando 1 sessões PPPoE no concentrador CE: AJU-PKV-RB-1009 (SNMP: SNMP MARVITEL V2)
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): IP=100.80.8.10, ifIndex=15747084, ifName=<pppoe-casa_72>, ipBlock=N/A
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] Busca de IPs concluída: 1 IPs encontrados
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] 12 links PPPoE para vincular CPE
+fev 10 12:24:17 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Buscando MAC para IP 100.80.8.10...
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): MAC=70:cd:91:77:80:10 (via Concentrador (API))
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Vendor slug: tplink
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): Vendor: TP-Link (ID: 8)
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73): CPE padrão vinculada: ONT TPLINK
+fev 10 12:24:18 link-monitor npm[2580854]: [Voalle Import] RP PARK SHOP - 50M: Buscando MAC para IP 100.80.16.3...
+fev 10 12:25:19 link-monitor npm[2580854]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 10 12:25:19 link-monitor npm[2580854]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 10 12:25:19 link-monitor npm[2580854]: [VoalleAdapter] Encontradas 1 solicitações
+fev 10 12:25:19 link-monitor npm[2580854]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73) (serviceTag: CASA_72_PKV_0AFQLRMX)
+fev 10 12:25:24 link-monitor npm[2580854]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 10 12:25:24 link-monitor npm[2580854]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 10 12:25:24 link-monitor npm[2580854]: [VoalleAdapter] Encontradas 1 solicitações
+fev 10 12:25:24 link-monitor npm[2580854]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER  User PPPoE (casa_73) senha: (casa_73) (serviceTag: CASA_72_PKV_0AFQLRMX)
+fev 10 12:25:35 link-monitor npm[2580854]: [Voalle Contract Tags] Buscando etiquetas para cliente 40
+fev 10 12:25:35 link-monitor npm[2580854]: [Voalle Contract Tags] Cliente: PARK VILLE CONDOMINIUM, CNPJ: 13390850000195, VoalleCustomerId: 94
+fev 10 12:25:35 link-monitor npm[2580854]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 10 12:25:35 link-monitor npm[2580854]: [Voalle Contract Tags] voalleCustomerId: 94, CNPJ: 13390850000195, portalUser: definido, portalPass: [presente]
+fev 10 12:25:35 link-monitor npm[2580854]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 94, user: parkville)
+fev 10 12:25:35 link-monitor npm[2580854]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 10 12:25:36 link-monitor npm[2580854]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+fev 10 12:25:36 link-monitor npm[2580854]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 13390850000195): /contractservicetagspaged?txId=13390850000195&Page=1&PageSize=50
+fev 10 12:25:36 link-monitor npm[2580854]: [VoalleAdapter] API antiga: 0 etiquetas encontradas
+fev 10 12:25:36 link-monitor npm[2580854]: [Voalle Contract Tags] Encontradas 0 etiquetas
+fev 10 12:25:55 link-monitor npm[2580854]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 10 12:25:56 link-monitor npm[2580854]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 10 12:25:56 link-monitor npm[2580854]: [VoalleAdapter] Encontradas 1 solicitações
+fev 10 12:25:56 link-monitor npm[2580854]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-RO
