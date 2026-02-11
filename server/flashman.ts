@@ -468,17 +468,31 @@ export async function triggerSpeedtest(config: FlashmanConfig, mac: string) {
 }
 
 export async function triggerPing(config: FlashmanConfig, mac: string, hosts: string[] = ["8.8.8.8", "1.1.1.1"]): Promise<{ success: boolean; message?: string }> {
+  const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+
   try {
-    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    console.log(`[Flashman/Cmd] triggerPing via generic command: /api/v2/device/command/${normalizedMac}/ping`);
+    const genericResult = await flashmanFetch(config, `/api/v2/device/command/${normalizedMac}/ping`, {
+      method: "PUT",
+    });
+    console.log(`[Flashman/Cmd] triggerPing generic response:`, JSON.stringify(genericResult));
+    if (genericResult?.success !== false) {
+      return { success: true, message: genericResult?.message || "Teste de ping iniciado" };
+    }
+  } catch (e: any) {
+    console.log(`[Flashman/Cmd] triggerPing generic failed (${e.message}), trying dedicated endpoint...`);
+  }
+
+  try {
     const url = `/api/v2/device/pingdiagnostic/${normalizedMac}`;
     const body = { content: { hosts } };
-    console.log(`[Flashman/Cmd] triggerPing URL: ${url}, body:`, JSON.stringify(body));
+    console.log(`[Flashman/Cmd] triggerPing dedicated URL: ${url}, body:`, JSON.stringify(body));
     const result = await flashmanFetch(config, url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    console.log(`[Flashman/Cmd] triggerPing response:`, JSON.stringify(result));
+    console.log(`[Flashman/Cmd] triggerPing dedicated response:`, JSON.stringify(result));
     return { success: result?.success !== false, message: result?.message || "Teste de ping iniciado" };
   } catch (error: any) {
     console.error(`[Flashman/Cmd] triggerPing error:`, error.message);
@@ -487,17 +501,31 @@ export async function triggerPing(config: FlashmanConfig, mac: string, hosts: st
 }
 
 export async function triggerTraceroute(config: FlashmanConfig, mac: string, host: string = "8.8.8.8"): Promise<{ success: boolean; message?: string }> {
+  const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+
   try {
-    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    console.log(`[Flashman/Cmd] triggerTraceroute via generic command: /api/v2/device/command/${normalizedMac}/traceroute`);
+    const genericResult = await flashmanFetch(config, `/api/v2/device/command/${normalizedMac}/traceroute`, {
+      method: "PUT",
+    });
+    console.log(`[Flashman/Cmd] triggerTraceroute generic response:`, JSON.stringify(genericResult));
+    if (genericResult?.success !== false) {
+      return { success: true, message: genericResult?.message || "Traceroute iniciado" };
+    }
+  } catch (e: any) {
+    console.log(`[Flashman/Cmd] triggerTraceroute generic failed (${e.message}), trying dedicated endpoint...`);
+  }
+
+  try {
     const url = `/api/v2/device/tracediagnostic/${normalizedMac}`;
     const body = { content: { hosts: [host] } };
-    console.log(`[Flashman/Cmd] triggerTraceroute URL: ${url}, body:`, JSON.stringify(body));
+    console.log(`[Flashman/Cmd] triggerTraceroute dedicated URL: ${url}, body:`, JSON.stringify(body));
     const result = await flashmanFetch(config, url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    console.log(`[Flashman/Cmd] triggerTraceroute response:`, JSON.stringify(result));
+    console.log(`[Flashman/Cmd] triggerTraceroute dedicated response:`, JSON.stringify(result));
     return { success: result?.success !== false, message: result?.message || "Traceroute iniciado" };
   } catch (error: any) {
     console.error(`[Flashman/Cmd] triggerTraceroute error:`, error.message);

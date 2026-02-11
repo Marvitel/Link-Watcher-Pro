@@ -166,6 +166,8 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
     }
   }, [commentsData, commentsLoaded]);
 
+  const [lastCommandNoResults, setLastCommandNoResults] = useState<string | null>(null);
+
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) { clearInterval(pollingIntervalRef.current); pollingIntervalRef.current = null; }
     if (pollingTimeoutRef.current) { clearTimeout(pollingTimeoutRef.current); pollingTimeoutRef.current = null; }
@@ -194,6 +196,7 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
       stopPolling();
       setPolling(true);
       setActiveCommand(command);
+      setLastCommandNoResults(null);
       const pollInterval = command === "traceroute" ? 10000 : command === "speedtest" ? 10000 : 5000;
       const pollTimeout = command === "traceroute" ? 360000 : 120000;
       pollingIntervalRef.current = setInterval(async () => {
@@ -207,7 +210,13 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               found: true,
               device: pollData.device,
             });
-            if (pollData.device.currentDiagnostic && !pollData.device.currentDiagnostic.inProgress) {
+            const hasResults = (command === "ping" && pollData.device.pingResults?.length > 0) ||
+              (command === "traceroute" && pollData.device.tracerouteResults?.length > 0) ||
+              (command === "speedtest" && pollData.device.speedtestResults?.length > 0) ||
+              (command === "onlinedevs" && pollData.device.connectedDevices?.length > 0) ||
+              (command === "sitesurvey" && pollData.device.siteSurveyResult?.length > 0);
+            const diagDone = pollData.device.currentDiagnostic && !pollData.device.currentDiagnostic.inProgress;
+            if (hasResults || diagDone) {
               stopPolling();
               toast({ title: "Diagnóstico concluído" });
             }
@@ -215,8 +224,10 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         } catch {}
       }, pollInterval);
       pollingTimeoutRef.current = setTimeout(() => {
+        setLastCommandNoResults(command);
         stopPolling();
         refetchFlashman();
+        toast({ title: `Tempo esgotado aguardando resultado de ${command}`, variant: "destructive" });
       }, pollTimeout);
     },
     onError: () => {
@@ -475,31 +486,16 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               </div>
             )}
 
-            {device.connectedDevices?.length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1">
-                  <MonitorSmartphone className="w-4 h-4" /> Dispositivos Conectados
-                  <Badge variant="outline" className="ml-1">{device.connectedDevices.length}</Badge>
+            {lastCommandNoResults && (
+              <div className="mt-4 p-3 rounded-md bg-destructive/10 text-sm" data-testid="text-no-results">
+                <div className="font-medium text-destructive">
+                  {lastCommandNoResults === "ping" ? "Nenhum resultado de Ping recebido"
+                    : lastCommandNoResults === "traceroute" ? "Nenhum resultado de Traceroute recebido"
+                    : lastCommandNoResults === "speedtest" ? "Nenhum resultado de Speed Test recebido"
+                    : `Nenhum resultado recebido para "${lastCommandNoResults}"`}
                 </div>
-                <div className="max-h-64 overflow-auto space-y-2">
-                  {device.connectedDevices.map((dev: any, i: number) => {
-                    const devName = safeText(dev.dhcp_name || dev.hostname, "") || safeText(dev.mac, "") || `Dispositivo ${i + 1}`;
-                    const connType = dev.conn_type === 0 ? "Cabo" : dev.conn_type === 1 ? "Wi-Fi" : (typeof dev.conn_type === "string" ? dev.conn_type : "");
-                    const signalVal = dev.wifi_signal ?? dev.signal;
-                    return (
-                      <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm" data-testid={`connected-device-${i}`}>
-                        <div>
-                          <div className="font-medium">{devName}</div>
-                          <div className="text-xs text-muted-foreground">{safeText(dev.ip, "")} - {safeText(dev.mac, "")}</div>
-                        </div>
-                        <div className="text-right text-xs text-muted-foreground">
-                          {connType && <div>{connType}{dev.wifi_freq ? ` (${dev.wifi_freq}GHz)` : ""}</div>}
-                          {signalVal != null && typeof signalVal !== "object" && <div>Sinal: {signalVal} dBm</div>}
-                          {dev.conn_speed != null && typeof dev.conn_speed !== "object" && <div>{dev.conn_speed} Mbps</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="text-xs text-muted-foreground mt-1">
+                  {"O tempo de espera esgotou. O CPE pode estar offline ou o comando pode não ser suportado por este modelo."}
                 </div>
               </div>
             )}
@@ -567,6 +563,35 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {device.connectedDevices?.length > 0 && !(polling && (activeCommand === "ping" || activeCommand === "traceroute" || activeCommand === "speedtest")) && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <MonitorSmartphone className="w-4 h-4" /> Dispositivos Conectados
+                  <Badge variant="outline" className="ml-1">{device.connectedDevices.length}</Badge>
+                </div>
+                <div className="max-h-64 overflow-auto space-y-2">
+                  {device.connectedDevices.map((dev: any, i: number) => {
+                    const devName = safeText(dev.dhcp_name || dev.hostname, "") || safeText(dev.mac, "") || `Dispositivo ${i + 1}`;
+                    const connType = dev.conn_type === 0 ? "Cabo" : dev.conn_type === 1 ? "Wi-Fi" : (typeof dev.conn_type === "string" ? dev.conn_type : "");
+                    const signalVal = dev.wifi_signal ?? dev.signal;
+                    return (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm" data-testid={`connected-device-${i}`}>
+                        <div>
+                          <div className="font-medium">{devName}</div>
+                          <div className="text-xs text-muted-foreground">{safeText(dev.ip, "")} - {safeText(dev.mac, "")}</div>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          {connType && <div>{connType}{dev.wifi_freq ? ` (${dev.wifi_freq}GHz)` : ""}</div>}
+                          {signalVal != null && typeof signalVal !== "object" && <div>Sinal: {signalVal} dBm</div>}
+                          {dev.conn_speed != null && typeof dev.conn_speed !== "object" && <div>{dev.conn_speed} Mbps</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

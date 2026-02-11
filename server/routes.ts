@@ -8916,6 +8916,9 @@ export async function registerRoutes(
         result = await sendCommand(config, mac, command);
       }
       console.log(`[Flashman/Route] Command result:`, JSON.stringify(result));
+      if (result && result.success === false) {
+        return res.status(400).json({ ...result, mac, error: result.message || "Comando falhou" });
+      }
       res.json({ ...result, mac });
     } catch (error: any) {
       console.error("[Flashman] Error sending command:", error.message);
