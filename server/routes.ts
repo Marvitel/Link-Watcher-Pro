@@ -51,6 +51,7 @@ import {
   testFlashmanConnection,
   resolveDeviceMac,
   getDeviceByMac,
+  getDeviceByMacForPolling,
   formatFlashmanDeviceInfo,
   triggerSpeedtest,
   triggerPing,
@@ -8901,6 +8902,7 @@ export async function registerRoutes(
 
       const hosts = req.body.hosts;
       const host = req.body.host;
+      console.log(`[Flashman/Route] Command: ${command}, MAC: ${mac}, hosts: ${JSON.stringify(hosts)}, host: ${host}`);
       let result;
       if (command === "bestchannel") {
         result = await triggerBestChannel(config, mac);
@@ -8913,6 +8915,7 @@ export async function registerRoutes(
       } else {
         result = await sendCommand(config, mac, command);
       }
+      console.log(`[Flashman/Route] Command result:`, JSON.stringify(result));
       res.json({ ...result, mac });
     } catch (error: any) {
       console.error("[Flashman] Error sending command:", error.message);
@@ -8933,12 +8936,13 @@ export async function registerRoutes(
       const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
       if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
 
-      const device = await getDeviceByMac(config, mac);
+      const device = await getDeviceByMacForPolling(config, mac);
       if (!device) return res.status(404).json({ error: "Dispositivo não encontrado" });
 
       const formatted = formatFlashmanDeviceInfo(device);
       res.json({ device: formatted });
     } catch (error: any) {
+      console.error("[Flashman/Poll] Error:", error.message);
       res.status(500).json({ error: "Erro ao consultar status do dispositivo" });
     }
   });

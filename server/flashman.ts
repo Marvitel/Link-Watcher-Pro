@@ -126,6 +126,10 @@ async function flashmanFetch(config: FlashmanConfig, path: string, options: Requ
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
+    const method = options.method || "GET";
+    if (method !== "GET") {
+      console.log(`[Flashman/API] ${method} ${path}`);
+    }
     const response = await fetch(url, {
       ...options,
       headers,
@@ -134,6 +138,7 @@ async function flashmanFetch(config: FlashmanConfig, path: string, options: Requ
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
+      console.error(`[Flashman/API] ${method} ${path} -> ${response.status}: ${errorText.substring(0, 200)}`);
       throw new Error(`Flashman API error ${response.status}: ${errorText}`);
     }
 
@@ -141,7 +146,11 @@ async function flashmanFetch(config: FlashmanConfig, path: string, options: Requ
     if (contentType?.includes("application/json")) {
       return await response.json();
     }
-    return await response.text();
+    const textResult = await response.text();
+    if (method !== "GET") {
+      console.log(`[Flashman/API] ${method} ${path} -> text response: ${textResult.substring(0, 200)}`);
+    }
+    return textResult;
   } finally {
     clearTimeout(timeout);
   }
@@ -202,6 +211,55 @@ export async function getDeviceByMac(config: FlashmanConfig, mac: string): Promi
     console.error(`[Flashman] Error getting device by MAC ${mac}:`, error.message);
     return null;
   }
+}
+
+export async function getDeviceByMacForPolling(config: FlashmanConfig, mac: string): Promise<FlashmanDeviceInfo | null> {
+  const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+  let v3Device: any = null;
+  try {
+    const result = await flashmanFetch(config, `/api/v3/device/mac/${encodeURIComponent(normalizedMac)}/?caseInsensitive=true`);
+    if (result?.success && result.device) {
+      v3Device = result.device;
+    }
+  } catch (e) {}
+
+  let v2Device: any = null;
+  try {
+    console.log(`[Flashman/Poll] Fetching V2: /api/v2/device/update/${normalizedMac}`);
+    const v2Result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
+    if (v2Result && !v2Result.error) {
+      v2Device = v2Result;
+      const hasPing = Array.isArray(v2Result.pingtest_results) && v2Result.pingtest_results.length > 0;
+      const hasTrace = Array.isArray(v2Result.traceroute_results) && v2Result.traceroute_results.length > 0;
+      const hasSpeed = Array.isArray(v2Result.speedtest_results) && v2Result.speedtest_results.length > 0;
+      const diag = v2Result.current_diagnostic;
+      console.log(`[Flashman/Poll] V2 data - ping: ${hasPing ? v2Result.pingtest_results.length + ' items' : 'empty'}, trace: ${hasTrace ? v2Result.traceroute_results.length + ' items' : 'empty'}, speed: ${hasSpeed ? v2Result.speedtest_results.length + ' items' : 'empty'}, diag: ${diag ? JSON.stringify(diag) : 'null'}`);
+      if (hasPing) console.log(`[Flashman/Poll] Ping sample:`, JSON.stringify(v2Result.pingtest_results[0]));
+      if (hasTrace) console.log(`[Flashman/Poll] Trace sample:`, JSON.stringify(v2Result.traceroute_results[0]));
+    }
+  } catch (e: any) {
+    console.error(`[Flashman/Poll] V2 error:`, e.message);
+  }
+
+  if (v3Device && v2Device) {
+    const merged = { ...v3Device };
+    if (Array.isArray(v2Device.pingtest_results)) merged.pingtest_results = v2Device.pingtest_results;
+    if (Array.isArray(v2Device.traceroute_results)) merged.traceroute_results = v2Device.traceroute_results;
+    if (Array.isArray(v2Device.speedtest_results)) merged.speedtest_results = v2Device.speedtest_results;
+    if (v2Device.current_diagnostic) merged.current_diagnostic = v2Device.current_diagnostic;
+    if (Array.isArray(v2Device.lan_devices)) merged.lan_devices = v2Device.lan_devices;
+    if (Array.isArray(v2Device.online_devices)) merged.online_devices = v2Device.online_devices;
+    if (v2Device.sitesurvey_result) merged.sitesurvey_result = v2Device.sitesurvey_result;
+    if (v2Device.ping_result) merged.ping_result = v2Device.ping_result;
+    if (v2Device.traceroute_result) merged.traceroute_result = v2Device.traceroute_result;
+    return merged as FlashmanDeviceInfo;
+  }
+
+  if (v2Device) return v2Device as FlashmanDeviceInfo;
+  if (v3Device) return v3Device as FlashmanDeviceInfo;
+
+  console.log(`[Flashman/Poll] No device data found for ${normalizedMac}`);
+  return null;
 }
 
 export async function getDeviceByPppoeUser(config: FlashmanConfig, pppoeUser: string): Promise<{ mac: string; device?: FlashmanDeviceInfo } | null> {
@@ -392,11 +450,15 @@ export async function searchMeshVendorDevices(config: FlashmanConfig): Promise<a
 export async function sendCommand(config: FlashmanConfig, mac: string, command: string): Promise<{ success: boolean; message?: string }> {
   try {
     const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
-    const result = await flashmanFetch(config, `/api/v2/device/command/${normalizedMac}/${command}`, {
+    const url = `/api/v2/device/command/${normalizedMac}/${command}`;
+    console.log(`[Flashman/Cmd] sendCommand URL: ${url}`);
+    const result = await flashmanFetch(config, url, {
       method: "PUT",
     });
+    console.log(`[Flashman/Cmd] sendCommand response:`, JSON.stringify(result));
     return { success: result?.success !== false, message: result?.message };
   } catch (error: any) {
+    console.error(`[Flashman/Cmd] sendCommand error:`, error.message);
     return { success: false, message: error.message };
   }
 }
@@ -408,13 +470,18 @@ export async function triggerSpeedtest(config: FlashmanConfig, mac: string) {
 export async function triggerPing(config: FlashmanConfig, mac: string, hosts: string[] = ["8.8.8.8", "1.1.1.1"]): Promise<{ success: boolean; message?: string }> {
   try {
     const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
-    const result = await flashmanFetch(config, `/api/v2/device/pingdiagnostic/${normalizedMac}`, {
+    const url = `/api/v2/device/pingdiagnostic/${normalizedMac}`;
+    const body = { content: { hosts } };
+    console.log(`[Flashman/Cmd] triggerPing URL: ${url}, body:`, JSON.stringify(body));
+    const result = await flashmanFetch(config, url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: { hosts } }),
+      body: JSON.stringify(body),
     });
+    console.log(`[Flashman/Cmd] triggerPing response:`, JSON.stringify(result));
     return { success: result?.success !== false, message: result?.message || "Teste de ping iniciado" };
   } catch (error: any) {
+    console.error(`[Flashman/Cmd] triggerPing error:`, error.message);
     return { success: false, message: error.message };
   }
 }
@@ -422,13 +489,18 @@ export async function triggerPing(config: FlashmanConfig, mac: string, hosts: st
 export async function triggerTraceroute(config: FlashmanConfig, mac: string, host: string = "8.8.8.8"): Promise<{ success: boolean; message?: string }> {
   try {
     const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
-    const result = await flashmanFetch(config, `/api/v2/device/tracediagnostic/${normalizedMac}`, {
+    const url = `/api/v2/device/tracediagnostic/${normalizedMac}`;
+    const body = { content: { hosts: [host] } };
+    console.log(`[Flashman/Cmd] triggerTraceroute URL: ${url}, body:`, JSON.stringify(body));
+    const result = await flashmanFetch(config, url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: { hosts: [host] } }),
+      body: JSON.stringify(body),
     });
+    console.log(`[Flashman/Cmd] triggerTraceroute response:`, JSON.stringify(result));
     return { success: result?.success !== false, message: result?.message || "Traceroute iniciado" };
   } catch (error: any) {
+    console.error(`[Flashman/Cmd] triggerTraceroute error:`, error.message);
     return { success: false, message: error.message };
   }
 }
