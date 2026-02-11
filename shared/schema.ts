@@ -178,6 +178,10 @@ export const links = pgTable("links", {
   cpeWinboxPort: integer("cpe_winbox_port").default(8291), // Porta Winbox (Mikrotik)
   // Link L2: Sem IP monitorado, status baseado na porta do switch/concentrador
   isL2Link: boolean("is_l2_link").notNull().default(false),
+  // ICMP bloqueado: dispositivo tem firewall que bloqueia ping, usar TCP/HTTP + tráfego SNMP para status
+  icmpBlocked: boolean("icmp_blocked").notNull().default(false),
+  // Porta TCP para verificação de conectividade quando ICMP é bloqueado (padrão 80)
+  tcpCheckPort: integer("tcp_check_port").default(80),
   // Integração OZmap - Etiqueta do cliente no OZmap para rastreamento de fibra
   ozmapTag: varchar("ozmap_tag", { length: 100 }),
   // Dados de splitter e rota vindos do OZmap (auto-preenchidos, prioridade sobre Zabbix)

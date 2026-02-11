@@ -733,6 +733,8 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
     longitude: (link as any)?.longitude || "",
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
     isL2Link: (link as any)?.isL2Link ?? false,
+    icmpBlocked: (link as any)?.icmpBlocked ?? false,
+    tcpCheckPort: (link as any)?.tcpCheckPort ?? 80,
     // Campos de monitoramento óptico (OIDs vêm do fabricante)
     opticalMonitoringEnabled: (link as any)?.opticalMonitoringEnabled ?? false,
     opticalRxBaseline: (link as any)?.opticalRxBaseline || "",
@@ -2247,6 +2249,34 @@ function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreat
             data-testid="switch-is-l2-link"
           />
         </div>
+
+        {/* ICMP Bloqueado - Firewall bloqueia ping */}
+        <div className="flex items-center justify-between p-3 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+          <div className="space-y-0.5">
+            <p className="font-medium text-sm">ICMP Bloqueado (Firewall)</p>
+            <p className="text-xs text-muted-foreground">Usar verificação TCP + tráfego SNMP para determinar status</p>
+          </div>
+          <Switch
+            checked={formData.icmpBlocked}
+            onCheckedChange={(checked) => setFormData({ ...formData, icmpBlocked: checked })}
+            data-testid="switch-icmp-blocked"
+          />
+        </div>
+        
+        {formData.icmpBlocked && (
+          <div className="space-y-2">
+            <Label htmlFor="tcpCheckPort">Porta TCP para verificação</Label>
+            <Input
+              id="tcpCheckPort"
+              type="number"
+              value={formData.tcpCheckPort}
+              onChange={(e) => setFormData({ ...formData, tcpCheckPort: parseInt(e.target.value) || 80 })}
+              placeholder="80"
+              data-testid="input-tcp-check-port"
+            />
+            <p className="text-xs text-muted-foreground">Porta HTTP/HTTPS do dispositivo (geralmente 80 ou 443)</p>
+          </div>
+        )}
       </div>
 
       <div className="border-t pt-4 mt-4">

@@ -513,6 +513,34 @@ function isIPv6(address: string): boolean {
   return addressWithoutScope.includes(':') && !addressWithoutScope.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
 }
 
+export async function checkTcpPort(ipAddress: string, port: number = 80, timeoutMs: number = 3000): Promise<{ success: boolean; responseTimeMs: number }> {
+  const net = await import("net");
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const socket = new net.Socket();
+    
+    socket.setTimeout(timeoutMs);
+    
+    socket.on("connect", () => {
+      const elapsed = Date.now() - start;
+      socket.destroy();
+      resolve({ success: true, responseTimeMs: elapsed });
+    });
+    
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolve({ success: false, responseTimeMs: timeoutMs });
+    });
+    
+    socket.on("error", () => {
+      socket.destroy();
+      resolve({ success: false, responseTimeMs: Date.now() - start });
+    });
+    
+    socket.connect(port, ipAddress);
+  });
+}
+
 export async function pingHost(ipAddress: string, count: number = 5): Promise<PingResult> {
   if (pingPermissionDenied) {
     return simulatePing();
@@ -1671,10 +1699,38 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   
   // Links L2: status determinado depois, baseado no sinal óptico/tráfego
   if (!isL2Link) {
-    // Links normais: status baseado no ping
+    const pingFailed = !pingResult.success || pingResult.packetLoss >= 50;
+    
+    if (pingFailed && link.icmpBlocked) {
+      let tcpSuccess = false;
+      const tcpPort = Math.max(1, Math.min(65535, link.tcpCheckPort || 80));
+      
+      if (ipToMonitor) {
+        const tcpResult = await checkTcpPort(ipToMonitor, tcpPort);
+        if (tcpResult.success) {
+          tcpSuccess = true;
+          pingResult.latency = tcpResult.responseTimeMs;
+          pingResult.packetLoss = 0;
+          pingResult.success = true;
+          console.log(`[Monitor] ${link.name}: ICMP blocked, TCP port ${tcpPort} responded in ${tcpResult.responseTimeMs}ms - link is UP`);
+        }
+      }
+      
+      if (!tcpSuccess) {
+        const hasTraffic = downloadMbps > 0 || uploadMbps > 0;
+        if (hasTraffic) {
+          pingResult.latency = 0;
+          pingResult.packetLoss = 0;
+          pingResult.success = true;
+          console.log(`[Monitor] ${link.name}: ICMP blocked, TCP failed/skipped, but SNMP traffic detected (DL=${downloadMbps.toFixed(2)}Mbps) - link is UP`);
+        } else {
+          console.log(`[Monitor] ${link.name}: ICMP blocked, TCP failed/skipped, no SNMP traffic - link is OFFLINE`);
+        }
+      }
+    }
+    
     if (!pingResult.success || pingResult.packetLoss >= 50) {
       status = "offline";
-      // Determine failure reason
       if (pingResult.failureReason) {
         failureReason = pingResult.failureReason;
       } else if (pingResult.packetLoss >= 100) {
