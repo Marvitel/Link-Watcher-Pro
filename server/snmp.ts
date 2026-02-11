@@ -736,12 +736,13 @@ export const OPTICAL_OIDS = {
     onuRxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.7", // asamOpticalRxLevel
     onuTxPower: "1.3.6.1.4.1.637.61.1.35.11.4.1.8", // asamOpticalTxLevel
   },
-  // Furukawa FK-OLT-G4S / FK-OLT-G8S / G2500 / LD3032 (enterprise 10428)
-  // Ref: Zabbix community template snmp_furukawa_olt-onu
-  // Valores retornados em décimos de dBm (multiplicar por 0.1)
+  // Furukawa Parks/LaserWay (enterprise 3979) - LD2502/LD2504/FK-OLT-G4S/G8S
+  // Índice SNMP: portId.onuId onde portId = 6000 + (slot * 100) + port
+  // Valores retornados em centésimos de dBm (dividir por 100)
   furukawa: {
-    onuRxPower: "1.3.6.1.4.1.10428.9.1.101.23.3.1.1.46", // gponOnuRxOpticalPower (x0.1 dBm)
-    onuDeactivateReason: "1.3.6.1.4.1.10428.9.1.101.23.3.1.1.45", // gponOnuDeactivateReason
+    onuRxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.15", // fkGponOnuRxOpticalPower (centésimos de dBm)
+    onuTxPower: "1.3.6.1.4.1.3979.6.4.2.1.2.3.2.1.14", // fkGponOnuTxOpticalPower (centésimos de dBm)
+    onuDistance: "1.3.6.1.4.1.3979.6.4.2.1.2.1.1.1.21", // fkGponOnuDistance (metros)
   },
   // Datacom DM4610/DM4615 (GPON-ONU-IF-MIB)
   // NOTA: Datacom não expõe OLT RX via SNMP - usar fallback Zabbix para OLT_RX
@@ -831,13 +832,11 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     case 'furukawa':
     case 'furukawa-g4s':
     case 'furukawa-g8s':
-      // Furukawa FK-OLT-G4S/G8S/G2500/LD3032: índice contíguo
-      // Fórmula: shelf * 16777216 + slot * 65536 + port * 256 + onuId
-      // shelf padrão = 1 para Furukawa
-      // Confirmado via Zabbix template: index 16777473 = shelf=1, slot=0, port=1, onu=1
-      const furukawaShelf = shelf || 1;
-      const furukawaIndex = (furukawaShelf * 16777216) + (slot * 65536) + (port * 256) + onuId;
-      return furukawaIndex.toString();
+      // Furukawa Parks/LaserWay: índice = {portId}.{onuId}
+      // portId = 6000 + (slot * 100) + port
+      // Exemplo: slot=1, port=1 -> portId = 6101, ONU 1 -> index = 6101.1
+      const furukawaPortId = 6000 + (slot * 100) + port;
+      return `${furukawaPortId}.${onuId}`;
 
     case 'parks':
     case 'parks-fiberlink':
@@ -999,10 +998,7 @@ export async function getOpticalSignal(
                 if (key === 'onuDistance') {
                   result[key] = value;
                 } else {
-                  const normalizedVendor = vendorSlug.toLowerCase().trim();
-                  if (normalizedVendor === 'furukawa' || normalizedVendor === 'furukawa-g4s' || normalizedVendor === 'furukawa-g8s') {
-                    value = value * 0.1;
-                  } else if (value > 100 || value < -100) {
+                  if (value > 100 || value < -100) {
                     value = value / 100;
                   }
                   result[key] = Math.round(value * 10) / 10;
