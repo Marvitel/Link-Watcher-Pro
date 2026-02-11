@@ -1698,6 +1698,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   let failureReason: string | null = null;
   
   // Links L2: status determinado depois, baseado no sinal óptico/tráfego
+  // Links não-L2: determinação preliminar por ping (pode ser sobrescrita por óptico/tráfego depois)
+  let pingBasedOffline = false;
   if (!isL2Link) {
     const pingFailed = !pingResult.success || pingResult.packetLoss >= 50;
     
@@ -1731,6 +1733,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     
     if (!pingResult.success || pingResult.packetLoss >= 50) {
       status = "offline";
+      pingBasedOffline = true;
       if (pingResult.failureReason) {
         failureReason = pingResult.failureReason;
       } else if (pingResult.packetLoss >= 100) {
@@ -2109,6 +2112,26 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
     } catch (error) {
       console.log(`[Monitor] ${link.name} - Óptico PTP: erro ${error instanceof Error ? error.message : "desconhecido"}`);
+    }
+  }
+
+  // Fallback para links não-L2 que ping marcou como offline:
+  // Se tem monitoramento óptico habilitado e sinal bom, ou tráfego SNMP ativo, considerar operacional
+  if (!isL2Link && pingBasedOffline && !link.icmpBlocked) {
+    const hasGoodOptical = opticalSignal && opticalSignal.rxPower !== null && opticalSignal.rxPower > -30 && link.opticalMonitoringEnabled;
+    const hasTraffic = downloadMbps > 0 || uploadMbps > 0;
+    
+    if (hasGoodOptical && hasTraffic) {
+      status = "operational";
+      failureReason = null;
+      pingResult.latency = 0;
+      pingResult.packetLoss = 0;
+      pingResult.success = true;
+      console.log(`[Monitor] ${link.name}: Ping failed but optical signal OK (RX=${opticalSignal!.rxPower}dBm) and SNMP traffic active (DL=${downloadMbps.toFixed(2)}Mbps) - overriding to OPERATIONAL`);
+    } else if (hasGoodOptical) {
+      status = "degraded";
+      failureReason = "ping_failed_optical_ok";
+      console.log(`[Monitor] ${link.name}: Ping failed but optical signal OK (RX=${opticalSignal!.rxPower}dBm), no traffic yet - setting DEGRADED`);
     }
   }
 

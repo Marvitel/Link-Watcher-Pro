@@ -1,0 +1,21 @@
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Sem OIDs para CPU/Mem. vendorId: null, customCpu: null, customMem: null
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=3 onu=9
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico OK: RX=-21dBm TX=2dBm OLT_RX=nulldBm
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91782280...
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico Zabbix: OLT_RX=-23.57dBm
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): Offline detected, consulting OLT for diagnosis...
+fev 11 09:03:22 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): OLT diagnosis result: " | OLT: Nenhum alarme encontrado para esta ONU"
+fev 11 09:03:23 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): lat=0.0ms, loss=100.0%, status=offline
+fev 11 09:03:39 link-monitor npm[244375]: [OZmap Auto-Sync] Link ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): Tag "CASA_15_PKV_17DSGZL8" não encontrada (HTTP 404)
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): Using concentrator (CE: AJU-PKV-RB-1009) for traffic collection. IP: 191.52.251.102, ifIndex: 15747079, profileId: 7
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Sem OIDs para CPU/Mem. vendorId: null, customCpu: null, customMem: null
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=3 onu=9
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico OK: RX=-21dBm TX=2dBm OLT_RX=nulldBm
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91782280...
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15) - Óptico Zabbix: OLT_RX=-23.19dBm
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): Offline detected, consulting OLT for diagnosis...
+fev 11 09:03:53 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): Querying OLT with key: show alarm | include 1/1/3/9
+fev 11 09:03:55 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): OLT returned alarmType=null, diagnosis=Erro de Consulta
+fev 11 09:03:55 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): OLT diagnosis result: " | OLT: Erro ao consultar OLT: All configured authentication methods failed"
+fev 11 09:03:55 link-monitor npm[244375]: [Monitor] ONU ROUTER - User PPPoE (casa_15) senha: (casa_15): lat=0.0ms, loss=100.0%, status=offline
+root@link-monitor:/opt/link-monitor# 
