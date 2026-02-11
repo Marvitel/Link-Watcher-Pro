@@ -58,10 +58,14 @@ export interface FlashmanDeviceInfo {
   latitude: number;
   longitude: number;
   online_devices: any[];
+  lan_devices: any[];
   speedtest_results: any[];
   ping_result: any;
+  pingtest_results: any[];
   traceroute_result: any;
+  traceroute_results: any[];
   sitesurvey_result: any;
+  current_diagnostic: any;
   resources_usage?: { cpu_usage: number; memory_usage: number };
   vendor?: string;
   vendor_tr069?: string;
@@ -401,12 +405,32 @@ export async function triggerSpeedtest(config: FlashmanConfig, mac: string) {
   return sendCommand(config, mac, "speedtest");
 }
 
-export async function triggerPing(config: FlashmanConfig, mac: string) {
-  return sendCommand(config, mac, "ping");
+export async function triggerPing(config: FlashmanConfig, mac: string, hosts: string[] = ["8.8.8.8", "1.1.1.1"]): Promise<{ success: boolean; message?: string }> {
+  try {
+    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    const result = await flashmanFetch(config, `/api/v2/device/pingdiagnostic/${normalizedMac}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: { hosts } }),
+    });
+    return { success: result?.success !== false, message: result?.message || "Teste de ping iniciado" };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
 }
 
-export async function triggerTraceroute(config: FlashmanConfig, mac: string) {
-  return sendCommand(config, mac, "traceroute");
+export async function triggerTraceroute(config: FlashmanConfig, mac: string, host: string = "8.8.8.8"): Promise<{ success: boolean; message?: string }> {
+  try {
+    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    const result = await flashmanFetch(config, `/api/v2/device/tracediagnostic/${normalizedMac}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: { hosts: [host] } }),
+    });
+    return { success: result?.success !== false, message: result?.message || "Traceroute iniciado" };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
 }
 
 export async function triggerReboot(config: FlashmanConfig, mac: string) {
@@ -1174,10 +1198,17 @@ export function formatFlashmanDeviceInfo(device: FlashmanDeviceInfo) {
       dns: safeString(device.bridge_mode_dns, null as any),
     },
     ipv6Enabled: typeof device.ipv6_enabled === "number" ? device.ipv6_enabled : 0,
-    connectedDevices: Array.isArray(device.online_devices) ? device.online_devices : [],
+    connectedDevices: Array.isArray(device.lan_devices) ? device.lan_devices : (Array.isArray(device.online_devices) ? device.online_devices : []),
     speedtestResults: Array.isArray(device.speedtest_results) ? device.speedtest_results : [],
-    pingResult: device.ping_result || null,
-    tracerouteResult: device.traceroute_result || null,
+    pingResults: Array.isArray(device.pingtest_results) ? device.pingtest_results : (Array.isArray(device.ping_result) ? device.ping_result : []),
+    tracerouteResults: Array.isArray(device.traceroute_results) ? device.traceroute_results : (device.traceroute_result ? [device.traceroute_result] : []),
     siteSurveyResult: Array.isArray(device.sitesurvey_result) ? device.sitesurvey_result : null,
+    currentDiagnostic: device.current_diagnostic ? {
+      type: safeString(device.current_diagnostic.type, ""),
+      stage: safeString(device.current_diagnostic.stage, ""),
+      inProgress: device.current_diagnostic.in_progress ?? false,
+      startedAt: device.current_diagnostic.started_at || null,
+      lastModifiedAt: device.current_diagnostic.last_modified_at || null,
+    } : null,
   };
 }

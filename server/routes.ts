@@ -8899,11 +8899,17 @@ export async function registerRoutes(
       const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
       if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado no Flashman" });
 
+      const hosts = req.body.hosts;
+      const host = req.body.host;
       let result;
       if (command === "bestchannel") {
         result = await triggerBestChannel(config, mac);
       } else if (command === "sync") {
         result = await syncDevice(config, mac);
+      } else if (command === "ping") {
+        result = await triggerPing(config, mac, Array.isArray(hosts) && hosts.length > 0 ? hosts : ["8.8.8.8", "1.1.1.1"]);
+      } else if (command === "traceroute") {
+        result = await triggerTraceroute(config, mac, typeof host === "string" && host ? host : "8.8.8.8");
       } else {
         result = await sendCommand(config, mac, command);
       }

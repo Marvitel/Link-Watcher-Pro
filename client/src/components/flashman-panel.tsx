@@ -180,7 +180,13 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
   const commandMutation = useMutation({
     mutationFn: async (command: string) => {
       setActiveCommand(command);
-      const res = await apiRequest("POST", `/api/links/${linkId}/flashman/command`, { command });
+      const payload: any = { command };
+      if (command === "ping") {
+        payload.hosts = ["8.8.8.8", "1.1.1.1"];
+      } else if (command === "traceroute") {
+        payload.host = "8.8.8.8";
+      }
+      const res = await apiRequest("POST", `/api/links/${linkId}/flashman/command`, payload);
       return res.json();
     },
     onSuccess: (_data, command) => {
@@ -188,6 +194,8 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
       stopPolling();
       setPolling(true);
       setActiveCommand(command);
+      const pollInterval = command === "traceroute" ? 10000 : command === "speedtest" ? 10000 : 5000;
+      const pollTimeout = command === "traceroute" ? 360000 : 120000;
       pollingIntervalRef.current = setInterval(async () => {
         try {
           const res = await fetch(`/api/links/${linkId}/flashman/poll`, { credentials: "include" });
@@ -199,13 +207,17 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               found: true,
               device: pollData.device,
             });
+            if (pollData.device.currentDiagnostic && !pollData.device.currentDiagnostic.inProgress) {
+              stopPolling();
+              toast({ title: "Diagnóstico concluído" });
+            }
           }
         } catch {}
-      }, 5000);
+      }, pollInterval);
       pollingTimeoutRef.current = setTimeout(() => {
         stopPolling();
         refetchFlashman();
-      }, 60000);
+      }, pollTimeout);
     },
     onError: () => {
       toast({ title: "Erro ao enviar comando", variant: "destructive" });
@@ -452,10 +464,12 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                     Config File
                   </Button>
                 </div>
-                {polling && (
+                {(polling || device.currentDiagnostic?.inProgress) && (
                   <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Aguardando resultado do comando...
+                    {device.currentDiagnostic?.inProgress
+                      ? `${device.currentDiagnostic.type === "speedtest" ? "Speed Test" : device.currentDiagnostic.type === "ping" ? "Ping" : device.currentDiagnostic.type === "traceroute" ? "Traceroute" : device.currentDiagnostic.type === "sitesurvey" ? "Site Survey" : safeText(device.currentDiagnostic.type)} em andamento${device.currentDiagnostic.stage ? ` (${safeText(device.currentDiagnostic.stage)})` : ""}...`
+                      : "Aguardando resultado do comando..."}
                   </div>
                 )}
               </div>
@@ -468,18 +482,24 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                   <Badge variant="outline" className="ml-1">{device.connectedDevices.length}</Badge>
                 </div>
                 <div className="max-h-64 overflow-auto space-y-2">
-                  {device.connectedDevices.map((dev: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm" data-testid={`connected-device-${i}`}>
-                      <div>
-                        <div className="font-medium">{safeText(dev.hostname, "") || safeText(dev.mac, "") || `Dispositivo ${i + 1}`}</div>
-                        <div className="text-xs text-muted-foreground">{safeText(dev.ip, "")} - {safeText(dev.mac, "")}</div>
+                  {device.connectedDevices.map((dev: any, i: number) => {
+                    const devName = safeText(dev.dhcp_name || dev.hostname, "") || safeText(dev.mac, "") || `Dispositivo ${i + 1}`;
+                    const connType = dev.conn_type === 0 ? "Cabo" : dev.conn_type === 1 ? "Wi-Fi" : (typeof dev.conn_type === "string" ? dev.conn_type : "");
+                    const signalVal = dev.wifi_signal ?? dev.signal;
+                    return (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm" data-testid={`connected-device-${i}`}>
+                        <div>
+                          <div className="font-medium">{devName}</div>
+                          <div className="text-xs text-muted-foreground">{safeText(dev.ip, "")} - {safeText(dev.mac, "")}</div>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          {connType && <div>{connType}{dev.wifi_freq ? ` (${dev.wifi_freq}GHz)` : ""}</div>}
+                          {signalVal != null && typeof signalVal !== "object" && <div>Sinal: {signalVal} dBm</div>}
+                          {dev.conn_speed != null && typeof dev.conn_speed !== "object" && <div>{dev.conn_speed} Mbps</div>}
+                        </div>
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        {dev.conn_type && typeof dev.conn_type === "string" && <div>{dev.conn_type}</div>}
-                        {dev.signal && typeof dev.signal !== "object" && <div>Sinal: {dev.signal} dBm</div>}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -494,7 +514,57 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                         <span>Download: <span className="font-mono font-medium">{safeText(result.down_speed, "N/A")} Mbps</span></span>
                         <span>Upload: <span className="font-mono font-medium">{safeText(result.up_speed, "N/A")} Mbps</span></span>
                       </div>
-                      {result.timestamp && <div className="text-xs text-muted-foreground mt-1">{new Date(result.timestamp).toLocaleString("pt-BR")}</div>}
+                      {result.timestamp && <div className="text-xs text-muted-foreground mt-1">{safeText(result.timestamp)}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {device.pingResults?.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Activity className="w-4 h-4" /> Resultados de Ping</div>
+                <div className="space-y-2">
+                  {device.pingResults.map((result: any, i: number) => (
+                    <div key={i} className="p-2 rounded-md bg-muted text-sm">
+                      <div className="flex justify-between flex-wrap gap-1">
+                        <span>Host: <span className="font-mono font-medium">{safeText(result.host)}</span></span>
+                        <span>Latência: <span className="font-mono font-medium">{safeText(result.lat)} ms</span></span>
+                        <span>Perda: <span className="font-mono font-medium">{result.loss != null ? `${(parseFloat(String(result.loss)) * 100).toFixed(1)}%` : "N/A"}</span></span>
+                      </div>
+                      <div className="flex justify-between flex-wrap gap-1 text-xs text-muted-foreground mt-1">
+                        <span>Tentativas: {safeText(result.count)}</span>
+                        <span>{result.completed ? "Concluído" : "Em andamento..."}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {device.tracerouteResults?.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Route className="w-4 h-4" /> Resultados de Traceroute</div>
+                <div className="space-y-2">
+                  {device.tracerouteResults.map((result: any, i: number) => (
+                    <div key={i} className="p-2 rounded-md bg-muted text-sm">
+                      <div className="flex justify-between flex-wrap gap-1 mb-2">
+                        <span>Destino: <span className="font-mono font-medium">{safeText(result.address)}</span></span>
+                        <span>{result.completed ? (result.reached_destination ? "Destino alcançado" : "Destino não alcançado") : "Em andamento..."}</span>
+                      </div>
+                      {result.hops && Array.isArray(result.hops) && result.hops.length > 0 && (
+                        <div className="max-h-48 overflow-auto space-y-1">
+                          {result.hops.map((hop: any, j: number) => (
+                            <div key={j} className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground w-6 text-right">{hop.hop_index || j + 1}</span>
+                              <span className="font-mono flex-1">{safeText(hop.ip, "*")}</span>
+                              <span className="font-mono text-muted-foreground">
+                                {Array.isArray(hop.ms_values) ? hop.ms_values.map((ms: any) => ms != null ? `${ms}ms` : "*").join(" / ") : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
