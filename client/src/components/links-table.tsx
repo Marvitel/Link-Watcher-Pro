@@ -9,7 +9,7 @@ import { ExternalLink, FileSpreadsheet, Copy, ChevronLeft, ChevronRight, Globe, 
 import { useToast } from "@/hooks/use-toast";
 import type { Link, Metric } from "@shared/schema";
 import { formatBandwidth } from "@/lib/export-utils";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface LinksTableProps {
   links: Link[];
@@ -28,6 +28,10 @@ export function LinksTable({
 }: LinksTableProps) {
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [links]);
 
   const sortedLinks = useMemo(() => {
     if (!Array.isArray(links)) return [];
