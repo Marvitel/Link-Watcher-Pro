@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth, getAuthToken } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -4748,6 +4749,8 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
 export default function Admin() {
   const { toast } = useToast();
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+  const [editLinkProcessed, setEditLinkProcessed] = useState(false);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | undefined>();
@@ -4811,6 +4814,21 @@ export default function Admin() {
     queryKey: ["/api/snmp-profiles"],
     enabled: isSuperAdmin,
   });
+
+  useEffect(() => {
+    if (editLinkProcessed || !links) return;
+    const params = new URLSearchParams(window.location.search);
+    const editLinkId = params.get("editLink");
+    if (editLinkId) {
+      const linkToEdit = links.find(l => l.id === parseInt(editLinkId, 10));
+      if (linkToEdit) {
+        setEditingLink(linkToEdit);
+        setLinkDialogOpen(true);
+        setEditLinkProcessed(true);
+        window.history.replaceState({}, "", "/admin");
+      }
+    }
+  }, [links, editLinkProcessed]);
 
   // Filtragem de links
   const filteredLinks = links?.filter(link => {

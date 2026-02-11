@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken, useAuth } from "@/lib/auth";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,6 +62,7 @@ import {
   Shield,
   Terminal,
   Ticket,
+  Pencil,
   Wrench,
   X,
   Zap,
@@ -136,6 +137,7 @@ function getStatusLabel(status: string) {
 
 export default function LinkDetail() {
   const { isSuperAdmin } = useAuth();
+  const [, navigate] = useLocation();
   const [, params] = useRoute("/link/:id");
   const linkId = params?.id ? parseInt(params.id, 10) : 1;
   const [selectedPeriod, setSelectedPeriod] = useState("24"); // Padrão: 24h
@@ -524,10 +526,23 @@ export default function LinkDetail() {
             <p>{link.address}</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" data-testid="button-refresh">
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/admin?editLink=${linkId}`)}
+              data-testid="button-edit-link"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              Editar Link
+            </Button>
+          )}
+          <Button variant="outline" size="sm" data-testid="button-refresh">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {mitigationStatus?.isMitigated && mitigationStatus.mitigationInfo && (
