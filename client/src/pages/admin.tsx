@@ -86,7 +86,7 @@ import { VoalleImportTab } from "@/components/admin/voalle-import-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
-interface SnmpInterface {
+export interface SnmpInterface {
   ifIndex: number;
   ifName: string;
   ifDescr: string;
@@ -603,7 +603,7 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
   );
 }
 
-function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreated }: { 
+export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfileCreated }: { 
   link?: Link; 
   onSave: (data: Partial<Link>) => void;
   onClose: () => void;

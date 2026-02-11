@@ -67,12 +67,19 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck } from "@shared/schema";
+import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { formatBandwidth } from "@/lib/export-utils";
+import { LinkForm } from "@/pages/admin";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Tipo para solicitações do Voalle
 interface VoalleSolicitation {
@@ -167,6 +174,7 @@ export default function LinkDetail() {
     setVisibleSeries(prev => ({ ...prev, [series]: !prev[series] }));
   };
   const [oltDiagnosisResult, setOltDiagnosisResult] = useState<{ alarmType: string | null; diagnosis: string; description: string } | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const oltDiagnosisMutation = useMutation({
@@ -208,6 +216,34 @@ export default function LinkDetail() {
     queryKey: ["/api/links", linkId, "mitigation-status"],
     enabled: !isNaN(linkId),
     refetchInterval: 30000,
+  });
+
+  const { data: snmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number | null }>>({
+    queryKey: ["/api/snmp-profiles"],
+    enabled: editDialogOpen,
+  });
+
+  const { data: clients } = useQuery<Client[]>({
+    queryKey: ["/api/clients"],
+    enabled: editDialogOpen,
+  });
+
+  const { toast } = useToast();
+
+  const updateLinkMutation = useMutation({
+    mutationFn: async (data: Partial<Link>) => {
+      const res = await apiRequest("PATCH", `/api/links/${linkId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Link atualizado com sucesso" });
+      setEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar link", variant: "destructive" });
+    },
   });
 
   // Construir URL com base no modo (período pré-definido ou intervalo personalizado)
@@ -405,8 +441,6 @@ export default function LinkDetail() {
     refetchInterval: 60000,
   });
 
-  const { toast } = useToast();
-
   // Mutation para verificar blacklist manualmente
   const checkBlacklistMutation = useMutation({
     mutationFn: async () => {
@@ -534,7 +568,7 @@ export default function LinkDetail() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/admin?editLink=${linkId}`)}
+              onClick={() => setEditDialogOpen(true)}
               data-testid="button-edit-link"
             >
               <Pencil className="w-4 h-4 mr-2" />
@@ -1589,6 +1623,22 @@ export default function LinkDetail() {
           </TabsContent>
         )}
       </Tabs>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Link</DialogTitle>
+          </DialogHeader>
+          <LinkForm
+            link={link || undefined}
+            onSave={(data) => updateLinkMutation.mutate(data)}
+            onClose={() => setEditDialogOpen(false)}
+            snmpProfiles={snmpProfiles}
+            clients={clients}
+            onProfileCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/snmp-profiles"] })}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
