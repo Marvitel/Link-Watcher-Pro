@@ -16,18 +16,28 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Activity,
+  ChevronDown,
+  ChevronRight,
   Cpu,
+  Cable,
   Eye,
   EyeOff,
   FileUp,
   Gauge,
   Globe,
   HardDrive,
+  Info,
   Loader2,
   MessageSquare,
   MonitorSmartphone,
@@ -39,7 +49,9 @@ import {
   RotateCcw,
   Route,
   Save,
+  Settings,
   Signal,
+  Terminal,
   Wifi,
   Wrench,
   Zap,
@@ -95,6 +107,29 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
   const [showPassword5g, setShowPassword5g] = useState(false);
   const [showCredPassword, setShowCredPassword] = useState(false);
 
+  const [showWanEditDialog, setShowWanEditDialog] = useState(false);
+  const [editingWanId, setEditingWanId] = useState<string>("");
+  const [wanEditForm, setWanEditForm] = useState({ mtu: "", vlanId: "", enable: true });
+  const [expandedWans, setExpandedWans] = useState<Set<number>>(new Set());
+
+  const [showVoipEditDialog, setShowVoipEditDialog] = useState(false);
+  const [voipEditForm, setVoipEditForm] = useState<{
+    sipServer: string;
+    regulatoryDomain: string;
+    wanSignal: string;
+    enabled: boolean;
+    lines: Array<{ phoneNumber: string; sipUser: string; connectionUser: string; password: string }>;
+  }>({
+    sipServer: "",
+    regulatoryDomain: "",
+    wanSignal: "",
+    enabled: true,
+    lines: [],
+  });
+
+  const [showLanEditDialog, setShowLanEditDialog] = useState(false);
+  const [lanEditForm, setLanEditForm] = useState({ subnet: "", netmask: "" });
+
   const { data: flashmanData, isLoading: flashmanLoading, refetch: refetchFlashman } = useQuery<any>({
     queryKey: ["/api/links", linkId, "flashman", "info"],
     queryFn: async () => {
@@ -135,7 +170,7 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
     staleTime: 60000,
   });
 
-  const { data: voipData } = useQuery<any>({
+  const { data: voipData, refetch: refetchVoip } = useQuery<any>({
     queryKey: ["/api/links", linkId, "flashman", "voip"],
     queryFn: async () => {
       const res = await fetch(`/api/links/${linkId}/flashman/voip`, { credentials: "include" });
@@ -332,6 +367,51 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
     },
   });
 
+  const wanMutation = useMutation({
+    mutationFn: async ({ wanId, data }: { wanId: string; data: any }) => {
+      const res = await apiRequest("PUT", `/api/links/${linkId}/flashman/wan/${wanId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "WAN atualizada com sucesso" });
+      setShowWanEditDialog(false);
+      refetchFlashman();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar WAN", variant: "destructive" });
+    },
+  });
+
+  const voipMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("PUT", `/api/links/${linkId}/flashman/voip`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "VoIP atualizado com sucesso" });
+      setShowVoipEditDialog(false);
+      refetchVoip();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar VoIP", variant: "destructive" });
+    },
+  });
+
+  const lanMutation = useMutation({
+    mutationFn: async (data: { lan_subnet?: string; lan_netmask?: string }) => {
+      const res = await apiRequest("PUT", `/api/links/${linkId}/flashman/lan`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "LAN atualizada com sucesso" });
+      setShowLanEditDialog(false);
+      refetchFlashman();
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar LAN", variant: "destructive" });
+    },
+  });
+
   if (flashmanLoading) {
     return (
       <Card>
@@ -384,6 +464,15 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
 
   const report = flashboardData?.report;
 
+  const toggleWanExpanded = (index: number) => {
+    setExpandedWans((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
@@ -406,17 +495,19 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="geral" className="w-full">
+        <Tabs defaultValue="sobre" className="w-full">
           <TabsList className="w-full flex-wrap h-auto gap-1" data-testid="tabs-flashman">
-            <TabsTrigger value="geral" data-testid="tab-geral">Geral</TabsTrigger>
+            <TabsTrigger value="sobre" data-testid="tab-sobre">Sobre</TabsTrigger>
+            <TabsTrigger value="wan" data-testid="tab-wan">WAN</TabsTrigger>
+            <TabsTrigger value="voip" data-testid="tab-voip">VoIP</TabsTrigger>
+            <TabsTrigger value="lan" data-testid="tab-lan">LAN</TabsTrigger>
             <TabsTrigger value="wifi" data-testid="tab-wifi">Wi-Fi</TabsTrigger>
-            <TabsTrigger value="rede" data-testid="tab-rede">Rede</TabsTrigger>
             <TabsTrigger value="qualidade" data-testid="tab-qualidade">Qualidade</TabsTrigger>
-            <TabsTrigger value="avancado" data-testid="tab-avancado">Avançado</TabsTrigger>
+            <TabsTrigger value="comandos" data-testid="tab-comandos">Comandos</TabsTrigger>
           </TabsList>
 
-          {/* ========== GERAL TAB ========== */}
-          <TabsContent value="geral" className="space-y-4">
+          {/* ========== SOBRE TAB ========== */}
+          <TabsContent value="sobre" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm mt-2">
               <InfoRow label="MAC" value={safeText(device.mac)} mono />
               <InfoRow label="Modelo" value={safeText(device.model)} />
@@ -467,9 +558,627 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                 </div>
               </div>
             )}
+          </TabsContent>
 
+          {/* ========== WAN TAB ========== */}
+          <TabsContent value="wan" className="space-y-4">
+            {device.wans?.length > 0 ? (
+              <div className="mt-2 space-y-3">
+                {device.wans.map((wan: any, i: number) => {
+                  const isExpanded = expandedWans.has(i);
+                  return (
+                    <div key={wan.id || i} className="rounded-md bg-muted text-sm" data-testid={`wan-${i}`}>
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between p-3 text-left"
+                        onClick={() => toggleWanExpanded(i)}
+                        data-testid={`wan-toggle-${i}`}
+                      >
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          <span className="font-medium">{safeText(wan.alias, `WAN ${i + 1}`)}</span>
+                          <Badge variant={wan.enable ? "default" : "secondary"} className={wan.enable ? "bg-green-600" : ""}>
+                            {wan.enable ? "Ativo" : "Inativo"}
+                          </Badge>
+                          {wan.status && (
+                            <Badge variant="outline">{safeText(wan.status)}</Badge>
+                          )}
+                          {wan.serviceTypes && Array.isArray(wan.serviceTypes) && wan.serviceTypes.map((st: string, si: number) => (
+                            <Badge key={si} variant="outline">{safeText(st)}</Badge>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {wan.connectionType && <span className="text-xs text-muted-foreground">{safeText(wan.connectionType)}</span>}
+                          {isSuperAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingWanId(wan.id || String(i));
+                                setWanEditForm({
+                                  mtu: wan.mtu != null ? String(wan.mtu) : "",
+                                  vlanId: wan.vlanId != null ? String(wan.vlanId) : "",
+                                  enable: wan.enable !== false,
+                                });
+                                setShowWanEditDialog(true);
+                              }}
+                              data-testid={`button-edit-wan-${i}`}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3 space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                            <InfoRow label="Tipo Conexão" value={safeText(wan.connectionType)} />
+                            <InfoRow label="Tipo Interface" value={safeText(wan.interfaceType)} />
+                            {wan.mac && <InfoRow label="MAC" value={safeText(wan.mac)} mono />}
+                            {wan.vlanId != null && <InfoRow label="VLAN ID" value={safeText(wan.vlanId)} />}
+                            {wan.mtu != null && <InfoRow label="MTU" value={safeText(wan.mtu)} />}
+                            {wan.uptime != null && <InfoRow label="Uptime" value={`${wan.uptime}s`} />}
+                          </div>
+                          {wan.ipv4 && (
+                            <div className="pt-2 border-t border-border/50">
+                              <span className="text-xs text-muted-foreground font-medium">IPv4</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
+                                <InfoRow label="IP" value={safeText(wan.ipv4.ip)} mono />
+                                {wan.ipv4.natIp && <InfoRow label="NAT IP" value={safeText(wan.ipv4.natIp)} mono />}
+                                <InfoRow label="Gateway" value={safeText(wan.ipv4.gateway)} mono />
+                                {wan.ipv4.mask != null && <InfoRow label="Máscara" value={safeText(wan.ipv4.mask)} />}
+                                {wan.ipv4.dns?.length > 0 && <InfoRow label="DNS" value={wan.ipv4.dns.join(", ")} mono />}
+                              </div>
+                            </div>
+                          )}
+                          {wan.ipv6 && (
+                            <div className="pt-2 border-t border-border/50">
+                              <span className="text-xs text-muted-foreground font-medium">IPv6</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
+                                <InfoRow label="Habilitado" value={wan.ipv6.enabled ? "Sim" : "Não"} />
+                                {wan.ipv6.dns?.length > 0 && <InfoRow label="DNS" value={wan.ipv6.dns.join(", ")} mono />}
+                              </div>
+                            </div>
+                          )}
+                          {wan.pppoe && (
+                            <div className="pt-2 border-t border-border/50">
+                              <span className="text-xs text-muted-foreground font-medium">PPPoE</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
+                                <InfoRow label="Usuário" value={safeText(wan.pppoe.username)} mono />
+                                {wan.pppoe.serverMac && <InfoRow label="MAC Servidor" value={safeText(wan.pppoe.serverMac)} mono />}
+                                {wan.pppoe.serverIp && <InfoRow label="IP Servidor" value={safeText(wan.pppoe.serverIp)} mono />}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">Nenhuma interface WAN disponível.</p>
+            )}
+          </TabsContent>
+
+          {/* ========== VoIP TAB ========== */}
+          <TabsContent value="voip" className="space-y-4">
+            {voipData?.data ? (
+              <div className="mt-2 space-y-3">
+                {(() => {
+                  const vd = voipData.data;
+                  if (vd?.profiles && Array.isArray(vd.profiles)) {
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="text-sm font-medium flex items-center gap-1"><Phone className="w-4 h-4" /> Perfis VoIP</div>
+                          {isSuperAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const firstProfile = vd.profiles[0] || {};
+                                setVoipEditForm({
+                                  sipServer: firstProfile.proxy_address || firstProfile.registrar_address || "",
+                                  regulatoryDomain: firstProfile.regulatory_domain || "",
+                                  wanSignal: firstProfile.wan_signal || "",
+                                  enabled: firstProfile.enabled !== false,
+                                  lines: vd.profiles.map((p: any) => ({
+                                    phoneNumber: p.phone_number || p.sip_uri || "",
+                                    sipUser: p.sip_user || "",
+                                    connectionUser: p.connection_user || p.auth_user || "",
+                                    password: p.password || p.auth_password || "",
+                                  })),
+                                });
+                                setShowVoipEditDialog(true);
+                              }}
+                              data-testid="button-edit-voip"
+                            >
+                              <Pencil className="w-4 h-4 mr-1" /> Editar
+                            </Button>
+                          )}
+                        </div>
+                        {vd.profiles.map((profile: any, i: number) => (
+                          <div key={i} className="p-3 rounded-md bg-muted text-sm space-y-1" data-testid={`voip-profile-${i}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                              <span className="font-medium">Linha {i + 1}</span>
+                              <Badge variant={profile.status === "Up" || profile.enabled ? "default" : "secondary"} className={profile.status === "Up" || profile.enabled ? "bg-green-600" : ""}>
+                                {profile.status || (profile.enabled ? "Up" : "Down")}
+                              </Badge>
+                            </div>
+                            {profile.phone_number && <InfoRow label="Número" value={safeText(profile.phone_number)} />}
+                            {profile.sip_user && <InfoRow label="SIP User" value={safeText(profile.sip_user)} mono />}
+                            {profile.sip_uri && <InfoRow label="SIP URI" value={safeText(profile.sip_uri)} mono />}
+                            {(profile.connection_user || profile.auth_user) && <InfoRow label="Usuário Conexão" value={safeText(profile.connection_user || profile.auth_user)} mono />}
+                            {profile.proxy_address && <InfoRow label="SIP Server" value={safeText(profile.proxy_address)} mono />}
+                            {profile.registrar_address && <InfoRow label="Registrar" value={safeText(profile.registrar_address)} mono />}
+                            {profile.regulatory_domain && <InfoRow label="Domínio Regulatório" value={safeText(profile.regulatory_domain)} />}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  }
+                  if (vd?.device) {
+                    const d = vd.device;
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="text-sm font-medium flex items-center gap-1"><Phone className="w-4 h-4" /> VoIP</div>
+                          {isSuperAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setVoipEditForm({
+                                  sipServer: "",
+                                  regulatoryDomain: "",
+                                  wanSignal: "",
+                                  enabled: true,
+                                  lines: [
+                                    {
+                                      phoneNumber: d.voip_line1_sip_uri || "",
+                                      sipUser: d.voip_line1_sip_user || "",
+                                      connectionUser: d.voip_line1_auth_user || "",
+                                      password: d.voip_line1_auth_password || "",
+                                    },
+                                    {
+                                      phoneNumber: d.voip_line2_sip_uri || "",
+                                      sipUser: d.voip_line2_sip_user || "",
+                                      connectionUser: d.voip_line2_auth_user || "",
+                                      password: d.voip_line2_auth_password || "",
+                                    },
+                                  ].filter(l => l.phoneNumber || l.sipUser),
+                                });
+                                setShowVoipEditDialog(true);
+                              }}
+                              data-testid="button-edit-voip"
+                            >
+                              <Pencil className="w-4 h-4 mr-1" /> Editar
+                            </Button>
+                          )}
+                        </div>
+                        <div className="p-3 rounded-md bg-muted text-sm space-y-1">
+                          {d.voip_line1_sip_uri && <InfoRow label="Linha 1 SIP URI" value={safeText(d.voip_line1_sip_uri)} mono />}
+                          {d.voip_line2_sip_uri && <InfoRow label="Linha 2 SIP URI" value={safeText(d.voip_line2_sip_uri)} mono />}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return <p className="text-sm text-muted-foreground mt-2">Nenhuma configuração VoIP disponível.</p>;
+                })()}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">Carregando VoIP...</p>
+            )}
+          </TabsContent>
+
+          {/* ========== LAN TAB ========== */}
+          <TabsContent value="lan" className="space-y-4">
+            <div className="mt-2 space-y-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-sm font-medium flex items-center gap-1"><HardDrive className="w-4 h-4" /> Rede LAN</div>
+                {isSuperAdmin && device.lan?.subnet && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setLanEditForm({
+                        subnet: device.lan?.subnet || "",
+                        netmask: device.lan?.netmask || "",
+                      });
+                      setShowLanEditDialog(true);
+                    }}
+                    data-testid="button-edit-lan"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" /> Editar
+                  </Button>
+                )}
+              </div>
+
+              {device.lan?.subnet ? (
+                <div className="p-3 rounded-md bg-muted text-sm space-y-1">
+                  <InfoRow label="IP do CPE" value={safeText(device.lan.subnet)} mono />
+                  <InfoRow label="MAC LAN" value={safeText(device.mac)} mono />
+                  <InfoRow label="Máscara" value={`/${safeText(device.lan.netmask)}`} mono />
+                  {device.lan.dns && <InfoRow label="DNS" value={safeText(device.lan.dns)} mono />}
+                  <InfoRow label="Bridge" value={device.bridge?.enabled ? "Habilitado" : "Desabilitado"} />
+                  {device.dmz != null && <InfoRow label="DMZ" value={device.dmz?.enabled ? "Habilitado" : "Desabilitado"} />}
+                  <InfoRow label="IPv6" value={device.ipv6Enabled ? "Habilitado" : "Desabilitado"} />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma informação LAN disponível.</p>
+              )}
+
+              {device.portStatus && Array.isArray(device.portStatus) && device.portStatus.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium mb-2 flex items-center gap-1"><Cable className="w-4 h-4" /> Portas LAN</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {device.portStatus.map((port: any, i: number) => (
+                      <div key={i} className="p-3 rounded-md bg-muted text-center text-sm" data-testid={`port-status-${i}`}>
+                        <div className="text-xs text-muted-foreground mb-1">Porta {i + 1}</div>
+                        <Badge variant={port.status === "NoLink" || !port.status ? "secondary" : "default"} className={port.status && port.status !== "NoLink" ? "bg-green-600" : ""}>
+                          {safeText(port.status, "NoLink")}
+                        </Badge>
+                        {port.speed && <div className="text-xs mt-1 font-mono">{safeText(port.speed)}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!device.portStatus && (
+                <div>
+                  <div className="text-sm font-medium mb-2 flex items-center gap-1"><Cable className="w-4 h-4" /> Portas LAN</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map((portNum) => (
+                      <div key={portNum} className="p-3 rounded-md bg-muted text-center text-sm" data-testid={`port-status-${portNum - 1}`}>
+                        <div className="text-xs text-muted-foreground mb-1">Porta {portNum}</div>
+                        <Badge variant="secondary">NoLink</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="text-sm font-medium flex items-center gap-1"><Globe className="w-4 h-4" /> DNS LAN</div>
+                  {isSuperAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const current = dnsData?.data;
+                        let servers = "";
+                        if (current?.dns_servers && Array.isArray(current.dns_servers)) {
+                          servers = current.dns_servers.join("\n");
+                        } else if (current?.device?.lan_dns_servers) {
+                          servers = current.device.lan_dns_servers;
+                        }
+                        setDnsForm(servers);
+                        setShowDnsDialog(true);
+                      }}
+                      data-testid="button-edit-dns"
+                    >
+                      <Pencil className="w-4 h-4 mr-1" /> Editar DNS
+                    </Button>
+                  )}
+                </div>
+                {dnsData?.data ? (
+                  <div className="p-3 rounded-md bg-muted text-sm">
+                    {(() => {
+                      const d = dnsData.data;
+                      if (d?.dns_servers && Array.isArray(d.dns_servers)) {
+                        return d.dns_servers.map((s: string, i: number) => (
+                          <div key={i} className="font-mono">{safeText(s)}</div>
+                        ));
+                      }
+                      if (d?.device?.lan_dns_servers) {
+                        return <div className="font-mono">{safeText(d.device.lan_dns_servers)}</div>;
+                      }
+                      return <span className="text-muted-foreground">Nenhum DNS configurado</span>;
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
+                )}
+              </div>
+
+              {device.vlans?.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium mb-2 flex items-center gap-1"><Network className="w-4 h-4" /> VLANs</div>
+                  <div className="space-y-1">
+                    {device.vlans.map((vlan: any, i: number) => (
+                      <div key={vlan.id || i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm">
+                        <span className="text-muted-foreground">Porta {safeText(vlan.port)}</span>
+                        <span className="font-mono">VLAN {safeText(vlan.vlanId)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ========== WI-FI TAB ========== */}
+          <TabsContent value="wifi" className="space-y-4">
+            {(device.wifi?.ssid_2g || device.wifi?.ssid_5g) ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                {device.wifi.ssid_2g && (
+                  <div className="space-y-2 p-3 rounded-md bg-muted">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">2.4 GHz</Badge>
+                        <Badge variant={device.wifi.state_2g === 1 ? "default" : "secondary"} className={device.wifi.state_2g === 1 ? "bg-green-600" : ""}>
+                          {device.wifi.state_2g === 1 ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                      {isSuperAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingWifiBand("2g");
+                            setWifiEditForm({
+                              ssid: device.wifi.ssid_2g || "",
+                              password: device.wifi.password_2g || "",
+                              channel: device.wifi.channel_2g || "auto",
+                            });
+                            setShowWifiEditDialog(true);
+                          }}
+                          data-testid="button-edit-wifi-2g"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <InfoRow label="SSID" value={safeText(device.wifi.ssid_2g)} />
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground text-sm">Senha</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-mono">{showPassword2g ? safeText(device.wifi.password_2g) : "********"}</span>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowPassword2g(!showPassword2g)} data-testid="toggle-password-2g">
+                            {showPassword2g ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <InfoRow label="Canal" value={safeText(device.wifi.channel_2g)} />
+                      <InfoRow label="Largura" value={safeText(device.wifi.band_2g)} />
+                      <InfoRow label="Modo" value={safeText(device.wifi.mode_2g)} />
+                      <InfoRow label="Potência" value={device.wifi.power_2g != null ? `${device.wifi.power_2g}%` : "N/A"} />
+                      {device.wifi.bssid_2g && <InfoRow label="BSSID" value={safeText(device.wifi.bssid_2g)} mono />}
+                      {device.wifi.supportedBandwidths_2g && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground text-sm">Larguras suportadas</span>
+                          <span className="text-sm">{Array.isArray(device.wifi.supportedBandwidths_2g) ? device.wifi.supportedBandwidths_2g.join(", ") : safeText(device.wifi.supportedBandwidths_2g)}</span>
+                        </div>
+                      )}
+                      {device.wifi.supportedModes_2g && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground text-sm">Modos suportados</span>
+                          <span className="text-sm">{Array.isArray(device.wifi.supportedModes_2g) ? device.wifi.supportedModes_2g.join(", ") : safeText(device.wifi.supportedModes_2g)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {device.wifi.ssid_5g && (
+                  <div className="space-y-2 p-3 rounded-md bg-muted">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">5 GHz</Badge>
+                        <Badge variant={device.wifi.state_5g === 1 ? "default" : "secondary"} className={device.wifi.state_5g === 1 ? "bg-green-600" : ""}>
+                          {device.wifi.state_5g === 1 ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                      {isSuperAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingWifiBand("5g");
+                            setWifiEditForm({
+                              ssid: device.wifi.ssid_5g || "",
+                              password: device.wifi.password_5g || "",
+                              channel: device.wifi.channel_5g || "auto",
+                            });
+                            setShowWifiEditDialog(true);
+                          }}
+                          data-testid="button-edit-wifi-5g"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <InfoRow label="SSID" value={safeText(device.wifi.ssid_5g)} />
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground text-sm">Senha</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-mono">{showPassword5g ? safeText(device.wifi.password_5g) : "********"}</span>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowPassword5g(!showPassword5g)} data-testid="toggle-password-5g">
+                            {showPassword5g ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <InfoRow label="Canal" value={safeText(device.wifi.channel_5g)} />
+                      <InfoRow label="Largura" value={safeText(device.wifi.band_5g)} />
+                      <InfoRow label="Modo" value={safeText(device.wifi.mode_5g)} />
+                      <InfoRow label="Potência" value={device.wifi.power_5g != null ? `${device.wifi.power_5g}%` : "N/A"} />
+                      {device.wifi.bssid_5g && <InfoRow label="BSSID" value={safeText(device.wifi.bssid_5g)} mono />}
+                      {device.wifi.supportedBandwidths_5g && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground text-sm">Larguras suportadas</span>
+                          <span className="text-sm">{Array.isArray(device.wifi.supportedBandwidths_5g) ? device.wifi.supportedBandwidths_5g.join(", ") : safeText(device.wifi.supportedBandwidths_5g)}</span>
+                        </div>
+                      )}
+                      {device.wifi.supportedModes_5g && (
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground text-sm">Modos suportados</span>
+                          <span className="text-sm">{Array.isArray(device.wifi.supportedModes_5g) ? device.wifi.supportedModes_5g.join(", ") : safeText(device.wifi.supportedModes_5g)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">Nenhuma informação de Wi-Fi disponível.</p>
+            )}
+          </TabsContent>
+
+          {/* ========== QUALIDADE TAB ========== */}
+          <TabsContent value="qualidade" className="space-y-4">
+            {report ? (
+              <div className="space-y-4 mt-2">
+                {report.wifi && (
+                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-medium flex items-center gap-1"><Wifi className="w-4 h-4" /> Wi-Fi</span>
+                      {report.wifi.period && (
+                        <span className="text-xs text-muted-foreground">
+                          {report.wifi.period.start && new Date(report.wifi.period.start).toLocaleDateString("pt-BR")} - {report.wifi.period.end && new Date(report.wifi.period.end).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    {report.wifi.connectedDevices != null && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Dispositivos conectados (avg)</span>
+                        <ThresholdBadge value={report.wifi.connectedDevices.mean} threshold={report.wifi.connectedDevices.threshold} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {report.latency && (
+                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-medium flex items-center gap-1"><Activity className="w-4 h-4" /> Latência</span>
+                      {report.latency.period && (
+                        <span className="text-xs text-muted-foreground">
+                          {report.latency.period.start && new Date(report.latency.period.start).toLocaleDateString("pt-BR")} - {report.latency.period.end && new Date(report.latency.period.end).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Min</div>
+                        <ThresholdBadge value={report.latency.min} threshold={report.latency.threshold} unit="ms" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Média</div>
+                        <ThresholdBadge value={report.latency.mean} threshold={report.latency.threshold} unit="ms" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Max</div>
+                        <ThresholdBadge value={report.latency.max} threshold={report.latency.threshold} unit="ms" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {report.packetLoss && (
+                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-medium">Perda de Pacotes</span>
+                      {report.packetLoss.period && (
+                        <span className="text-xs text-muted-foreground">
+                          {report.packetLoss.period.start && new Date(report.packetLoss.period.start).toLocaleDateString("pt-BR")} - {report.packetLoss.period.end && new Date(report.packetLoss.period.end).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Min</div>
+                        <ThresholdBadge value={report.packetLoss.min} threshold={report.packetLoss.threshold} unit="%" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Média</div>
+                        <ThresholdBadge value={report.packetLoss.mean} threshold={report.packetLoss.threshold} unit="%" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-muted-foreground">Max</div>
+                        <ThresholdBadge value={report.packetLoss.max} threshold={report.packetLoss.threshold} unit="%" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {report.pon && (
+                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-medium flex items-center gap-1"><Signal className="w-4 h-4" /> Sinal PON</span>
+                      {report.pon.period && (
+                        <span className="text-xs text-muted-foreground">
+                          {report.pon.period.start && new Date(report.pon.period.start).toLocaleDateString("pt-BR")} - {report.pon.period.end && new Date(report.pon.period.end).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    {report.pon.rx && (
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">RX</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Min</div><ThresholdBadge value={report.pon.rx.min} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Média</div><ThresholdBadge value={report.pon.rx.mean} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Max</div><ThresholdBadge value={report.pon.rx.max} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
+                        </div>
+                      </div>
+                    )}
+                    {report.pon.tx && (
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">TX</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Min</div><ThresholdBadge value={report.pon.tx.min} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Média</div><ThresholdBadge value={report.pon.tx.mean} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
+                          <div className="text-center"><div className="text-xs text-muted-foreground">Max</div><ThresholdBadge value={report.pon.tx.max} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {report.uptime && (
+                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-medium">Estabilidade (Uptime)</span>
+                      {report.uptime.period && (
+                        <span className="text-xs text-muted-foreground">
+                          {report.uptime.period.start && new Date(report.uptime.period.start).toLocaleDateString("pt-BR")} - {report.uptime.period.end && new Date(report.uptime.period.end).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {report.uptime.rebootCount != null && (
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Reboots</div>
+                          <ThresholdBadge value={report.uptime.rebootCount} threshold={report.uptime.rebootThreshold} />
+                        </div>
+                      )}
+                      {report.uptime.wanRebootCount != null && (
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">WAN Reboots</div>
+                          <ThresholdBadge value={report.uptime.wanRebootCount} threshold={report.uptime.wanRebootThreshold} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!report.wifi && !report.latency && !report.packetLoss && !report.pon && !report.uptime && (
+                  <p className="text-sm text-muted-foreground">Nenhum dado de qualidade disponível no relatório.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">Carregando relatório de qualidade...</p>
+            )}
+          </TabsContent>
+
+          {/* ========== COMANDOS TAB ========== */}
+          <TabsContent value="comandos" className="space-y-4">
             {isSuperAdmin && (
-              <div className="mt-4">
+              <div className="mt-2">
                 <div className="text-sm font-medium mb-2 flex items-center gap-1"><Wrench className="w-4 h-4" /> Ações / Diagnósticos</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {commandButtons.map((btn) => {
@@ -620,26 +1329,6 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               </div>
             )}
 
-            {device.mesh?.mode > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Network className="w-4 h-4" /> Rede Mesh</div>
-                <div className="text-sm space-y-2">
-                  <InfoRow label="Modo" value={["Desativado", "Cabo", "Cabo + 2.4GHz", "Cabo + 5GHz", "Cabo + Ambos Wi-Fi"][device.mesh.mode] || "Desconhecido"} />
-                  {device.mesh.master && <InfoRow label="Master" value={safeText(device.mesh.master)} mono />}
-                  {device.mesh.slaves?.length > 0 && (
-                    <div>
-                      <span className="text-muted-foreground text-sm">Repetidores ({device.mesh.slaves.length})</span>
-                      <div className="mt-1 space-y-1">
-                        {device.mesh.slaves.map((slave: string, i: number) => (
-                          <div key={i} className="font-mono text-xs bg-muted px-2 py-1 rounded">{slave}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {device.siteSurveyResult && Array.isArray(device.siteSurveyResult) && device.siteSurveyResult.length > 0 && (
               <div className="mt-4">
                 <div className="text-sm font-medium mb-2 flex items-center gap-1"><Wifi className="w-4 h-4" /> Redes Vizinhas (Site Survey)</div>
@@ -656,429 +1345,35 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                 </div>
               </div>
             )}
-          </TabsContent>
 
-          {/* ========== WI-FI TAB ========== */}
-          <TabsContent value="wifi" className="space-y-4">
-            {(device.wifi?.ssid_2g || device.wifi?.ssid_5g) ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                {device.wifi.ssid_2g && (
-                  <div className="space-y-2 p-3 rounded-md bg-muted">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">2.4 GHz</Badge>
-                        <Badge variant={device.wifi.state_2g === 1 ? "default" : "secondary"} className={device.wifi.state_2g === 1 ? "bg-green-600" : ""}>
-                          {device.wifi.state_2g === 1 ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </div>
-                      {isSuperAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingWifiBand("2g");
-                            setWifiEditForm({
-                              ssid: device.wifi.ssid_2g || "",
-                              password: device.wifi.password_2g || "",
-                              channel: device.wifi.channel_2g || "auto",
-                            });
-                            setShowWifiEditDialog(true);
-                          }}
-                          data-testid="button-edit-wifi-2g"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <InfoRow label="SSID" value={safeText(device.wifi.ssid_2g)} />
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground text-sm">Senha</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-mono">{showPassword2g ? safeText(device.wifi.password_2g) : "********"}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowPassword2g(!showPassword2g)} data-testid="toggle-password-2g">
-                            {showPassword2g ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <InfoRow label="Canal" value={safeText(device.wifi.channel_2g)} />
-                      <InfoRow label="Largura" value={safeText(device.wifi.band_2g)} />
-                      <InfoRow label="Modo" value={safeText(device.wifi.mode_2g)} />
-                      <InfoRow label="Potência" value={device.wifi.power_2g != null ? `${device.wifi.power_2g}%` : "N/A"} />
-                      {device.wifi.bssid_2g && <InfoRow label="BSSID" value={safeText(device.wifi.bssid_2g)} mono />}
-                      {device.wifi.supportedBandwidths_2g && (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground text-sm">Larguras suportadas</span>
-                          <span className="text-sm">{Array.isArray(device.wifi.supportedBandwidths_2g) ? device.wifi.supportedBandwidths_2g.join(", ") : safeText(device.wifi.supportedBandwidths_2g)}</span>
-                        </div>
-                      )}
-                      {device.wifi.supportedModes_2g && (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground text-sm">Modos suportados</span>
-                          <span className="text-sm">{Array.isArray(device.wifi.supportedModes_2g) ? device.wifi.supportedModes_2g.join(", ") : safeText(device.wifi.supportedModes_2g)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {device.wifi.ssid_5g && (
-                  <div className="space-y-2 p-3 rounded-md bg-muted">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">5 GHz</Badge>
-                        <Badge variant={device.wifi.state_5g === 1 ? "default" : "secondary"} className={device.wifi.state_5g === 1 ? "bg-green-600" : ""}>
-                          {device.wifi.state_5g === 1 ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </div>
-                      {isSuperAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingWifiBand("5g");
-                            setWifiEditForm({
-                              ssid: device.wifi.ssid_5g || "",
-                              password: device.wifi.password_5g || "",
-                              channel: device.wifi.channel_5g || "auto",
-                            });
-                            setShowWifiEditDialog(true);
-                          }}
-                          data-testid="button-edit-wifi-5g"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="text-sm space-y-1">
-                      <InfoRow label="SSID" value={safeText(device.wifi.ssid_5g)} />
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground text-sm">Senha</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-mono">{showPassword5g ? safeText(device.wifi.password_5g) : "********"}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowPassword5g(!showPassword5g)} data-testid="toggle-password-5g">
-                            {showPassword5g ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <InfoRow label="Canal" value={safeText(device.wifi.channel_5g)} />
-                      <InfoRow label="Largura" value={safeText(device.wifi.band_5g)} />
-                      <InfoRow label="Modo" value={safeText(device.wifi.mode_5g)} />
-                      <InfoRow label="Potência" value={device.wifi.power_5g != null ? `${device.wifi.power_5g}%` : "N/A"} />
-                      {device.wifi.bssid_5g && <InfoRow label="BSSID" value={safeText(device.wifi.bssid_5g)} mono />}
-                      {device.wifi.supportedBandwidths_5g && (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground text-sm">Larguras suportadas</span>
-                          <span className="text-sm">{Array.isArray(device.wifi.supportedBandwidths_5g) ? device.wifi.supportedBandwidths_5g.join(", ") : safeText(device.wifi.supportedBandwidths_5g)}</span>
-                        </div>
-                      )}
-                      {device.wifi.supportedModes_5g && (
-                        <div className="flex justify-between gap-2">
-                          <span className="text-muted-foreground text-sm">Modos suportados</span>
-                          <span className="text-sm">{Array.isArray(device.wifi.supportedModes_5g) ? device.wifi.supportedModes_5g.join(", ") : safeText(device.wifi.supportedModes_5g)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-2">Nenhuma informação de Wi-Fi disponível.</p>
-            )}
-          </TabsContent>
-
-          {/* ========== REDE TAB ========== */}
-          <TabsContent value="rede" className="space-y-4">
-            {device.wans?.length > 0 && (
-              <div className="mt-2">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Globe className="w-4 h-4" /> Interfaces WAN</div>
-                <div className="space-y-3">
-                  {device.wans.map((wan: any, i: number) => (
-                    <div key={wan.id || i} className="p-3 rounded-md bg-muted text-sm space-y-2" data-testid={`wan-${i}`}>
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{safeText(wan.alias, `WAN ${i + 1}`)}</span>
-                          <Badge variant={wan.enable ? "default" : "secondary"} className={wan.enable ? "bg-green-600" : ""}>
-                            {wan.enable ? "Ativo" : "Inativo"}
-                          </Badge>
-                          {wan.status && (
-                            <Badge variant="outline">{safeText(wan.status)}</Badge>
-                          )}
-                        </div>
-                        {wan.serviceTypes && Array.isArray(wan.serviceTypes) && (
-                          <div className="flex gap-1 flex-wrap">
-                            {wan.serviceTypes.map((st: string, si: number) => (
-                              <Badge key={si} variant="outline">{safeText(st)}</Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                        <InfoRow label="Tipo Conexão" value={safeText(wan.connectionType)} />
-                        <InfoRow label="Tipo Interface" value={safeText(wan.interfaceType)} />
-                        {wan.mac && <InfoRow label="MAC" value={safeText(wan.mac)} mono />}
-                        {wan.vlanId != null && <InfoRow label="VLAN ID" value={safeText(wan.vlanId)} />}
-                        {wan.mtu != null && <InfoRow label="MTU" value={safeText(wan.mtu)} />}
-                        {wan.uptime != null && <InfoRow label="Uptime" value={`${wan.uptime}s`} />}
-                      </div>
-                      {wan.ipv4 && (
-                        <div className="pt-2 border-t border-border/50">
-                          <span className="text-xs text-muted-foreground font-medium">IPv4</span>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
-                            <InfoRow label="IP" value={safeText(wan.ipv4.ip)} mono />
-                            {wan.ipv4.natIp && <InfoRow label="NAT IP" value={safeText(wan.ipv4.natIp)} mono />}
-                            <InfoRow label="Gateway" value={safeText(wan.ipv4.gateway)} mono />
-                            {wan.ipv4.mask != null && <InfoRow label="Máscara" value={safeText(wan.ipv4.mask)} />}
-                            {wan.ipv4.dns?.length > 0 && <InfoRow label="DNS" value={wan.ipv4.dns.join(", ")} mono />}
-                          </div>
-                        </div>
-                      )}
-                      {wan.ipv6 && (
-                        <div className="pt-2 border-t border-border/50">
-                          <span className="text-xs text-muted-foreground font-medium">IPv6</span>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
-                            <InfoRow label="Habilitado" value={wan.ipv6.enabled ? "Sim" : "Não"} />
-                            {wan.ipv6.dns?.length > 0 && <InfoRow label="DNS" value={wan.ipv6.dns.join(", ")} mono />}
-                          </div>
-                        </div>
-                      )}
-                      {wan.pppoe && (
-                        <div className="pt-2 border-t border-border/50">
-                          <span className="text-xs text-muted-foreground font-medium">PPPoE</span>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1">
-                            <InfoRow label="Usuário" value={safeText(wan.pppoe.username)} mono />
-                            {wan.pppoe.serverMac && <InfoRow label="MAC Servidor" value={safeText(wan.pppoe.serverMac)} mono />}
-                            {wan.pppoe.serverIp && <InfoRow label="IP Servidor" value={safeText(wan.pppoe.serverIp)} mono />}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {device.lan?.subnet && (
-              <div className="mt-2">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1"><HardDrive className="w-4 h-4" /> Rede LAN</div>
-                <div className="p-3 rounded-md bg-muted text-sm space-y-1">
-                  <InfoRow label="Gateway" value={safeText(device.lan.subnet)} mono />
-                  <InfoRow label="Máscara" value={`/${safeText(device.lan.netmask)}`} mono />
-                  {device.lan.dns && <InfoRow label="DNS" value={safeText(device.lan.dns)} mono />}
-                  <InfoRow label="Bridge" value={device.bridge?.enabled ? "Habilitado" : "Desabilitado"} />
-                  <InfoRow label="IPv6" value={device.ipv6Enabled ? "Habilitado" : "Desabilitado"} />
-                </div>
-              </div>
-            )}
-
-            <div className="mt-2">
+            <div className="mt-4">
               <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                <div className="text-sm font-medium flex items-center gap-1"><Globe className="w-4 h-4" /> DNS LAN</div>
+                <div className="text-sm font-medium flex items-center gap-1"><MessageSquare className="w-4 h-4" /> Observações</div>
                 {isSuperAdmin && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const current = dnsData?.data;
-                      let servers = "";
-                      if (current?.dns_servers && Array.isArray(current.dns_servers)) {
-                        servers = current.dns_servers.join("\n");
-                      } else if (current?.device?.lan_dns_servers) {
-                        servers = current.device.lan_dns_servers;
-                      }
-                      setDnsForm(servers);
-                      setShowDnsDialog(true);
-                    }}
-                    data-testid="button-edit-dns"
+                    disabled={commentsMutation.isPending}
+                    onClick={() => commentsMutation.mutate(commentsText)}
+                    data-testid="button-save-comments"
                   >
-                    <Pencil className="w-4 h-4 mr-1" /> Editar DNS
+                    {commentsMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                    Salvar
                   </Button>
                 )}
               </div>
-              {dnsData?.data ? (
-                <div className="p-3 rounded-md bg-muted text-sm">
-                  {(() => {
-                    const d = dnsData.data;
-                    if (d?.dns_servers && Array.isArray(d.dns_servers)) {
-                      return d.dns_servers.map((s: string, i: number) => (
-                        <div key={i} className="font-mono">{safeText(s)}</div>
-                      ));
-                    }
-                    if (d?.device?.lan_dns_servers) {
-                      return <div className="font-mono">{safeText(d.device.lan_dns_servers)}</div>;
-                    }
-                    return <span className="text-muted-foreground">Nenhum DNS configurado</span>;
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Carregando...</p>
-              )}
+              <Textarea
+                value={commentsText}
+                onChange={(e) => setCommentsText(e.target.value)}
+                placeholder="Observações sobre o dispositivo..."
+                className="min-h-[100px] text-sm"
+                disabled={!isSuperAdmin}
+                data-testid="textarea-comments"
+              />
             </div>
 
-            {device.vlans?.length > 0 && (
-              <div className="mt-2">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Network className="w-4 h-4" /> VLANs</div>
-                <div className="space-y-1">
-                  {device.vlans.map((vlan: any, i: number) => (
-                    <div key={vlan.id || i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm">
-                      <span className="text-muted-foreground">Porta {safeText(vlan.port)}</span>
-                      <span className="font-mono">VLAN {safeText(vlan.vlanId)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* ========== QUALIDADE TAB ========== */}
-          <TabsContent value="qualidade" className="space-y-4">
-            {report ? (
-              <div className="space-y-4 mt-2">
-                {report.wifi && (
-                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-medium flex items-center gap-1"><Wifi className="w-4 h-4" /> Qualidade Wi-Fi</span>
-                      {report.wifi.period && (
-                        <span className="text-xs text-muted-foreground">
-                          {report.wifi.period.start && new Date(report.wifi.period.start).toLocaleDateString("pt-BR")} - {report.wifi.period.end && new Date(report.wifi.period.end).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    {report.wifi.quality != null && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Score</span>
-                        <ThresholdBadge value={report.wifi.quality} threshold={report.wifi.qualityThreshold} />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {report.latency && (
-                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-medium flex items-center gap-1"><Activity className="w-4 h-4" /> Latência</span>
-                      {report.latency.period && (
-                        <span className="text-xs text-muted-foreground">
-                          {report.latency.period.start && new Date(report.latency.period.start).toLocaleDateString("pt-BR")} - {report.latency.period.end && new Date(report.latency.period.end).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Min</div>
-                        <ThresholdBadge value={report.latency.min} threshold={report.latency.threshold} unit="ms" />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Média</div>
-                        <ThresholdBadge value={report.latency.mean} threshold={report.latency.threshold} unit="ms" />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Max</div>
-                        <ThresholdBadge value={report.latency.max} threshold={report.latency.threshold} unit="ms" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {report.packetLoss && (
-                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-medium">Perda de Pacotes</span>
-                      {report.packetLoss.period && (
-                        <span className="text-xs text-muted-foreground">
-                          {report.packetLoss.period.start && new Date(report.packetLoss.period.start).toLocaleDateString("pt-BR")} - {report.packetLoss.period.end && new Date(report.packetLoss.period.end).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Min</div>
-                        <ThresholdBadge value={report.packetLoss.min} threshold={report.packetLoss.threshold} unit="%" />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Média</div>
-                        <ThresholdBadge value={report.packetLoss.mean} threshold={report.packetLoss.threshold} unit="%" />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs text-muted-foreground">Max</div>
-                        <ThresholdBadge value={report.packetLoss.max} threshold={report.packetLoss.threshold} unit="%" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {report.pon && (
-                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-medium flex items-center gap-1"><Signal className="w-4 h-4" /> Sinal PON</span>
-                      {report.pon.period && (
-                        <span className="text-xs text-muted-foreground">
-                          {report.pon.period.start && new Date(report.pon.period.start).toLocaleDateString("pt-BR")} - {report.pon.period.end && new Date(report.pon.period.end).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    {report.pon.rx && (
-                      <div>
-                        <div className="text-xs text-muted-foreground mb-1">RX</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Min</div><ThresholdBadge value={report.pon.rx.min} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Média</div><ThresholdBadge value={report.pon.rx.mean} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Max</div><ThresholdBadge value={report.pon.rx.max} threshold={report.pon.rx.threshold} unit=" dBm" /></div>
-                        </div>
-                      </div>
-                    )}
-                    {report.pon.tx && (
-                      <div>
-                        <div className="text-xs text-muted-foreground mb-1">TX</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Min</div><ThresholdBadge value={report.pon.tx.min} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Média</div><ThresholdBadge value={report.pon.tx.mean} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
-                          <div className="text-center"><div className="text-xs text-muted-foreground">Max</div><ThresholdBadge value={report.pon.tx.max} threshold={report.pon.tx.threshold} unit=" dBm" /></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {report.uptime && (
-                  <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="font-medium">Estabilidade (Uptime)</span>
-                      {report.uptime.period && (
-                        <span className="text-xs text-muted-foreground">
-                          {report.uptime.period.start && new Date(report.uptime.period.start).toLocaleDateString("pt-BR")} - {report.uptime.period.end && new Date(report.uptime.period.end).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      {report.uptime.rebootCount != null && (
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Reboots</div>
-                          <ThresholdBadge value={report.uptime.rebootCount} threshold={report.uptime.rebootThreshold} />
-                        </div>
-                      )}
-                      {report.uptime.wanRebootCount != null && (
-                        <div className="text-center">
-                          <div className="text-xs text-muted-foreground">WAN Reboots</div>
-                          <ThresholdBadge value={report.uptime.wanRebootCount} threshold={report.uptime.wanRebootThreshold} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {!report.wifi && !report.latency && !report.packetLoss && !report.pon && !report.uptime && (
-                  <p className="text-sm text-muted-foreground">Nenhum dado de qualidade disponível no relatório.</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-2">Carregando relatório de qualidade...</p>
-            )}
-          </TabsContent>
-
-          {/* ========== AVANÇADO TAB ========== */}
-          <TabsContent value="avancado" className="space-y-4">
             {isSuperAdmin && (
-              <div className="mt-2">
+              <div className="mt-4">
                 <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="text-sm font-medium flex items-center gap-1"><Cpu className="w-4 h-4" /> Credenciais Web</div>
                   <Button
@@ -1116,61 +1411,22 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               </div>
             )}
 
-            <div className="mt-2">
-              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                <div className="text-sm font-medium flex items-center gap-1"><MessageSquare className="w-4 h-4" /> Observações</div>
-                {isSuperAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={commentsMutation.isPending}
-                    onClick={() => commentsMutation.mutate(commentsText)}
-                    data-testid="button-save-comments"
-                  >
-                    {commentsMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                    Salvar
-                  </Button>
-                )}
-              </div>
-              <Textarea
-                value={commentsText}
-                onChange={(e) => setCommentsText(e.target.value)}
-                placeholder="Observações sobre o dispositivo..."
-                className="min-h-[100px] text-sm"
-                disabled={!isSuperAdmin}
-                data-testid="textarea-comments"
-              />
-            </div>
-
-            {voipData?.data && (
-              <div className="mt-2">
-                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Phone className="w-4 h-4" /> VoIP</div>
-                <div className="p-3 rounded-md bg-muted text-sm space-y-2">
-                  {(() => {
-                    const vd = voipData.data;
-                    if (vd?.profiles && Array.isArray(vd.profiles)) {
-                      return vd.profiles.map((profile: any, i: number) => (
-                        <div key={i} className="space-y-1">
-                          <div className="font-medium">Perfil {i + 1}</div>
-                          {profile.sip_user && <InfoRow label="SIP User" value={safeText(profile.sip_user)} mono />}
-                          {profile.sip_uri && <InfoRow label="SIP URI" value={safeText(profile.sip_uri)} mono />}
-                          {profile.proxy_address && <InfoRow label="Proxy" value={safeText(profile.proxy_address)} mono />}
-                          {profile.registrar_address && <InfoRow label="Registrar" value={safeText(profile.registrar_address)} mono />}
-                          {profile.status && <InfoRow label="Status" value={safeText(profile.status)} />}
-                        </div>
-                      ));
-                    }
-                    if (vd?.device) {
-                      const d = vd.device;
-                      return (
-                        <div className="space-y-1">
-                          {d.voip_line1_sip_uri && <InfoRow label="Linha 1 SIP URI" value={safeText(d.voip_line1_sip_uri)} mono />}
-                          {d.voip_line2_sip_uri && <InfoRow label="Linha 2 SIP URI" value={safeText(d.voip_line2_sip_uri)} mono />}
-                        </div>
-                      );
-                    }
-                    return <span className="text-muted-foreground">Nenhuma configuração VoIP disponível</span>;
-                  })()}
+            {device.mesh?.mode > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2 flex items-center gap-1"><Network className="w-4 h-4" /> Rede Mesh</div>
+                <div className="text-sm space-y-2">
+                  <InfoRow label="Modo" value={["Desativado", "Cabo", "Cabo + 2.4GHz", "Cabo + 5GHz", "Cabo + Ambos Wi-Fi"][device.mesh.mode] || "Desconhecido"} />
+                  {device.mesh.master && <InfoRow label="Master" value={safeText(device.mesh.master)} mono />}
+                  {device.mesh.slaves?.length > 0 && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">Repetidores ({device.mesh.slaves.length})</span>
+                      <div className="mt-1 space-y-1">
+                        {device.mesh.slaves.map((slave: string, i: number) => (
+                          <div key={i} className="font-mono text-xs bg-muted px-2 py-1 rounded">{slave}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1178,6 +1434,226 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         </Tabs>
       </CardContent>
 
+      {/* ========== WAN EDIT DIALOG ========== */}
+      <Dialog open={showWanEditDialog} onOpenChange={setShowWanEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar WAN</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground">MTU</label>
+              <Input
+                type="number"
+                value={wanEditForm.mtu}
+                onChange={(e) => setWanEditForm({ ...wanEditForm, mtu: e.target.value })}
+                placeholder="1500"
+                data-testid="input-wan-mtu"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">VLAN ID</label>
+              <Input
+                type="number"
+                value={wanEditForm.vlanId}
+                onChange={(e) => setWanEditForm({ ...wanEditForm, vlanId: e.target.value })}
+                placeholder="0"
+                data-testid="input-wan-vlanid"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm text-muted-foreground">Habilitado</label>
+              <Switch
+                checked={wanEditForm.enable}
+                onCheckedChange={(checked) => setWanEditForm({ ...wanEditForm, enable: checked })}
+                data-testid="switch-wan-enable"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWanEditDialog(false)} data-testid="button-cancel-wan">
+              Cancelar
+            </Button>
+            <Button
+              disabled={wanMutation.isPending}
+              onClick={() => {
+                wanMutation.mutate({
+                  wanId: editingWanId,
+                  data: {
+                    mtu: wanEditForm.mtu ? parseInt(wanEditForm.mtu) : undefined,
+                    vlanId: wanEditForm.vlanId ? parseInt(wanEditForm.vlanId) : undefined,
+                    enable: wanEditForm.enable,
+                  },
+                });
+              }}
+              data-testid="button-save-wan"
+            >
+              {wanMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== VoIP EDIT DIALOG ========== */}
+      <Dialog open={showVoipEditDialog} onOpenChange={setShowVoipEditDialog}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar VoIP</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm text-muted-foreground">Habilitado</label>
+              <Switch
+                checked={voipEditForm.enabled}
+                onCheckedChange={(checked) => setVoipEditForm({ ...voipEditForm, enabled: checked })}
+                data-testid="switch-voip-enable"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">SIP Server</label>
+              <Input
+                value={voipEditForm.sipServer}
+                onChange={(e) => setVoipEditForm({ ...voipEditForm, sipServer: e.target.value })}
+                placeholder="sip.example.com"
+                data-testid="input-voip-sip-server"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Domínio Regulatório</label>
+              <Input
+                value={voipEditForm.regulatoryDomain}
+                onChange={(e) => setVoipEditForm({ ...voipEditForm, regulatoryDomain: e.target.value })}
+                placeholder="BR"
+                data-testid="input-voip-regulatory-domain"
+              />
+            </div>
+            {voipEditForm.lines.map((line, i) => (
+              <div key={i} className="p-3 rounded-md bg-muted space-y-3">
+                <div className="text-sm font-medium">Linha {i + 1}</div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Número</label>
+                  <Input
+                    value={line.phoneNumber}
+                    onChange={(e) => {
+                      const newLines = [...voipEditForm.lines];
+                      newLines[i] = { ...newLines[i], phoneNumber: e.target.value };
+                      setVoipEditForm({ ...voipEditForm, lines: newLines });
+                    }}
+                    data-testid={`input-voip-phone-${i}`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">SIP User</label>
+                  <Input
+                    value={line.sipUser}
+                    onChange={(e) => {
+                      const newLines = [...voipEditForm.lines];
+                      newLines[i] = { ...newLines[i], sipUser: e.target.value };
+                      setVoipEditForm({ ...voipEditForm, lines: newLines });
+                    }}
+                    data-testid={`input-voip-sip-user-${i}`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Usuário Conexão</label>
+                  <Input
+                    value={line.connectionUser}
+                    onChange={(e) => {
+                      const newLines = [...voipEditForm.lines];
+                      newLines[i] = { ...newLines[i], connectionUser: e.target.value };
+                      setVoipEditForm({ ...voipEditForm, lines: newLines });
+                    }}
+                    data-testid={`input-voip-conn-user-${i}`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Senha</label>
+                  <Input
+                    type="password"
+                    value={line.password}
+                    onChange={(e) => {
+                      const newLines = [...voipEditForm.lines];
+                      newLines[i] = { ...newLines[i], password: e.target.value };
+                      setVoipEditForm({ ...voipEditForm, lines: newLines });
+                    }}
+                    data-testid={`input-voip-password-${i}`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowVoipEditDialog(false)} data-testid="button-cancel-voip">
+              Cancelar
+            </Button>
+            <Button
+              disabled={voipMutation.isPending}
+              onClick={() => {
+                voipMutation.mutate({
+                  enabled: voipEditForm.enabled,
+                  sipServer: voipEditForm.sipServer,
+                  regulatoryDomain: voipEditForm.regulatoryDomain,
+                  lines: voipEditForm.lines,
+                });
+              }}
+              data-testid="button-save-voip"
+            >
+              {voipMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== LAN EDIT DIALOG ========== */}
+      <Dialog open={showLanEditDialog} onOpenChange={setShowLanEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar LAN</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground">IP do CPE (Subnet)</label>
+              <Input
+                value={lanEditForm.subnet}
+                onChange={(e) => setLanEditForm({ ...lanEditForm, subnet: e.target.value })}
+                placeholder="192.168.1.1"
+                data-testid="input-lan-subnet"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground">Máscara de Sub-rede</label>
+              <Input
+                value={lanEditForm.netmask}
+                onChange={(e) => setLanEditForm({ ...lanEditForm, netmask: e.target.value })}
+                placeholder="24"
+                data-testid="input-lan-netmask"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLanEditDialog(false)} data-testid="button-cancel-lan">
+              Cancelar
+            </Button>
+            <Button
+              disabled={lanMutation.isPending}
+              onClick={() => {
+                lanMutation.mutate({
+                  lan_subnet: lanEditForm.subnet,
+                  lan_netmask: lanEditForm.netmask,
+                });
+              }}
+              data-testid="button-save-lan"
+            >
+              {lanMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== WI-FI EDIT DIALOG ========== */}
       <Dialog open={showWifiEditDialog} onOpenChange={setShowWifiEditDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1241,6 +1717,7 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         </DialogContent>
       </Dialog>
 
+      {/* ========== CREDENTIALS DIALOG ========== */}
       <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1281,6 +1758,7 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         </DialogContent>
       </Dialog>
 
+      {/* ========== DNS DIALOG ========== */}
       <Dialog open={showDnsDialog} onOpenChange={setShowDnsDialog}>
         <DialogContent>
           <DialogHeader>

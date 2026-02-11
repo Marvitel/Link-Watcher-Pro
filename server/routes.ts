@@ -111,6 +111,7 @@ import {
   searchMeshVendorDevices,
   getDeviceHomologation,
   getFlashmanSystemConfig,
+  setDeviceLanSubnet,
 } from "./flashman";
 
 declare global {
@@ -9158,6 +9159,58 @@ export async function registerRoutes(
       res.json({ success: true, wans: formatted.wans, mac });
     } catch (error: any) {
       res.status(500).json({ error: "Erro ao consultar WANs" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/wan/:wanId", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const wanId = req.params.wanId;
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await setDeviceWan(config, mac, wanId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar WAN" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/voip", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await setDeviceVoip(config, mac, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar VoIP" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/lan", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await setDeviceLanSubnet(config, mac, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar LAN" });
     }
   });
 

@@ -736,6 +736,21 @@ export async function setWebCredentials(config: FlashmanConfig, mac: string, dat
   }
 }
 
+// ==================== LAN MANAGEMENT ====================
+
+export async function setDeviceLanSubnet(config: FlashmanConfig, mac: string, data: { lan_subnet?: string; lan_netmask?: string }): Promise<any> {
+  try {
+    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    const result = await flashmanFetch(config, `/api/v3/device/mac/${encodeURIComponent(normalizedMac)}/lan`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return result;
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
 // ==================== LAN DNS SERVERS ====================
 
 export async function getLanDnsServers(config: FlashmanConfig, mac: string): Promise<any> {
