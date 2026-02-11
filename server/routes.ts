@@ -59,8 +59,57 @@ import {
   triggerOnlineDevices,
   triggerSiteSurvey,
   triggerPonData,
+  triggerBestChannel,
   sendCommand,
   getFlashmanGlobalConfig,
+  syncDevice,
+  getFlashboardReport,
+  getDeviceWifi,
+  updateWifiRadio,
+  updateWifiInterface,
+  setDeviceWan,
+  deleteDeviceWan,
+  setDeviceWans,
+  getWebCredentials,
+  setWebCredentials,
+  getLanDnsServers,
+  setLanDnsServers,
+  getDeviceComments,
+  setDeviceComments,
+  getDeviceCustomInfo,
+  setDeviceCustomInfo,
+  getAppAccess,
+  setAppAccessPassword,
+  getDeviceVoip,
+  setDeviceVoip,
+  getConfigFiles,
+  sendConfigFileToDevice,
+  listFirmwares,
+  listFirmwaresByModel,
+  getWebhooks,
+  getWebhookById,
+  createWebhook,
+  updateWebhook,
+  deleteWebhook,
+  getPeriodicReboot,
+  setPeriodicRebootByModel,
+  getPreRegisters,
+  getPreRegisterById,
+  setPreRegister,
+  deletePreRegisters,
+  getSnmpCredentials,
+  createSnmpCredential,
+  deleteSnmpCredentials,
+  getSshCredentials,
+  createSshCredential,
+  deleteSshCredentials,
+  getTelnetCredentials,
+  createTelnetCredential,
+  deleteTelnetCredentials,
+  searchDevices,
+  searchMeshVendorDevices,
+  getDeviceHomologation,
+  getFlashmanSystemConfig,
 } from "./flashman";
 
 declare global {
@@ -8835,7 +8884,7 @@ export async function registerRoutes(
       const linkId = parseInt(req.params.id);
       const { command } = req.body;
 
-      const validCommands = ["speedtest", "ping", "traceroute", "boot", "onlinedevs", "sitesurvey", "pondata"];
+      const validCommands = ["speedtest", "ping", "traceroute", "boot", "onlinedevs", "sitesurvey", "pondata", "bestchannel", "sync"];
       if (!command || !validCommands.includes(command)) {
         return res.status(400).json({ error: `Comando inválido. Válidos: ${validCommands.join(", ")}` });
       }
@@ -8850,7 +8899,14 @@ export async function registerRoutes(
       const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
       if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado no Flashman" });
 
-      const result = await sendCommand(config, mac, command);
+      let result;
+      if (command === "bestchannel") {
+        result = await triggerBestChannel(config, mac);
+      } else if (command === "sync") {
+        result = await syncDevice(config, mac);
+      } else {
+        result = await sendCommand(config, mac, command);
+      }
       res.json({ ...result, mac });
     } catch (error: any) {
       console.error("[Flashman] Error sending command:", error.message);
@@ -8878,6 +8934,529 @@ export async function registerRoutes(
       res.json({ device: formatted });
     } catch (error: any) {
       res.status(500).json({ error: "Erro ao consultar status do dispositivo" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/flashboard", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.json({ enabled: false });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const report = await getFlashboardReport(config, mac);
+      res.json({ success: true, report });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar Flashboard" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/wifi", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await getDeviceWifi(config, mac);
+      res.json({ success: true, data: result, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar Wi-Fi" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/wifi/radio/:radioId", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const { radioId } = req.params;
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await updateWifiRadio(config, mac, radioId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar rádio Wi-Fi" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/wifi/interface/:wifiId", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const { wifiId } = req.params;
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await updateWifiInterface(config, mac, wifiId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar interface Wi-Fi" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/web-credentials", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await getWebCredentials(config, mac);
+      res.json({ success: true, data: result, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar credenciais web" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/web-credentials", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await setWebCredentials(config, mac, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar credenciais web" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/dns", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await getLanDnsServers(config, mac);
+      res.json({ success: true, data: result, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar DNS" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/dns", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const { dnsServers } = req.body;
+      if (!Array.isArray(dnsServers)) return res.status(400).json({ error: "dnsServers deve ser um array" });
+      const result = await setLanDnsServers(config, mac, dnsServers);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar DNS" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/comments", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await getDeviceComments(config, mac);
+      res.json({ success: true, data: result, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar observações" });
+    }
+  });
+
+  app.put("/api/links/:id/flashman/comments", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const { comments } = req.body;
+      const result = await setDeviceComments(config, mac, comments || "");
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar observações" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/voip", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await getDeviceVoip(config, mac);
+      res.json({ success: true, data: result, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar VoIP" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/wans", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const device = await getDeviceByMac(config, mac);
+      if (!device) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const formatted = formatFlashmanDeviceInfo(device);
+      res.json({ success: true, wans: formatted.wans, mac });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar WANs" });
+    }
+  });
+
+  app.post("/api/links/:id/flashman/config-file", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+      const result = await sendConfigFileToDevice(config, mac);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao enviar config file" });
+    }
+  });
+
+  // ==================== FLASHMAN ADMIN (GLOBAL) ROUTES ====================
+
+  app.get("/api/flashman/search-devices", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const filters: any = {};
+      if (req.query.online === "true") filters.online = true;
+      if (req.query.offline === "true") filters.offline = true;
+      if (req.query.unstable === "true") filters.unstable = true;
+      if (req.query.alert === "true") filters.alert = true;
+      if (req.query.noSignal === "true") filters.noSignal = true;
+      if (req.query.tr069 === "true") filters.tr069 = true;
+      if (req.query.flashbox === "true") filters.flashbox = true;
+      if (req.query.signal) filters.signal = req.query.signal;
+      if (req.query.mesh) filters.mesh = req.query.mesh;
+      if (req.query.mode) filters.mode = req.query.mode;
+      if (req.query.ipv6) filters.ipv6 = req.query.ipv6;
+      if (req.query.query) filters.query = req.query.query;
+      if (req.query.fields) filters.fields = req.query.fields;
+      if (req.query.page) filters.page = parseInt(req.query.page as string);
+      if (req.query.pageLimit) filters.pageLimit = parseInt(req.query.pageLimit as string);
+      if (req.query.sortType) filters.sortType = req.query.sortType;
+      if (req.query.sortOn) filters.sortOn = req.query.sortOn;
+      const result = await searchDevices(config, filters);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao buscar dispositivos" });
+    }
+  });
+
+  app.get("/api/flashman/mesh-vendors", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await searchMeshVendorDevices(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao buscar mesh vendors" });
+    }
+  });
+
+  app.get("/api/flashman/config-files", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getConfigFiles(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar config files" });
+    }
+  });
+
+  app.get("/api/flashman/firmwares", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const { vendor, model } = req.query;
+      let result;
+      if (vendor && model) {
+        result = await listFirmwaresByModel(config, vendor as string, model as string);
+      } else {
+        result = await listFirmwares(config);
+      }
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar firmwares" });
+    }
+  });
+
+  app.get("/api/flashman/webhooks", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getWebhooks(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar webhooks" });
+    }
+  });
+
+  app.post("/api/flashman/webhooks", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await createWebhook(config, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao criar webhook" });
+    }
+  });
+
+  app.put("/api/flashman/webhooks/:webhookId", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await updateWebhook(config, req.params.webhookId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar webhook" });
+    }
+  });
+
+  app.delete("/api/flashman/webhooks/:webhookId", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await deleteWebhook(config, req.params.webhookId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao excluir webhook" });
+    }
+  });
+
+  app.get("/api/flashman/periodic-reboot", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getPeriodicReboot(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar reboot periódico" });
+    }
+  });
+
+  app.put("/api/flashman/periodic-reboot", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await setPeriodicRebootByModel(config, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao configurar reboot periódico" });
+    }
+  });
+
+  app.get("/api/flashman/pre-registers", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getPreRegisters(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar pré-registros" });
+    }
+  });
+
+  app.get("/api/flashman/pre-registers/:preRegId", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getPreRegisterById(config, req.params.preRegId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar pré-registro" });
+    }
+  });
+
+  app.put("/api/flashman/pre-registers/:preRegId", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await setPreRegister(config, req.params.preRegId, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao atualizar pré-registro" });
+    }
+  });
+
+  app.delete("/api/flashman/pre-registers", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const { ids } = req.body;
+      if (!Array.isArray(ids)) return res.status(400).json({ error: "ids deve ser um array" });
+      const result = await deletePreRegisters(config, ids);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao excluir pré-registros" });
+    }
+  });
+
+  app.get("/api/flashman/credentials/snmp", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getSnmpCredentials(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar credenciais SNMP" });
+    }
+  });
+
+  app.post("/api/flashman/credentials/snmp", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await createSnmpCredential(config, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao criar credencial SNMP" });
+    }
+  });
+
+  app.delete("/api/flashman/credentials/snmp", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const { ids } = req.body;
+      const result = await deleteSnmpCredentials(config, ids);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao excluir credenciais SNMP" });
+    }
+  });
+
+  app.get("/api/flashman/credentials/ssh", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getSshCredentials(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar credenciais SSH" });
+    }
+  });
+
+  app.post("/api/flashman/credentials/ssh", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await createSshCredential(config, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao criar credencial SSH" });
+    }
+  });
+
+  app.delete("/api/flashman/credentials/ssh", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const { ids } = req.body;
+      const result = await deleteSshCredentials(config, ids);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao excluir credenciais SSH" });
+    }
+  });
+
+  app.get("/api/flashman/credentials/telnet", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getTelnetCredentials(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao listar credenciais Telnet" });
+    }
+  });
+
+  app.post("/api/flashman/credentials/telnet", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await createTelnetCredential(config, req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao criar credencial Telnet" });
+    }
+  });
+
+  app.delete("/api/flashman/credentials/telnet", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const { ids } = req.body;
+      const result = await deleteTelnetCredentials(config, ids);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao excluir credenciais Telnet" });
+    }
+  });
+
+  app.get("/api/flashman/system-config", requireSuperAdmin, async (req, res) => {
+    try {
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+      const result = await getFlashmanSystemConfig(config);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar configuração do sistema" });
     }
   });
 
