@@ -249,8 +249,15 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
   }
 
   const device = flashmanData.device;
-  const lastContactDate = device.lastContact ? new Date(device.lastContact) : null;
-  const isOnline = lastContactDate && (Date.now() - lastContactDate.getTime()) < 5 * 60 * 1000;
+  const safeText = (val: any, fallback = "N/A"): string => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === "string") return val || fallback;
+    if (typeof val === "number") return String(val);
+    if (typeof val === "object") return fallback;
+    return String(val) || fallback;
+  };
+  const lastContactDate = device.lastContact && typeof device.lastContact === "string" ? new Date(device.lastContact) : null;
+  const isOnline = lastContactDate && !isNaN(lastContactDate.getTime()) && (Date.now() - lastContactDate.getTime()) < 5 * 60 * 1000;
 
   return (
     <>
@@ -276,15 +283,15 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">MAC</span><span className="font-mono">{device.mac}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Modelo</span><span className="font-medium">{device.model}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Firmware</span><span className="font-mono">{device.firmwareVersion}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Hardware</span><span>{device.hardwareVersion}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Serial</span><span className="font-mono">{device.serialNumber}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Tipo Conexão</span><span>{device.connectionType}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">PPPoE</span><span className="font-mono">{device.pppoeUser}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">IP WAN</span><span className="font-mono">{device.wanIp}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Uptime</span><span>{device.uptime}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">MAC</span><span className="font-mono">{safeText(device.mac)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Modelo</span><span className="font-medium">{safeText(device.model)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Firmware</span><span className="font-mono">{safeText(device.firmwareVersion)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Hardware</span><span>{safeText(device.hardwareVersion)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Serial</span><span className="font-mono">{safeText(device.serialNumber)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Tipo Conexão</span><span>{safeText(device.connectionType)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">PPPoE</span><span className="font-mono">{safeText(device.pppoeUser)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">IP WAN</span><span className="font-mono">{safeText(device.wanIp)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Uptime</span><span>{safeText(device.uptime)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Último Contato</span><span>{lastContactDate ? formatDistanceToNow(lastContactDate, { addSuffix: true, locale: ptBR }) : "N/A"}</span></div>
           </div>
         </CardContent>
@@ -307,10 +314,10 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
                     </Badge>
                   </div>
                   <div className="text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">SSID</span><span className="font-medium">{device.wifi.ssid_2g}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span>{device.wifi.channel_2g}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Largura</span><span>{device.wifi.band_2g || "N/A"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Modo</span><span>{device.wifi.mode_2g || "N/A"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">SSID</span><span className="font-medium">{safeText(device.wifi.ssid_2g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span>{safeText(device.wifi.channel_2g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Largura</span><span>{safeText(device.wifi.band_2g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Modo</span><span>{safeText(device.wifi.mode_2g)}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Potência</span><span>{device.wifi.power_2g != null ? `${device.wifi.power_2g}%` : "N/A"}</span></div>
                   </div>
                 </div>
@@ -324,10 +331,10 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
                     </Badge>
                   </div>
                   <div className="text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">SSID</span><span className="font-medium">{device.wifi.ssid_5g}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span>{device.wifi.channel_5g}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Largura</span><span>{device.wifi.band_5g || "N/A"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Modo</span><span>{device.wifi.mode_5g || "N/A"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">SSID</span><span className="font-medium">{safeText(device.wifi.ssid_5g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Canal</span><span>{safeText(device.wifi.channel_5g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Largura</span><span>{safeText(device.wifi.band_5g)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Modo</span><span>{safeText(device.wifi.mode_5g)}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Potência</span><span>{device.wifi.power_5g != null ? `${device.wifi.power_5g}%` : "N/A"}</span></div>
                   </div>
                 </div>
@@ -347,15 +354,15 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="text-center p-3 rounded-md bg-muted">
                 <div className="text-muted-foreground text-xs mb-1">RX Power</div>
-                <div className="font-mono font-medium">{device.pon.rxPower || "N/A"}</div>
+                <div className="font-mono font-medium">{safeText(device.pon.rxPower)}</div>
               </div>
               <div className="text-center p-3 rounded-md bg-muted">
                 <div className="text-muted-foreground text-xs mb-1">TX Power</div>
-                <div className="font-mono font-medium">{device.pon.txPower || "N/A"}</div>
+                <div className="font-mono font-medium">{safeText(device.pon.txPower)}</div>
               </div>
               <div className="text-center p-3 rounded-md bg-muted">
                 <div className="text-muted-foreground text-xs mb-1">Medição</div>
-                <div className="font-mono font-medium">{device.pon.signalMeasure || "N/A"}</div>
+                <div className="font-mono font-medium">{safeText(device.pon.signalMeasure)}</div>
               </div>
             </div>
           </CardContent>
@@ -371,7 +378,7 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
           <CardContent>
             <div className="text-sm space-y-2">
               <div className="flex justify-between"><span className="text-muted-foreground">Modo</span><span>{["Desativado", "Cabo", "Cabo + 2.4GHz", "Cabo + 5GHz", "Cabo + Ambos Wi-Fi"][device.mesh.mode] || "Desconhecido"}</span></div>
-              {device.mesh.master && <div className="flex justify-between"><span className="text-muted-foreground">Master</span><span className="font-mono">{device.mesh.master}</span></div>}
+              {device.mesh.master && <div className="flex justify-between"><span className="text-muted-foreground">Master</span><span className="font-mono">{safeText(device.mesh.master)}</span></div>}
               {device.mesh.slaves?.length > 0 && (
                 <div>
                   <span className="text-muted-foreground">Repetidores ({device.mesh.slaves.length})</span>
@@ -401,12 +408,12 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
               {device.connectedDevices.map((dev: any, i: number) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted text-sm">
                   <div>
-                    <div className="font-medium">{dev.hostname || dev.mac || `Dispositivo ${i + 1}`}</div>
-                    <div className="text-xs text-muted-foreground">{dev.ip} - {dev.mac}</div>
+                    <div className="font-medium">{safeText(dev.hostname, "") || safeText(dev.mac, "") || `Dispositivo ${i + 1}`}</div>
+                    <div className="text-xs text-muted-foreground">{safeText(dev.ip, "")} - {safeText(dev.mac, "")}</div>
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
-                    {dev.conn_type && <div>{dev.conn_type}</div>}
-                    {dev.signal && <div>Sinal: {dev.signal} dBm</div>}
+                    {dev.conn_type && typeof dev.conn_type === "string" && <div>{dev.conn_type}</div>}
+                    {dev.signal && typeof dev.signal !== "object" && <div>Sinal: {dev.signal} dBm</div>}
                   </div>
                 </div>
               ))}
@@ -526,9 +533,9 @@ function FlashmanPanel({ linkId }: { linkId: number }) {
               <div className="mt-4 pt-4 border-t">
                 <div className="text-sm space-y-1">
                   <div className="text-muted-foreground font-medium mb-2">Rede LAN</div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Gateway</span><span className="font-mono">{device.lan.subnet}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Máscara</span><span className="font-mono">/{device.lan.netmask}</span></div>
-                  {device.lan.dns && <div className="flex justify-between"><span className="text-muted-foreground">DNS</span><span className="font-mono">{device.lan.dns}</span></div>}
+                  <div className="flex justify-between"><span className="text-muted-foreground">Gateway</span><span className="font-mono">{safeText(device.lan.subnet)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Máscara</span><span className="font-mono">/{safeText(device.lan.netmask)}</span></div>
+                  {device.lan.dns && <div className="flex justify-between"><span className="text-muted-foreground">DNS</span><span className="font-mono">{safeText(device.lan.dns)}</span></div>}
                   <div className="flex justify-between"><span className="text-muted-foreground">Bridge</span><span>{device.bridge?.enabled ? "Habilitado" : "Desabilitado"}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">IPv6</span><span>{device.ipv6Enabled ? "Habilitado" : "Desabilitado"}</span></div>
                 </div>

@@ -277,60 +277,77 @@ export async function pollDeviceUpdate(config: FlashmanConfig, mac: string): Pro
   return getDeviceByMac(config, mac);
 }
 
+function safeString(value: any, fallback: string = "N/A"): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "string") return value || fallback;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object") {
+    const keys = Object.keys(value);
+    if (keys.length > 0) {
+      const lastKey = keys.sort().pop()!;
+      const lastValue = value[lastKey];
+      if (typeof lastValue === "string") return lastValue || fallback;
+      if (typeof lastValue === "number") return String(lastValue);
+    }
+    return fallback;
+  }
+  return String(value) || fallback;
+}
+
 export function formatFlashmanDeviceInfo(device: FlashmanDeviceInfo) {
   return {
-    mac: device._id,
-    model: device.model || "Desconhecido",
-    firmwareVersion: device.version || device.installed_release || "N/A",
-    hardwareVersion: device.hw_version || "N/A",
-    serialNumber: device.serial_tr069 || device.alt_uid_tr069 || "N/A",
-    connectionType: device.connection_type || "N/A",
-    pppoeUser: device.pppoe_user || "N/A",
-    wanIp: device.wan_ip || device.ip || "N/A",
-    lastContact: device.last_contact || null,
-    uptime: device.sys_up_time || device.uptime || "N/A",
-    createdAt: device.created_at || null,
-    latitude: device.latitude,
-    longitude: device.longitude,
+    mac: safeString(device._id, ""),
+    model: safeString(device.model, "Desconhecido"),
+    firmwareVersion: safeString(device.version || device.installed_release, "N/A"),
+    hardwareVersion: safeString(device.hw_version, "N/A"),
+    serialNumber: safeString(device.serial_tr069 || device.alt_uid_tr069, "N/A"),
+    connectionType: safeString(device.connection_type, "N/A"),
+    pppoeUser: safeString(device.pppoe_user, "N/A"),
+    wanIp: safeString(device.wan_ip || device.ip, "N/A"),
+    lastContact: device.last_contact ? (typeof device.last_contact === "string" ? device.last_contact : null) : null,
+    uptime: safeString(device.sys_up_time || device.uptime, "N/A"),
+    createdAt: device.created_at ? (typeof device.created_at === "string" ? device.created_at : null) : null,
+    latitude: typeof device.latitude === "number" ? device.latitude : null,
+    longitude: typeof device.longitude === "number" ? device.longitude : null,
     wifi: {
-      ssid_2g: device.wifi_ssid || null,
-      channel_2g: device.wifi_channel || "auto",
-      band_2g: device.wifi_band || null,
-      mode_2g: device.wifi_mode || null,
-      power_2g: device.wifi_power ?? null,
-      state_2g: device.wifi_state ?? null,
-      hidden_2g: device.wifi_hidden ?? null,
-      ssid_5g: device.wifi_ssid_5ghz || null,
-      channel_5g: device.wifi_channel_5ghz || "auto",
-      band_5g: device.wifi_band_5ghz || null,
-      mode_5g: device.wifi_mode_5ghz || null,
-      power_5g: device.wifi_power_5ghz ?? null,
-      state_5g: device.wifi_state_5ghz ?? null,
-      hidden_5g: device.wifi_hidden_5ghz ?? null,
+      ssid_2g: safeString(device.wifi_ssid, null as any),
+      channel_2g: safeString(device.wifi_channel, "auto"),
+      band_2g: safeString(device.wifi_band, null as any),
+      mode_2g: safeString(device.wifi_mode, null as any),
+      power_2g: typeof device.wifi_power === "number" ? device.wifi_power : null,
+      state_2g: typeof device.wifi_state === "number" ? device.wifi_state : null,
+      hidden_2g: typeof device.wifi_hidden === "number" ? device.wifi_hidden : null,
+      ssid_5g: safeString(device.wifi_ssid_5ghz, null as any),
+      channel_5g: safeString(device.wifi_channel_5ghz, "auto"),
+      band_5g: safeString(device.wifi_band_5ghz, null as any),
+      mode_5g: safeString(device.wifi_mode_5ghz, null as any),
+      power_5g: typeof device.wifi_power_5ghz === "number" ? device.wifi_power_5ghz : null,
+      state_5g: typeof device.wifi_state_5ghz === "number" ? device.wifi_state_5ghz : null,
+      hidden_5g: typeof device.wifi_hidden_5ghz === "number" ? device.wifi_hidden_5ghz : null,
     },
     mesh: {
-      mode: device.mesh_mode ?? 0,
-      master: device.mesh_master || null,
-      slaves: device.mesh_slaves || [],
+      mode: typeof device.mesh_mode === "number" ? device.mesh_mode : 0,
+      master: safeString(device.mesh_master, null as any),
+      slaves: Array.isArray(device.mesh_slaves) ? device.mesh_slaves : [],
     },
     pon: {
-      rxPower: device.pon_rxpower || null,
-      txPower: device.pon_txpower || null,
-      signalMeasure: device.pon_signal_measure || null,
+      rxPower: safeString(device.pon_rxpower, null as any),
+      txPower: safeString(device.pon_txpower, null as any),
+      signalMeasure: safeString(device.pon_signal_measure, null as any),
     },
     lan: {
-      subnet: device.lan_subnet || null,
-      netmask: device.lan_netmask || null,
-      dns: device.lan_dns_servers || null,
+      subnet: safeString(device.lan_subnet, null as any),
+      netmask: safeString(device.lan_netmask, null as any),
+      dns: safeString(device.lan_dns_servers, null as any),
     },
     bridge: {
       enabled: device.bridgeEnabled ?? false,
     },
-    ipv6Enabled: device.ipv6_enabled ?? 0,
-    connectedDevices: device.online_devices || [],
-    speedtestResults: device.speedtest_results || [],
+    ipv6Enabled: typeof device.ipv6_enabled === "number" ? device.ipv6_enabled : 0,
+    connectedDevices: Array.isArray(device.online_devices) ? device.online_devices : [],
+    speedtestResults: Array.isArray(device.speedtest_results) ? device.speedtest_results : [],
     pingResult: device.ping_result || null,
     tracerouteResult: device.traceroute_result || null,
-    siteSurveyResult: device.sitesurvey_result || null,
+    siteSurveyResult: Array.isArray(device.sitesurvey_result) ? device.sitesurvey_result : null,
   };
 }
