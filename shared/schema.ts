@@ -695,6 +695,10 @@ export const clientSettings = pgTable("client_settings", {
   notifySmsEnabled: boolean("notify_sms_enabled").notNull().default(false),
   notifyDdosEnabled: boolean("notify_ddos_enabled").notNull().default(true),
   autoRefreshInterval: integer("auto_refresh_interval").notNull().default(5),
+  flashmanApiUrl: text("flashman_api_url"),
+  flashmanUsername: varchar("flashman_username", { length: 100 }),
+  flashmanPassword: text("flashman_password"),
+  flashmanEnabled: boolean("flashman_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

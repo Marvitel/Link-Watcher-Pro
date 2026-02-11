@@ -2651,6 +2651,224 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
 }
 
 
+interface FlashmanSettings {
+  flashmanApiUrl?: string | null;
+  flashmanUsername?: string | null;
+  flashmanPassword?: string | null;
+  flashmanEnabled?: boolean;
+}
+
+function FlashmanIntegration({ clients }: { clients: Client[] }) {
+  const { toast } = useToast();
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(
+    clients[0]?.id || null
+  );
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const { data: settings, isLoading: settingsLoading } = useQuery<FlashmanSettings>({
+    queryKey: ["/api/clients", selectedClientId, "settings"],
+    enabled: !!selectedClientId,
+  });
+
+  const [formData, setFormData] = useState<FlashmanSettings>({
+    flashmanApiUrl: "",
+    flashmanUsername: "",
+    flashmanPassword: "",
+    flashmanEnabled: false,
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        flashmanApiUrl: settings.flashmanApiUrl || "",
+        flashmanUsername: settings.flashmanUsername || "",
+        flashmanPassword: settings.flashmanPassword || "",
+        flashmanEnabled: settings.flashmanEnabled || false,
+      });
+    }
+  }, [settings]);
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<FlashmanSettings>) => {
+      return await apiRequest("PATCH", `/api/clients/${selectedClientId}/settings`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients", selectedClientId, "settings"] });
+      toast({ title: "Configurações salvas com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao salvar configurações", variant: "destructive" });
+    },
+  });
+
+  const handleTestConnection = async () => {
+    if (!selectedClientId) return;
+
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const response = await apiRequest("POST", "/api/flashman/test-connection", {
+        apiUrl: formData.flashmanApiUrl,
+        username: formData.flashmanUsername,
+        password: formData.flashmanPassword,
+      });
+      const result = await response.json();
+      setTestResult(result);
+
+      if (result.success) {
+        toast({ title: "Conexão estabelecida com sucesso" });
+      } else {
+        toast({ title: result.message, variant: "destructive" });
+      }
+    } catch {
+      setTestResult({ success: false, message: "Erro ao testar conexão" });
+      toast({ title: "Erro ao testar conexão", variant: "destructive" });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleSave = () => {
+    updateSettingsMutation.mutate(formData);
+  };
+
+  if (clients.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground">
+          Nenhum cliente cadastrado. Cadastre um cliente primeiro.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Router className="w-5 h-5" />
+          Flashman ACS (Anlix)
+        </CardTitle>
+        <CardDescription>
+          Configure a integração com o Flashman ACS para gerenciamento remoto de CPEs via TR-069
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="space-y-2">
+          <Label>Cliente</Label>
+          <Select
+            value={selectedClientId?.toString() || ""}
+            onValueChange={(value) => {
+              setSelectedClientId(parseInt(value, 10));
+              setTestResult(null);
+            }}
+          >
+            <SelectTrigger data-testid="select-flashman-client">
+              <SelectValue placeholder="Selecione um cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {settingsLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-md">
+              <div>
+                <p className="font-medium">Habilitar Flashman</p>
+                <p className="text-sm text-muted-foreground">
+                  Ative para habilitar o gerenciamento remoto de CPEs via TR-069
+                </p>
+              </div>
+              <Switch
+                checked={formData.flashmanEnabled || false}
+                onCheckedChange={(checked) => setFormData({ ...formData, flashmanEnabled: checked })}
+                data-testid="switch-flashman-enabled"
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="flashmanApiUrl">URL do Flashman</Label>
+                <Input
+                  id="flashmanApiUrl"
+                  value={formData.flashmanApiUrl || ""}
+                  onChange={(e) => setFormData({ ...formData, flashmanApiUrl: e.target.value })}
+                  placeholder="https://flashman.exemplo.com.br"
+                  data-testid="input-flashman-url"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="flashmanUsername">Usuário API</Label>
+                  <Input
+                    id="flashmanUsername"
+                    value={formData.flashmanUsername || ""}
+                    onChange={(e) => setFormData({ ...formData, flashmanUsername: e.target.value })}
+                    placeholder="api_user"
+                    data-testid="input-flashman-username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="flashmanPassword">Senha API</Label>
+                  <Input
+                    id="flashmanPassword"
+                    type="password"
+                    value={formData.flashmanPassword || ""}
+                    onChange={(e) => setFormData({ ...formData, flashmanPassword: e.target.value })}
+                    placeholder="••••••••"
+                    data-testid="input-flashman-password"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {testResult && (
+              <div className={`p-4 rounded-md flex items-center gap-3 ${testResult.success ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                {testResult.success ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <XCircle className="w-5 h-5" />
+                )}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={isTesting || !formData.flashmanApiUrl}
+                data-testid="button-test-flashman"
+              >
+                {isTesting && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                Testar Conexão
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={updateSettingsMutation.isPending}
+                data-testid="button-save-flashman"
+              >
+                Salvar Configurações
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface ClientSettings {
   wanguardApiEndpoint?: string | null;
   wanguardApiUser?: string | null;
@@ -5754,6 +5972,7 @@ export default function Admin() {
           <RadiusDbIntegration />
           <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
+          <FlashmanIntegration clients={clients || []} />
         </TabsContent>
 
         <TabsContent value="users-groups" className="space-y-4">

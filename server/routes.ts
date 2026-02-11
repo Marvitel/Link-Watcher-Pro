@@ -46,6 +46,21 @@ import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
+import {
+  getFlashmanConfigForClient,
+  testFlashmanConnection,
+  resolveDeviceMac,
+  getDeviceByMac,
+  formatFlashmanDeviceInfo,
+  triggerSpeedtest,
+  triggerPing,
+  triggerTraceroute,
+  triggerReboot,
+  triggerOnlineDevices,
+  triggerSiteSurvey,
+  triggerPonData,
+  sendCommand,
+} from "./flashman";
 
 declare global {
   namespace Express {
@@ -8740,6 +8755,104 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao remover entrada da whitelist" });
+    }
+  });
+
+  // ==================== FLASHMAN ACS INTEGRATION ====================
+
+  app.post("/api/flashman/test-connection", requireSuperAdmin, async (req, res) => {
+    try {
+      const { apiUrl, username, password } = req.body;
+      if (!apiUrl || !username || !password) {
+        return res.status(400).json({ error: "URL, usuário e senha são obrigatórios" });
+      }
+      const result = await testFlashmanConnection({ apiUrl, username, password });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  async function getLinkFlashmanIdentifiers(linkId: number, link: any): Promise<{ mac: string | null; serial: string | null }> {
+    const linkCpes = await storage.getLinkCpes(linkId);
+    const primaryCpe = linkCpes.find(lc => lc.showInEquipmentTab) || linkCpes.find(lc => lc.role === "primary") || linkCpes[0];
+    const mac = primaryCpe?.macAddress || primaryCpe?.cpe?.macAddress || null;
+    const serial = link.equipmentSerialNumber || link.onuSearchString || primaryCpe?.cpe?.serialNumber || null;
+    return { mac, serial };
+  }
+
+  app.get("/api/links/:id/flashman/info", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+
+      const config = await getFlashmanConfigForClient(link.clientId);
+      if (!config) return res.json({ enabled: false, message: "Flashman não configurado para este cliente" });
+
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.json({ enabled: true, found: false, message: "Dispositivo não encontrado no Flashman" });
+
+      const device = await getDeviceByMac(config, mac);
+      if (!device) return res.json({ enabled: true, found: false, message: "Dispositivo não encontrado no Flashman" });
+
+      const formatted = formatFlashmanDeviceInfo(device);
+      res.json({ enabled: true, found: true, device: formatted });
+    } catch (error: any) {
+      console.error("[Flashman] Error fetching device info:", error.message);
+      res.status(500).json({ error: "Erro ao consultar Flashman" });
+    }
+  });
+
+  app.post("/api/links/:id/flashman/command", requireSuperAdmin, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const { command } = req.body;
+
+      const validCommands = ["speedtest", "ping", "traceroute", "boot", "onlinedevs", "sitesurvey", "pondata"];
+      if (!command || !validCommands.includes(command)) {
+        return res.status(400).json({ error: `Comando inválido. Válidos: ${validCommands.join(", ")}` });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+
+      const config = await getFlashmanConfigForClient(link.clientId);
+      if (!config) return res.status(400).json({ error: "Flashman não configurado para este cliente" });
+
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado no Flashman" });
+
+      const result = await sendCommand(config, mac, command);
+      res.json({ ...result, mac });
+    } catch (error: any) {
+      console.error("[Flashman] Error sending command:", error.message);
+      res.status(500).json({ error: "Erro ao enviar comando para o Flashman" });
+    }
+  });
+
+  app.get("/api/links/:id/flashman/poll", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id);
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+
+      const config = await getFlashmanConfigForClient(link.clientId);
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
+
+      const ids = await getLinkFlashmanIdentifiers(linkId, link);
+      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
+      if (!mac) return res.status(404).json({ error: "Dispositivo não encontrado" });
+
+      const device = await getDeviceByMac(config, mac);
+      if (!device) return res.status(404).json({ error: "Dispositivo não encontrado" });
+
+      const formatted = formatFlashmanDeviceInfo(device);
+      res.json({ device: formatted });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao consultar status do dispositivo" });
     }
   });
 
