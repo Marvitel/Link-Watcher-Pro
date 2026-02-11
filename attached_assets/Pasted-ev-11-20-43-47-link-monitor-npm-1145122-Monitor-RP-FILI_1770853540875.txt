@@ -1,0 +1,23 @@
+ev 11 20:43:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Sem OIDs para CPU/Mem. vendorId: null, customCpu: , customMem:
+fev 11 20:43:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: coletando via OLT NSS-MVT-OLT-FURUKAWA-M.FREIRE1 (furukawa) slot=1 port=1 onu=1
+fev 11 20:43:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico OK: RX=-22dBm TX=nulldBm OLT_RX=nulldBm Dist=5406m
+fev 11 20:43:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial 58504F4E24000445...
+fev 11 20:43:48 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: lat=1.0ms, loss=0.0%, status=operational
+fev 11 20:44:17 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection. IP: 191.52.248.22, ifIndex: 16168158, profileId: 7
+fev 11 20:44:17 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Sem OIDs para CPU/Mem. vendorId: null, customCpu: , customMem:
+fev 11 20:44:17 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: coletando via OLT NSS-MVT-OLT-FURUKAWA-M.FREIRE1 (furukawa) slot=1 port=1 onu=1
+fev 11 20:44:17 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico OK: RX=-22dBm TX=nulldBm OLT_RX=nulldBm Dist=5406m
+fev 11 20:44:17 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial 58504F4E24000445...
+fev 11 20:44:18 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: lat=1.1ms, loss=0.0%, status=operational
+fev 11 20:44:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection. IP: 191.52.248.22, ifIndex: 16168158, profileId: 7
+fev 11 20:44:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Sem OIDs para CPU/Mem. vendorId: null, customCpu: , customMem:
+fev 11 20:44:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: coletando via OLT NSS-MVT-OLT-FURUKAWA-M.FREIRE1 (furukawa) slot=1 port=1 onu=1
+fev 11 20:44:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico OK: RX=-22dBm TX=nulldBm OLT_RX=nulldBm Dist=5406m
+fev 11 20:44:47 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial 58504F4E24000445...
+fev 11 20:44:48 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: lat=0.9ms, loss=0.0%, status=operational
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection. IP: 191.52.248.22, ifIndex: 16168158, profileId: 7
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Sem OIDs para CPU/Mem. vendorId: null, customCpu: , customMem:
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: coletando via OLT NSS-MVT-OLT-FURUKAWA-M.FREIRE1 (furukawa) slot=1 port=1 onu=1
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico OK: RX=-22dBm TX=nulldBm OLT_RX=nulldBm Dist=5406m
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial 58504F4E24000445...
+fev 11 20:45:16 link-monitor npm[1145122]: [Monitor] RP - FILIAL JOÃO ALVES: lat=1.0ms, loss=0.0%, status=operational
