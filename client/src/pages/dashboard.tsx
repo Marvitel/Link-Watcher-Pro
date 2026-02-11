@@ -697,6 +697,8 @@ function DashboardContent() {
     const saved = sessionStorage.getItem("link_monitor_view_mode");
     return (saved === "table" || saved === "cards" || saved === "compact") ? saved : "cards";
   });
+  const [linkSearch, setLinkSearch] = useState("");
+  const [linkStatusFilter, setLinkStatusFilter] = useState<string>("all");
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -751,6 +753,23 @@ function DashboardContent() {
   
   const linksArray = useMemo(() => Array.isArray(links) ? links : [], [links]);
   const linkCount = linksArray.length;
+
+  const filteredLinksArray = useMemo(() => {
+    let filtered = linksArray;
+    if (linkStatusFilter !== "all") {
+      filtered = filtered.filter(l => l.status === linkStatusFilter);
+    }
+    if (linkSearch.trim()) {
+      const q = linkSearch.toLowerCase().trim();
+      filtered = filtered.filter(l =>
+        l.name?.toLowerCase().includes(q) ||
+        l.address?.toLowerCase().includes(q) ||
+        l.monitoredIp?.toLowerCase().includes(q) ||
+        l.pppoeUser?.toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  }, [linksArray, linkStatusFilter, linkSearch]);
 
   const metricsQueries = useQueries({
     queries: linksArray.map((link) => ({
@@ -963,52 +982,91 @@ function DashboardContent() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
-          <div>
-            <CardTitle className="text-lg">Links Monitorados</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              {linkCount} {linkCount === 1 ? "link" : "links"} cadastrado{linkCount === 1 ? "" : "s"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border rounded-md">
-              <Button
-                variant={viewMode === "cards" ? "default" : "ghost"}
-                size="sm"
-                className="rounded-r-none"
-                onClick={() => handleViewModeChange("cards")}
-                title="Gráficos"
-                data-testid="button-view-cards"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "compact" ? "default" : "ghost"}
-                size="sm"
-                className="rounded-none border-x"
-                onClick={() => handleViewModeChange("compact")}
-                title="Cards Compactos"
-                data-testid="button-view-compact"
-              >
-                <SquareStack className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "table" ? "default" : "ghost"}
-                size="sm"
-                className="rounded-l-none"
-                onClick={() => handleViewModeChange("table")}
-                title="Lista"
-                data-testid="button-view-table"
-              >
-                <List className="h-4 w-4" />
-              </Button>
+        <CardHeader className="space-y-3 pb-4">
+          <div className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-lg">Links Monitorados</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {linkCount} {linkCount === 1 ? "link" : "links"} cadastrado{linkCount === 1 ? "" : "s"}
+                {filteredLinksArray.length !== linkCount && (
+                  <span> ({filteredLinksArray.length} exibido{filteredLinksArray.length !== 1 ? "s" : ""})</span>
+                )}
+              </p>
             </div>
-            <Link href="/links">
-              <Button variant="ghost" size="sm" data-testid="button-view-all-links">
-                Ver todos
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={viewMode === "cards" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => handleViewModeChange("cards")}
+                  title="Gráficos"
+                  data-testid="button-view-cards"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "compact" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-x"
+                  onClick={() => handleViewModeChange("compact")}
+                  title="Cards Compactos"
+                  data-testid="button-view-compact"
+                >
+                  <SquareStack className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "table" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-l-none"
+                  onClick={() => handleViewModeChange("table")}
+                  title="Lista"
+                  data-testid="button-view-table"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+              <Link href="/links">
+                <Button variant="ghost" size="sm" data-testid="button-view-all-links">
+                  Ver todos
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, IP, PPPoE..."
+                value={linkSearch}
+                onChange={(e) => setLinkSearch(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-dashboard-links"
+              />
+            </div>
+            <Tabs value={linkStatusFilter} onValueChange={setLinkStatusFilter}>
+              <TabsList>
+                <TabsTrigger value="all" data-testid="tab-dash-status-all">
+                  Todos
+                </TabsTrigger>
+                <TabsTrigger value="operational" data-testid="tab-dash-status-online">
+                  <Wifi className="w-3 h-3 mr-1" />
+                  Online
+                  <span className="ml-1 text-xs opacity-70">({linksArray.filter(l => l.status === "operational").length})</span>
+                </TabsTrigger>
+                <TabsTrigger value="degraded" data-testid="tab-dash-status-degraded">
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  Degradado
+                  <span className="ml-1 text-xs opacity-70">({linksArray.filter(l => l.status === "degraded").length})</span>
+                </TabsTrigger>
+                <TabsTrigger value="offline" data-testid="tab-dash-status-offline">
+                  <WifiOff className="w-3 h-3 mr-1" />
+                  Offline
+                  <span className="ml-1 text-xs opacity-70">({linksArray.filter(l => l.status === "offline").length})</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </CardHeader>
         <CardContent>
@@ -1029,22 +1087,26 @@ function DashboardContent() {
                 </Card>
               ))}
             </div>
-          ) : linksArray.length > 0 ? (
+          ) : filteredLinksArray.length > 0 ? (
             viewMode === "table" ? (
-              <LinksTable links={linksArray} metricsMap={metricsMap} pageSize={10} />
+              <LinksTable links={filteredLinksArray} metricsMap={metricsMap} pageSize={10} />
             ) : viewMode === "compact" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {linksArray.map((link) => (
+                {filteredLinksArray.map((link) => (
                   <CompactLinkCardWithMetrics key={link.id} link={link} />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {linksArray.map((link) => (
+                {filteredLinksArray.map((link) => (
                   <LinkCardWithMetrics key={link.id} link={link} />
                 ))}
               </div>
             )
+          ) : linksArray.length > 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              Nenhum link encontrado com os filtros aplicados.
+            </div>
           ) : (
             <div className="py-8 text-center text-muted-foreground">
               Nenhum link cadastrado. Acesse a administração para adicionar links.
