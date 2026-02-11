@@ -29,9 +29,12 @@ export function LinksTable({
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
 
+  const totalPages = Math.max(1, Math.ceil((Array.isArray(links) ? links.length : 0) / pageSize));
   useEffect(() => {
-    setCurrentPage(1);
-  }, [links]);
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
 
   const sortedLinks = useMemo(() => {
     if (!Array.isArray(links)) return [];
@@ -44,7 +47,6 @@ export function LinksTable({
     });
   }, [links]);
 
-  const totalPages = Math.ceil(sortedLinks.length / pageSize);
   const paginatedLinks = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return sortedLinks.slice(start, start + pageSize);
