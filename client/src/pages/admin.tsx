@@ -4751,6 +4751,7 @@ export default function Admin() {
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
   const [location, setLocation] = useLocation();
   const [editLinkProcessed, setEditLinkProcessed] = useState(false);
+  const [editLinkReturnId, setEditLinkReturnId] = useState<number | null>(null);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<Link | undefined>();
@@ -4820,11 +4821,13 @@ export default function Admin() {
     const params = new URLSearchParams(window.location.search);
     const editLinkId = params.get("editLink");
     if (editLinkId) {
-      const linkToEdit = links.find(l => l.id === parseInt(editLinkId, 10));
+      const parsedId = parseInt(editLinkId, 10);
+      const linkToEdit = links.find(l => l.id === parsedId);
       if (linkToEdit) {
         setEditingLink(linkToEdit);
         setLinkDialogOpen(true);
         setEditLinkProcessed(true);
+        setEditLinkReturnId(parsedId);
         window.history.replaceState({}, "", "/admin");
       }
     }
@@ -4931,11 +4934,16 @@ export default function Admin() {
       }
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });
       setLinkDialogOpen(false);
       setEditingLink(undefined);
       toast({ title: "Link atualizado com sucesso" });
+      if (editLinkReturnId) {
+        const returnId = editLinkReturnId;
+        setEditLinkReturnId(null);
+        setLocation(`/link/${returnId}?tab=tools`);
+      }
     },
     onError: () => {
       toast({ title: "Erro ao atualizar link", variant: "destructive" });
@@ -5246,7 +5254,14 @@ export default function Admin() {
               </div>
               <Dialog open={linkDialogOpen} onOpenChange={(open) => {
                 setLinkDialogOpen(open);
-                if (!open) setEditingLink(undefined);
+                if (!open) {
+                  setEditingLink(undefined);
+                  if (editLinkReturnId) {
+                    const returnId = editLinkReturnId;
+                    setEditLinkReturnId(null);
+                    setLocation(`/link/${returnId}?tab=tools`);
+                  }
+                }
               }}>
                 <DialogTrigger asChild>
                   <Button data-testid="button-add-link">
@@ -5264,6 +5279,11 @@ export default function Admin() {
                   onClose={() => {
                     setLinkDialogOpen(false);
                     setEditingLink(undefined);
+                    if (editLinkReturnId) {
+                      const returnId = editLinkReturnId;
+                      setEditLinkReturnId(null);
+                      setLocation(`/link/${returnId}?tab=tools`);
+                    }
                   }}
                   snmpProfiles={allSnmpProfiles}
                   clients={clients}
