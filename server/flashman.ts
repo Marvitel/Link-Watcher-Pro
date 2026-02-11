@@ -126,15 +126,17 @@ async function flashmanFetch(config: FlashmanConfig, path: string, options: Requ
   }
 }
 
-export async function getFlashmanConfigForClient(clientId: number): Promise<FlashmanConfig | null> {
-  const settings = await storage.getClientSettings(clientId);
-  if (!settings?.flashmanEnabled || !settings.flashmanApiUrl || !settings.flashmanUsername || !settings.flashmanPassword) {
-    return null;
-  }
+export async function getFlashmanConfigForClient(_clientId: number): Promise<FlashmanConfig | null> {
+  return getFlashmanGlobalConfig();
+}
+
+export async function getFlashmanGlobalConfig(): Promise<FlashmanConfig | null> {
+  const config = await storage.getFlashmanGlobalConfig();
+  if (!config) return null;
   return {
-    apiUrl: settings.flashmanApiUrl,
-    username: settings.flashmanUsername,
-    password: settings.flashmanPassword,
+    apiUrl: config.apiUrl,
+    username: config.username,
+    password: config.password,
   };
 }
 

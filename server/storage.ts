@@ -42,6 +42,7 @@ import {
   diagnosticTargets,
   linkTrafficInterfaces,
   trafficInterfaceMetrics,
+  integrationSettings,
   type Client,
   type User,
   type Link,
@@ -1470,6 +1471,50 @@ export class DatabaseStorage {
   async getClientSettings(clientId: number): Promise<ClientSettings | undefined> {
     const [settings] = await db.select().from(clientSettings).where(eq(clientSettings.clientId, clientId));
     return settings || undefined;
+  }
+
+  async getFlashmanGlobalConfig(): Promise<{ apiUrl: string; username: string; password: string } | null> {
+    const settings = await this.getFlashmanGlobalSettings();
+    if (!settings?.flashmanEnabled || !settings.flashmanApiUrl || !settings.flashmanUsername || !settings.flashmanPassword) {
+      return null;
+    }
+    return {
+      apiUrl: settings.flashmanApiUrl,
+      username: settings.flashmanUsername,
+      password: settings.flashmanPassword,
+    };
+  }
+
+  async getFlashmanGlobalSettings(): Promise<{ flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanEnabled: boolean }> {
+    const rows = await db.select().from(integrationSettings)
+      .where(sql`${integrationSettings.key} LIKE 'flashman_%'`);
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.key] = row.value || "";
+    }
+    return {
+      flashmanApiUrl: map["flashman_api_url"] || "",
+      flashmanUsername: map["flashman_username"] || "",
+      flashmanPassword: map["flashman_password"] || "",
+      flashmanEnabled: map["flashman_enabled"] === "true",
+    };
+  }
+
+  async saveFlashmanGlobalSettings(data: { flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanEnabled: boolean }): Promise<void> {
+    const entries: [string, string][] = [
+      ["flashman_api_url", data.flashmanApiUrl || ""],
+      ["flashman_username", data.flashmanUsername || ""],
+      ["flashman_password", data.flashmanPassword || ""],
+      ["flashman_enabled", data.flashmanEnabled ? "true" : "false"],
+    ];
+    for (const [key, value] of entries) {
+      await db.insert(integrationSettings)
+        .values({ key, value, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: integrationSettings.key,
+          set: { value, updatedAt: new Date() },
+        });
+    }
   }
 
   async updateClientSettings(clientId: number, data: Partial<ClientSettings>): Promise<void> {

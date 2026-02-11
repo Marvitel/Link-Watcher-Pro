@@ -702,6 +702,13 @@ export const clientSettings = pgTable("client_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const integrationSettings = pgTable("integration_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const eventTypes = pgTable("event_types", {
   id: serial("id").primaryKey(),
   code: varchar("code", { length: 50 }).notNull().unique(),

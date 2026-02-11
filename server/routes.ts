@@ -60,6 +60,7 @@ import {
   triggerSiteSurvey,
   triggerPonData,
   sendCommand,
+  getFlashmanGlobalConfig,
 } from "./flashman";
 
 declare global {
@@ -8760,6 +8761,30 @@ export async function registerRoutes(
 
   // ==================== FLASHMAN ACS INTEGRATION ====================
 
+  app.get("/api/flashman/settings", requireSuperAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getFlashmanGlobalSettings();
+      res.json(settings || { flashmanApiUrl: "", flashmanUsername: "", flashmanPassword: "", flashmanEnabled: false });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/flashman/settings", requireSuperAdmin, async (req, res) => {
+    try {
+      const { flashmanApiUrl, flashmanUsername, flashmanPassword, flashmanEnabled } = req.body;
+      await storage.saveFlashmanGlobalSettings({
+        flashmanApiUrl: flashmanApiUrl || "",
+        flashmanUsername: flashmanUsername || "",
+        flashmanPassword: flashmanPassword || "",
+        flashmanEnabled: !!flashmanEnabled,
+      });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/flashman/test-connection", requireSuperAdmin, async (req, res) => {
     try {
       const { apiUrl, username, password } = req.body;
@@ -8787,8 +8812,8 @@ export async function registerRoutes(
       const link = await storage.getLink(linkId);
       if (!link) return res.status(404).json({ error: "Link não encontrado" });
 
-      const config = await getFlashmanConfigForClient(link.clientId);
-      if (!config) return res.json({ enabled: false, message: "Flashman não configurado para este cliente" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.json({ enabled: false, message: "Flashman não configurado" });
 
       const ids = await getLinkFlashmanIdentifiers(linkId, link);
       const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
@@ -8818,8 +8843,8 @@ export async function registerRoutes(
       const link = await storage.getLink(linkId);
       if (!link) return res.status(404).json({ error: "Link não encontrado" });
 
-      const config = await getFlashmanConfigForClient(link.clientId);
-      if (!config) return res.status(400).json({ error: "Flashman não configurado para este cliente" });
+      const config = await getFlashmanGlobalConfig();
+      if (!config) return res.status(400).json({ error: "Flashman não configurado" });
 
       const ids = await getLinkFlashmanIdentifiers(linkId, link);
       const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
@@ -8839,7 +8864,7 @@ export async function registerRoutes(
       const link = await storage.getLink(linkId);
       if (!link) return res.status(404).json({ error: "Link não encontrado" });
 
-      const config = await getFlashmanConfigForClient(link.clientId);
+      const config = await getFlashmanGlobalConfig();
       if (!config) return res.status(400).json({ error: "Flashman não configurado" });
 
       const ids = await getLinkFlashmanIdentifiers(linkId, link);

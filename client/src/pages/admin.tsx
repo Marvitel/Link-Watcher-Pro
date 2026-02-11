@@ -2658,17 +2658,13 @@ interface FlashmanSettings {
   flashmanEnabled?: boolean;
 }
 
-function FlashmanIntegration({ clients }: { clients: Client[] }) {
+function FlashmanIntegration() {
   const { toast } = useToast();
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(
-    clients[0]?.id || null
-  );
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
   const { data: settings, isLoading: settingsLoading } = useQuery<FlashmanSettings>({
-    queryKey: ["/api/clients", selectedClientId, "settings"],
-    enabled: !!selectedClientId,
+    queryKey: ["/api/flashman/settings"],
   });
 
   const [formData, setFormData] = useState<FlashmanSettings>({
@@ -2691,10 +2687,10 @@ function FlashmanIntegration({ clients }: { clients: Client[] }) {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: Partial<FlashmanSettings>) => {
-      return await apiRequest("PATCH", `/api/clients/${selectedClientId}/settings`, data);
+      return await apiRequest("PATCH", "/api/flashman/settings", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/clients", selectedClientId, "settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/flashman/settings"] });
       toast({ title: "Configurações salvas com sucesso" });
     },
     onError: () => {
@@ -2703,8 +2699,6 @@ function FlashmanIntegration({ clients }: { clients: Client[] }) {
   });
 
   const handleTestConnection = async () => {
-    if (!selectedClientId) return;
-
     setIsTesting(true);
     setTestResult(null);
 
@@ -2734,16 +2728,6 @@ function FlashmanIntegration({ clients }: { clients: Client[] }) {
     updateSettingsMutation.mutate(formData);
   };
 
-  if (clients.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          Nenhum cliente cadastrado. Cadastre um cliente primeiro.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -2752,32 +2736,10 @@ function FlashmanIntegration({ clients }: { clients: Client[] }) {
           Flashman ACS (Anlix)
         </CardTitle>
         <CardDescription>
-          Configure a integração com o Flashman ACS para gerenciamento remoto de CPEs via TR-069
+          Configure a integração global com o Flashman ACS para gerenciamento remoto de CPEs via TR-069. Funciona para qualquer link GPON.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label>Cliente</Label>
-          <Select
-            value={selectedClientId?.toString() || ""}
-            onValueChange={(value) => {
-              setSelectedClientId(parseInt(value, 10));
-              setTestResult(null);
-            }}
-          >
-            <SelectTrigger data-testid="select-flashman-client">
-              <SelectValue placeholder="Selecione um cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id.toString()}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {settingsLoading ? (
           <Skeleton className="h-40 w-full" />
         ) : (
@@ -2786,7 +2748,7 @@ function FlashmanIntegration({ clients }: { clients: Client[] }) {
               <div>
                 <p className="font-medium">Habilitar Flashman</p>
                 <p className="text-sm text-muted-foreground">
-                  Ative para habilitar o gerenciamento remoto de CPEs via TR-069
+                  Ative para habilitar o gerenciamento remoto de CPEs via TR-069 em todos os links
                 </p>
               </div>
               <Switch
@@ -5972,7 +5934,7 @@ export default function Admin() {
           <RadiusDbIntegration />
           <ErpIntegrationsManager clients={clients || []} />
           <WanguardIntegration clients={clients || []} />
-          <FlashmanIntegration clients={clients || []} />
+          <FlashmanIntegration />
         </TabsContent>
 
         <TabsContent value="users-groups" className="space-y-4">
