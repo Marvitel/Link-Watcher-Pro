@@ -239,8 +239,23 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
         toast({ title: `Tempo esgotado aguardando resultado de ${command}`, variant: "destructive" });
       }, pollTimeout);
     },
-    onError: () => {
-      toast({ title: "Erro ao enviar comando", variant: "destructive" });
+    onError: async (error: any) => {
+      let msg = "Erro ao enviar comando";
+      try {
+        const errText = error?.message || "";
+        const jsonMatch = errText.match(/\d+:\s*([\s\S]*)/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[1]);
+            msg = parsed.error || parsed.message || msg;
+          } catch {
+            msg = jsonMatch[1] || msg;
+          }
+        } else if (errText) {
+          msg = errText;
+        }
+      } catch {}
+      toast({ title: msg, variant: "destructive" });
       stopPolling();
     },
   });

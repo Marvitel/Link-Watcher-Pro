@@ -447,6 +447,13 @@ export async function searchMeshVendorDevices(config: FlashmanConfig): Promise<a
 
 // ==================== COMMANDS ====================
 
+function isDiagInProgressError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return lower.includes("in progress") || lower.includes("em andamento") || lower.includes("already") || lower.includes("diagnostic") && lower.includes("running");
+}
+
+const DIAG_IN_PROGRESS_MSG = "Já existe um diagnóstico em andamento. Aguarde a conclusão antes de enviar outro comando.";
+
 export async function sendCommand(config: FlashmanConfig, mac: string, command: string): Promise<{ success: boolean; message?: string }> {
   try {
     const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
@@ -456,9 +463,15 @@ export async function sendCommand(config: FlashmanConfig, mac: string, command: 
       method: "PUT",
     });
     console.log(`[Flashman/Cmd] sendCommand response:`, JSON.stringify(result));
+    if (result?.success === false && isDiagInProgressError(result?.message || "")) {
+      return { success: false, message: DIAG_IN_PROGRESS_MSG };
+    }
     return { success: result?.success !== false, message: result?.message };
   } catch (error: any) {
     console.error(`[Flashman/Cmd] sendCommand error:`, error.message);
+    if (isDiagInProgressError(error.message || "")) {
+      return { success: false, message: DIAG_IN_PROGRESS_MSG };
+    }
     return { success: false, message: error.message };
   }
 }
@@ -479,8 +492,10 @@ export async function triggerPing(config: FlashmanConfig, mac: string, hosts: st
     if (genericResult?.success !== false) {
       return { success: true, message: genericResult?.message || "Teste de ping iniciado" };
     }
+    if (isDiagInProgressError(genericResult?.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
   } catch (e: any) {
     console.log(`[Flashman/Cmd] triggerPing generic failed (${e.message}), trying dedicated endpoint...`);
+    if (isDiagInProgressError(e.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
   }
 
   try {
@@ -493,9 +508,11 @@ export async function triggerPing(config: FlashmanConfig, mac: string, hosts: st
       body: JSON.stringify(body),
     });
     console.log(`[Flashman/Cmd] triggerPing dedicated response:`, JSON.stringify(result));
+    if (result?.success === false && isDiagInProgressError(result?.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
     return { success: result?.success !== false, message: result?.message || "Teste de ping iniciado" };
   } catch (error: any) {
     console.error(`[Flashman/Cmd] triggerPing error:`, error.message);
+    if (isDiagInProgressError(error.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
     return { success: false, message: error.message };
   }
 }
@@ -512,8 +529,10 @@ export async function triggerTraceroute(config: FlashmanConfig, mac: string, hos
     if (genericResult?.success !== false) {
       return { success: true, message: genericResult?.message || "Traceroute iniciado" };
     }
+    if (isDiagInProgressError(genericResult?.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
   } catch (e: any) {
     console.log(`[Flashman/Cmd] triggerTraceroute generic failed (${e.message}), trying dedicated endpoint...`);
+    if (isDiagInProgressError(e.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
   }
 
   try {
@@ -526,9 +545,11 @@ export async function triggerTraceroute(config: FlashmanConfig, mac: string, hos
       body: JSON.stringify(body),
     });
     console.log(`[Flashman/Cmd] triggerTraceroute dedicated response:`, JSON.stringify(result));
+    if (result?.success === false && isDiagInProgressError(result?.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
     return { success: result?.success !== false, message: result?.message || "Traceroute iniciado" };
   } catch (error: any) {
     console.error(`[Flashman/Cmd] triggerTraceroute error:`, error.message);
+    if (isDiagInProgressError(error.message || "")) return { success: false, message: DIAG_IN_PROGRESS_MSG };
     return { success: false, message: error.message };
   }
 }
