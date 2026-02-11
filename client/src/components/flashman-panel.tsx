@@ -167,6 +167,7 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
   }, [commentsData, commentsLoaded]);
 
   const [lastCommandNoResults, setLastCommandNoResults] = useState<string | null>(null);
+  const prevResultsCountRef = useRef<number>(0);
 
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) { clearInterval(pollingIntervalRef.current); pollingIntervalRef.current = null; }
@@ -197,6 +198,17 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
       setPolling(true);
       setActiveCommand(command);
       setLastCommandNoResults(null);
+      const currentDevice = flashmanData?.device;
+      const getResultsCount = (d: any, cmd: string) => {
+        if (!d) return 0;
+        if (cmd === "ping") return d.pingResults?.length || 0;
+        if (cmd === "traceroute") return d.tracerouteResults?.length || 0;
+        if (cmd === "speedtest") return d.speedtestResults?.length || 0;
+        if (cmd === "onlinedevs") return d.connectedDevices?.length || 0;
+        if (cmd === "sitesurvey") return d.siteSurveyResult?.length || 0;
+        return 0;
+      };
+      prevResultsCountRef.current = getResultsCount(currentDevice, command);
       const pollInterval = command === "traceroute" ? 10000 : command === "speedtest" ? 10000 : 5000;
       const pollTimeout = command === "traceroute" ? 360000 : 120000;
       pollingIntervalRef.current = setInterval(async () => {
@@ -210,13 +222,10 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               found: true,
               device: pollData.device,
             });
-            const hasResults = (command === "ping" && pollData.device.pingResults?.length > 0) ||
-              (command === "traceroute" && pollData.device.tracerouteResults?.length > 0) ||
-              (command === "speedtest" && pollData.device.speedtestResults?.length > 0) ||
-              (command === "onlinedevs" && pollData.device.connectedDevices?.length > 0) ||
-              (command === "sitesurvey" && pollData.device.siteSurveyResult?.length > 0);
+            const newCount = getResultsCount(pollData.device, command);
+            const hasNewResults = newCount > prevResultsCountRef.current;
             const diagDone = pollData.device.currentDiagnostic && !pollData.device.currentDiagnostic.inProgress;
-            if (hasResults || diagDone) {
+            if (hasNewResults || diagDone) {
               stopPolling();
               toast({ title: "Diagnóstico concluído" });
             }
@@ -475,12 +484,12 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
                     Config File
                   </Button>
                 </div>
-                {(polling || device.currentDiagnostic?.inProgress) && (
+                {polling && (
                   <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     {device.currentDiagnostic?.inProgress
                       ? `${device.currentDiagnostic.type === "speedtest" ? "Speed Test" : device.currentDiagnostic.type === "ping" ? "Ping" : device.currentDiagnostic.type === "traceroute" ? "Traceroute" : device.currentDiagnostic.type === "sitesurvey" ? "Site Survey" : safeText(device.currentDiagnostic.type)} em andamento${device.currentDiagnostic.stage ? ` (${safeText(device.currentDiagnostic.stage)})` : ""}...`
-                      : "Aguardando resultado do comando..."}
+                      : `Aguardando resultado de ${activeCommand || "comando"}...`}
                   </div>
                 )}
               </div>
