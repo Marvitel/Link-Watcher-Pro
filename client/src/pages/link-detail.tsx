@@ -236,8 +236,42 @@ export default function LinkDetail() {
   const { toast } = useToast();
 
   const updateLinkMutation = useMutation({
-    mutationFn: async (data: Partial<Link>) => {
-      const res = await apiRequest("PATCH", `/api/links/${linkId}`, data);
+    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> }) => {
+      const { _selectedCpes, ...linkData } = data;
+      const res = await apiRequest("PATCH", `/api/links/${linkId}`, linkData);
+      if (_selectedCpes !== undefined) {
+        const existingRes = await apiRequest("GET", `/api/links/${linkId}/cpes`);
+        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean }> = await existingRes.json();
+        const selectedIds = _selectedCpes.map(s => s.cpeId);
+        for (const e of existing) {
+          if (!selectedIds.includes(e.cpeId)) {
+            await apiRequest("DELETE", `/api/links/${linkId}/cpes/${e.cpeId}`);
+          }
+        }
+        for (const s of _selectedCpes) {
+          const existingAssoc = existing.find(e => e.cpeId === s.cpeId);
+          if (!existingAssoc) {
+            await apiRequest("POST", `/api/links/${linkId}/cpes`, {
+              cpeId: s.cpeId,
+              role: s.role,
+              ipOverride: s.ipOverride || null,
+              showInEquipmentTab: s.showInEquipmentTab || false
+            });
+          } else if (
+            existingAssoc.role !== s.role ||
+            existingAssoc.ipOverride !== (s.ipOverride || null) ||
+            existingAssoc.showInEquipmentTab !== (s.showInEquipmentTab || false)
+          ) {
+            await apiRequest("DELETE", `/api/links/${linkId}/cpes/${s.cpeId}`);
+            await apiRequest("POST", `/api/links/${linkId}/cpes`, {
+              cpeId: s.cpeId,
+              role: s.role,
+              ipOverride: s.ipOverride || null,
+              showInEquipmentTab: s.showInEquipmentTab || false
+            });
+          }
+        }
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -245,6 +279,7 @@ export default function LinkDetail() {
       setEditDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/links/${linkId}/cpes`] });
     },
     onError: () => {
       toast({ title: "Erro ao atualizar link", variant: "destructive" });
