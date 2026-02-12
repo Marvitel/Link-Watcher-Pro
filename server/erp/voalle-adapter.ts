@@ -87,6 +87,7 @@ export class VoalleAdapter implements ErpAdapter {
 
     // Check if we should use password grant (preferred method)
     if (this.providerConfig?.apiUsername && this.providerConfig?.apiPassword && this.providerConfig?.apiSynData) {
+      console.log(`[VoalleAdapter] Autenticando via password grant (user: ${this.providerConfig.apiUsername.substring(0, 6)}...)`);
       const body = new URLSearchParams({
         grant_type: "password",
         scope: "syngw synpaygw offline_access",
@@ -118,12 +119,17 @@ export class VoalleAdapter implements ErpAdapter {
     }
 
     // Fallback to client_credentials grant
-    const body = new URLSearchParams({
+    const ccParams: Record<string, string> = {
       grant_type: "client_credentials",
       scope: "syngw",
       client_id: this.config.apiClientId || "",
       client_secret: this.config.apiClientSecret || "",
-    });
+    };
+    if (this.providerConfig?.apiSynData) {
+      ccParams.syndata = this.providerConfig.apiSynData;
+    }
+    console.log(`[VoalleAdapter] Autenticando via client_credentials (syndata: ${ccParams.syndata ? 'sim' : 'NÃO'})`);
+    const body = new URLSearchParams(ccParams);
 
     const response = await fetch(authUrl, {
       method: "POST",
@@ -1012,6 +1018,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
    * Atualiza campos de uma conexão no Voalle via API principal (porta 45715)
    * Endpoint: PUT /updateconnection/{connectionId}
    * Campos atualizáveis: slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId, authenticationSplitterId, port
+   * Campo obrigatório: password (senha do equipamento/PPPoE da conexão)
    */
   async updateConnectionFields(
     connectionId: number,
@@ -1066,6 +1073,14 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       if (!response.ok) {
         throw new Error(`Voalle API error: ${response.status} - ${responseText.substring(0, 500)}`);
       }
+      try {
+        const respJson = JSON.parse(responseText);
+        if (respJson.success === false) {
+          const errorMessages = (respJson.messages || []).map((m: any) => m.message).join('; ');
+          console.error(`[VoalleAdapter] API retornou success=false: ${errorMessages}`);
+          return { success: false, message: `Voalle rejeitou: ${errorMessages}`, apiResponse: responseText.substring(0, 500) };
+        }
+      } catch {}
       console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
       return { success: true, message: `Conexão ${connectionId} atualizada (HTTP ${response.status})`, apiResponse: responseText.substring(0, 500) };
     } catch (error) {
