@@ -3361,12 +3361,15 @@ export async function registerRoutes(
         return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
       }
 
-      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados com sucesso`);
+      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados`);
+      console.log(`[Voalle Sync] Payload enviado: ${JSON.stringify(fields)}`);
+      console.log(`[Voalle Sync] Resposta API: ${updateResult.apiResponse || 'N/A'}`);
       res.json({ 
         success: true, 
         message: `${Object.keys(fields).length} campo(s) sincronizado(s) com Voalle`,
         synced: Object.keys(fields).length,
         fields: Object.keys(fields),
+        apiResponse: updateResult.apiResponse,
       });
     } catch (error: any) {
       const sanitizedMessage = (error?.message || "Erro desconhecido")

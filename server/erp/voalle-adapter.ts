@@ -1023,7 +1023,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       authenticationSplitterId?: number | null;
       splitterPort?: number | null;
     }
-  ): Promise<{ success: boolean; message?: string }> {
+  ): Promise<{ success: boolean; message?: string; apiResponse?: string }> {
     if (!this.isConfigured()) {
       return { success: false, message: "API principal do Voalle não configurada" };
     }
@@ -1042,8 +1042,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       }
       const token = await this.authenticate();
       const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/updateconnection/${connectionId}`;
-      console.log(`[VoalleAdapter] PUT updateconnection/${connectionId}`);
-      console.log(`[VoalleAdapter] Payload keys:`, Object.keys(payload).join(', '));
+      console.log(`[VoalleAdapter] PUT ${url.replace(/^https?:\/\/[^/]+/, '***')}`);
+      const safePayload = { ...payload };
+      console.log(`[VoalleAdapter] Payload:`, JSON.stringify(safePayload));
       const headers: Record<string, string> = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -1051,6 +1052,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const synV1Token = this.config.apiSynV1Token || process.env.VOALLE_SYN_V1_TOKEN;
       if (synV1Token) {
         headers["syn-v1-token"] = synV1Token;
+        console.log(`[VoalleAdapter] syn-v1-token: configurado (${synV1Token.substring(0, 4)}...)`);
+      } else {
+        console.log(`[VoalleAdapter] AVISO: syn-v1-token NÃO configurado`);
       }
       const response = await fetch(url, {
         method: "PUT",
@@ -1058,12 +1062,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         body: JSON.stringify(payload),
       });
       const responseText = await response.text();
-      console.log(`[VoalleAdapter] Response: HTTP ${response.status} - ${responseText.substring(0, 200)}`);
+      console.log(`[VoalleAdapter] Response: HTTP ${response.status} - Body: ${responseText.substring(0, 500)}`);
       if (!response.ok) {
-        throw new Error(`Voalle API error: ${response.status} - ${responseText.substring(0, 200)}`);
+        throw new Error(`Voalle API error: ${response.status} - ${responseText.substring(0, 500)}`);
       }
       console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
-      return { success: true, message: `Conexão ${connectionId} atualizada (HTTP ${response.status})` };
+      return { success: true, message: `Conexão ${connectionId} atualizada (HTTP ${response.status})`, apiResponse: responseText.substring(0, 500) };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[VoalleAdapter] Erro ao atualizar conexão ${connectionId}:`, msg);
