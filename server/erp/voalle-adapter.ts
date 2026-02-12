@@ -1057,7 +1057,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const responseText = await response.text();
       console.log(`[VoalleAdapter] Response: HTTP ${response.status} - ${responseText.substring(0, 200)}`);
       if (!response.ok) {
-        throw new Error(`Voalle API error: ${response.status} - ${responseText}`);
+        if (response.status === 404) {
+          throw new Error(`Endpoint de atualização não encontrado (404). Verifique se o Token SynV1 está configurado e se a API do Voalle suporta atualização de autenticações.`);
+        }
+        throw new Error(`Voalle API error: ${response.status} - ${responseText.substring(0, 200)}`);
       }
       console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
       return { success: true, message: `Conexão ${connectionId} atualizada (HTTP ${response.status})` };
