@@ -3118,11 +3118,39 @@ export async function registerRoutes(
       
       if (voalleConn.authenticationAccessPoint) {
         const voalleApId = voalleConn.authenticationAccessPoint.id;
-        if (!link.voalleAccessPointId && voalleApId) {
+        const voalleApTitle = voalleConn.authenticationAccessPoint.title || `#${voalleApId}`;
+        if (voalleApId && link.voalleAccessPointId !== voalleApId) {
           await storage.updateLink(linkId, { voalleAccessPointId: voalleApId });
-          console.log(`[Voalle Compare] Link ${linkId}: voalleAccessPointId auto-preenchido: ${voalleApId}`);
-        } else {
-          compare('voalleAccessPointId', 'ID Ponto de Acesso', link.voalleAccessPointId, voalleApId);
+        }
+        let localOltName: string | null = null;
+        let voalleMatchesLocal = false;
+        if (link.oltId) {
+          const olt = await storage.getOlt(link.oltId);
+          if (olt) {
+            localOltName = olt.name;
+            const oltVoalleIds = (olt as any).voalleIds;
+            if (oltVoalleIds) {
+              voalleMatchesLocal = oltVoalleIds.split(',').map((s: string) => parseInt(s.trim(), 10)).includes(voalleApId);
+            }
+          }
+        }
+        if (!link.oltId && link.switchId) {
+          const sw = await storage.getSwitch(link.switchId);
+          if (sw) {
+            localOltName = sw.name;
+            const swVoalleIds = (sw as any).voalleIds;
+            if (swVoalleIds) {
+              voalleMatchesLocal = swVoalleIds.split(',').map((s: string) => parseInt(s.trim(), 10)).includes(voalleApId);
+            }
+          }
+        }
+        if (!voalleMatchesLocal) {
+          divergences.push({
+            field: 'voalleAccessPointId',
+            label: 'Ponto de Acesso (OLT)',
+            local: localOltName || '(nenhuma OLT vinculada)',
+            voalle: `${voalleApTitle} (ID: ${voalleApId})`,
+          });
         }
       }
 
@@ -3259,6 +3287,25 @@ export async function registerRoutes(
       if (link.equipmentSerialNumber) fields.equipmentSerialNumber = link.equipmentSerialNumber;
       if (link.latitude) fields.lat = link.latitude;
       if (link.longitude) fields.lng = link.longitude;
+      if (link.oltId) {
+        const olt = await storage.getOlt(link.oltId);
+        if (olt) {
+          const oltVoalleIds = (olt as any).voalleIds;
+          if (oltVoalleIds) {
+            const firstId = parseInt(oltVoalleIds.split(',')[0].trim(), 10);
+            if (!isNaN(firstId)) fields.authenticationAccessPointId = firstId;
+          }
+        }
+      } else if (link.switchId) {
+        const sw = await storage.getSwitch(link.switchId);
+        if (sw) {
+          const swVoalleIds = (sw as any).voalleIds;
+          if (swVoalleIds) {
+            const firstId = parseInt(swVoalleIds.split(',')[0].trim(), 10);
+            if (!isNaN(firstId)) fields.authenticationAccessPointId = firstId;
+          }
+        }
+      }
 
       if (Object.keys(fields).length === 0) {
         return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });

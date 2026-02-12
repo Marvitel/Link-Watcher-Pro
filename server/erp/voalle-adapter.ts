@@ -1016,6 +1016,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       equipmentSerialNumber?: string | null;
       lat?: string | null;
       lng?: string | null;
+      authenticationAccessPointId?: number | null;
     }
   ): Promise<{ success: boolean; message?: string }> {
     if (!this.isConfigured()) {
@@ -1029,6 +1030,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
       if (fields.lat !== undefined) payload.lat = fields.lat;
       if (fields.lng !== undefined) payload.lng = fields.lng;
+      if (fields.authenticationAccessPointId !== undefined) payload.authenticationAccessPointId = fields.authenticationAccessPointId;
 
       if (!this.config || !this.config.apiUrl) {
         return { success: false, message: "URL da API Voalle não configurada" };
