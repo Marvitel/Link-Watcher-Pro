@@ -3040,6 +3040,126 @@ export async function registerRoutes(
     }
   });
 
+  // Comparar dados do link local com dados da conexão Voalle
+  app.get("/api/links/:linkId/voalle-compare", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      if (!link.voalleConnectionId) {
+        return res.json({ available: false, message: "Link não possui ID de conexão Voalle (voalleConnectionId)" });
+      }
+
+      const client = await storage.getClient(link.clientId);
+      if (!client) {
+        return res.json({ available: false, message: "Cliente não encontrado" });
+      }
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.json({ available: false, message: "Integração Voalle não configurada" });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+
+      const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
+      const portalUsername = client.voallePortalUsername || null;
+      let portalPassword: string | null = null;
+      try {
+        portalPassword = client.voallePortalPassword ? decrypt(client.voallePortalPassword) : null;
+      } catch {
+        portalPassword = null;
+      }
+
+      if (!voalleCustomerId || !portalUsername || !portalPassword) {
+        return res.json({ available: false, message: "Cliente não possui credenciais do portal Voalle configuradas" });
+      }
+
+      const result = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+      if (!result.success || !result.connections?.length) {
+        return res.json({ available: false, message: result.message || "Não foi possível buscar conexões do Voalle" });
+      }
+
+      const voalleConn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
+      if (!voalleConn) {
+        return res.json({ available: false, message: `Conexão ${link.voalleConnectionId} não encontrada no Voalle (pode estar inativa)` });
+      }
+
+      const divergences: Array<{ field: string; label: string; local: any; voalle: any }> = [];
+
+      const compare = (field: string, label: string, localVal: any, voalleVal: any) => {
+        const l = localVal === undefined || localVal === null || localVal === '' ? null : String(localVal).trim();
+        const v = voalleVal === undefined || voalleVal === null || voalleVal === '' ? null : String(voalleVal).trim();
+        if (l !== v) {
+          divergences.push({ field, label, local: localVal ?? null, voalle: voalleVal ?? null });
+        }
+      };
+
+      compare('slotOlt', 'Slot OLT', link.slotOlt, voalleConn.slotOlt);
+      compare('portOlt', 'Porta OLT', link.portOlt, voalleConn.portOlt);
+      compare('equipmentSerialNumber', 'Serial Equipamento', link.equipmentSerialNumber, voalleConn.equipmentSerialNumber);
+      
+      if (voalleConn.contractServiceTag) {
+        compare('voalleContractTagServiceTag', 'Etiqueta (Service Tag)', link.voalleContractTagServiceTag, voalleConn.contractServiceTag.serviceTag);
+      }
+      
+      if (voalleConn.authenticationAccessPoint) {
+        compare('voalleAccessPointId', 'ID Ponto de Acesso', link.voalleAccessPointId, voalleConn.authenticationAccessPoint.id);
+      }
+
+      if (voalleConn.ipAuthentication) {
+        compare('monitoredIp', 'IP Monitorado', link.monitoredIp, voalleConn.ipAuthentication.ip);
+      }
+      
+      if (voalleConn.lat) {
+        compare('latitude', 'Latitude', link.latitude, voalleConn.lat);
+      }
+      if (voalleConn.lng) {
+        compare('longitude', 'Longitude', link.longitude, voalleConn.lng);
+      }
+
+      if (voalleConn.peopleAddress) {
+        const addr = voalleConn.peopleAddress;
+        const voalleAddr = [addr.streetType, addr.street, addr.number, addr.neighborhood].filter(Boolean).join(' ');
+        compare('address', 'Endereço', link.address, voalleAddr);
+      }
+
+      const voalleActive = voalleConn.active;
+      
+      res.json({
+        available: true,
+        voalleConnectionId: link.voalleConnectionId,
+        voalleActive,
+        divergences,
+        voalleData: {
+          id: voalleConn.id,
+          active: voalleConn.active,
+          slotOlt: voalleConn.slotOlt,
+          portOlt: voalleConn.portOlt,
+          equipmentSerialNumber: voalleConn.equipmentSerialNumber,
+          contractServiceTag: voalleConn.contractServiceTag,
+          authenticationAccessPoint: voalleConn.authenticationAccessPoint,
+          authenticationConcentrator: voalleConn.authenticationConcentrator,
+          ipAuthentication: voalleConn.ipAuthentication,
+          serviceProduct: voalleConn.serviceProduct,
+          lat: voalleConn.lat,
+          lng: voalleConn.lng,
+          peopleAddress: voalleConn.peopleAddress,
+          contract: voalleConn.contract,
+        }
+      });
+    } catch (error: any) {
+      const sanitizedMessage = (error?.message || "Erro desconhecido")
+        .replace(/password[=:]["']?[^\s&"']+["']?/gi, "password=[REDACTED]")
+        .replace(/username[=:]["']?[^\s&"']+["']?/gi, "username=[REDACTED]");
+      console.error("[Voalle Compare] Error:", sanitizedMessage);
+      res.status(500).json({ error: "Erro ao comparar com Voalle" });
+    }
+  });
+
   // Health check de credenciais do portal Voalle (apenas super admin)
   app.post("/api/clients/:clientId/voalle/portal-health-check", requireSuperAdmin, async (req, res) => {
     try {

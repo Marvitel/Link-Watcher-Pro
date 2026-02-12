@@ -71,6 +71,9 @@ import {
   Wrench,
   X,
   Zap,
+  GitCompare,
+  ArrowRight,
+  Check,
 } from "lucide-react";
 import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -231,6 +234,22 @@ export default function LinkDetail() {
   const { data: clients } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
     enabled: editDialogOpen,
+  });
+
+  interface VoalleCompareResult {
+    available: boolean;
+    message?: string;
+    voalleConnectionId?: number;
+    voalleActive?: boolean;
+    divergences?: Array<{ field: string; label: string; local: any; voalle: any }>;
+    voalleData?: any;
+  }
+
+  const { data: voalleCompare, isLoading: voalleCompareLoading, isError: voalleCompareError, refetch: refetchVoalleCompare } = useQuery<VoalleCompareResult>({
+    queryKey: ["/api/links", linkId, "voalle-compare"],
+    enabled: editDialogOpen && !!link?.voalleConnectionId,
+    staleTime: 0,
+    retry: 1,
   });
 
   const { toast } = useToast();
@@ -1670,6 +1689,68 @@ export default function LinkDetail() {
           <DialogHeader>
             <DialogTitle>Editar Link</DialogTitle>
           </DialogHeader>
+
+          {link?.voalleConnectionId && (
+            <div data-testid="voalle-compare-panel">
+              {voalleCompareLoading ? (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Comparando com Voalle...
+                </div>
+              ) : voalleCompare?.available && voalleCompare.divergences && voalleCompare.divergences.length > 0 ? (
+                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                      <GitCompare className="h-4 w-4" />
+                      {voalleCompare.divergences.length} divergência{voalleCompare.divergences.length > 1 ? 's' : ''} com Voalle
+                      <span className="text-xs font-normal text-muted-foreground">(Conexão #{voalleCompare.voalleConnectionId})</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => refetchVoalleCompare()}
+                      data-testid="button-refresh-voalle-compare"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    {voalleCompare.divergences.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs rounded px-2 py-1 bg-background/50" data-testid={`voalle-divergence-${i}`}>
+                        <span className="font-medium min-w-[140px] text-muted-foreground">{d.label}</span>
+                        <span className="text-red-500 dark:text-red-400 truncate max-w-[200px]" title={d.local ?? '(vazio)'}>
+                          {d.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                        </span>
+                        <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="text-green-600 dark:text-green-400 truncate max-w-[200px]" title={d.voalle ?? '(vazio)'}>
+                          {d.voalle ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : voalleCompare?.available && voalleCompare.divergences?.length === 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/5 border border-green-500/20 text-sm text-green-600 dark:text-green-400">
+                  <Check className="h-4 w-4" />
+                  Dados sincronizados com Voalle (Conexão #{voalleCompare.voalleConnectionId})
+                </div>
+              ) : voalleCompareError ? (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-red-500/5 border border-red-500/20 text-sm text-muted-foreground">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  Erro ao comparar com Voalle
+                  <Button variant="ghost" size="sm" onClick={() => refetchVoalleCompare()} className="ml-auto">
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : voalleCompare && !voalleCompare.available ? (
+                <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                  <GitCompare className="h-4 w-4" />
+                  {voalleCompare.message}
+                </div>
+              ) : null}
+            </div>
+          )}
+
           <LinkForm
             link={link || undefined}
             onSave={(data) => updateLinkMutation.mutate(data)}
