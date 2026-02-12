@@ -92,6 +92,10 @@ interface ParsedLink {
   wifiName: string | null;
   wifiPassword: string | null;
   addressComplement: string | null;
+  voalleConnectionId: number | null;
+  voalleAccessPointId: number | null;
+  voalleSplitterId: number | null;
+  voalleSplitterPort: number | null;
   ipAuthenticationId: string | null;
   monitoredIp: string | null; // IP direto do conexoes.csv (sem precisar de discovery)
   linkType: 'gpon' | 'ptp';
@@ -914,10 +918,24 @@ export function VoalleImportTab() {
           wifiName: conexao?.['Nome WiFi'] || authContract?.wifi_name || null,
           wifiPassword: conexao?.['Senha WiFi'] || authContract?.wifi_password || null,
           addressComplement: conexao?.['Complemento'] || authContract?.complement || null,
+          voalleConnectionId: (() => {
+            const cod = conexao?.['Código da Conexão'] || conexao?.['Código Conexão'] || conexao?.['Cod. Conexão'] || conexao?.['Cód. da Conexão'];
+            return cod ? parseInt(String(cod).trim()) || null : null;
+          })(),
+          voalleAccessPointId: (() => {
+            const apId = conexao?.['Código do Ponto de Acesso'] || authContract?.authentication_access_point_id;
+            return apId ? parseInt(String(apId).trim()) || null : null;
+          })(),
+          voalleSplitterId: (() => {
+            const spId = conexao?.['Código do Splitter'] || conexao?.['ID Splitter'] || authContract?.authentication_splitter_id;
+            return spId ? parseInt(String(spId).trim()) || null : null;
+          })(),
+          voalleSplitterPort: (() => {
+            const spPort = conexao?.['Porta do Splitter'] || conexao?.['Porta Splitter'] || authContract?.splitter_port;
+            return spPort ? parseInt(String(spPort).trim()) || null : null;
+          })(),
           ipAuthenticationId: conexao?.['Código do IP'] || authContract?.ip_authentication_id?.toString() || null,
-          // IP monitorado direto do conexoes.csv (sem precisar de discovery)
           monitoredIp: monitoredIpFromConexao,
-          // Detecta tipo de link: se ponto de acesso contém "OLT" é GPON, senão é PTP
           linkType: detectLinkType(accessPoint?.title || conexao?.['Ponto de Acesso'] || null),
           authType: tipoConexao === '1' ? 'pppoe' 
             : (tipoConexao === '2' || tipoConexao === '4') ? 'corporate' 
@@ -1015,6 +1033,10 @@ export function VoalleImportTab() {
             wifiName: conexao['Nome WiFi'] || null,
             wifiPassword: conexao['Senha WiFi'] || null,
             addressComplement: complementoConexao || null,
+            voalleConnectionId: codigoConexao ? parseInt(String(codigoConexao).trim()) || null : null,
+            voalleAccessPointId: conexao['Código do Ponto de Acesso'] ? parseInt(String(conexao['Código do Ponto de Acesso']).trim()) || null : null,
+            voalleSplitterId: (conexao['Código do Splitter'] || conexao['ID Splitter']) ? parseInt(String(conexao['Código do Splitter'] || conexao['ID Splitter']).trim()) || null : null,
+            voalleSplitterPort: (conexao['Porta do Splitter'] || conexao['Porta Splitter']) ? parseInt(String(conexao['Porta do Splitter'] || conexao['Porta Splitter']).trim()) || null : null,
             ipAuthenticationId: conexao['Código do IP'] || null,
             monitoredIp: monitoredIpFromConexao,
             linkType: detectLinkType(accessPointName),

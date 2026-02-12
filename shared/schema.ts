@@ -132,8 +132,11 @@ export const links = pgTable("links", {
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
   voalleContractTagDescription: text("voalle_contract_tag_description"),
   // Voalle integration - Connection data from API Portal
-  voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle
+  voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle (Código da Conexão)
   voalleContractNumber: varchar("voalle_contract_number", { length: 50 }), // Número do contrato
+  voalleAccessPointId: integer("voalle_access_point_id"), // ID do ponto de acesso no Voalle (authenticationAccessPointId)
+  voalleSplitterId: integer("voalle_splitter_id"), // ID do splitter no Voalle (authenticationSplitterId)
+  voalleSplitterPort: integer("voalle_splitter_port"), // Porta do splitter no Voalle
   concentratorId: integer("concentrator_id"), // Concentrador SNMP para coleta de tráfego
   // Origem dos dados de tráfego SNMP: 'manual' (IP direto), 'concentrator' (via concentrador), 'accessPoint' (via switch de acesso/PE)
   trafficSourceType: varchar("traffic_source_type", { length: 20 }).notNull().default("manual"),

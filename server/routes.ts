@@ -4585,6 +4585,10 @@ export async function registerRoutes(
           wifiName: string | null;
           wifiPassword: string | null;
           addressComplement: string | null;
+          voalleConnectionId: number | null;
+          voalleAccessPointId: number | null;
+          voalleSplitterId: number | null;
+          voalleSplitterPort: number | null;
           ipAuthenticationId: string | null;
           monitoredIp: string | null; // IP direto do conexoes.csv
           linkType: 'gpon' | 'ptp';
@@ -5014,6 +5018,10 @@ export async function registerRoutes(
             // Voalle tracking
             voalleContractTagServiceTag: String(link.serviceTag || '').trim(),
             voalleContractTagDescription: String(link.title || '').trim(),
+            voalleConnectionId: link.voalleConnectionId || null,
+            voalleAccessPointId: link.voalleAccessPointId || null,
+            voalleSplitterId: link.voalleSplitterId || null,
+            voalleSplitterPort: link.voalleSplitterPort || null,
           };
 
           // Validate with schema (partial validation for Voalle import)
