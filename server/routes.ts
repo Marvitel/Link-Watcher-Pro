@@ -3460,7 +3460,6 @@ export async function registerRoutes(
       let updateResult = { success: true, message: '', apiResponse: '' };
       if (Object.keys(fields).length > 0) {
         const currentPppoePassword = voalleConn?.pppoePassword || voalleConn?.password || undefined;
-        console.log(`[Voalle Sync] Conexão ${connectionId} encontrada: ${voalleConn ? 'sim' : 'não'}, connectionId match: ${voalleConn?.connectionId}, pppoePassword: ${currentPppoePassword ? `presente (${currentPppoePassword.length} chars, início: ${currentPppoePassword.substring(0, 3)}...)` : 'NÃO ENCONTRADA'}, campos voalleConn: ${voalleConn ? Object.keys(voalleConn).join(', ') : 'N/A'}`);
         updateResult = await adapter.updateConnectionFields(connectionId, fields, currentPppoePassword);
         if (!updateResult.success) {
           console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);

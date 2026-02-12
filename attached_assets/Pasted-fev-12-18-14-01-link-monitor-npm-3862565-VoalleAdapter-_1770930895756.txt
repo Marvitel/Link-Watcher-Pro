@@ -1,0 +1,19 @@
+fev 12 18:14:01 link-monitor npm[3862565]: [VoalleAdapter] Portal API: 92 etiquetas ativas de 92 conexões
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Encontradas 1 solicitações
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:14:05 link-monitor npm[3862565]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] Atualizando conexão 1532: campos=slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] AVISO: Senha PPPoE atual NÃO disponível - sync bloqueado para proteger senha do cliente
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:14:07 link-monitor npm[3862565]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:14:08 link-monitor npm[3862565]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:14:10 link-monitor npm[3862565]: [VoalleAdapter] 92 conexões ativas de 92 total
