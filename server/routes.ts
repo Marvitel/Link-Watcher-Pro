@@ -1074,24 +1074,42 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
       
+      const knownLinkFields = new Set(Object.keys(links).filter(k => k !== 'getSQL' && k !== '_' && k !== '$inferInsert' && k !== '$inferSelect'));
+      const linkColumns = new Set([
+        'clientId', 'identifier', 'name', 'location', 'address', 'ipBlock', 'totalIps', 'usableIps',
+        'bandwidth', 'monitoringEnabled', 'icmpInterval', 'monitoredIp', 'monitoredIp2', 'gateway',
+        'snmpCommunity', 'snmpVersion', 'snmpPort', 'snmpTimeout', 'status', 'linkType',
+        'bandwidthIn', 'bandwidthOut', 'bandwidthInOctets', 'bandwidthOutOctets', 'latency',
+        'packetLoss', 'jitter', 'oltId', 'switchId', 'slotOlt', 'portOlt', 'onuId',
+        'vlanId', 'concentratorId', 'cpuUsage', 'memoryUsage', 'failureReason', 'failureSource',
+        'trafficSourceType', 'trafficSourceIp', 'trafficIfIndex', 'interfaceName', 'serviceTag',
+        'profileId', 'invertBandwidthDirection', 'authType', 'authInterface', 'authUsername',
+        'lastUpdated', 'equipmentSerialNumber', 'opticalRxBaseline', 'opticalTxBaseline',
+        'mainGraphMode', 'mainGraphInterfaceIds',
+      ]);
+      const filteredBody: Record<string, any> = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        if (linkColumns.has(key)) {
+          filteredBody[key] = value;
+        }
+      }
+
       // Validar mainGraphMode e mainGraphInterfaceIds
-      if (req.body.mainGraphMode) {
-        if (req.body.mainGraphMode === 'primary') {
-          // Limpar interfaces quando modo é primary
-          req.body.mainGraphInterfaceIds = [];
-        } else if ((req.body.mainGraphMode === 'single' || req.body.mainGraphMode === 'aggregate')) {
-          // Validar que há pelo menos uma interface selecionada
-          const interfaceIds = req.body.mainGraphInterfaceIds || [];
+      if (filteredBody.mainGraphMode) {
+        if (filteredBody.mainGraphMode === 'primary') {
+          filteredBody.mainGraphInterfaceIds = [];
+        } else if ((filteredBody.mainGraphMode === 'single' || filteredBody.mainGraphMode === 'aggregate')) {
+          const interfaceIds = filteredBody.mainGraphInterfaceIds || [];
           if (!Array.isArray(interfaceIds) || interfaceIds.length === 0) {
             return res.status(400).json({ 
-              error: `Modo "${req.body.mainGraphMode}" requer pelo menos uma interface selecionada` 
+              error: `Modo "${filteredBody.mainGraphMode}" requer pelo menos uma interface selecionada` 
             });
           }
         }
       }
       
       const previousLink = await storage.getLink(linkId);
-      await storage.updateLink(linkId, req.body);
+      await storage.updateLink(linkId, filteredBody);
       const updatedLink = await storage.getLink(linkId);
       
       // Check if IP block was changed or removed - clear blacklist checks
@@ -3849,12 +3867,16 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Apenas super admins podem associar CPEs" });
       }
       const linkId = parseInt(req.params.linkId, 10);
+      console.log(`[CPE Link] POST /api/links/${linkId}/cpes body:`, JSON.stringify(req.body));
       const data = insertLinkCpeSchema.parse({ ...req.body, linkId });
+      console.log(`[CPE Link] Parsed data:`, JSON.stringify(data));
       const association = await storage.addCpeToLink(data);
+      console.log(`[CPE Link] Association created:`, JSON.stringify(association));
       res.json(association);
-    } catch (error) {
-      console.error("Error adding CPE to link:", error);
-      res.status(400).json({ error: "Falha ao associar CPE ao link" });
+    } catch (error: any) {
+      console.error("[CPE Link] Error adding CPE to link:", error?.message || error);
+      if (error?.issues) console.error("[CPE Link] Zod issues:", JSON.stringify(error.issues));
+      res.status(400).json({ error: "Falha ao associar CPE ao link", details: error?.message });
     }
   });
 
