@@ -1918,7 +1918,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const port = device.sshPort || 22;
     const portArg = port !== 22 ? `-p ${port} ` : "";
     // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
-    const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
+    const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512";
     if (password) {
       return {
         command: `sshpass -e ssh ${legacyOpts} ${portArg}${user}@${device.ip}`,
@@ -2179,7 +2179,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const isOpen = openCpeTerminals[cpe.id || 0] || false;
             const cpeKey = cpeTerminalKeys[cpe.id || 0] || 0;
             // Opções SSH inline para compatibilidade com equipamentos legados (sem arquivo externo)
-            const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519";
+            const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512";
             // O backend já retorna as credenciais corretas (RADIUS ou locais) em sshUser/sshPassword
             // e as credenciais de fallback em fallbackSshUser/fallbackSshPassword
             const sshUser = cpe.sshUser || "admin";
