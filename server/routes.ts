@@ -3146,15 +3146,34 @@ export async function registerRoutes(
         }
 
         const voalleSplitterName = voalleSplitter?.title || null;
+        const voalleSplitterId = voalleSplitter?.id || null;
         const voalleSplitterPort = voalleSplitter?.port !== null && voalleSplitter?.port !== undefined ? String(voalleSplitter.port) : null;
-        
-        const splitterNameMatch = !voalleSplitterName || (localSplitterName?.trim().toLowerCase() === voalleSplitterName?.trim().toLowerCase());
+
+        let splitterNameMatch = false;
+        if (!voalleSplitterName) {
+          splitterNameMatch = true;
+        } else if (localSplitterName && localSplitterName.trim().toLowerCase() === voalleSplitterName.trim().toLowerCase()) {
+          splitterNameMatch = true;
+        } else if (link.voalleSplitterId && voalleSplitterId && link.voalleSplitterId === voalleSplitterId) {
+          splitterNameMatch = true;
+          if (!localSplitterName) localSplitterName = voalleSplitterName;
+        }
+
         allFields.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName, match: splitterNameMatch });
         if (!splitterNameMatch) {
           divergences.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName });
         }
 
-        const splitterPortMatch = !voalleSplitterPort || (localSplitterPort?.trim() === voalleSplitterPort?.trim());
+        let splitterPortMatch = false;
+        if (!voalleSplitterPort) {
+          splitterPortMatch = true;
+        } else if (localSplitterPort && localSplitterPort.trim() === voalleSplitterPort.trim()) {
+          splitterPortMatch = true;
+        } else if (link.voalleSplitterId && voalleSplitterId && link.voalleSplitterId === voalleSplitterId) {
+          splitterPortMatch = true;
+          if (!localSplitterPort) localSplitterPort = voalleSplitterPort;
+        }
+
         allFields.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort, match: splitterPortMatch });
         if (!splitterPortMatch) {
           divergences.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort });
