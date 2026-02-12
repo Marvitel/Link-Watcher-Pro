@@ -3127,6 +3127,21 @@ export async function registerRoutes(
         compare('address', 'Endereço', link.address, voalleAddr);
       }
 
+      const ozmapDivergences: Array<{ field: string; label: string; local: any; ozmap: any }> = [];
+      if (link.ozmapSplitterName || link.ozmapSplitterPort || link.ozmapSlot !== null || link.ozmapPort !== null) {
+        const compareOzmap = (field: string, label: string, localVal: any, ozmapVal: any) => {
+          const l = localVal === undefined || localVal === null || localVal === '' ? null : String(localVal).trim();
+          const o = ozmapVal === undefined || ozmapVal === null || ozmapVal === '' ? null : String(ozmapVal).trim();
+          if (l !== o && o !== null) {
+            ozmapDivergences.push({ field, label, local: localVal ?? null, ozmap: ozmapVal ?? null });
+          }
+        };
+        compareOzmap('slotOlt', 'Slot OLT (OZmap)', link.slotOlt, link.ozmapSlot);
+        compareOzmap('portOlt', 'Porta OLT (OZmap)', link.portOlt, link.ozmapPort);
+        compareOzmap('ozmapSplitterName', 'Splitter (OZmap)', link.zabbixSplitterName, link.ozmapSplitterName);
+        compareOzmap('ozmapSplitterPort', 'Porta Splitter (OZmap)', link.zabbixSplitterPort, link.ozmapSplitterPort);
+      }
+
       const voalleActive = voalleConn.active;
       
       res.json({
@@ -3134,6 +3149,7 @@ export async function registerRoutes(
         voalleConnectionId: link.voalleConnectionId,
         voalleActive,
         divergences,
+        ozmapDivergences: ozmapDivergences.length > 0 ? ozmapDivergences : undefined,
         voalleData: {
           id: voalleConn.id,
           active: voalleConn.active,

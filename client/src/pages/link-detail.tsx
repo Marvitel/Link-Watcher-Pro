@@ -242,6 +242,7 @@ export default function LinkDetail() {
     voalleConnectionId?: number;
     voalleActive?: boolean;
     divergences?: Array<{ field: string; label: string; local: any; voalle: any }>;
+    ozmapDivergences?: Array<{ field: string; label: string; local: any; ozmap: any }>;
     voalleData?: any;
   }
 
@@ -1748,6 +1749,30 @@ export default function LinkDetail() {
                   {voalleCompare.message}
                 </div>
               ) : null}
+
+              {voalleCompare?.available && voalleCompare.ozmapDivergences && voalleCompare.ozmapDivergences.length > 0 && (
+                <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                    <MapPin className="h-4 w-4" />
+                    {voalleCompare.ozmapDivergences.length} divergência{voalleCompare.ozmapDivergences.length > 1 ? 's' : ''} com OZmap
+                    <span className="text-xs font-normal text-muted-foreground">(dados de splitter/OLT)</span>
+                  </div>
+                  <div className="space-y-1">
+                    {voalleCompare.ozmapDivergences.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs rounded px-2 py-1 bg-background/50" data-testid={`ozmap-divergence-${i}`}>
+                        <span className="font-medium min-w-[140px] text-muted-foreground">{d.label}</span>
+                        <span className="text-red-500 dark:text-red-400 truncate max-w-[200px]" title={d.local ?? '(vazio)'}>
+                          {d.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                        </span>
+                        <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="text-blue-600 dark:text-blue-400 truncate max-w-[200px]" title={d.ozmap ?? '(vazio)'}>
+                          {d.ozmap ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
