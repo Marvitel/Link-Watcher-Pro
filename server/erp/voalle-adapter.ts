@@ -1036,6 +1036,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = { id: connectionId };
+      if (this.providerConfig?.apiPassword) {
+        payload.password = this.providerConfig.apiPassword;
+      }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
@@ -1049,7 +1052,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const token = await this.authenticate();
       const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/updateconnection/${connectionId}`;
       console.log(`[VoalleAdapter] PUT ${url.replace(/^https?:\/\/[^/]+/, '***')}`);
-      console.log(`[VoalleAdapter] Payload:`, JSON.stringify(payload));
+      const safePayload = { ...payload };
+      if (safePayload.password) safePayload.password = '[REDACTED]';
+      console.log(`[VoalleAdapter] Payload:`, JSON.stringify(safePayload));
       const headers: Record<string, string> = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
