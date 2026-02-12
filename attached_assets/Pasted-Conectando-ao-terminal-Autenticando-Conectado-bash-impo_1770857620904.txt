@@ -1,0 +1,80 @@
+Conectando ao terminal...
+Autenticando...
+Conectado!
+
+bash: impossível definir grupo do processo do terminal (-1): ioctl inapropriado para dispositivo
+bash: nenhum controle de trabalho neste shell
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 2220 marcus.melo@191.52.248.22
+ssh_dispatch_run_fatal: Connection to 191.52.248.22 port 2220: key type does not match
+[linkmonitor@linkmonitor]$ sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256 -o HostKeyAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -o Ciphers=aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519 -p 2220 marcus.melo@191.52.248.22 -vvv
+OpenSSH_9.2p1 Debian-2+deb12u7, OpenSSL 3.0.17 1 Jul 2025
+debug1: Reading configuration data /etc/ssh/ssh_config
+debug1: /etc/ssh/ssh_config line 19: include /etc/ssh/ssh_config.d/*.conf matched no files
+debug1: /etc/ssh/ssh_config line 21: Applying options for *
+debug2: resolve_canonicalize: hostname 191.52.248.22 is address
+debug3: ssh_connect_direct: entering
+debug1: Connecting to 191.52.248.22 [191.52.248.22] port 2220.
+debug3: set_sock_tos: set socket 3 IP_TOS 0x10
+debug1: Connection established.
+debug1: identity file /opt/link-monitor/.ssh/id_rsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_rsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519 type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u7
+debug1: Remote protocol version 2.0, remote software version ROSSSH
+debug1: compat_banner: no match: ROSSSH
+debug2: fd 3 setting O_NONBLOCK
+debug1: Authenticating to 191.52.248.22:2220 as 'marcus.melo'
+debug3: send packet: type 20
+debug1: SSH2_MSG_KEXINIT sent
+debug3: receive packet: type 20
+debug1: SSH2_MSG_KEXINIT received
+debug2: local client KEXINIT proposal
+debug2: KEX algorithms: diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,curve25519-sha256,ext-info-c,kex-strict-c-v00@openssh.com
+debug2: host key algorithms: ssh-dss,ssh-rsa,rsa-sha2-256,ssh-ed25519
+debug2: ciphers ctos: aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com
+debug2: ciphers stoc: aes128-cbc,aes256-cbc,aes128-ctr,aes256-ctr,chacha20-poly1305@openssh.com
+debug2: MACs ctos: umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: MACs stoc: umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: compression ctos: none,zlib@openssh.com,zlib
+debug2: compression stoc: none,zlib@openssh.com,zlib
+debug2: languages ctos: 
+debug2: languages stoc: 
+debug2: first_kex_follows 0 
+debug2: reserved 0 
+debug2: peer server KEXINIT proposal
+debug2: KEX algorithms: diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,ext-info-s
+debug2: host key algorithms: ssh-dss,rsa-sha2-256,ssh-rsa
+debug2: ciphers ctos: aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+debug2: ciphers stoc: aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+debug2: MACs ctos: hmac-sha1,hmac-md5
+debug2: MACs stoc: hmac-sha1,hmac-md5
+debug2: compression ctos: none
+debug2: compression stoc: none
+debug2: languages ctos: 
+debug2: languages stoc: 
+debug2: first_kex_follows 0 
+debug2: reserved 0 
+debug1: kex: algorithm: diffie-hellman-group1-sha1
+debug1: kex: host key algorithm: ssh-dss
+debug1: kex: server->client cipher: aes128-cbc MAC: hmac-sha1 compression: none
+debug1: kex: client->server cipher: aes128-cbc MAC: hmac-sha1 compression: none
+debug2: bits set: 527/1024
+debug3: send packet: type 30
+debug1: expecting SSH2_MSG_KEX_ECDH_REPLY
+debug3: receive packet: type 31
+debug1: SSH2_MSG_KEX_ECDH_REPLY received
+ssh_dispatch_run_fatal: Connection to 191.52.248.22 port 2220: key type does not match
+[linkmonitor@linkmonitor]$ 
