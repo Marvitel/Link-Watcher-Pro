@@ -3339,16 +3339,6 @@ export async function registerRoutes(
       if (updatedLink.slotOlt !== null && updatedLink.slotOlt !== undefined) fields.slotOlt = updatedLink.slotOlt;
       if (updatedLink.portOlt !== null && updatedLink.portOlt !== undefined) fields.portOlt = updatedLink.portOlt;
       if (updatedLink.equipmentSerialNumber) fields.equipmentSerialNumber = updatedLink.equipmentSerialNumber;
-      if (updatedLink.latitude) {
-        let lat = String(updatedLink.latitude).trim().replace(',', '.');
-        const latNum = parseFloat(lat);
-        if (!isNaN(latNum)) fields.lat = latNum.toString();
-      }
-      if (updatedLink.longitude) {
-        let lng = String(updatedLink.longitude).trim().replace(',', '.');
-        const lngNum = parseFloat(lng);
-        if (!isNaN(lngNum)) fields.lng = lngNum.toString();
-      }
       if (updatedLink.oltId) {
         const olt = await storage.getOlt(updatedLink.oltId);
         if (olt) {
@@ -3368,6 +3358,8 @@ export async function registerRoutes(
           }
         }
       }
+      if (updatedLink.voalleSplitterId) fields.authenticationSplitterId = updatedLink.voalleSplitterId;
+      if (updatedLink.voalleSplitterPort !== null && updatedLink.voalleSplitterPort !== undefined) fields.splitterPort = updatedLink.voalleSplitterPort;
 
       console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: campos a sincronizar: ${Object.keys(fields).join(', ')}`);
 

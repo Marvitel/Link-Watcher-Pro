@@ -1009,8 +1009,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   /**
-   * Atualiza campos de uma autenticação/conexão no Voalle via API principal (porta 45715)
-   * Campos atualizáveis: slotOlt, portOlt, equipmentSerialNumber, lat, lng
+   * Atualiza campos de uma conexão no Voalle via API principal (porta 45715)
+   * Endpoint: PUT /updateconnection/{connectionId}
+   * Campos atualizáveis: slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId, authenticationSplitterId, port
    */
   async updateConnectionFields(
     connectionId: number,
@@ -1018,9 +1019,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       slotOlt?: number | null;
       portOlt?: number | null;
       equipmentSerialNumber?: string | null;
-      lat?: string | null;
-      lng?: string | null;
       authenticationAccessPointId?: number | null;
+      authenticationSplitterId?: number | null;
+      splitterPort?: number | null;
     }
   ): Promise<{ success: boolean; message?: string }> {
     if (!this.isConfigured()) {
@@ -1028,20 +1029,20 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
-      const payload: Record<string, any> = {};
+      const payload: Record<string, any> = { id: connectionId };
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
-      if (fields.lat !== undefined) payload.lat = fields.lat;
-      if (fields.lng !== undefined) payload.lng = fields.lng;
       if (fields.authenticationAccessPointId !== undefined) payload.authenticationAccessPointId = fields.authenticationAccessPointId;
+      if (fields.authenticationSplitterId !== undefined) payload.authenticationSplitterId = fields.authenticationSplitterId;
+      if (fields.splitterPort !== undefined) payload.port = fields.splitterPort;
 
       if (!this.config || !this.config.apiUrl) {
         return { success: false, message: "URL da API Voalle não configurada" };
       }
       const token = await this.authenticate();
-      const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/authentications/${connectionId}`;
-      console.log(`[VoalleAdapter] PUT ${url.replace(/\/authentications\/\d+/, '/authentications/***')}`);
+      const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/updateconnection/${connectionId}`;
+      console.log(`[VoalleAdapter] PUT updateconnection/${connectionId}`);
       console.log(`[VoalleAdapter] Payload keys:`, Object.keys(payload).join(', '));
       const headers: Record<string, string> = {
         "Authorization": `Bearer ${token}`,
@@ -1059,9 +1060,6 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const responseText = await response.text();
       console.log(`[VoalleAdapter] Response: HTTP ${response.status} - ${responseText.substring(0, 200)}`);
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Endpoint de atualização não encontrado (404). Verifique se o Token SynV1 está configurado e se a API do Voalle suporta atualização de autenticações.`);
-        }
         throw new Error(`Voalle API error: ${response.status} - ${responseText.substring(0, 200)}`);
       }
       console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
