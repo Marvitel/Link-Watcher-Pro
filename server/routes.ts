@@ -39,6 +39,7 @@ import {
   firewallWhitelist,
   firewallSettings,
   trafficInterfaceMetrics,
+  splitters,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -3132,9 +3133,19 @@ export async function registerRoutes(
 
       {
         const voalleSplitter = voalleConn.authenticationSplitter;
-        const localSplitterName = link.ozmapSplitterName || link.zabbixSplitterName || null;
+        let localSplitterName = link.ozmapSplitterName || link.zabbixSplitterName || null;
+        let localSplitterPort: string | null = link.ozmapSplitterPort || link.zabbixSplitterPort || (link.voalleSplitterPort !== null && link.voalleSplitterPort !== undefined ? String(link.voalleSplitterPort) : null);
+
+        if (!localSplitterName && link.splitterId) {
+          try {
+            const [splitterRecord] = await db.select().from(splitters).where(eq(splitters.id, link.splitterId)).limit(1);
+            if (splitterRecord) {
+              localSplitterName = splitterRecord.name;
+            }
+          } catch {}
+        }
+
         const voalleSplitterName = voalleSplitter?.title || null;
-        const localSplitterPort = link.ozmapSplitterPort || link.zabbixSplitterPort || (link.voalleSplitterPort !== null && link.voalleSplitterPort !== undefined ? String(link.voalleSplitterPort) : null);
         const voalleSplitterPort = voalleSplitter?.port !== null && voalleSplitter?.port !== undefined ? String(voalleSplitter.port) : null;
         
         const splitterNameMatch = !voalleSplitterName || (localSplitterName?.trim().toLowerCase() === voalleSplitterName?.trim().toLowerCase());
