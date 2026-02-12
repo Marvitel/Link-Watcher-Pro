@@ -1,0 +1,23 @@
+fev 12 12:29:35 link-monitor npm[3239351]: [VoalleAdapter] Portal API: 92 etiquetas ativas de 92 conexões
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Atualizando conexão 721: campos=slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] PUT ***/external/integrations/thirdparty/updateconnection/721
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Payload: {"id":721,"slotOlt":2,"portOlt":4,"equipmentSerialNumber":"DACM917482E2","authenticationAccessPointId":119}
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] syn-v1-token: configurado (ab71...)
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Erro ao buscar solicitações abertas: Error: Voalle API error: 503 - Serviço temporariamente indisponível. Tente novamente em instantes.
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Response: HTTP 503 - Body: Serviço temporariamente indisponível. Tente novamente em instantes.
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Erro ao atualizar conexão 721: Voalle API error: 503 - Serviço temporariamente indisponível. Tente novamente em instantes.
+fev 12 12:29:41 link-monitor npm[3239351]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:29:43 link-monitor npm[3239351]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 12:29:51 link-monitor npm[3239351]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 12:29:51 link-monitor npm[3239351]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:29:51 link-monitor npm[3239351]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 12 12:29:51 link-monitor npm[3239351]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 94, user: parkville)
+fev 12 12:29:51 link-monitor npm[3239351]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:29:52 link-monitor npm[3239351]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:29:52 link-monitor npm[3239351]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:29:54 link-monitor npm[3239351]: [VoalleAdapter] 92 conexões ativas de 92 total
