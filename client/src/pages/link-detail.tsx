@@ -297,7 +297,6 @@ export default function LinkDetail() {
     },
     onSuccess: async () => {
       toast({ title: "Link atualizado com sucesso" });
-      setEditDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
       queryClient.invalidateQueries({ queryKey: [`/api/links/${linkId}/cpes`] });
@@ -307,7 +306,6 @@ export default function LinkDetail() {
         const syncData = await syncRes.json();
         if (syncData.success && syncData.synced > 0) {
           toast({ title: `Sincronizado com Voalle: ${syncData.synced} campo(s)` });
-          queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "voalle-compare"] });
         } else if (!syncData.success) {
           toast({ 
             title: "Erro ao sincronizar com Voalle", 
@@ -323,6 +321,9 @@ export default function LinkDetail() {
           variant: "destructive",
         });
       }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "voalle-compare"] });
+      setEditDialogOpen(false);
     },
     onError: () => {
       toast({ title: "Erro ao atualizar link", variant: "destructive" });

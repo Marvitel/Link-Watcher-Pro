@@ -5137,7 +5137,6 @@ export default function Admin() {
     },
     onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });
-      setLinkDialogOpen(false);
       toast({ title: "Link atualizado com sucesso" });
       if (editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag || editingLink.voalleContractTagId)) {
         try {
@@ -5161,6 +5160,8 @@ export default function Admin() {
           });
         }
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/links", editingLink?.id, "voalle-compare"] });
+      setLinkDialogOpen(false);
       setEditingLink(undefined);
       if (editLinkReturnId) {
         const returnId = editLinkReturnId;
