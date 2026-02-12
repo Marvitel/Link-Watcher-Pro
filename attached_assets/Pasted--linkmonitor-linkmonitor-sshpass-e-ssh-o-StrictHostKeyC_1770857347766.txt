@@ -1,0 +1,243 @@
+[linkmonitor@linkmonitor]$ sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,ssh-rsa -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=ssh-rsa,rsa-sha2-256 -o MACs=hmac-sha1,hmac-md5 -p 2220 marcus.melo@191.52.248.22 -vvv
+OpenSSH_9.2p1 Debian-2+deb12u7, OpenSSL 3.0.17 1 Jul 2025
+debug1: Reading configuration data /etc/ssh/ssh_config
+debug1: /etc/ssh/ssh_config line 19: include /etc/ssh/ssh_config.d/*.conf matched no files
+debug1: /etc/ssh/ssh_config line 21: Applying options for *
+debug2: resolve_canonicalize: hostname 191.52.248.22 is address
+debug3: ssh_connect_direct: entering
+debug1: Connecting to 191.52.248.22 [191.52.248.22] port 2220.
+debug3: set_sock_tos: set socket 3 IP_TOS 0x10
+
+[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...
+debug1: Connection established.
+debug1: identity file /opt/link-monitor/.ssh/id_rsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_rsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ecdsa_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519 type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk type -1
+debug1: identity file /opt/link-monitor/.ssh/id_ed25519_sk-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss type -1
+debug1: identity file /opt/link-monitor/.ssh/id_xmss-cert type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa type -1
+debug1: identity file /opt/link-monitor/.ssh/id_dsa-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u7
+debug1: Remote protocol version 2.0, remote software version ROSSSH
+debug1: compat_banner: no match: ROSSSH
+debug2: fd 3 setting O_NONBLOCK
+debug1: Authenticating to 191.52.248.22:2220 as 'marcus.melo'
+debug3: send packet: type 20
+debug1: SSH2_MSG_KEXINIT sent
+debug3: receive packet: type 20
+debug1: SSH2_MSG_KEXINIT received
+debug2: local client KEXINIT proposal
+debug2: KEX algorithms: diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,curve25519-sha256,ext-info-c,kex-strict-c-v00@openssh.com
+debug2: host key algorithms: rsa-sha2-256,ssh-rsa
+debug2: ciphers ctos: aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,chacha20-poly1305@openssh.com
+debug2: ciphers stoc: aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,chacha20-poly1305@openssh.com
+debug2: MACs ctos: hmac-sha1,hmac-md5
+debug2: MACs stoc: hmac-sha1,hmac-md5
+debug2: compression ctos: none,zlib@openssh.com,zlib
+debug2: compression stoc: none,zlib@openssh.com,zlib
+debug2: languages ctos: 
+debug2: languages stoc: 
+debug2: first_kex_follows 0 
+debug2: reserved 0 
+debug2: peer server KEXINIT proposal
+debug2: KEX algorithms: diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,ext-info-s
+debug2: host key algorithms: ssh-dss,rsa-sha2-256,ssh-rsa
+debug2: ciphers ctos: aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+debug2: ciphers stoc: aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-cbc,aes192-cbc,aes256-cbc,3des-cbc
+debug2: MACs ctos: hmac-sha1,hmac-md5
+debug2: MACs stoc: hmac-sha1,hmac-md5
+debug2: compression ctos: none
+debug2: compression stoc: none
+debug2: languages ctos: 
+debug2: languages stoc: 
+debug2: first_kex_follows 0 
+debug2: reserved 0 
+debug1: kex: algorithm: diffie-hellman-group-exchange-sha256
+debug1: kex: host key algorithm: rsa-sha2-256
+debug1: kex: server->client cipher: aes128-ctr MAC: hmac-sha1 compression: none
+debug1: kex: client->server cipher: aes128-ctr MAC: hmac-sha1 compression: none
+debug3: send packet: type 34
+debug1: SSH2_MSG_KEX_DH_GEX_REQUEST(2048<7680<8192) sent
+debug1: expecting SSH2_MSG_KEX_DH_GEX_GROUP
+debug3: receive packet: type 31
+debug1: SSH2_MSG_KEX_DH_GEX_GROUP received
+debug2: bits set: 1049/2048
+debug3: send packet: type 32
+debug1: SSH2_MSG_KEX_DH_GEX_INIT sent
+debug1: expecting SSH2_MSG_KEX_DH_GEX_REPLY
+debug3: receive packet: type 33
+debug1: SSH2_MSG_KEX_DH_GEX_REPLY received
+debug1: Server host key: ssh-rsa SHA256:BGNnnyX/fJsvHb8ASQjKzbcZ4R5N15ysx30v7JzgpGM
+debug3: put_host_port: [191.52.248.22]:2220
+debug3: put_host_port: [191.52.248.22]:2220
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts2: No such file or directory
+debug1: checking without port identifier
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen /etc/ssh/ssh_known_hosts2: No such file or directory
+Warning: Permanently added '[191.52.248.22]:2220' (RSA) to the list of known hosts.
+debug2: bits set: 1018/2048
+debug3: send packet: type 21
+debug2: ssh_set_newkeys: mode 1
+debug1: rekey out after 4294967296 blocks
+debug1: SSH2_MSG_NEWKEYS sent
+debug1: expecting SSH2_MSG_NEWKEYS
+debug3: receive packet: type 21
+debug1: SSH2_MSG_NEWKEYS received
+debug2: ssh_set_newkeys: mode 0
+debug1: rekey in after 4294967296 blocks
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_rsa 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ecdsa 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ecdsa_sk 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ed25519 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_ed25519_sk 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_xmss 
+debug1: Will attempt key: /opt/link-monitor/.ssh/id_dsa 
+debug2: pubkey_prepare: done
+debug3: send packet: type 5
+debug3: receive packet: type 7
+debug1: SSH2_MSG_EXT_INFO received
+debug1: kex_input_ext_info: server-sig-algs=<rsa-sha2-256,ssh-rsa>
+debug3: receive packet: type 6
+debug2: service_accept: ssh-userauth
+debug1: SSH2_MSG_SERVICE_ACCEPT received
+debug3: send packet: type 50
+debug3: receive packet: type 51
+debug1: Authentications that can continue: publickey,password
+debug3: start over, passed a different list publickey,password
+debug3: preferred gssapi-with-mic,publickey,keyboard-interactive,password
+debug3: authmethod_lookup publickey
+debug3: remaining preferred: keyboard-interactive,password
+debug3: authmethod_is_enabled publickey
+debug1: Next authentication method: publickey
+debug1: Trying private key: /opt/link-monitor/.ssh/id_rsa
+debug3: no such identity: /opt/link-monitor/.ssh/id_rsa: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ecdsa
+debug3: no such identity: /opt/link-monitor/.ssh/id_ecdsa: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ecdsa_sk
+debug3: no such identity: /opt/link-monitor/.ssh/id_ecdsa_sk: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ed25519
+debug3: no such identity: /opt/link-monitor/.ssh/id_ed25519: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_ed25519_sk
+debug3: no such identity: /opt/link-monitor/.ssh/id_ed25519_sk: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_xmss
+debug3: no such identity: /opt/link-monitor/.ssh/id_xmss: No such file or directory
+debug1: Trying private key: /opt/link-monitor/.ssh/id_dsa
+debug3: no such identity: /opt/link-monitor/.ssh/id_dsa: No such file or directory
+debug2: we did not send a packet, disable method
+debug3: authmethod_lookup password
+debug3: remaining preferred: ,password
+debug3: authmethod_is_enabled password
+debug1: Next authentication method: password
+debug3: send packet: type 50
+debug2: we sent a password packet, wait for reply
+debug3: receive packet: type 52
+Authenticated to 191.52.248.22 ([191.52.248.22]:2220) using "password".
+debug1: channel 0: new session [client-session] (inactive timeout: 0)
+debug3: ssh_session2_open: channel_new: 0
+debug2: channel 0: send open
+debug3: send packet: type 90
+debug1: Entering interactive session.
+debug1: pledge: network
+debug3: client_repledge: enter
+debug3: receive packet: type 91
+debug2: channel_input_open_confirmation: channel 0: callback start
+debug2: fd 3 setting TCP_NODELAY
+debug3: set_sock_tos: set socket 3 IP_TOS 0x10
+debug2: client_session2_setup: id 0
+debug2: channel 0: request pty-req confirm 1
+debug3: send packet: type 98
+debug1: Sending environment.
+debug3: Ignored env SHELL
+debug3: Ignored env npm_command
+debug3: Ignored env npm_config_userconfig
+debug3: Ignored env npm_config_cache
+debug3: Ignored env DIAGNOSTICS_TOKEN
+debug3: Ignored env DATABASE_URL
+debug3: Ignored env ADMIN_PORT
+debug3: Ignored env LANGUAGE
+debug3: Ignored env NODE
+debug3: Ignored env SSHPASS
+debug3: Ignored env COLOR
+debug3: Ignored env npm_config_local_prefix
+debug3: Ignored env TERMINAL_USER
+debug3: Ignored env npm_config_globalconfig
+debug3: Ignored env EDITOR
+debug3: Ignored env PWD
+debug3: Ignored env LOGNAME
+debug3: Ignored env XDG_SESSION_TYPE
+debug3: Ignored env PORT
+debug3: Ignored env npm_config_init_module
+debug3: Ignored env SYSTEMD_EXEC_PID
+debug3: Ignored env NODE_ENV
+debug3: Ignored env HOME
+debug1: channel 0: setting env LANG = "pt_BR.UTF-8"
+debug2: channel 0: request env confirm 0
+debug3: send packet: type 98
+debug3: Ignored env npm_package_version
+debug3: Ignored env INVOCATION_ID
+debug3: Ignored env INIT_CWD
+debug3: Ignored env npm_lifecycle_script
+debug3: Ignored env npm_config_npm_version
+debug3: Ignored env XDG_SESSION_CLASS
+debug3: Ignored env TERM
+debug3: Ignored env npm_package_name
+debug3: Ignored env npm_config_prefix
+debug3: Ignored env USER
+debug3: Ignored env npm_lifecycle_event
+debug3: Ignored env SHLVL
+debug3: Ignored env XDG_SESSION_ID
+debug3: Ignored env npm_config_user_agent
+debug3: Ignored env npm_execpath
+debug3: Ignored env XDG_RUNTIME_DIR
+debug3: Ignored env PS1
+debug3: Ignored env SSH_CONFIG
+debug3: Ignored env npm_package_json
+debug3: Ignored env JOURNAL_STREAM
+debug3: Ignored env npm_config_noproxy
+debug3: Ignored env PATH
+debug3: Ignored env npm_config_node_gyp
+debug3: Ignored env DBUS_SESSION_BUS_ADDRESS
+debug3: Ignored env npm_config_global_prefix
+debug3: Ignored env MAIL
+debug3: Ignored env npm_node_execpath
+debug3: Ignored env _
+debug2: channel 0: request shell confirm 1
+debug3: send packet: type 98
+debug3: client_repledge: enter
+debug1: pledge: fork
+debug2: channel_input_open_confirmation: channel 0: callback done
+debug2: channel 0: open confirm rwindow 2621440 rmax 262144
+debug3: receive packet: type 99
+debug2: channel_input_status_confirm: type 99 id 0
+debug2: PTY allocation request accepted on channel 0
+   ug3: receive packet: type 99                                                                                                            
+ ebug2: channel_input_status_confirm: type 99 id 0
+
+
+
+
+
+
+
+
+
+  MMM      MMM       KKK                          TTTTTTTTTTT      KKK
+  MMMM    MMMM       KKK                          TTTTTTTTTTT      KKK
+  MMM MMMM MMM  III  KKK  KKK  RRRRRR     OOOOOO      TTT     III  KKK  KKK
+  MMM  MM  MMM  III  KKKKK     RRR  RRR  OOO  OOO     TTT     III  KKKKK
+  MMM      MMM  III  KKK KKK   RRRRRR    OOO  OOO     TTT     III  KKK KKK
+  MMM      MMM  III  KKK  KKK  RRR  RRR   OOOOOO      TTT     III  KKK  KKK
+
+  MikroTik RouterOS 7.6 (c) 1999-2022       https://www.mikrotik.com/
+
+Press F1 for help
+  
+[marcus.melo@AJU-MVT-RB-CONCENTRADOR-PPPoE] >
