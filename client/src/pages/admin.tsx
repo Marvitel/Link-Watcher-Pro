@@ -5012,7 +5012,7 @@ export default function Admin() {
 
   const { data: voalleCompare, isLoading: voalleCompareLoading, isError: voalleCompareError, refetch: refetchVoalleCompare } = useQuery<VoalleCompareResult>({
     queryKey: ["/api/links", editingLink?.id, "voalle-compare"],
-    enabled: linkDialogOpen && !!editingLink && !!(editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag),
+    enabled: linkDialogOpen && !!editingLink && !!(editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag || editingLink.voalleContractTagId),
     staleTime: 0,
     retry: 1,
   });
@@ -5139,7 +5139,7 @@ export default function Admin() {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });
       setLinkDialogOpen(false);
       toast({ title: "Link atualizado com sucesso" });
-      if (editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag)) {
+      if (editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag || editingLink.voalleContractTagId)) {
         try {
           const syncRes = await apiRequest("POST", `/api/links/${variables.id}/voalle-sync`);
           const syncResult = await syncRes.json();
@@ -5497,7 +5497,7 @@ export default function Admin() {
                   <DialogTitle>{editingLink ? "Editar Link" : "Novo Link"}</DialogTitle>
                 </DialogHeader>
 
-                {editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag) && (
+                {editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag || editingLink.voalleContractTagId) && (
                   <div data-testid="voalle-compare-panel-admin">
                     {voalleCompareLoading ? (
                       <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">

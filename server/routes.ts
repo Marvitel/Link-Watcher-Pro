@@ -3049,7 +3049,7 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link não encontrado" });
       }
 
-      if (!link.voalleConnectionId && !link.voalleContractTagServiceTag) {
+      if (!link.voalleConnectionId && !link.voalleContractTagServiceTag && !link.voalleContractTagId) {
         return res.json({ available: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
       }
 
@@ -3094,8 +3094,19 @@ export async function registerRoutes(
           console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via etiqueta: ${voalleConn.id}`);
         }
       }
+      if (!voalleConn && link.voalleContractTagId) {
+        voalleConn = result.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
+        if (voalleConn) {
+          const updates: Record<string, any> = { voalleConnectionId: voalleConn.id };
+          if (voalleConn.contractServiceTag?.serviceTag) {
+            updates.voalleContractTagServiceTag = voalleConn.contractServiceTag.serviceTag;
+          }
+          await storage.updateLink(linkId, updates);
+          console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via contractTagId ${link.voalleContractTagId}: ${voalleConn.id}`);
+        }
+      }
       if (!voalleConn) {
-        return res.json({ available: false, message: `Conexão não encontrada no Voalle (ID: ${link.voalleConnectionId || 'N/A'}, Tag: ${link.voalleContractTagServiceTag || 'N/A'})` });
+        return res.json({ available: false, message: `Conexão não encontrada no Voalle (ID: ${link.voalleConnectionId || 'N/A'}, Tag: ${link.voalleContractTagServiceTag || 'N/A'}, TagId: ${link.voalleContractTagId || 'N/A'})` });
       }
 
       const divergences: Array<{ field: string; label: string; local: any; voalle: any }> = [];
@@ -3270,10 +3281,6 @@ export async function registerRoutes(
         return res.status(404).json({ success: false, error: "Link não encontrado" });
       }
 
-      if (!link.voalleConnectionId && !link.voalleContractTagServiceTag) {
-        return res.json({ success: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
-      }
-
       const client = await storage.getClient(link.clientId);
       if (!client) {
         return res.json({ success: false, message: "Cliente não encontrado" });
@@ -3288,7 +3295,7 @@ export async function registerRoutes(
 
       let connectionId = link.voalleConnectionId;
 
-      if (!connectionId && link.voalleContractTagServiceTag) {
+      if (!connectionId) {
         const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
         const portalUsername = client.voallePortalUsername || null;
         let portalPassword: string | null = null;
@@ -3299,19 +3306,43 @@ export async function registerRoutes(
         }
 
         if (!voalleCustomerId || !portalUsername || !portalPassword) {
+          if (!link.voalleContractTagServiceTag && !link.voalleContractTagId) {
+            return res.json({ success: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
+          }
           return res.json({ success: false, message: "Cliente sem credenciais do portal Voalle para descobrir conexão" });
         }
 
-        const lookupResult = await adapter.findConnectionByServiceTag({
-          voalleCustomerId, portalUsername, portalPassword,
-          serviceTag: link.voalleContractTagServiceTag,
-        });
-        if (!lookupResult.success || !lookupResult.connection) {
-          return res.json({ success: false, message: lookupResult.message || "Conexão não encontrada por etiqueta" });
+        if (link.voalleContractTagServiceTag) {
+          const lookupResult = await adapter.findConnectionByServiceTag({
+            voalleCustomerId, portalUsername, portalPassword,
+            serviceTag: link.voalleContractTagServiceTag,
+          });
+          if (lookupResult.success && lookupResult.connection) {
+            connectionId = lookupResult.connection.id;
+            await storage.updateLink(linkId, { voalleConnectionId: connectionId });
+            console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via etiqueta: ${connectionId}`);
+          }
         }
-        connectionId = lookupResult.connection.id;
-        await storage.updateLink(linkId, { voalleConnectionId: connectionId });
-        console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via etiqueta: ${connectionId}`);
+
+        if (!connectionId && link.voalleContractTagId) {
+          const connResult = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+          if (connResult.success && connResult.connections?.length) {
+            const match = connResult.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
+            if (match) {
+              connectionId = match.id;
+              const serviceTag = match.contractServiceTag?.serviceTag || null;
+              await storage.updateLink(linkId, { 
+                voalleConnectionId: connectionId,
+                ...(serviceTag ? { voalleContractTagServiceTag: serviceTag } : {}),
+              });
+              console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via contractTagId ${link.voalleContractTagId}: ${connectionId}`);
+            }
+          }
+        }
+
+        if (!connectionId) {
+          return res.json({ success: false, message: "Conexão não encontrada no Voalle para este link" });
+        }
       }
 
       if (!connectionId) {

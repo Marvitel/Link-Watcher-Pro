@@ -249,7 +249,7 @@ export default function LinkDetail() {
 
   const { data: voalleCompare, isLoading: voalleCompareLoading, isError: voalleCompareError, refetch: refetchVoalleCompare } = useQuery<VoalleCompareResult>({
     queryKey: ["/api/links", linkId, "voalle-compare"],
-    enabled: editDialogOpen && !!(link?.voalleConnectionId || link?.voalleContractTagServiceTag),
+    enabled: editDialogOpen && !!(link?.voalleConnectionId || link?.voalleContractTagServiceTag || link?.voalleContractTagId),
     staleTime: 0,
     retry: 1,
   });
@@ -1714,7 +1714,7 @@ export default function LinkDetail() {
             <DialogTitle>Editar Link</DialogTitle>
           </DialogHeader>
 
-          {(link?.voalleConnectionId || link?.voalleContractTagServiceTag) && (
+          {(link?.voalleConnectionId || link?.voalleContractTagServiceTag || link?.voalleContractTagId) && (
             <div data-testid="voalle-compare-panel">
               {voalleCompareLoading ? (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
