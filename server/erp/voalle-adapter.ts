@@ -1028,7 +1028,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       authenticationAccessPointId?: number | null;
       authenticationSplitterId?: number | null;
       splitterPort?: number | null;
-    }
+    },
+    currentPassword?: string
   ): Promise<{ success: boolean; message?: string; apiResponse?: string }> {
     if (!this.isConfigured()) {
       return { success: false, message: "API principal do Voalle não configurada" };
@@ -1036,8 +1037,12 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = { id: connectionId };
-      if (this.providerConfig?.apiPassword) {
+      if (currentPassword) {
+        payload.password = currentPassword;
+        console.log(`[VoalleAdapter] Usando senha PPPoE atual da conexão (preserva senha do cliente)`);
+      } else if (this.providerConfig?.apiPassword) {
         payload.password = this.providerConfig.apiPassword;
+        console.log(`[VoalleAdapter] AVISO: Usando apiPassword (senha PPPoE atual não disponível)`);
       }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
