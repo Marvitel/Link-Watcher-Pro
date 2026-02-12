@@ -1023,7 +1023,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return { success: false, message: "API principal do Voalle não configurada" };
     }
     try {
-      console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}:`, fields);
+      console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = {};
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
@@ -1037,6 +1037,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       }
       const token = await this.authenticate();
       const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/authentications/${connectionId}`;
+      console.log(`[VoalleAdapter] PUT ${url.replace(/\/authentications\/\d+/, '/authentications/***')}`);
+      console.log(`[VoalleAdapter] Payload keys:`, Object.keys(payload).join(', '));
       const headers: Record<string, string> = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -1049,12 +1051,13 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         headers,
         body: JSON.stringify(payload),
       });
+      const responseText = await response.text();
+      console.log(`[VoalleAdapter] Response: HTTP ${response.status} - ${responseText.substring(0, 200)}`);
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Voalle API error: ${response.status} - ${errorText}`);
+        throw new Error(`Voalle API error: ${response.status} - ${responseText}`);
       }
       console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
-      return { success: true };
+      return { success: true, message: `Conexão ${connectionId} atualizada (HTTP ${response.status})` };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[VoalleAdapter] Erro ao atualizar conexão ${connectionId}:`, msg);

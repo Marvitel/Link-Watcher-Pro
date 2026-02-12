@@ -3099,11 +3099,14 @@ export async function registerRoutes(
       }
 
       const divergences: Array<{ field: string; label: string; local: any; voalle: any }> = [];
+      const allFields: Array<{ field: string; label: string; local: any; voalle: any; match: boolean }> = [];
 
       const compare = (field: string, label: string, localVal: any, voalleVal: any) => {
         const l = localVal === undefined || localVal === null || localVal === '' ? null : String(localVal).trim();
         const v = voalleVal === undefined || voalleVal === null || voalleVal === '' ? null : String(voalleVal).trim();
-        if (l !== v) {
+        const isMatch = l === v;
+        allFields.push({ field, label, local: localVal ?? null, voalle: voalleVal ?? null, match: isMatch });
+        if (!isMatch) {
           divergences.push({ field, label, local: localVal ?? null, voalle: voalleVal ?? null });
         }
       };
@@ -3116,11 +3119,13 @@ export async function registerRoutes(
         compare('voalleContractTagServiceTag', 'Etiqueta (Service Tag)', link.voalleContractTagServiceTag, voalleConn.contractServiceTag.serviceTag);
       }
       
-      if (voalleConn.authenticationAccessPoint) {
-        const voalleApId = voalleConn.authenticationAccessPoint.id;
-        const voalleApTitle = voalleConn.authenticationAccessPoint.title || `#${voalleApId}`;
-        if (voalleApId && link.voalleAccessPointId !== voalleApId) {
-          await storage.updateLink(linkId, { voalleAccessPointId: voalleApId });
+      {
+        const voalleApId = voalleConn.authenticationAccessPoint?.id || null;
+        const voalleApTitle = voalleConn.authenticationAccessPoint?.title || null;
+        if (voalleApId) {
+          if (link.voalleAccessPointId !== voalleApId) {
+            await storage.updateLink(linkId, { voalleAccessPointId: voalleApId });
+          }
         }
         let localOltName: string | null = null;
         let voalleMatchesLocal = false;
@@ -3144,12 +3149,21 @@ export async function registerRoutes(
             }
           }
         }
-        if (!voalleMatchesLocal) {
+        const localDisplay = localOltName || '(nenhuma OLT vinculada)';
+        const voalleDisplay = voalleApId ? `${voalleApTitle || 'Ponto de Acesso'} (ID: ${voalleApId})` : '(vazio)';
+        allFields.push({ 
+          field: 'voalleAccessPointId', 
+          label: 'Ponto de Acesso (OLT)', 
+          local: localDisplay, 
+          voalle: voalleDisplay, 
+          match: voalleMatchesLocal || !voalleApId 
+        });
+        if (!voalleMatchesLocal && voalleApId) {
           divergences.push({
             field: 'voalleAccessPointId',
             label: 'Ponto de Acesso (OLT)',
-            local: localOltName || '(nenhuma OLT vinculada)',
-            voalle: `${voalleApTitle} (ID: ${voalleApId})`,
+            local: localDisplay,
+            voalle: voalleDisplay,
           });
         }
       }
@@ -3158,12 +3172,15 @@ export async function registerRoutes(
         compare('monitoredIp', 'IP Monitorado', link.monitoredIp, voalleConn.ipAuthentication.ip);
       }
       
-      if (voalleConn.lat) {
-        compare('latitude', 'Latitude', link.latitude, voalleConn.lat);
-      }
-      if (voalleConn.lng) {
-        compare('longitude', 'Longitude', link.longitude, voalleConn.lng);
-      }
+      const normalizeCoord = (val: any): string | null => {
+        if (val === null || val === undefined || val === '') return null;
+        let s = String(val).trim().replace(',', '.');
+        const num = parseFloat(s);
+        if (isNaN(num)) return s;
+        return num.toString();
+      };
+      compare('latitude', 'Latitude', normalizeCoord(link.latitude), normalizeCoord(voalleConn.lat));
+      compare('longitude', 'Longitude', normalizeCoord(link.longitude), normalizeCoord(voalleConn.lng));
 
       if (voalleConn.peopleAddress) {
         const addr = voalleConn.peopleAddress;
@@ -3173,6 +3190,17 @@ export async function registerRoutes(
         }
         const voalleAddr = [streetPart, addr.number, addr.neighborhood].filter(Boolean).join(', ');
         compare('address', 'Endereço', link.address, voalleAddr);
+      }
+
+      if (voalleConn.authenticationConcentrator) {
+        const concName = voalleConn.authenticationConcentrator.title || voalleConn.authenticationConcentrator.name;
+        allFields.push({ field: 'concentrator', label: 'Concentrador', local: null, voalle: concName || null, match: true });
+      }
+      if (voalleConn.serviceProduct) {
+        allFields.push({ field: 'serviceProduct', label: 'Produto/Serviço', local: null, voalle: voalleConn.serviceProduct.title || null, match: true });
+      }
+      if (voalleConn.contract) {
+        allFields.push({ field: 'contractId', label: 'Contrato', local: null, voalle: `#${voalleConn.contract.id}` || null, match: true });
       }
 
       const ozmapDivergences: Array<{ field: string; label: string; local: any; ozmap: any }> = [];
@@ -3197,6 +3225,7 @@ export async function registerRoutes(
         voalleConnectionId: link.voalleConnectionId,
         voalleActive,
         divergences,
+        allFields,
         ozmapDivergences: ozmapDivergences.length > 0 ? ozmapDivergences : undefined,
         voalleData: {
           id: voalleConn.id,
@@ -3281,14 +3310,27 @@ export async function registerRoutes(
         return res.json({ success: false, message: "Não foi possível determinar a conexão Voalle" });
       }
 
+      const updatedLink = await storage.getLink(linkId);
+      if (!updatedLink) {
+        return res.json({ success: false, message: "Link não encontrado após atualização" });
+      }
+
       const fields: Record<string, any> = {};
-      if (link.slotOlt !== null && link.slotOlt !== undefined) fields.slotOlt = link.slotOlt;
-      if (link.portOlt !== null && link.portOlt !== undefined) fields.portOlt = link.portOlt;
-      if (link.equipmentSerialNumber) fields.equipmentSerialNumber = link.equipmentSerialNumber;
-      if (link.latitude) fields.lat = link.latitude;
-      if (link.longitude) fields.lng = link.longitude;
-      if (link.oltId) {
-        const olt = await storage.getOlt(link.oltId);
+      if (updatedLink.slotOlt !== null && updatedLink.slotOlt !== undefined) fields.slotOlt = updatedLink.slotOlt;
+      if (updatedLink.portOlt !== null && updatedLink.portOlt !== undefined) fields.portOlt = updatedLink.portOlt;
+      if (updatedLink.equipmentSerialNumber) fields.equipmentSerialNumber = updatedLink.equipmentSerialNumber;
+      if (updatedLink.latitude) {
+        let lat = String(updatedLink.latitude).trim().replace(',', '.');
+        const latNum = parseFloat(lat);
+        if (!isNaN(latNum)) fields.lat = latNum.toString();
+      }
+      if (updatedLink.longitude) {
+        let lng = String(updatedLink.longitude).trim().replace(',', '.');
+        const lngNum = parseFloat(lng);
+        if (!isNaN(lngNum)) fields.lng = lngNum.toString();
+      }
+      if (updatedLink.oltId) {
+        const olt = await storage.getOlt(updatedLink.oltId);
         if (olt) {
           const oltVoalleIds = (olt as any).voalleIds;
           if (oltVoalleIds) {
@@ -3296,8 +3338,8 @@ export async function registerRoutes(
             if (!isNaN(firstId)) fields.authenticationAccessPointId = firstId;
           }
         }
-      } else if (link.switchId) {
-        const sw = await storage.getSwitch(link.switchId);
+      } else if (updatedLink.switchId) {
+        const sw = await storage.getSwitch(updatedLink.switchId);
         if (sw) {
           const swVoalleIds = (sw as any).voalleIds;
           if (swVoalleIds) {
@@ -3307,16 +3349,19 @@ export async function registerRoutes(
         }
       }
 
+      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: campos a sincronizar: ${Object.keys(fields).join(', ')}`);
+
       if (Object.keys(fields).length === 0) {
         return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });
       }
 
       const updateResult = await adapter.updateConnectionFields(connectionId, fields);
       if (!updateResult.success) {
+        console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);
         return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
       }
 
-      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados`);
+      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados com sucesso`);
       res.json({ 
         success: true, 
         message: `${Object.keys(fields).length} campo(s) sincronizado(s) com Voalle`,

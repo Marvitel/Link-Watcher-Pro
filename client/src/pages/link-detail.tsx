@@ -242,6 +242,7 @@ export default function LinkDetail() {
     voalleConnectionId?: number;
     voalleActive?: boolean;
     divergences?: Array<{ field: string; label: string; local: any; voalle: any }>;
+    allFields?: Array<{ field: string; label: string; local: any; voalle: any; match: boolean }>;
     ozmapDivergences?: Array<{ field: string; label: string; local: any; ozmap: any }>;
     voalleData?: any;
   }
@@ -307,11 +308,20 @@ export default function LinkDetail() {
         if (syncData.success && syncData.synced > 0) {
           toast({ title: `Sincronizado com Voalle: ${syncData.synced} campo(s)` });
           queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "voalle-compare"] });
-        } else if (!syncData.success && syncData.message) {
-          console.log("[Voalle Sync] Não sincronizado:", syncData.message);
+        } else if (!syncData.success) {
+          toast({ 
+            title: "Erro ao sincronizar com Voalle", 
+            description: syncData.message || "Falha na sincronização",
+            variant: "destructive",
+          });
         }
-      } catch (syncError) {
-        console.log("[Voalle Sync] Falha na sincronização:", syncError);
+      } catch (syncError: any) {
+        console.error("[Voalle Sync] Falha na sincronização:", syncError);
+        toast({ 
+          title: "Erro ao sincronizar com Voalle", 
+          description: syncError?.message || "Erro de comunicação",
+          variant: "destructive",
+        });
       }
     },
     onError: () => {
@@ -1711,13 +1721,29 @@ export default function LinkDetail() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Comparando com Voalle...
                 </div>
-              ) : voalleCompare?.available && voalleCompare.divergences && voalleCompare.divergences.length > 0 ? (
-                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
+              ) : voalleCompare?.available && voalleCompare.allFields ? (
+                <div className={`rounded-md border p-3 space-y-2 ${
+                  voalleCompare.divergences && voalleCompare.divergences.length > 0
+                    ? 'border-yellow-500/30 bg-yellow-500/5'
+                    : 'border-green-500/20 bg-green-500/5'
+                }`}>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                      <GitCompare className="h-4 w-4" />
-                      {voalleCompare.divergences.length} divergência{voalleCompare.divergences.length > 1 ? 's' : ''} com Voalle
-                      <span className="text-xs font-normal text-muted-foreground">(Conexão #{voalleCompare.voalleConnectionId})</span>
+                    <div className={`flex items-center gap-2 text-sm font-medium ${
+                      voalleCompare.divergences && voalleCompare.divergences.length > 0
+                        ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      {voalleCompare.divergences && voalleCompare.divergences.length > 0 ? (
+                        <GitCompare className="h-4 w-4" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      {voalleCompare.divergences && voalleCompare.divergences.length > 0
+                        ? `${voalleCompare.divergences.length} divergência${voalleCompare.divergences.length > 1 ? 's' : ''} com Voalle`
+                        : 'Dados sincronizados com Voalle'}
+                      {voalleCompare.voalleConnectionId && (
+                        <span className="text-xs font-normal text-muted-foreground">(Conexão #{voalleCompare.voalleConnectionId})</span>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -1728,25 +1754,31 @@ export default function LinkDetail() {
                       <RefreshCw className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="space-y-1">
-                    {voalleCompare.divergences.map((d, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs rounded px-2 py-1 bg-background/50" data-testid={`voalle-divergence-${i}`}>
-                        <span className="font-medium min-w-[140px] text-muted-foreground">{d.label}</span>
-                        <span className="text-red-500 dark:text-red-400 truncate max-w-[200px]" title={d.local ?? '(vazio)'}>
-                          {d.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
-                        </span>
-                        <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        <span className="text-green-600 dark:text-green-400 truncate max-w-[200px]" title={d.voalle ?? '(vazio)'}>
-                          {d.voalle ?? <span className="italic text-muted-foreground">(vazio)</span>}
-                        </span>
+                  <div className="space-y-0.5">
+                    {voalleCompare.allFields.map((f, i) => (
+                      <div key={i} className={`flex items-center gap-2 text-xs rounded px-2 py-1 ${!f.match ? 'bg-background/50' : ''}`} data-testid={`voalle-field-${i}`}>
+                        <span className="font-medium min-w-[140px] text-muted-foreground">{f.label}</span>
+                        {f.match ? (
+                          <>
+                            <Check className="h-3 w-3 shrink-0 text-green-500" />
+                            <span className="text-muted-foreground truncate max-w-[300px]" title={String(f.local ?? f.voalle ?? '(vazio)')}>
+                              {f.local ?? f.voalle ?? <span className="italic">(vazio)</span>}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-red-500 dark:text-red-400 truncate max-w-[180px]" title={String(f.local ?? '(vazio)')}>
+                              {f.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                            </span>
+                            <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            <span className="text-green-600 dark:text-green-400 truncate max-w-[180px]" title={String(f.voalle ?? '(vazio)')}>
+                              {f.voalle ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                            </span>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : voalleCompare?.available && voalleCompare.divergences?.length === 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/5 border border-green-500/20 text-sm text-green-600 dark:text-green-400">
-                  <Check className="h-4 w-4" />
-                  Dados sincronizados com Voalle (Conexão #{voalleCompare.voalleConnectionId})
                 </div>
               ) : voalleCompareError ? (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-red-500/5 border border-red-500/20 text-sm text-muted-foreground">
