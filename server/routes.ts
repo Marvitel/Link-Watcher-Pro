@@ -3117,7 +3117,13 @@ export async function registerRoutes(
       }
       
       if (voalleConn.authenticationAccessPoint) {
-        compare('voalleAccessPointId', 'ID Ponto de Acesso', link.voalleAccessPointId, voalleConn.authenticationAccessPoint.id);
+        const voalleApId = voalleConn.authenticationAccessPoint.id;
+        if (!link.voalleAccessPointId && voalleApId) {
+          await storage.updateLink(linkId, { voalleAccessPointId: voalleApId });
+          console.log(`[Voalle Compare] Link ${linkId}: voalleAccessPointId auto-preenchido: ${voalleApId}`);
+        } else {
+          compare('voalleAccessPointId', 'ID Ponto de Acesso', link.voalleAccessPointId, voalleApId);
+        }
       }
 
       if (voalleConn.ipAuthentication) {
@@ -3133,7 +3139,11 @@ export async function registerRoutes(
 
       if (voalleConn.peopleAddress) {
         const addr = voalleConn.peopleAddress;
-        const voalleAddr = [addr.streetType, addr.street, addr.number, addr.neighborhood].filter(Boolean).join(' ');
+        let streetPart = addr.street || '';
+        if (addr.streetType && streetPart && !streetPart.toLowerCase().startsWith(addr.streetType.toLowerCase())) {
+          streetPart = `${addr.streetType} ${streetPart}`;
+        }
+        const voalleAddr = [streetPart, addr.number, addr.neighborhood].filter(Boolean).join(', ');
         compare('address', 'Endereço', link.address, voalleAddr);
       }
 
