@@ -3459,7 +3459,23 @@ export async function registerRoutes(
 
       let updateResult = { success: true, message: '', apiResponse: '' };
       if (Object.keys(fields).length > 0) {
-        const currentPppoePassword = voalleConn?.pppoePassword || voalleConn?.password || undefined;
+        let currentPppoePassword = voalleConn?.pppoePassword || voalleConn?.password || undefined;
+        if (!currentPppoePassword) {
+          const pppoeUser = voalleConn?.pppoeUser || updatedLink.pppoeUser;
+          if (pppoeUser) {
+            console.log(`[Voalle Sync] Senha PPPoE não encontrada via Portal API, buscando no RADIUS para ${pppoeUser}`);
+            try {
+              const { getRadiusPassword } = await import("./radius");
+              currentPppoePassword = (await getRadiusPassword(pppoeUser)) || undefined;
+            } catch (radErr) {
+              console.error(`[Voalle Sync] Erro ao buscar senha RADIUS:`, radErr);
+            }
+          }
+        }
+        if (!currentPppoePassword) {
+          console.log(`[Voalle Sync] Senha PPPoE não disponível (Portal API e RADIUS). Sync bloqueado.`);
+          return res.json({ success: false, message: "Senha PPPoE atual não encontrada. Impossível sincronizar sem alterar a senha do cliente." });
+        }
         updateResult = await adapter.updateConnectionFields(connectionId, fields, currentPppoePassword);
         if (!updateResult.success) {
           console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);

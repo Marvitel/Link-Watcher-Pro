@@ -1,0 +1,25 @@
+fev 12 18:23:46 link-monitor npm[3873983]: [VoalleAdapter] IP Block: 192.168.77.1/24 (validLanIp: 192.168.77.1, validLanIpClass: 24)
+fev 12 18:23:46 link-monitor npm[3873983]: [VoalleAdapter] Portal API: 92 etiquetas ativas de 92 conexões
+fev 12 18:23:48 link-monitor npm[3873983]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:23:48 link-monitor npm[3873983]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Encontradas 1 solicitações
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:23:49 link-monitor npm[3873983]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Atualizando conexão 1532: campos=slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] PUT ***/external/integrations/thirdparty/updateconnection/1532
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Payload: {"id":1532,"password":null,"slotOlt":1,"portOlt":4,"equipmentSerialNumber":"DACM91779910","authenticationAccessPointId":119}
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] syn-v1-token: configurado (ab71...)
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Response: HTTP 200 - Body: {"success":false,"messages":[{"message":"Senha não informada.","code":null,"type":"Error"}],"response":null,"dataResponseType":null,"elapsedTime":null}
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] API retornou success=false: Senha não informada.
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 18:23:51 link-monitor npm[3873983]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 18:23:52 link-monitor npm[3873983]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 18:23:54 link-monitor npm[3873983]: [VoalleAdapter] 92 conexões ativas de 92 total

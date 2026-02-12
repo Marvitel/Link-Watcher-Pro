@@ -1016,6 +1016,34 @@ export async function getMacFromRadiusByIp(ip: string): Promise<string | null> {
   return mac;
 }
 
+export async function getRadiusPassword(username: string): Promise<string | null> {
+  const pool = await getRadiusDbPool();
+  if (!pool) {
+    console.log(`[RADIUS DB] Pool não disponível para buscar senha de ${username}`);
+    return null;
+  }
+  try {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT value FROM radcheck WHERE username = $1 AND attribute IN ('Cleartext-Password', 'User-Password', 'Password') LIMIT 1`,
+        [username]
+      );
+      if (result.rows.length > 0) {
+        console.log(`[RADIUS DB] Senha encontrada para ${username} (${result.rows[0].value.length} chars)`);
+        return result.rows[0].value;
+      }
+      console.log(`[RADIUS DB] Nenhuma senha encontrada para ${username} no radcheck`);
+      return null;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error(`[RADIUS DB] Erro ao buscar senha de ${username}:`, error);
+    return null;
+  }
+}
+
 export async function closeRadiusDbPool(): Promise<void> {
   if (radiusDbPool) {
     await radiusDbPool.end();

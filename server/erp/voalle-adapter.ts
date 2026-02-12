@@ -927,6 +927,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           portOlt: number | null;
           equipmentSerialNumber: string | null;
           equipmentUser: string | null;
+          user: string | null;
+          password: string | null;
           ipAuthentication: { id: number; ip: string } | null;
           contract: { id: number; contract_number: string; description: string; status: number } | null;
           serviceProduct: { id: number; title: string } | null;
@@ -967,6 +969,8 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           portOlt: conn.portOlt,
           equipmentSerialNumber: conn.equipmentSerialNumber,
           equipmentUser: conn.equipmentUser,
+          user: conn.user || null,
+          password: conn.password || null,
           contract: conn.contract,
           serviceProduct: conn.serviceProduct,
           contractServiceTag: conn.contractServiceTag,
@@ -1038,7 +1042,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = { id: connectionId };
-      payload.password = currentPassword || null;
+      if (currentPassword) {
+        payload.password = currentPassword;
+      } else {
+        return { success: false, message: "Senha PPPoE atual necessária para updateconnection" };
+      }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
