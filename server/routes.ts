@@ -3118,7 +3118,27 @@ export async function registerRoutes(
       if (voalleConn.contractServiceTag) {
         compare('voalleContractTagServiceTag', 'Etiqueta (Service Tag)', link.voalleContractTagServiceTag, voalleConn.contractServiceTag.serviceTag);
       }
-      
+
+      {
+        const voalleSplitter = voalleConn.authenticationSplitter;
+        const localSplitterName = link.ozmapSplitterName || link.zabbixSplitterName || null;
+        const voalleSplitterName = voalleSplitter?.title || null;
+        const localSplitterPort = link.ozmapSplitterPort || link.zabbixSplitterPort || (link.voalleSplitterPort !== null && link.voalleSplitterPort !== undefined ? String(link.voalleSplitterPort) : null);
+        const voalleSplitterPort = voalleSplitter?.port !== null && voalleSplitter?.port !== undefined ? String(voalleSplitter.port) : null;
+        
+        const splitterNameMatch = !voalleSplitterName || (localSplitterName?.trim().toLowerCase() === voalleSplitterName?.trim().toLowerCase());
+        allFields.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName, match: splitterNameMatch });
+        if (!splitterNameMatch) {
+          divergences.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName });
+        }
+
+        const splitterPortMatch = !voalleSplitterPort || (localSplitterPort?.trim() === voalleSplitterPort?.trim());
+        allFields.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort, match: splitterPortMatch });
+        if (!splitterPortMatch) {
+          divergences.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort });
+        }
+      }
+
       {
         const voalleApId = voalleConn.authenticationAccessPoint?.id || null;
         const voalleApTitle = voalleConn.authenticationAccessPoint?.title || null;

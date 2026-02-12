@@ -881,6 +881,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       contractServiceTag: { id: number; description: string; serviceTag: string } | null;
       authenticationConcentrator: { id: number; title: string } | null;
       authenticationAccessPoint: { id: number; title: string } | null;
+      authenticationSplitter: { id: number; title: string; port: number | null } | null;
       peopleAddress: {
         streetType: string;
         street: string;
@@ -924,6 +925,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           contractServiceTag: { id: number; description: string; serviceTag: string } | null;
           authenticationConcentrator: { id: number; title: string } | null;
           authenticationAccessPoint: { id: number; title: string } | null;
+          authenticationSplitter: { id: number; title: string; port: number | null } | null;
           peopleAddress: {
             streetType: string;
             street: string;
@@ -962,6 +964,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
           contractServiceTag: conn.contractServiceTag,
           authenticationConcentrator: conn.authenticationConcentrator,
           authenticationAccessPoint: conn.authenticationAccessPoint,
+          authenticationSplitter: (conn as any).authenticationSplitter || null,
           peopleAddress: conn.peopleAddress,
         }));
       
