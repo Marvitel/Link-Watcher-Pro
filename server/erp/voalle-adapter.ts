@@ -1037,9 +1037,6 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = { id: connectionId };
-      if (this.providerConfig?.apiPassword) {
-        payload.password = this.providerConfig.apiPassword;
-      }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
