@@ -162,8 +162,9 @@ export class VoalleAdapter implements ErpAdapter {
       "Content-Type": "application/json",
     };
 
-    if (this.config.apiSynV1Token) {
-      headers["syn-v1-token"] = this.config.apiSynV1Token;
+    const synV1Token = this.config.apiSynV1Token || process.env.VOALLE_SYN_V1_TOKEN;
+    if (synV1Token) {
+      headers["syn-v1-token"] = synV1Token;
     }
 
     const response = await fetch(url, {
@@ -1046,8 +1047,9 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
       };
-      if (this.config.apiSynV1Token) {
-        headers["syn-v1-token"] = this.config.apiSynV1Token;
+      const synV1Token = this.config.apiSynV1Token || process.env.VOALLE_SYN_V1_TOKEN;
+      if (synV1Token) {
+        headers["syn-v1-token"] = synV1Token;
       }
       const response = await fetch(url, {
         method: "PUT",
