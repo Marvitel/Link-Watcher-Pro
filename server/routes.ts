@@ -3111,7 +3111,7 @@ export async function registerRoutes(
       }
 
       const divergences: Array<{ field: string; label: string; local: any; voalle: any }> = [];
-      const allFields: Array<{ field: string; label: string; local: any; voalle: any; match: boolean }> = [];
+      const allFields: Array<{ field: string; label: string; local: any; voalle: any; match: boolean; note?: string | null }> = [];
 
       const compare = (field: string, label: string, localVal: any, voalleVal: any) => {
         const l = localVal === undefined || localVal === null || localVal === '' ? null : String(localVal).trim();
@@ -3149,10 +3149,12 @@ export async function registerRoutes(
         const voalleSplitterId = voalleSplitter?.id || null;
         const voalleSplitterPort = voalleSplitter?.port !== null && voalleSplitter?.port !== undefined ? String(voalleSplitter.port) : null;
 
-        console.log(`[Voalle Compare] Splitter debug - link.splitterId=${link.splitterId}, link.voalleSplitterId=${link.voalleSplitterId}, link.voalleSplitterPort=${link.voalleSplitterPort}, ozmapName=${link.ozmapSplitterName}, zabbixName=${link.zabbixSplitterName}, localName=${localSplitterName}, voalleName=${voalleSplitterName}, voalleId=${voalleSplitterId}, voallePort=${voalleSplitterPort}`);
-
         let splitterNameMatch = false;
-        if (!voalleSplitterName) {
+        let splitterNote: string | null = null;
+        if (!voalleSplitterName && localSplitterName) {
+          splitterNameMatch = true;
+          splitterNote = 'Portal API não retorna splitter';
+        } else if (!voalleSplitterName) {
           splitterNameMatch = true;
         } else if (localSplitterName && localSplitterName.trim().toLowerCase() === voalleSplitterName.trim().toLowerCase()) {
           splitterNameMatch = true;
@@ -3161,13 +3163,17 @@ export async function registerRoutes(
           if (!localSplitterName) localSplitterName = voalleSplitterName;
         }
 
-        allFields.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName, match: splitterNameMatch });
+        allFields.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName || (localSplitterName ? '(N/D via Portal)' : null), match: splitterNameMatch, note: splitterNote });
         if (!splitterNameMatch) {
           divergences.push({ field: 'splitterName', label: 'Splitter', local: localSplitterName, voalle: voalleSplitterName });
         }
 
         let splitterPortMatch = false;
-        if (!voalleSplitterPort) {
+        let splitterPortNote: string | null = null;
+        if (!voalleSplitterPort && localSplitterPort) {
+          splitterPortMatch = true;
+          splitterPortNote = 'Portal API não retorna porta';
+        } else if (!voalleSplitterPort) {
           splitterPortMatch = true;
         } else if (localSplitterPort && localSplitterPort.trim() === voalleSplitterPort.trim()) {
           splitterPortMatch = true;
@@ -3176,7 +3182,7 @@ export async function registerRoutes(
           if (!localSplitterPort) localSplitterPort = voalleSplitterPort;
         }
 
-        allFields.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort, match: splitterPortMatch });
+        allFields.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort || (localSplitterPort ? '(N/D via Portal)' : null), match: splitterPortMatch, note: splitterPortNote });
         if (!splitterPortMatch) {
           divergences.push({ field: 'splitterPort', label: 'Porta Splitter', local: localSplitterPort, voalle: voalleSplitterPort });
         }
@@ -3414,24 +3420,60 @@ export async function registerRoutes(
 
       console.log(`[Voalle Sync] Local → Voalle: Link ${linkId} -> Conexão ${connectionId}: campos: ${Object.keys(fields).join(', ')}`);
 
-      if (Object.keys(fields).length === 0) {
+      let addressSynced = false;
+      try {
+        const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
+        const portalUsername = client.voallePortalUsername || null;
+        let portalPassword: string | null = null;
+        try {
+          portalPassword = client.voallePortalPassword ? decrypt(client.voallePortalPassword) : null;
+        } catch { portalPassword = null; }
+
+        if (voalleCustomerId && portalUsername && portalPassword) {
+          const connResult = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+          if (connResult.success && connResult.connections?.length) {
+            const voalleConn = connResult.connections.find((c: any) => c.id === connectionId);
+            if (voalleConn?.peopleAddress) {
+              const addr = voalleConn.peopleAddress;
+              let streetPart = addr.street || '';
+              if (addr.streetType && streetPart && !streetPart.toLowerCase().startsWith(addr.streetType.toLowerCase())) {
+                streetPart = `${addr.streetType} ${streetPart}`;
+              }
+              const voalleAddr = [streetPart, addr.number, addr.neighborhood].filter(Boolean).join(', ');
+              if (voalleAddr && voalleAddr !== updatedLink.address) {
+                await storage.updateLink(linkId, { address: voalleAddr });
+                addressSynced = true;
+                console.log(`[Voalle Sync] Endereço atualizado Voalle → Local: "${voalleAddr}"`);
+              }
+            }
+          }
+        }
+      } catch (addrErr) {
+        console.error(`[Voalle Sync] Erro ao sincronizar endereço:`, addrErr);
+      }
+
+      if (Object.keys(fields).length === 0 && !addressSynced) {
         return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });
       }
 
-      const updateResult = await adapter.updateConnectionFields(connectionId, fields);
-      if (!updateResult.success) {
-        console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);
-        return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
+      let updateResult = { success: true, message: '', apiResponse: '' };
+      if (Object.keys(fields).length > 0) {
+        updateResult = await adapter.updateConnectionFields(connectionId, fields);
+        if (!updateResult.success) {
+          console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);
+          return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
+        }
       }
 
-      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados`);
+      const totalSynced = Object.keys(fields).length + (addressSynced ? 1 : 0);
+      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${totalSynced} campos sincronizados${addressSynced ? ' (inclui endereço Voalle→Local)' : ''}`);
       console.log(`[Voalle Sync] Payload enviado: ${JSON.stringify(fields)}`);
       console.log(`[Voalle Sync] Resposta API: ${updateResult.apiResponse || 'N/A'}`);
       res.json({ 
         success: true, 
-        message: `${Object.keys(fields).length} campo(s) sincronizado(s) com Voalle`,
-        synced: Object.keys(fields).length,
-        fields: Object.keys(fields),
+        message: `${totalSynced} campo(s) sincronizado(s)${addressSynced ? ' (endereço importado do Voalle)' : ''}`,
+        synced: totalSynced,
+        fields: [...Object.keys(fields), ...(addressSynced ? ['address'] : [])],
         apiResponse: updateResult.apiResponse,
       });
     } catch (error: any) {

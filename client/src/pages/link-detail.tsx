@@ -1756,7 +1756,7 @@ export default function LinkDetail() {
                     </Button>
                   </div>
                   <div className="space-y-0.5">
-                    {voalleCompare.allFields.map((f, i) => (
+                    {voalleCompare.allFields.map((f: any, i: number) => (
                       <div key={i} className={`flex items-center gap-2 text-xs rounded px-2 py-1 ${!f.match ? 'bg-background/50' : ''}`} data-testid={`voalle-field-${i}`}>
                         <span className="font-medium min-w-[140px] text-muted-foreground">{f.label}</span>
                         {f.match ? (
@@ -1765,6 +1765,9 @@ export default function LinkDetail() {
                             <span className="text-muted-foreground truncate max-w-[300px]" title={String(f.local ?? f.voalle ?? '(vazio)')}>
                               {f.local ?? f.voalle ?? <span className="italic">(vazio)</span>}
                             </span>
+                            {f.note && (
+                              <span className="text-[10px] italic text-muted-foreground/70 ml-1">({f.note})</span>
+                            )}
                           </>
                         ) : (
                           <>
