@@ -3149,6 +3149,8 @@ export async function registerRoutes(
         const voalleSplitterId = voalleSplitter?.id || null;
         const voalleSplitterPort = voalleSplitter?.port !== null && voalleSplitter?.port !== undefined ? String(voalleSplitter.port) : null;
 
+        console.log(`[Voalle Compare] Splitter debug - link.splitterId=${link.splitterId}, link.voalleSplitterId=${link.voalleSplitterId}, link.voalleSplitterPort=${link.voalleSplitterPort}, ozmapName=${link.ozmapSplitterName}, zabbixName=${link.zabbixSplitterName}, localName=${localSplitterName}, voalleName=${voalleSplitterName}, voalleId=${voalleSplitterId}, voallePort=${voalleSplitterPort}`);
+
         let splitterNameMatch = false;
         if (!voalleSplitterName) {
           splitterNameMatch = true;
