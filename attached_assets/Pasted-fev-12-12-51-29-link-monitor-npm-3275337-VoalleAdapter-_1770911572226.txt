@@ -1,0 +1,35 @@
+fev 12 12:51:29 link-monitor npm[3275337]: [VoalleAdapter] Conexão 2823 atualizada com sucesso (HTTP 200)
+fev 12 12:51:30 link-monitor npm[3275337]: [VoalleAdapter] Portal autenticado para 32864795000172, token expira em 14400s
+fev 12 12:51:31 link-monitor npm[3275337]: [VoalleAdapter] 57 conexões ativas de 57 total
+fev 12 12:52:04 link-monitor npm[3275337]: [VoalleAdapter] Buscando solicitações: /solicitationlist/230?allAssignments=False
+fev 12 12:52:04 link-monitor npm[3275337]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:52:05 link-monitor npm[3275337]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 12:52:05 link-monitor npm[3275337]: [VoalleAdapter] Encontradas 3 solicitações
+fev 12 12:52:10 link-monitor npm[3275337]: [VoalleAdapter] Buscando solicitações: /solicitationlist/230?allAssignments=False
+fev 12 12:52:10 link-monitor npm[3275337]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:52:10 link-monitor npm[3275337]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 12:52:10 link-monitor npm[3275337]: [VoalleAdapter] Encontradas 3 solicitações
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 230)
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:52:20 link-monitor npm[3275337]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 230, user: 32864795000172)
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Portal autenticado para 32864795000172, token expira em 14400s
+fev 12 12:52:20 link-monitor npm[3275337]: [VoalleAdapter] Portal autenticado para 32864795000172, token expira em 14400s
+fev 12 12:52:22 link-monitor npm[3275337]: [VoalleAdapter] 57 conexões ativas de 57 total
+fev 12 12:52:22 link-monitor npm[3275337]: [VoalleAdapter] Portal API: 56 etiquetas ativas de 57 conexões
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 230)
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Buscando solicitações: /solicitationlist/230?allAssignments=False
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Atualizando conexão 2823: campos=slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] PUT ***/external/integrations/thirdparty/updateconnection/2823
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Payload: {"id":2823,"password":"2d7c3201335e59b273bfe2d2a95d37a2bdcd590d","slotOlt":1,"portOlt":7,"equipmentSerialNumber":"TPLG0D58D178","authenticationAccessPointId":32}
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] syn-v1-token: configurado (ab71...)
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Encontradas 3 solicitações
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Response: HTTP 200 - Body: {"success":true,"messages":null,"response":true,"dataResponseType":"Conexão atualizada com sucesso.","elapsedTime":null}
+fev 12 12:52:35 link-monitor npm[3275337]: [VoalleAdapter] Conexão 2823 atualizada com sucesso (HTTP 200)
+fev 12 12:52:36 link-monitor npm[3275337]: [VoalleAdapter] Portal autenticado para 32864795000172, token expira em 14400s
+fev 12 12:52:37 link-monitor npm[3275337]: [VoalleAdapter] 57 conexões ativas de 57 total
