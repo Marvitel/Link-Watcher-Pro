@@ -3192,16 +3192,6 @@ export async function registerRoutes(
         compare('monitoredIp', 'IP Monitorado', link.monitoredIp, voalleConn.ipAuthentication.ip);
       }
       
-      const normalizeCoord = (val: any): string | null => {
-        if (val === null || val === undefined || val === '') return null;
-        let s = String(val).trim().replace(',', '.');
-        const num = parseFloat(s);
-        if (isNaN(num)) return s;
-        return num.toString();
-      };
-      compare('latitude', 'Latitude', normalizeCoord(link.latitude), normalizeCoord(voalleConn.lat));
-      compare('longitude', 'Longitude', normalizeCoord(link.longitude), normalizeCoord(voalleConn.lng));
-
       if (voalleConn.peopleAddress) {
         const addr = voalleConn.peopleAddress;
         let streetPart = addr.street || '';
@@ -3258,8 +3248,6 @@ export async function registerRoutes(
           authenticationConcentrator: voalleConn.authenticationConcentrator,
           ipAuthentication: voalleConn.ipAuthentication,
           serviceProduct: voalleConn.serviceProduct,
-          lat: voalleConn.lat,
-          lng: voalleConn.lng,
           peopleAddress: voalleConn.peopleAddress,
           contract: voalleConn.contract,
         }
@@ -3361,7 +3349,7 @@ export async function registerRoutes(
       if (updatedLink.voalleSplitterId) fields.authenticationSplitterId = updatedLink.voalleSplitterId;
       if (updatedLink.voalleSplitterPort !== null && updatedLink.voalleSplitterPort !== undefined) fields.splitterPort = updatedLink.voalleSplitterPort;
 
-      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: campos a sincronizar: ${Object.keys(fields).join(', ')}`);
+      console.log(`[Voalle Sync] Local → Voalle: Link ${linkId} -> Conexão ${connectionId}: campos: ${Object.keys(fields).join(', ')}`);
 
       if (Object.keys(fields).length === 0) {
         return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });
