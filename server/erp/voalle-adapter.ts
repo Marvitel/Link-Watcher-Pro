@@ -975,6 +975,92 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
   }
 
   /**
+   * Busca uma conexão específica por service tag entre as conexões de um cliente
+   * Útil para links criados manualmente que possuem etiqueta mas não têm voalleConnectionId
+   */
+  async findConnectionByServiceTag(
+    params: {
+      voalleCustomerId: string;
+      portalUsername: string;
+      portalPassword: string;
+      serviceTag: string;
+    }
+  ): Promise<{
+    success: boolean;
+    connection?: any;
+    message?: string;
+  }> {
+    const { serviceTag, ...connParams } = params;
+    const result = await this.getConnections(connParams);
+    if (!result.success) {
+      return { success: false, message: result.message };
+    }
+    const conn = result.connections.find(
+      (c: any) => c.contractServiceTag?.serviceTag === serviceTag
+    );
+    if (!conn) {
+      return { success: false, message: `Nenhuma conexão encontrada com a etiqueta "${serviceTag}"` };
+    }
+    return { success: true, connection: conn };
+  }
+
+  /**
+   * Atualiza campos de uma autenticação/conexão no Voalle via API principal (porta 45715)
+   * Campos atualizáveis: slotOlt, portOlt, equipmentSerialNumber, lat, lng
+   */
+  async updateConnectionFields(
+    connectionId: number,
+    fields: {
+      slotOlt?: number | null;
+      portOlt?: number | null;
+      equipmentSerialNumber?: string | null;
+      lat?: string | null;
+      lng?: string | null;
+    }
+  ): Promise<{ success: boolean; message?: string }> {
+    if (!this.isConfigured()) {
+      return { success: false, message: "API principal do Voalle não configurada" };
+    }
+    try {
+      console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}:`, fields);
+      const payload: Record<string, any> = {};
+      if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
+      if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
+      if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
+      if (fields.lat !== undefined) payload.lat = fields.lat;
+      if (fields.lng !== undefined) payload.lng = fields.lng;
+
+      if (!this.config || !this.config.apiUrl) {
+        return { success: false, message: "URL da API Voalle não configurada" };
+      }
+      const token = await this.authenticate();
+      const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/authentications/${connectionId}`;
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+      if (this.config.apiSynV1Token) {
+        headers["syn-v1-token"] = this.config.apiSynV1Token;
+      }
+      const response = await fetch(url, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Voalle API error: ${response.status} - ${errorText}`);
+      }
+      console.log(`[VoalleAdapter] Conexão ${connectionId} atualizada com sucesso (HTTP ${response.status})`);
+      return { success: true };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[VoalleAdapter] Erro ao atualizar conexão ${connectionId}:`, msg);
+      return { success: false, message: msg };
+    }
+  }
+
+  /**
    * Obtém um token de serviço para o Portal Voalle usando credenciais administrativas
    * Este token permite chamar endpoints administrativos como recuperação de senha
    */

@@ -248,7 +248,7 @@ export default function LinkDetail() {
 
   const { data: voalleCompare, isLoading: voalleCompareLoading, isError: voalleCompareError, refetch: refetchVoalleCompare } = useQuery<VoalleCompareResult>({
     queryKey: ["/api/links", linkId, "voalle-compare"],
-    enabled: editDialogOpen && !!link?.voalleConnectionId,
+    enabled: editDialogOpen && !!(link?.voalleConnectionId || link?.voalleContractTagServiceTag),
     staleTime: 0,
     retry: 1,
   });
@@ -294,12 +294,25 @@ export default function LinkDetail() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({ title: "Link atualizado com sucesso" });
       setEditDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
       queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
       queryClient.invalidateQueries({ queryKey: [`/api/links/${linkId}/cpes`] });
+
+      try {
+        const syncRes = await apiRequest("POST", `/api/links/${linkId}/voalle-sync`);
+        const syncData = await syncRes.json();
+        if (syncData.success && syncData.synced > 0) {
+          toast({ title: `Sincronizado com Voalle: ${syncData.synced} campo(s)` });
+          queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "voalle-compare"] });
+        } else if (!syncData.success && syncData.message) {
+          console.log("[Voalle Sync] Não sincronizado:", syncData.message);
+        }
+      } catch (syncError) {
+        console.log("[Voalle Sync] Falha na sincronização:", syncError);
+      }
     },
     onError: () => {
       toast({ title: "Erro ao atualizar link", variant: "destructive" });
@@ -1691,7 +1704,7 @@ export default function LinkDetail() {
             <DialogTitle>Editar Link</DialogTitle>
           </DialogHeader>
 
-          {link?.voalleConnectionId && (
+          {(link?.voalleConnectionId || link?.voalleContractTagServiceTag) && (
             <div data-testid="voalle-compare-panel">
               {voalleCompareLoading ? (
                 <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">

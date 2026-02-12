@@ -3049,8 +3049,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Link não encontrado" });
       }
 
-      if (!link.voalleConnectionId) {
-        return res.json({ available: false, message: "Link não possui ID de conexão Voalle (voalleConnectionId)" });
+      if (!link.voalleConnectionId && !link.voalleContractTagServiceTag) {
+        return res.json({ available: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
       }
 
       const client = await storage.getClient(link.clientId);
@@ -3083,9 +3083,19 @@ export async function registerRoutes(
         return res.json({ available: false, message: result.message || "Não foi possível buscar conexões do Voalle" });
       }
 
-      const voalleConn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
+      let voalleConn: any = null;
+      if (link.voalleConnectionId) {
+        voalleConn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
+      }
+      if (!voalleConn && link.voalleContractTagServiceTag) {
+        voalleConn = result.connections.find((c: any) => c.contractServiceTag?.serviceTag === link.voalleContractTagServiceTag);
+        if (voalleConn && !link.voalleConnectionId) {
+          await storage.updateLink(linkId, { voalleConnectionId: voalleConn.id });
+          console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via etiqueta: ${voalleConn.id}`);
+        }
+      }
       if (!voalleConn) {
-        return res.json({ available: false, message: `Conexão ${link.voalleConnectionId} não encontrada no Voalle (pode estar inativa)` });
+        return res.json({ available: false, message: `Conexão não encontrada no Voalle (ID: ${link.voalleConnectionId || 'N/A'}, Tag: ${link.voalleContractTagServiceTag || 'N/A'})` });
       }
 
       const divergences: Array<{ field: string; label: string; local: any; voalle: any }> = [];
@@ -3173,6 +3183,95 @@ export async function registerRoutes(
         .replace(/username[=:]["']?[^\s&"']+["']?/gi, "username=[REDACTED]");
       console.error("[Voalle Compare] Error:", sanitizedMessage);
       res.status(500).json({ error: "Erro ao comparar com Voalle" });
+    }
+  });
+
+  // Sincronizar dados do link com Voalle ao salvar
+  app.post("/api/links/:linkId/voalle-sync", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ success: false, error: "Link não encontrado" });
+      }
+
+      if (!link.voalleConnectionId && !link.voalleContractTagServiceTag) {
+        return res.json({ success: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
+      }
+
+      const client = await storage.getClient(link.clientId);
+      if (!client) {
+        return res.json({ success: false, message: "Cliente não encontrado" });
+      }
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.json({ success: false, message: "Integração Voalle não configurada" });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+
+      let connectionId = link.voalleConnectionId;
+
+      if (!connectionId && link.voalleContractTagServiceTag) {
+        const voalleCustomerId = client.voalleCustomerId ? client.voalleCustomerId.toString() : null;
+        const portalUsername = client.voallePortalUsername || null;
+        let portalPassword: string | null = null;
+        try {
+          portalPassword = client.voallePortalPassword ? decrypt(client.voallePortalPassword) : null;
+        } catch {
+          portalPassword = null;
+        }
+
+        if (!voalleCustomerId || !portalUsername || !portalPassword) {
+          return res.json({ success: false, message: "Cliente sem credenciais do portal Voalle para descobrir conexão" });
+        }
+
+        const lookupResult = await adapter.findConnectionByServiceTag({
+          voalleCustomerId, portalUsername, portalPassword,
+          serviceTag: link.voalleContractTagServiceTag,
+        });
+        if (!lookupResult.success || !lookupResult.connection) {
+          return res.json({ success: false, message: lookupResult.message || "Conexão não encontrada por etiqueta" });
+        }
+        connectionId = lookupResult.connection.id;
+        await storage.updateLink(linkId, { voalleConnectionId: connectionId });
+        console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via etiqueta: ${connectionId}`);
+      }
+
+      if (!connectionId) {
+        return res.json({ success: false, message: "Não foi possível determinar a conexão Voalle" });
+      }
+
+      const fields: Record<string, any> = {};
+      if (link.slotOlt !== null && link.slotOlt !== undefined) fields.slotOlt = link.slotOlt;
+      if (link.portOlt !== null && link.portOlt !== undefined) fields.portOlt = link.portOlt;
+      if (link.equipmentSerialNumber) fields.equipmentSerialNumber = link.equipmentSerialNumber;
+      if (link.latitude) fields.lat = link.latitude;
+      if (link.longitude) fields.lng = link.longitude;
+
+      if (Object.keys(fields).length === 0) {
+        return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });
+      }
+
+      const updateResult = await adapter.updateConnectionFields(connectionId, fields);
+      if (!updateResult.success) {
+        return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
+      }
+
+      console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${Object.keys(fields).length} campos sincronizados`);
+      res.json({ 
+        success: true, 
+        message: `${Object.keys(fields).length} campo(s) sincronizado(s) com Voalle`,
+        synced: Object.keys(fields).length,
+        fields: Object.keys(fields),
+      });
+    } catch (error: any) {
+      const sanitizedMessage = (error?.message || "Erro desconhecido")
+        .replace(/password[=:]["']?[^\s&"']+["']?/gi, "password=[REDACTED]")
+        .replace(/username[=:]["']?[^\s&"']+["']?/gi, "username=[REDACTED]");
+      console.error("[Voalle Sync] Error:", sanitizedMessage);
+      res.status(500).json({ success: false, error: "Erro ao sincronizar com Voalle" });
     }
   });
 
