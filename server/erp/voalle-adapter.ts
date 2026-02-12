@@ -781,6 +781,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
 
             return {
               id: conn.contractServiceTag!.id,
+              connectionId: conn.id,
               serviceTag: conn.contractServiceTag!.serviceTag,
               description: conn.contractServiceTag!.description || conn.serviceProduct?.title,
               equipmentUser: equipmentUserPrefix,
@@ -1039,10 +1040,10 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const payload: Record<string, any> = { id: connectionId };
       if (currentPassword) {
         payload.password = currentPassword;
-        console.log(`[VoalleAdapter] Usando senha PPPoE atual da conexão (preserva senha do cliente)`);
-      } else if (this.providerConfig?.apiPassword) {
-        payload.password = this.providerConfig.apiPassword;
-        console.log(`[VoalleAdapter] AVISO: Usando apiPassword (senha PPPoE atual não disponível)`);
+        console.log(`[VoalleAdapter] Usando senha PPPoE atual da conexão (${currentPassword.length} chars, início: ${currentPassword.substring(0, 3)}...)`);
+      } else {
+        console.log(`[VoalleAdapter] AVISO: Senha PPPoE atual NÃO disponível - sync bloqueado para proteger senha do cliente`);
+        return { success: false, message: "Senha PPPoE atual da conexão não disponível. Sincronização bloqueada para proteger a senha do cliente." };
       }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;

@@ -3433,7 +3433,7 @@ export async function registerRoutes(
         if (voalleCustomerId && portalUsername && portalPassword) {
           const connResult = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
           if (connResult.success && connResult.connections?.length) {
-            voalleConn = connResult.connections.find((c: any) => c.id === connectionId);
+            voalleConn = connResult.connections.find((c: any) => c.connectionId === connectionId || c.id === connectionId);
             if (voalleConn?.peopleAddress) {
               const addr = voalleConn.peopleAddress;
               let streetPart = addr.street || '';
