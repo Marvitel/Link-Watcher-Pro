@@ -1018,7 +1018,6 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
    * Atualiza campos de uma conexão no Voalle via API principal (porta 45715)
    * Endpoint: PUT /updateconnection/{connectionId}
    * Campos atualizáveis: slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId, authenticationSplitterId, port
-   * Campo obrigatório: password (senha do equipamento/PPPoE da conexão)
    */
   async updateConnectionFields(
     connectionId: number,
@@ -1029,7 +1028,6 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       authenticationAccessPointId?: number | null;
       authenticationSplitterId?: number | null;
       splitterPort?: number | null;
-      pppoePassword?: string | null;
     }
   ): Promise<{ success: boolean; message?: string; apiResponse?: string }> {
     if (!this.isConfigured()) {
@@ -1038,9 +1036,6 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     try {
       console.log(`[VoalleAdapter] Atualizando conexão ${connectionId}: campos=${Object.keys(fields).join(', ')}`);
       const payload: Record<string, any> = { id: connectionId };
-      if (fields.pppoePassword) {
-        payload.password = fields.pppoePassword;
-      }
       if (fields.slotOlt !== undefined) payload.slotOlt = fields.slotOlt;
       if (fields.portOlt !== undefined) payload.portOlt = fields.portOlt;
       if (fields.equipmentSerialNumber !== undefined) payload.equipmentSerialNumber = fields.equipmentSerialNumber;
@@ -1054,9 +1049,7 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       const token = await this.authenticate();
       const url = `${this.config.apiUrl}:45715/external/integrations/thirdparty/updateconnection/${connectionId}`;
       console.log(`[VoalleAdapter] PUT ${url.replace(/^https?:\/\/[^/]+/, '***')}`);
-      const safePayload = { ...payload };
-      if (safePayload.password) safePayload.password = '[REDACTED]';
-      console.log(`[VoalleAdapter] Payload:`, JSON.stringify(safePayload));
+      console.log(`[VoalleAdapter] Payload:`, JSON.stringify(payload));
       const headers: Record<string, string> = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",

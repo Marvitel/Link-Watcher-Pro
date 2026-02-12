@@ -3453,10 +3453,6 @@ export async function registerRoutes(
         console.error(`[Voalle Sync] Erro ao sincronizar endereço:`, addrErr);
       }
 
-      if (updatedLink.pppoePassword) {
-        fields.pppoePassword = updatedLink.pppoePassword;
-      }
-
       if (Object.keys(fields).length === 0 && !addressSynced) {
         return res.json({ success: true, message: "Nenhum campo para sincronizar", synced: 0 });
       }
@@ -3470,18 +3466,15 @@ export async function registerRoutes(
         }
       }
 
-      const syncedFields = Object.keys(fields).filter(f => f !== 'pppoePassword');
-      const totalSynced = syncedFields.length + (addressSynced ? 1 : 0);
-      const safeFields = { ...fields };
-      if (safeFields.pppoePassword) safeFields.pppoePassword = '[REDACTED]';
+      const totalSynced = Object.keys(fields).length + (addressSynced ? 1 : 0);
       console.log(`[Voalle Sync] Link ${linkId} -> Conexão ${connectionId}: ${totalSynced} campos sincronizados${addressSynced ? ' (inclui endereço Voalle→Local)' : ''}`);
-      console.log(`[Voalle Sync] Payload enviado: ${JSON.stringify(safeFields)}`);
+      console.log(`[Voalle Sync] Payload enviado: ${JSON.stringify(fields)}`);
       console.log(`[Voalle Sync] Resposta API: ${updateResult.apiResponse || 'N/A'}`);
       res.json({ 
         success: true, 
         message: `${totalSynced} campo(s) sincronizado(s)${addressSynced ? ' (endereço importado do Voalle)' : ''}`,
         synced: totalSynced,
-        fields: [...syncedFields, ...(addressSynced ? ['address'] : [])],
+        fields: [...Object.keys(fields), ...(addressSynced ? ['address'] : [])],
         apiResponse: updateResult.apiResponse,
       });
     } catch (error: any) {
