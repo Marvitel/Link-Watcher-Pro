@@ -1,0 +1,40 @@
+root@link-monitor:~# journalctl -u link-monitor -f | grep VoalleAdapter
+fev 12 12:19:23 link-monitor npm[3214144]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 12:19:23 link-monitor npm[3214144]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:19:23 link-monitor npm[3214144]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+fev 12 12:19:23 link-monitor npm[3214144]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 94, user: parkville)
+fev 12 12:19:23 link-monitor npm[3214144]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:19:24 link-monitor npm[3214144]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:19:24 link-monitor npm[3214144]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] 92 conexões ativas de 92 total
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.90.1/24 (validLanIp: 192.168.90.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.3.1/24 (validLanIp: 192.168.3.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.54.1/24 (validLanIp: 192.168.54.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.83.1/24 (validLanIp: 192.168.83.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.63.1/24 (validLanIp: 192.168.63.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.23.1/24 (validLanIp: 192.168.23.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.2.1/24 (validLanIp: 192.168.2.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.86.1/24 (validLanIp: 192.168.86.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.68.1/24 (validLanIp: 192.168.68.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.86.1/24 (validLanIp: 192.168.86.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.89.1/24 (validLanIp: 192.168.89.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.46.1/24 (validLanIp: 192.168.46.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.86.1/24 (validLanIp: 192.168.86.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.21.1/23 (validLanIp: 192.168.21.1, validLanIpClass: 23)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.86.1/24 (validLanIp: 192.168.86.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.51.1/24 (validLanIp: 192.168.51.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] IP Block: 192.168.77.1/24 (validLanIp: 192.168.77.1, validLanIpClass: 24)
+fev 12 12:19:26 link-monitor npm[3214144]: [VoalleAdapter] Portal API: 92 etiquetas ativas de 92 conexões
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 94)
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] Buscando solicitações: /solicitationlist/94?allAssignments=False
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] Atualizando conexão 721: campos=slotOlt, portOlt, equipmentSerialNumber, authenticationAccessPointId
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] PUT ***/external/integrations/thirdparty/updateconnection/721
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] Payload: {"id":721,"slotOlt":2,"portOlt":4,"equipmentSerialNumber":"DACM917482E2","authenticationAccessPointId":119}
+fev 12 12:19:28 link-monitor npm[3214144]: [VoalleAdapter] syn-v1-token: configurado (ab71...)
+fev 12 12:19:29 link-monitor npm[3214144]: [VoalleAdapter] Campos disponíveis na solicitação: [
+fev 12 12:19:29 link-monitor npm[3214144]: [VoalleAdapter] Encontradas 3 solicitações
+fev 12 12:19:29 link-monitor npm[3214144]: [VoalleAdapter] Response: HTTP 200 - Body: {"success":false,"messages":[{"message":"Senha não informada.","code":null,"type":"Error"}],"response":null,"dataResponseType":null,"elapsedTime":null}
+fev 12 12:19:29 link-monitor npm[3214144]: [VoalleAdapter] Conexão 721 atualizada com sucesso (HTTP 200)
+fev 12 12:19:30 link-monitor npm[3214144]: [VoalleAdapter] Portal autenticado para parkville, token expira em 14400s
+fev 12 12:19:32 link-monitor npm[3214144]: [VoalleAdapter] 92 conexões ativas de 92 total
