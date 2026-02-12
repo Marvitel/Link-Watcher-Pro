@@ -62,6 +62,9 @@ import {
   Calendar,
   Terminal,
   Target,
+  GitCompare,
+  ArrowRight,
+  MapPin,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
@@ -4996,6 +4999,23 @@ export default function Admin() {
     enabled: isSuperAdmin,
   });
 
+  interface VoalleCompareResult {
+    available: boolean;
+    message?: string;
+    voalleConnectionId?: number;
+    voalleActive?: boolean;
+    divergences?: Array<{ field: string; label: string; local: any; voalle: any }>;
+    ozmapDivergences?: Array<{ field: string; label: string; local: any; ozmap: any }>;
+    voalleData?: any;
+  }
+
+  const { data: voalleCompare, isLoading: voalleCompareLoading, isError: voalleCompareError, refetch: refetchVoalleCompare } = useQuery<VoalleCompareResult>({
+    queryKey: ["/api/links", editingLink?.id, "voalle-compare"],
+    enabled: linkDialogOpen && !!editingLink && !!(editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag),
+    staleTime: 0,
+    retry: 1,
+  });
+
   useEffect(() => {
     if (editLinkProcessed || !links) return;
     const params = new URLSearchParams(window.location.search);
@@ -5114,11 +5134,22 @@ export default function Admin() {
       }
       return response;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/links"] });
       setLinkDialogOpen(false);
-      setEditingLink(undefined);
       toast({ title: "Link atualizado com sucesso" });
+      if (editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag)) {
+        try {
+          const syncRes = await apiRequest("POST", `/api/links/${variables.id}/voalle-sync`);
+          const syncResult = await syncRes.json();
+          if (syncResult.success) {
+            toast({ title: "Voalle sincronizado", description: syncResult.message || "Dados enviados com sucesso" });
+          } else if (syncResult.message) {
+            toast({ title: "Voalle", description: syncResult.message });
+          }
+        } catch {}
+      }
+      setEditingLink(undefined);
       if (editLinkReturnId) {
         const returnId = editLinkReturnId;
         setEditLinkReturnId(null);
@@ -5453,6 +5484,95 @@ export default function Admin() {
                 <DialogHeader>
                   <DialogTitle>{editingLink ? "Editar Link" : "Novo Link"}</DialogTitle>
                 </DialogHeader>
+
+                {editingLink && (editingLink.voalleConnectionId || editingLink.voalleContractTagServiceTag) && (
+                  <div data-testid="voalle-compare-panel-admin">
+                    {voalleCompareLoading ? (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Comparando com Voalle...
+                      </div>
+                    ) : voalleCompare?.available && voalleCompare.divergences && voalleCompare.divergences.length > 0 ? (
+                      <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                            <GitCompare className="h-4 w-4" />
+                            {voalleCompare.divergences.length} divergência{voalleCompare.divergences.length > 1 ? 's' : ''} com Voalle
+                            {voalleCompare.voalleConnectionId && (
+                              <span className="text-xs font-normal text-muted-foreground">(Conexão #{voalleCompare.voalleConnectionId})</span>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => refetchVoalleCompare()}
+                            data-testid="button-refresh-voalle-compare-admin"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="space-y-1">
+                          {voalleCompare.divergences.map((d, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs rounded px-2 py-1 bg-background/50" data-testid={`voalle-divergence-admin-${i}`}>
+                              <span className="font-medium min-w-[140px] text-muted-foreground">{d.label}</span>
+                              <span className="text-red-500 dark:text-red-400 truncate max-w-[200px]" title={d.local ?? '(vazio)'}>
+                                {d.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                              </span>
+                              <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="text-green-600 dark:text-green-400 truncate max-w-[200px]" title={d.voalle ?? '(vazio)'}>
+                                {d.voalle ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : voalleCompare?.available && voalleCompare.divergences?.length === 0 ? (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-green-500/5 border border-green-500/20 text-sm text-green-600 dark:text-green-400">
+                        <Check className="h-4 w-4" />
+                        Dados sincronizados com Voalle
+                        {voalleCompare.voalleConnectionId && ` (Conexão #${voalleCompare.voalleConnectionId})`}
+                      </div>
+                    ) : voalleCompareError ? (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-red-500/5 border border-red-500/20 text-sm text-muted-foreground">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        Erro ao comparar com Voalle
+                        <Button variant="ghost" size="sm" onClick={() => refetchVoalleCompare()} className="ml-auto">
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : voalleCompare && !voalleCompare.available ? (
+                      <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+                        <GitCompare className="h-4 w-4" />
+                        {voalleCompare.message}
+                      </div>
+                    ) : null}
+
+                    {voalleCompare?.available && voalleCompare.ozmapDivergences && voalleCompare.ozmapDivergences.length > 0 && (
+                      <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 space-y-2 mt-2">
+                        <div className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                          <MapPin className="h-4 w-4" />
+                          {voalleCompare.ozmapDivergences.length} divergência{voalleCompare.ozmapDivergences.length > 1 ? 's' : ''} com OZmap
+                          <span className="text-xs font-normal text-muted-foreground">(dados de splitter/OLT)</span>
+                        </div>
+                        <div className="space-y-1">
+                          {voalleCompare.ozmapDivergences.map((d, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs rounded px-2 py-1 bg-background/50" data-testid={`ozmap-divergence-admin-${i}`}>
+                              <span className="font-medium min-w-[140px] text-muted-foreground">{d.label}</span>
+                              <span className="text-red-500 dark:text-red-400 truncate max-w-[200px]" title={d.local ?? '(vazio)'}>
+                                {d.local ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                              </span>
+                              <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="text-blue-600 dark:text-blue-400 truncate max-w-[200px]" title={d.ozmap ?? '(vazio)'}>
+                                {d.ozmap ?? <span className="italic text-muted-foreground">(vazio)</span>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <LinkForm
                   link={editingLink}
                   onSave={handleSaveLink}
