@@ -1001,7 +1001,13 @@ export async function getOpticalSignal(
                   if (value > 100 || value < -100) {
                     value = value / 100;
                   }
-                  result[key] = Math.round(value * 10) / 10;
+                  const rounded = Math.round(value * 10) / 10;
+                  if (rounded === 0) {
+                    console.log(`[SNMP Optical] ${key} retornou 0 dBm - tratando como sem leitura (equipamento possivelmente desligado)`);
+                    result[key] = null;
+                  } else {
+                    result[key] = rounded;
+                  }
                 }
               }
             }

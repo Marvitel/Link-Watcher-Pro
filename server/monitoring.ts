@@ -2118,7 +2118,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
   // Fallback para links não-L2 que ping marcou como offline:
   // Se tem monitoramento óptico habilitado e sinal bom, ou tráfego SNMP ativo, considerar operacional
   if (!isL2Link && pingBasedOffline && !link.icmpBlocked) {
-    const hasGoodOptical = opticalSignal && opticalSignal.rxPower !== null && opticalSignal.rxPower > -30 && link.opticalMonitoringEnabled;
+    const hasGoodOptical = opticalSignal && opticalSignal.rxPower !== null && opticalSignal.rxPower < 0 && opticalSignal.rxPower > -30 && link.opticalMonitoringEnabled;
     const hasTraffic = downloadMbps > 0 || uploadMbps > 0;
     
     if (hasGoodOptical && hasTraffic) {
