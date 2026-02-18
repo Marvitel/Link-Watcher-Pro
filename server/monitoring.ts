@@ -831,6 +831,77 @@ export async function getInterfaceTraffic(
   });
 }
 
+async function verifyInterfaceAtIndex(
+  targetIp: string,
+  profile: SnmpProfile,
+  ifIndex: number,
+  expectedName: string
+): Promise<{ matches: boolean; actualName: string | null; actualAlias: string | null }> {
+  return new Promise((resolve) => {
+    try {
+      const session = createSnmpSession(targetIp, profile);
+      const ifDescrOid = `1.3.6.1.2.1.2.2.1.2.${ifIndex}`;
+      const ifNameOid = `1.3.6.1.2.1.31.1.1.1.1.${ifIndex}`;
+      const ifAliasOid = `1.3.6.1.2.1.31.1.1.1.18.${ifIndex}`;
+
+      let sessionClosed = false;
+      const closeSession = () => {
+        if (!sessionClosed) {
+          sessionClosed = true;
+          try { session.close(); } catch {}
+        }
+      };
+
+      const snmpSession = session as unknown as {
+        get: (oids: string[], callback: (error: Error | null, varbinds: any[]) => void) => void
+      };
+
+      snmpSession.get([ifNameOid, ifDescrOid, ifAliasOid], (error: Error | null, varbinds: any[]) => {
+        closeSession();
+        if (error || !varbinds || varbinds.length < 2) {
+          resolve({ matches: false, actualName: null, actualAlias: null });
+          return;
+        }
+
+        const extractValue = (vb: any): string | null => {
+          if (!vb || vb.value === undefined || vb.type === 128 || vb.type === 129) return null;
+          const val = Buffer.isBuffer(vb.value) ? vb.value.toString('utf8') : String(vb.value);
+          if (!val || val.length === 0 || val === 'noSuchInstance' || val === 'noSuchObject') return null;
+          return val.trim();
+        };
+
+        const actualIfName = extractValue(varbinds[0]);
+        const actualIfDescr = extractValue(varbinds[1]);
+        const actualAlias = extractValue(varbinds[2]);
+
+        const actualName = actualIfName || actualIfDescr;
+
+        if (!actualName) {
+          resolve({ matches: false, actualName: null, actualAlias });
+          return;
+        }
+
+        const normalizedExpected = expectedName.toLowerCase().trim();
+        const normalizedActual = actualName.toLowerCase().trim();
+        const matches = normalizedActual === normalizedExpected || 
+                       normalizedActual.includes(normalizedExpected) ||
+                       normalizedExpected.includes(normalizedActual);
+        resolve({ matches, actualName, actualAlias });
+      });
+
+      setTimeout(() => {
+        closeSession();
+        resolve({ matches: false, actualName: null, actualAlias: null });
+      }, profile.timeout + 2000);
+    } catch {
+      resolve({ matches: false, actualName: null, actualAlias: null });
+    }
+  });
+}
+
+const IFNAME_VERIFY_INTERVAL_MS = 2 * 60 * 1000;
+const lastIfNameVerification = new Map<number, number>();
+
 // Helper function to parse SNMP values
 function parseSnmpValue(value: unknown): number {
   if (Buffer.isBuffer(value)) {
@@ -1158,8 +1229,7 @@ async function handleIfIndexAutoDiscovery(
   let searchIp = link.snmpRouterIp;
   let searchProfile = profile;
   
-  if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
-    // Buscar concentrador para obter IP e perfil SNMP
+  if (link.concentratorId) {
     const concentrator = await getConcentrator(link.concentratorId);
     if (concentrator) {
       searchIp = concentrator.ipAddress;
@@ -1211,14 +1281,34 @@ async function handleIfIndexAutoDiscovery(
   // Isso funciona em todos os vendors (Mikrotik, Cisco, Huawei, etc)
   let searchResult: { found: boolean; ifIndex: number | null; ifName?: string; ifDescr?: string; ifAlias?: string; matchType?: string; ipAddress?: string } = { found: false, ifIndex: null };
   
-  // Determinar pppoeUser: usar o campo direto ou extrair do snmpInterfaceName
+  // Determinar pppoeUser: usar o campo direto ou extrair do snmpInterfaceName ou snmpInterfaceAlias
   let effectivePppoeUser = link.pppoeUser;
   if (!effectivePppoeUser && link.snmpInterfaceName) {
-    // Extrair username de <pppoe-username> ou <ppp-username>
     const pppMatch = link.snmpInterfaceName.match(/<ppp(?:oe)?-([^>]+)>/i);
     if (pppMatch) {
       effectivePppoeUser = pppMatch[1];
       console.log(`[Monitor] ${link.name}: Extracted pppoeUser "${effectivePppoeUser}" from snmpInterfaceName`);
+    }
+  }
+  if (!effectivePppoeUser && link.snmpInterfaceAlias) {
+    effectivePppoeUser = link.snmpInterfaceAlias;
+    console.log(`[Monitor] ${link.name}: Using snmpInterfaceAlias "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi description)`);
+  }
+  
+  // For Cisco Vi links with ifIndex but no alias stored yet, try to capture alias now
+  const isCiscoViLink = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
+  if (isCiscoViLink && !link.snmpInterfaceAlias && link.snmpInterfaceIndex && searchIp) {
+    try {
+      const captureResult = await verifyInterfaceAtIndex(searchIp, searchProfile as SnmpProfile, link.snmpInterfaceIndex, link.snmpInterfaceName || '');
+      if (captureResult.actualAlias) {
+        console.log(`[Monitor] ${link.name}: Captured ifAlias "${captureResult.actualAlias}" from current ifIndex ${link.snmpInterfaceIndex} during auto-discovery`);
+        await db.update(links).set({ snmpInterfaceAlias: captureResult.actualAlias }).where(eq(links.id, link.id));
+        if (!effectivePppoeUser) {
+          effectivePppoeUser = captureResult.actualAlias;
+        }
+      }
+    } catch (aliasErr: any) {
+      console.log(`[Monitor] ${link.name}: Failed to capture ifAlias: ${aliasErr.message}`);
     }
   }
   
@@ -1294,12 +1384,19 @@ async function handleIfIndexAutoDiscovery(
   
   // Fallback: use findInterfaceByName for non-PPPoE links or if PPPoE lookup failed
   if (!searchResult.found) {
+    const isCiscoVi = /^Vi\d+\.\d+$/i.test(searchName || '');
+    const searchAlias = link.snmpInterfaceAlias || undefined;
+    
+    if (isCiscoVi && searchAlias) {
+      console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}"). Searching by ifAlias "${searchAlias}" instead (Vi names change on reconnection)`);
+    }
+    
     const ifResult = await findInterfaceByName(
       searchIp,
       snmpProfileForSearch,
-      searchName,
+      isCiscoVi && searchAlias ? searchAlias : searchName,
       link.snmpInterfaceDescr,
-      link.snmpInterfaceAlias || undefined
+      searchAlias
     );
     searchResult = {
       found: ifResult.found,
@@ -1309,6 +1406,10 @@ async function handleIfIndexAutoDiscovery(
       ifAlias: ifResult.ifAlias || undefined,
       matchType: ifResult.matchType || undefined,
     };
+    
+    if (!searchResult.found && isCiscoVi && !searchAlias) {
+      console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found and no ifAlias stored. Cannot track interface across reconnections. Please set pppoeUser or snmpInterfaceAlias.`);
+    }
   }
   
   if (searchResult.found && searchResult.ifIndex !== null) {
@@ -1316,9 +1417,9 @@ async function handleIfIndexAutoDiscovery(
     const newIfIndex = searchResult.ifIndex;
     
     if (oldIfIndex !== newIfIndex) {
-      console.log(`[Monitor] ${link.name}: ifIndex changed from ${oldIfIndex} to ${newIfIndex} (auto-discovered)`);
+      console.log(`[Monitor] ${link.name}: ifIndex changed from ${oldIfIndex} to ${newIfIndex} (auto-discovered via ${searchResult.matchType}). New ifName: ${searchResult.ifName || 'N/A'}, ifAlias: ${searchResult.ifAlias || 'N/A'}`);
+      lastIfNameVerification.delete(link.id);
       
-      // Update link with new ifIndex
       const updateData: Record<string, any> = {
         snmpInterfaceIndex: newIfIndex,
         snmpInterfaceName: searchResult.ifName || link.snmpInterfaceName,
@@ -1632,12 +1733,43 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
       
       {
+        if (trafficSourceIfIndex && link.snmpInterfaceName && trafficSourceIp) {
+          const lastVerify = lastIfNameVerification.get(link.id) || 0;
+          const nowMs = Date.now();
+          if (nowMs - lastVerify >= IFNAME_VERIFY_INTERVAL_MS) {
+            lastIfNameVerification.set(link.id, nowMs);
+            const verification = await verifyInterfaceAtIndex(
+              trafficSourceIp,
+              profile,
+              trafficSourceIfIndex,
+              link.snmpInterfaceName
+            );
+            if (verification.actualAlias && !link.snmpInterfaceAlias) {
+              console.log(`[Monitor] ${link.name}: Storing discovered ifAlias "${verification.actualAlias}" for ifIndex ${trafficSourceIfIndex}`);
+              await db.update(links).set({
+                snmpInterfaceAlias: verification.actualAlias,
+              }).where(eq(links.id, link.id));
+            }
+            if (!verification.matches && verification.actualName !== null) {
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Forcing auto-discovery.`);
+              trafficDataSuccess = false;
+              previousTrafficData.delete(link.id);
+            } else if (!verification.matches && verification.actualName === null) {
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Forcing auto-discovery.`);
+              trafficDataSuccess = false;
+              previousTrafficData.delete(link.id);
+            } else if (verification.matches) {
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"`);
+            }
+          }
+        }
+        
         const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
-        const canDoPppoeDiscovery = link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser;
-        const canDoCorporateDiscovery = link.authType === 'corporate' && link.trafficSourceType === 'concentrator' && link.concentratorId && link.vlanInterface;
+        const canDoPppoeDiscovery = (link.trafficSourceType === 'concentrator' || link.concentratorId) && link.concentratorId && (link.pppoeUser || link.snmpInterfaceName);
+        const canDoCorporateDiscovery = link.authType === 'corporate' && link.concentratorId && link.vlanInterface;
         const canDoConcentratorDiscovery = canDoPppoeDiscovery || canDoCorporateDiscovery;
         
-        const hasInterfaceForDiscovery = link.snmpInterfaceName || (link.authType === 'corporate' && link.vlanInterface) || (link.trafficSourceType === 'concentrator' && link.pppoeUser);
+        const hasInterfaceForDiscovery = link.snmpInterfaceName || (link.authType === 'corporate' && link.vlanInterface) || ((link.trafficSourceType === 'concentrator' || link.concentratorId) && link.pppoeUser);
         if (hasInterfaceForDiscovery && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
