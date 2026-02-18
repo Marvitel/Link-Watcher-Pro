@@ -1292,23 +1292,14 @@ async function handleIfIndexAutoDiscovery(
   }
   if (!effectivePppoeUser && link.snmpInterfaceAlias) {
     effectivePppoeUser = link.snmpInterfaceAlias;
-    console.log(`[Monitor] ${link.name}: Using snmpInterfaceAlias "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi description)`);
+    console.log(`[Monitor] ${link.name}: Using snmpInterfaceAlias "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi ifAlias)`);
   }
-  
-  // For Cisco Vi links with ifIndex but no alias stored yet, try to capture alias now
-  const isCiscoViLink = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
-  if (isCiscoViLink && !link.snmpInterfaceAlias && link.snmpInterfaceIndex && searchIp) {
-    try {
-      const captureResult = await verifyInterfaceAtIndex(searchIp, searchProfile as SnmpProfile, link.snmpInterfaceIndex, link.snmpInterfaceName || '');
-      if (captureResult.actualAlias) {
-        console.log(`[Monitor] ${link.name}: Captured ifAlias "${captureResult.actualAlias}" from current ifIndex ${link.snmpInterfaceIndex} during auto-discovery`);
-        await db.update(links).set({ snmpInterfaceAlias: captureResult.actualAlias }).where(eq(links.id, link.id));
-        if (!effectivePppoeUser) {
-          effectivePppoeUser = captureResult.actualAlias;
-        }
-      }
-    } catch (aliasErr: any) {
-      console.log(`[Monitor] ${link.name}: Failed to capture ifAlias: ${aliasErr.message}`);
+  // Cisco Vi: ifDescr contains PPPoE username (e.g. "rp.farolandia"), ifAlias is often empty
+  if (!effectivePppoeUser && link.snmpInterfaceDescr) {
+    const isCiscoViForPppoe = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
+    if (isCiscoViForPppoe) {
+      effectivePppoeUser = link.snmpInterfaceDescr;
+      console.log(`[Monitor] ${link.name}: Using snmpInterfaceDescr "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi ifDescr contains PPPoE username)`);
     }
   }
   
@@ -1385,10 +1376,11 @@ async function handleIfIndexAutoDiscovery(
   // Fallback: use findInterfaceByName for non-PPPoE links or if PPPoE lookup failed
   if (!searchResult.found) {
     const isCiscoVi = /^Vi\d+\.\d+$/i.test(searchName || '');
-    const searchAlias = link.snmpInterfaceAlias || undefined;
+    // For Cisco Vi, use ifAlias or ifDescr as stable search identifier (Vi names are unstable)
+    const searchAlias = link.snmpInterfaceAlias || (isCiscoVi ? link.snmpInterfaceDescr : undefined) || undefined;
     
     if (isCiscoVi && searchAlias) {
-      console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}"). Searching by ifAlias "${searchAlias}" instead (Vi names change on reconnection)`);
+      console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}"). Searching by description/alias "${searchAlias}" instead (Vi names change on reconnection)`);
     }
     
     const ifResult = await findInterfaceByName(
@@ -1408,7 +1400,7 @@ async function handleIfIndexAutoDiscovery(
     };
     
     if (!searchResult.found && isCiscoVi && !searchAlias) {
-      console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found and no ifAlias stored. Cannot track interface across reconnections. Please set pppoeUser or snmpInterfaceAlias.`);
+      console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found and no ifDescr/ifAlias stored. Cannot track interface across reconnections.`);
     }
   }
   
