@@ -1763,15 +1763,23 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               }).where(eq(links.id, link.id));
             }
             if (!verification.matches && verification.actualName !== null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Forcing immediate auto-discovery.`);
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Clearing ifIndex and forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
               previousTrafficData.delete(link.id);
-              await db.update(links).set({ ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 }).where(eq(links.id, link.id));
+              trafficSourceIfIndex = null;
+              await db.update(links).set({ 
+                snmpInterfaceIndex: null,
+                ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
+              }).where(eq(links.id, link.id));
             } else if (!verification.matches && verification.actualName === null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Forcing immediate auto-discovery.`);
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Clearing ifIndex and forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
               previousTrafficData.delete(link.id);
-              await db.update(links).set({ ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 }).where(eq(links.id, link.id));
+              trafficSourceIfIndex = null;
+              await db.update(links).set({ 
+                snmpInterfaceIndex: null,
+                ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
+              }).where(eq(links.id, link.id));
             } else if (verification.matches) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"`);
             }
