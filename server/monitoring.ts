@@ -1498,10 +1498,14 @@ async function handleIfIndexAutoDiscovery(
                   ifAlias: bestMatch.ifAlias || undefined,
                   matchType: 'cisco-vi-alias-scan',
                 };
-                await db.update(links).set({
+                const aliasScanUpdate: Record<string, any> = {
                   snmpInterfaceAlias: bestMatch.ifAlias || null,
-                }).where(eq(links.id, link.id));
-                console.log(`[Monitor] ${link.name}: Stored ifAlias "${bestMatch.ifAlias}" for future PPPoE lookups`);
+                };
+                if (!link.pppoeUser && bestMatch.ifAlias) {
+                  aliasScanUpdate.pppoeUser = bestMatch.ifAlias;
+                }
+                await db.update(links).set(aliasScanUpdate).where(eq(links.id, link.id));
+                console.log(`[Monitor] ${link.name}: Stored pppoeUser="${bestMatch.ifAlias}" and ifAlias for future PPPoE lookups`);
               } else {
                 console.log(`[Monitor] ${link.name}: No matching Vi interface found via alias scan. Search terms: [${searchTerms.join(', ')}]. Candidates: ${viCandidates.slice(0, 5).map(c => `${c.ifName}(${c.ifAlias})`).join(', ')}${viCandidates.length > 5 ? '...' : ''}`);
               }
@@ -1533,6 +1537,16 @@ async function handleIfIndexAutoDiscovery(
         ifIndexMismatchCount: 0,
         lastIfIndexValidation: now,
       };
+      
+      // Armazenar pppoeUser descoberto para futuras buscas diretas
+      // Prioridade: ifAlias da sessão > effectivePppoeUser derivado > pppoeUser existente
+      if (!link.pppoeUser && searchResult.ifAlias) {
+        updateData.pppoeUser = searchResult.ifAlias;
+        console.log(`[Monitor] ${link.name}: Armazenando pppoeUser "${searchResult.ifAlias}" descoberto via ${searchResult.matchType}`);
+      } else if (!link.pppoeUser && effectivePppoeUser) {
+        updateData.pppoeUser = effectivePppoeUser;
+        console.log(`[Monitor] ${link.name}: Armazenando pppoeUser "${effectivePppoeUser}" (derivado) após discovery bem-sucedido`);
+      }
       
       // Se já temos IP da sessão PPPoE, atualizar monitoredIp
       if (searchResult.ipAddress) {
@@ -1862,10 +1876,14 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               link.snmpInterfaceName
             );
             if (verification.actualAlias && !link.snmpInterfaceAlias) {
-              console.log(`[Monitor] ${link.name}: Storing discovered ifAlias "${verification.actualAlias}" for ifIndex ${trafficSourceIfIndex}`);
-              await db.update(links).set({
-                snmpInterfaceAlias: verification.actualAlias,
-              }).where(eq(links.id, link.id));
+              const aliasUpdate: Record<string, any> = { snmpInterfaceAlias: verification.actualAlias };
+              if (!link.pppoeUser) {
+                aliasUpdate.pppoeUser = verification.actualAlias;
+                console.log(`[Monitor] ${link.name}: Storing discovered ifAlias "${verification.actualAlias}" as pppoeUser and snmpInterfaceAlias for ifIndex ${trafficSourceIfIndex}`);
+              } else {
+                console.log(`[Monitor] ${link.name}: Storing discovered ifAlias "${verification.actualAlias}" for ifIndex ${trafficSourceIfIndex}`);
+              }
+              await db.update(links).set(aliasUpdate).where(eq(links.id, link.id));
             }
             if (!verification.matches && verification.actualName !== null) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Clearing ifIndex and forcing immediate auto-discovery.`);
