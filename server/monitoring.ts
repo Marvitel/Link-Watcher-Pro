@@ -1308,7 +1308,17 @@ async function handleIfIndexAutoDiscovery(
       effectivePppoeUser = link.snmpInterfaceDescr;
       console.log(`[Monitor] ${link.name}: Using snmpInterfaceDescr "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi ifDescr contains PPPoE username)`);
     } else if (isCiscoViForPppoe) {
-      console.log(`[Monitor] ${link.name}: Cisco Vi ifDescr is "${link.snmpInterfaceDescr}" (interface name, not PPPoE username). Cannot derive PPPoE user from stored data.`);
+      console.log(`[Monitor] ${link.name}: Cisco Vi ifDescr is "${link.snmpInterfaceDescr}" (interface name, not PPPoE username). Attempting to derive from link name...`);
+    }
+  }
+  // Last resort for Cisco Vi: derive PPPoE username pattern from link name
+  // e.g., "RP TANCREDO - 100M" → try "rp.tancredo" as PPPoE user
+  if (!effectivePppoeUser && /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '') && link.name && link.concentratorId) {
+    const namePart = link.name.split(/\s*-\s*/)[0].trim().toLowerCase();
+    if (namePart && namePart.includes(' ')) {
+      const derivedPppoeUser = namePart.replace(/\s+/g, '.');
+      effectivePppoeUser = derivedPppoeUser;
+      console.log(`[Monitor] ${link.name}: Derived effectivePppoeUser "${derivedPppoeUser}" from link name (Cisco Vi without stored PPPoE data)`);
     }
   }
   
