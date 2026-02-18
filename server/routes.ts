@@ -1087,6 +1087,8 @@ export async function registerRoutes(
         'profileId', 'invertBandwidthDirection', 'authType', 'authInterface', 'authUsername',
         'lastUpdated', 'equipmentSerialNumber', 'opticalRxBaseline', 'opticalTxBaseline',
         'mainGraphMode', 'mainGraphInterfaceIds',
+        'snmpProfileId', 'snmpInterfaceIndex', 'snmpInterfaceName', 'snmpInterfaceDescr', 'snmpInterfaceAlias',
+        'pppoeUser', 'vlanInterface',
       ]);
       const filteredBody: Record<string, any> = {};
       for (const [key, value] of Object.entries(req.body)) {
