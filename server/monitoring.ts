@@ -5,7 +5,7 @@ import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators, externalIntegrations } from "@shared/schema";
 import { eq, and, not, like, gte, isNotNull, desc, or } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
-import { findInterfaceByName, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
+import { findInterfaceByName, discoverInterfaces, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { lookupMultiplePppoeSessions } from "./concentrator";
 import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
@@ -1301,12 +1301,14 @@ async function handleIfIndexAutoDiscovery(
     effectivePppoeUser = link.snmpInterfaceAlias;
     console.log(`[Monitor] ${link.name}: Using snmpInterfaceAlias "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi ifAlias)`);
   }
-  // Cisco Vi: ifDescr contains PPPoE username (e.g. "rp.farolandia"), ifAlias is often empty
+  // Cisco Vi: ifDescr may contain PPPoE username (e.g. "rp.farolandia") but NOT when it's "Virtual-Access..." format
   if (!effectivePppoeUser && link.snmpInterfaceDescr) {
     const isCiscoViForPppoe = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
-    if (isCiscoViForPppoe) {
+    if (isCiscoViForPppoe && !/^Virtual-Access/i.test(link.snmpInterfaceDescr)) {
       effectivePppoeUser = link.snmpInterfaceDescr;
       console.log(`[Monitor] ${link.name}: Using snmpInterfaceDescr "${effectivePppoeUser}" as effectivePppoeUser (Cisco Vi ifDescr contains PPPoE username)`);
+    } else if (isCiscoViForPppoe) {
+      console.log(`[Monitor] ${link.name}: Cisco Vi ifDescr is "${link.snmpInterfaceDescr}" (interface name, not PPPoE username). Cannot derive PPPoE user from stored data.`);
     }
   }
   
@@ -1406,8 +1408,101 @@ async function handleIfIndexAutoDiscovery(
       matchType: ifResult.matchType || undefined,
     };
     
-    if (!searchResult.found && isCiscoVi && !searchAlias) {
-      console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found and no ifDescr/ifAlias stored. Cannot track interface across reconnections.`);
+    if (!searchResult.found && isCiscoVi) {
+      // Last resort for Cisco Vi: discover all interfaces on the concentrator and 
+      // find Vi interfaces whose ifAlias matches the link's pppoeUser
+      if (link.concentratorId && (link.pppoeUser || !searchAlias)) {
+        try {
+          const concentrator = await getConcentrator(link.concentratorId);
+          if (concentrator) {
+            console.log(`[Monitor] ${link.name}: Cisco Vi "${searchName}" not found. Scanning all interfaces on ${concentrator.name} to find matching Vi by alias...`);
+            
+            let scanProfile = snmpProfileForSearch;
+            if (concentrator.snmpProfileId) {
+              const [concProfile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+              if (concProfile) {
+                scanProfile = {
+                  id: concProfile.id,
+                  version: concProfile.version || '2c',
+                  port: concProfile.port || 161,
+                  community: concProfile.community,
+                  securityLevel: concProfile.securityLevel,
+                  authProtocol: concProfile.authProtocol,
+                  authPassword: concProfile.authPassword,
+                  privProtocol: concProfile.privProtocol,
+                  privPassword: concProfile.privPassword,
+                  username: concProfile.username,
+                  timeout: concProfile.timeout || 5000,
+                  retries: concProfile.retries || 1,
+                };
+              }
+            }
+            
+            const allInterfaces = await discoverInterfaces(concentrator.ipAddress, scanProfile);
+            
+            // Filter Vi interfaces with aliases
+            const viCandidates = allInterfaces.filter(iface => 
+              /^Vi\d+\.\d+$/i.test(iface.ifName || '') && iface.ifAlias && iface.ifAlias.trim()
+            );
+            
+            console.log(`[Monitor] ${link.name}: Found ${viCandidates.length} Vi interfaces with aliases on concentrator (total: ${allInterfaces.length})`);
+            
+            if (viCandidates.length > 0) {
+              const searchTerms: string[] = [];
+              if (link.pppoeUser) searchTerms.push(link.pppoeUser.toLowerCase());
+              // Try to derive PPPoE username from link name (e.g., "RP TANCREDO - 100M" → "rp.tancredo")
+              if (!link.pppoeUser && link.name) {
+                // Extract meaningful part before " - " separator (e.g., "RP TANCREDO" from "RP TANCREDO - 100M")
+                const namePart = link.name.split(/\s*-\s*/)[0].trim().toLowerCase();
+                if (namePart) {
+                  // Try "rp.tancredo" pattern (replace spaces with dots)
+                  const dotPattern = namePart.replace(/\s+/g, '.');
+                  searchTerms.push(dotPattern);
+                  // Also try just the second word if format is "PREFIX NAME" (e.g., "RP TANCREDO" → "tancredo")
+                  const words = namePart.split(/\s+/);
+                  if (words.length >= 2) {
+                    searchTerms.push(words.slice(1).join('.'));
+                  }
+                }
+              }
+              console.log(`[Monitor] ${link.name}: Cisco Vi alias scan search terms: [${searchTerms.join(', ')}]`);
+              
+              let bestMatch: typeof viCandidates[0] | null = null;
+              for (const candidate of viCandidates) {
+                const aliasLower = (candidate.ifAlias || '').toLowerCase();
+                for (const term of searchTerms) {
+                  if (aliasLower === term || aliasLower.includes(term) || term.includes(aliasLower)) {
+                    bestMatch = candidate;
+                    break;
+                  }
+                }
+                if (bestMatch) break;
+              }
+              
+              if (bestMatch) {
+                console.log(`[Monitor] ${link.name}: Found Vi interface via alias scan: ${bestMatch.ifName} (alias: "${bestMatch.ifAlias}", ifIndex: ${bestMatch.ifIndex})`);
+                searchResult = {
+                  found: true,
+                  ifIndex: bestMatch.ifIndex,
+                  ifName: bestMatch.ifName || undefined,
+                  ifAlias: bestMatch.ifAlias || undefined,
+                  matchType: 'cisco-vi-alias-scan',
+                };
+                await db.update(links).set({
+                  snmpInterfaceAlias: bestMatch.ifAlias || null,
+                }).where(eq(links.id, link.id));
+                console.log(`[Monitor] ${link.name}: Stored ifAlias "${bestMatch.ifAlias}" for future PPPoE lookups`);
+              } else {
+                console.log(`[Monitor] ${link.name}: No matching Vi interface found via alias scan. Search terms: [${searchTerms.join(', ')}]. Candidates: ${viCandidates.slice(0, 5).map(c => `${c.ifName}(${c.ifAlias})`).join(', ')}${viCandidates.length > 5 ? '...' : ''}`);
+              }
+            }
+          }
+        } catch (scanError: any) {
+          console.error(`[Monitor] ${link.name}: ifAlias scan failed: ${scanError.message}`);
+        }
+      } else if (!searchAlias) {
+        console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found. No pppoeUser or ifAlias stored - cannot track across reconnections.`);
+      }
     }
   }
   
