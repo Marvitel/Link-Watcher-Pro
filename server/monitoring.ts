@@ -1115,17 +1115,23 @@ async function handleIfIndexAutoDiscovery(
   // Traffic collection failed - increment mismatch counter
   const newMismatchCount = mismatchCount + 1;
   
-  // Only attempt auto-discovery after threshold is reached
-  if (newMismatchCount < IFINDEX_MISMATCH_THRESHOLD) {
+  // When snmpInterfaceIndex is null, skip threshold and attempt discovery immediately
+  const ifIndexIsNull = freshLink.snmpInterfaceIndex === null || freshLink.snmpInterfaceIndex === undefined;
+  
+  // Only attempt auto-discovery after threshold is reached (skip threshold if ifIndex is null)
+  if (!ifIndexIsNull && newMismatchCount < IFINDEX_MISMATCH_THRESHOLD) {
     await db.update(links).set({
       ifIndexMismatchCount: newMismatchCount,
     }).where(eq(links.id, link.id));
     return { updated: false };
   }
   
-  // Check if we should skip auto-discovery (cooldown)
-  if (lastValidation && (now.getTime() - lastValidation.getTime()) < IFINDEX_VALIDATION_INTERVAL_MS) {
-    // Still update the mismatch counter to track failures
+  if (ifIndexIsNull) {
+    console.log(`[Monitor] ${link.name}: snmpInterfaceIndex is null - attempting immediate auto-discovery (bypassing cooldown)`);
+  }
+  
+  // Check if we should skip auto-discovery (cooldown) - bypass when ifIndex is null
+  if (!ifIndexIsNull && lastValidation && (now.getTime() - lastValidation.getTime()) < IFINDEX_VALIDATION_INTERVAL_MS) {
     await db.update(links).set({
       ifIndexMismatchCount: newMismatchCount,
     }).where(eq(links.id, link.id));
@@ -1363,7 +1369,7 @@ async function handleIfIndexAutoDiscovery(
     
     if (hasPppoeForBackup || hasCorporateForBackup) {
       // Get the current concentrator to check for backup
-      const currentConcentrator = await getConcentrator(link.concentratorId);
+      const currentConcentrator = await getConcentrator(link.concentratorId!);
       
       console.log(`[Monitor] ${link.name}: Concentrador atual: ${currentConcentrator?.name || 'N/A'}, backupId=${currentConcentrator?.backupConcentratorId || 'NÃO CONFIGURADO'}`);
       
@@ -1574,6 +1580,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
     }
   }
+  
+  // Fallback: quando snmpProfileId é null mas concentratorId existe, usar perfil SNMP do concentrador
+  if (!trafficSourceProfileId && link.concentratorId && link.trafficSourceType !== 'accessPoint') {
+    const concentrator = await getConcentrator(link.concentratorId);
+    if (concentrator && concentrator.snmpProfileId) {
+      trafficSourceProfileId = concentrator.snmpProfileId;
+      if (!trafficSourceIp) {
+        trafficSourceIp = concentrator.ipAddress;
+      }
+      console.log(`[Monitor] ${link.name}: snmpProfileId null - using concentrator ${concentrator.name} SNMP profile (${concentrator.snmpProfileId}) as fallback. IP: ${trafficSourceIp}`);
+    }
+  }
 
   if (!trafficSourceProfileId || !trafficSourceIp) {
     console.log(`[Monitor] ${link.name}: Cannot collect traffic - missing trafficSourceIp=${trafficSourceIp}, profileId=${trafficSourceProfileId}, ifIndex=${trafficSourceIfIndex}, sourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}`);
@@ -1583,6 +1601,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     const profile = await getSnmpProfile(trafficSourceProfileId);
 
     if (profile) {
+      let trafficDataSuccess = false;
+      
       if (trafficSourceIfIndex) {
         const trafficData = await getInterfaceTraffic(
           trafficSourceIp,
@@ -1590,7 +1610,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           trafficSourceIfIndex
         );
 
-        const trafficDataSuccess = trafficData !== null;
+        trafficDataSuccess = trafficData !== null;
         
         if (trafficData) {
           const previousData = previousTrafficData.get(link.id);
@@ -1607,14 +1627,12 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         } else {
           console.log(`[Monitor] ${link.name}: SNMP traffic collection returned null. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}, profileId=${trafficSourceProfileId}`);
         }
-        
-        // Handle auto-discovery of ifIndex when collection fails
-        // Skip auto-discovery if link is offline (ping failed) - device is unreachable
-        // EXCEPTION: Para links PPPoE/Corporativos com concentrador, permitir auto-discovery mesmo sem IP
-        // porque o concentrador é acessível e pode fornecer o ifIndex/IP
-        // Only do auto-discovery for manual/concentrator mode, not accessPoint mode
+      } else {
+        console.log(`[Monitor] ${link.name}: snmpInterfaceIndex is null - cannot collect traffic. Will attempt auto-discovery.`);
+      }
+      
+      {
         const isLinkOffline = !pingResult.success || pingResult.packetLoss >= 50;
-        // PPPoE: precisa de pppoeUser | Corporate: precisa de vlanInterface
         const canDoPppoeDiscovery = link.trafficSourceType === 'concentrator' && link.concentratorId && link.pppoeUser;
         const canDoCorporateDiscovery = link.authType === 'corporate' && link.trafficSourceType === 'concentrator' && link.concentratorId && link.vlanInterface;
         const canDoConcentratorDiscovery = canDoPppoeDiscovery || canDoCorporateDiscovery;
@@ -1623,7 +1641,6 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
         if (hasInterfaceForDiscovery && link.trafficSourceType !== 'accessPoint' && (!isLinkOffline || canDoConcentratorDiscovery)) {
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
-          // If ifIndex was updated, retry collection with new index
           if (discoveryResult.updated && discoveryResult.newIfIndex) {
             const retryTrafficData = await getInterfaceTraffic(
               trafficSourceIp!,
