@@ -1313,12 +1313,24 @@ async function handleIfIndexAutoDiscovery(
   }
   // Last resort for Cisco Vi: derive PPPoE username pattern from link name
   // e.g., "RP TANCREDO - 100M" → try "rp.tancredo" as PPPoE user
+  // e.g., "RP PARK SHOP - 50M" → try "rp.parkshop" (prefix.restconcatenated) AND "rp.park.shop" (all dots)
+  let derivedPppoeCandidates: string[] = [];
   if (!effectivePppoeUser && /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '') && link.name && link.concentratorId) {
     const namePart = link.name.split(/\s*-\s*/)[0].trim().toLowerCase();
     if (namePart && namePart.includes(' ')) {
-      const derivedPppoeUser = namePart.replace(/\s+/g, '.');
-      effectivePppoeUser = derivedPppoeUser;
-      console.log(`[Monitor] ${link.name}: Derived effectivePppoeUser "${derivedPppoeUser}" from link name (Cisco Vi without stored PPPoE data)`);
+      const words = namePart.split(/\s+/);
+      if (words.length >= 3) {
+        // 3+ words: prefer "prefix.restconcatenated" (e.g., "rp.parkshop") as primary
+        const prefixDotRest = words[0] + '.' + words.slice(1).join('');
+        derivedPppoeCandidates.push(prefixDotRest);
+        // Also try all dots pattern (e.g., "rp.park.shop")
+        derivedPppoeCandidates.push(words.join('.'));
+      } else {
+        // 2 words: "rp.tancredo" (only one pattern possible)
+        derivedPppoeCandidates.push(words.join('.'));
+      }
+      effectivePppoeUser = derivedPppoeCandidates[0];
+      console.log(`[Monitor] ${link.name}: Derived effectivePppoeUser "${effectivePppoeUser}" from link name. Candidates: [${derivedPppoeCandidates.join(', ')}]`);
     }
   }
   
@@ -1363,8 +1375,14 @@ async function handleIfIndexAutoDiscovery(
     try {
       const concentrator = await getConcentrator(link.concentratorId);
       if (concentrator) {
-        const pppoeUserToSearch = effectivePppoeUser; // Already validated as non-null
-        console.log(`[Monitor] ${link.name}: Using PPPoE lookup for "${pppoeUserToSearch}" on ${concentrator.name} (vendor: ${concentrator.vendor})`);
+        // Build list of usernames to search: effectivePppoeUser + any derived candidates
+        const pppoeCandidatesToSearch = [effectivePppoeUser];
+        for (const candidate of derivedPppoeCandidates) {
+          if (!pppoeCandidatesToSearch.includes(candidate)) {
+            pppoeCandidatesToSearch.push(candidate);
+          }
+        }
+        console.log(`[Monitor] ${link.name}: Using PPPoE lookup for [${pppoeCandidatesToSearch.join(', ')}] on ${concentrator.name} (vendor: ${concentrator.vendor})`);
         
         let snmpProfile = null;
         if (concentrator.snmpProfileId) {
@@ -1372,19 +1390,26 @@ async function handleIfIndexAutoDiscovery(
           snmpProfile = profileResult || null;
         }
         
-        const sessions = await lookupMultiplePppoeSessions(concentrator, [pppoeUserToSearch], undefined, snmpProfile);
-        const session = sessions.get(pppoeUserToSearch);
+        const sessions = await lookupMultiplePppoeSessions(concentrator, pppoeCandidatesToSearch, undefined, snmpProfile);
         
-        if (session && session.ifIndex) {
-          searchResult = {
-            found: true,
-            ifIndex: session.ifIndex,
-            ifName: session.ifName || undefined,
-            ifAlias: session.ifAlias || undefined,
-            matchType: 'pppoe-session',
-            ipAddress: session.ipAddress || undefined,
-          };
-          console.log(`[Monitor] ${link.name}: PPPoE session found: ifIndex=${session.ifIndex}, IP=${session.ipAddress}, ifName=${session.ifName}`);
+        for (const candidate of pppoeCandidatesToSearch) {
+          const session = sessions.get(candidate);
+          if (session && session.ifIndex) {
+            searchResult = {
+              found: true,
+              ifIndex: session.ifIndex,
+              ifName: session.ifName || undefined,
+              ifAlias: session.ifAlias || undefined,
+              matchType: 'pppoe-session',
+              ipAddress: session.ipAddress || undefined,
+            };
+            console.log(`[Monitor] ${link.name}: PPPoE session found for "${candidate}": ifIndex=${session.ifIndex}, IP=${session.ipAddress}, ifName=${session.ifName}`);
+            if (!link.pppoeUser) {
+              await db.update(links).set({ pppoeUser: candidate }).where(eq(links.id, link.id));
+              console.log(`[Monitor] ${link.name}: Stored pppoeUser="${candidate}" for future direct lookups`);
+            }
+            break;
+          }
         }
       }
     } catch (pppoeError) {
@@ -1460,18 +1485,22 @@ async function handleIfIndexAutoDiscovery(
             if (viCandidates.length > 0) {
               const searchTerms: string[] = [];
               if (link.pppoeUser) searchTerms.push(link.pppoeUser.toLowerCase());
-              // Try to derive PPPoE username from link name (e.g., "RP TANCREDO - 100M" → "rp.tancredo")
               if (!link.pppoeUser && link.name) {
-                // Extract meaningful part before " - " separator (e.g., "RP TANCREDO" from "RP TANCREDO - 100M")
                 const namePart = link.name.split(/\s*-\s*/)[0].trim().toLowerCase();
                 if (namePart) {
-                  // Try "rp.tancredo" pattern (replace spaces with dots)
-                  const dotPattern = namePart.replace(/\s+/g, '.');
-                  searchTerms.push(dotPattern);
-                  // Also try just the second word if format is "PREFIX NAME" (e.g., "RP TANCREDO" → "tancredo")
                   const words = namePart.split(/\s+/);
-                  if (words.length >= 2) {
-                    searchTerms.push(words.slice(1).join('.'));
+                  if (words.length >= 3) {
+                    // 3+ words: try "prefix.restconcatenated" first (e.g., "rp.parkshop")
+                    searchTerms.push(words[0] + '.' + words.slice(1).join(''));
+                    // Also try all dots (e.g., "rp.park.shop")
+                    searchTerms.push(words.join('.'));
+                    // Also try rest without prefix (e.g., "parkshop")
+                    searchTerms.push(words.slice(1).join(''));
+                  } else if (words.length === 2) {
+                    // 2 words: "rp.tancredo"
+                    searchTerms.push(words.join('.'));
+                    // Also try just the second word (e.g., "tancredo")
+                    searchTerms.push(words[1]);
                   }
                 }
               }
