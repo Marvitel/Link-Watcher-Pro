@@ -1658,19 +1658,20 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       trafficSourceIfIndex = link.accessPointInterfaceIndex || null;
       console.log(`[Monitor] ${link.name}: Using access point (${sw.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}`);
     }
-  } else if (link.trafficSourceType === 'concentrator' && link.concentratorId) {
+  } else if (link.concentratorId) {
+    // Use concentrator for traffic collection when concentratorId is set
+    // This handles both trafficSourceType='concentrator' and 'manual' with concentrator
+    // Cisco Vi interfaces (Vi1.x) exist on the concentrator, not the CPE
     const concentrator = await getConcentrator(link.concentratorId);
     if (concentrator) {
-      if (!trafficSourceIp) {
+      const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
+      if (isCiscoViInterface || link.trafficSourceType === 'concentrator') {
         trafficSourceIp = concentrator.ipAddress;
+        if (concentrator.snmpProfileId) {
+          trafficSourceProfileId = concentrator.snmpProfileId;
+        }
+        console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection (Cisco Vi=${isCiscoViInterface}, sourceType=${link.trafficSourceType}). IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
       }
-      if (!trafficSourceProfileId && concentrator.snmpProfileId) {
-        trafficSourceProfileId = concentrator.snmpProfileId;
-      }
-      if (!trafficSourceIfIndex && link.snmpInterfaceIndex) {
-        trafficSourceIfIndex = link.snmpInterfaceIndex;
-      }
-      console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection. IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
     }
   }
   
