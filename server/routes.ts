@@ -1086,6 +1086,8 @@ export async function registerRoutes(
         'trafficSourceType', 'trafficSourceIp', 'trafficIfIndex', 'interfaceName', 'serviceTag',
         'profileId', 'invertBandwidthDirection', 'authType', 'authInterface', 'authUsername',
         'lastUpdated', 'equipmentSerialNumber', 'opticalRxBaseline', 'opticalTxBaseline',
+        'opticalMonitoringEnabled', 'opticalDeltaThreshold',
+        'opticalRxOid', 'opticalTxOid', 'opticalOltRxOid',
         'mainGraphMode', 'mainGraphInterfaceIds',
         'snmpProfileId', 'snmpInterfaceIndex', 'snmpInterfaceName', 'snmpInterfaceDescr', 'snmpInterfaceAlias',
         'pppoeUser', 'vlanInterface',
