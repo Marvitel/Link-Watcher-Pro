@@ -854,6 +854,12 @@ async function lookupPppoeViaSNMP(
 
     console.log(`[PPPoE SNMP] Walk final: ${usersData.length} usuários ativos usando "${usedOidSet || 'nenhum'}"`);
     
+    if (usedOidSet === "Mikrotik PPP Secret") {
+      console.log(`[PPPoE SNMP] AVISO: Resultado veio de PPP Secrets (configuração estática, não sessão ativa). Indices NÃO são ifIndex de interface. Descartando resultado para evitar ifIndex incorreto.`);
+      session.close();
+      return results;
+    }
+    
     // Debug: mostrar primeiros 5 usuários ativos
     if (usersData.length > 0) {
       const sample = usersData.slice(0, 5).map(u => u.value).join(", ");

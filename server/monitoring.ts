@@ -1468,12 +1468,14 @@ async function handleIfIndexAutoDiscovery(
     const hasCorporateForBackup = link.authType === 'corporate' && link.concentratorId && link.vlanInterface;
     
     if (hasPppoeForBackup || hasCorporateForBackup) {
-      // Get the current concentrator to check for backup
       const currentConcentrator = await getConcentrator(link.concentratorId!);
       
       console.log(`[Monitor] ${link.name}: Concentrador atual: ${currentConcentrator?.name || 'N/A'}, backupId=${currentConcentrator?.backupConcentratorId || 'NÃO CONFIGURADO'}`);
       
-      // Guardrails: check backup exists and is different from current
+      if (!currentConcentrator?.backupConcentratorId || currentConcentrator.backupConcentratorId === currentConcentrator.id) {
+        console.log(`[Monitor] ${link.name}: ⚠️ Concentrador "${currentConcentrator?.name}" NÃO tem backup configurado. Se a sessão PPPoE migrou para outro concentrador, o sistema não consegue descobrir automaticamente. Configure o campo "Concentrador Backup" no cadastro do concentrador.`);
+      }
+      
       if (currentConcentrator?.backupConcentratorId && currentConcentrator.backupConcentratorId !== currentConcentrator.id) {
         console.log(`[Monitor] ${link.name}: Interface não encontrada no concentrador principal. Tentando backup...`);
         
@@ -1593,7 +1595,17 @@ async function handleIfIndexAutoDiscovery(
     }
     
     // Interface not found on primary or backup - create warning event
-    console.log(`[Monitor] ${link.name}: Could not auto-discover interface "${searchName}"`);
+    let backupInfo = "";
+    if (hasPppoeForBackup || hasCorporateForBackup) {
+      const conc = await getConcentrator(link.concentratorId!);
+      if (!conc?.backupConcentratorId || conc.backupConcentratorId === conc.id) {
+        backupInfo = ` Concentrador "${conc?.name}" não tem backup configurado - configure para permitir failover automático.`;
+      } else {
+        const backup = await getConcentrator(conc.backupConcentratorId);
+        backupInfo = ` Também buscou no backup "${backup?.name || 'N/A'}" sem sucesso.`;
+      }
+    }
+    console.log(`[Monitor] ${link.name}: Could not auto-discover interface "${searchName}".${backupInfo}`);
     
     await db.update(links).set({
       ifIndexMismatchCount: newMismatchCount,
@@ -1606,7 +1618,7 @@ async function handleIfIndexAutoDiscovery(
       clientId: link.clientId,
       type: "warning",
       title: `Interface não encontrada em ${link.name}`,
-      description: `A interface SNMP "${searchName}" (ifIndex: ${link.snmpInterfaceIndex}) não foi encontrada no equipamento. Verifique a configuração do link.`,
+      description: `A interface SNMP "${searchName}" (ifIndex: ${link.snmpInterfaceIndex}) não foi encontrada no equipamento.${backupInfo} Verifique a configuração do link.`,
       timestamp: now,
       resolved: false,
     });
