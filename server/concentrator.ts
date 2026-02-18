@@ -825,12 +825,10 @@ async function lookupPppoeViaSNMP(
       console.log(`[PPPoE SNMP] ${oidSet.name}: ${users.length} usuários, ${addresses.length} IPs, ${macs.length} MACs`);
 
       if (users.length > 0) {
-        // Verificar se encontramos pelo menos um dos usuários que buscamos
         const foundTarget = pppoeUsers.some(pppoeUser => {
           const userLower = pppoeUser.toLowerCase();
           return users.some(u => {
             let username = u.value;
-            // Normalizar username (extrair de <ppp-xxx> se necessário)
             const pppMatch = username.match(/<ppp(?:oe)?-([^>]+)>/i);
             if (pppMatch) username = pppMatch[1];
             return username.toLowerCase() === userLower || username.toLowerCase().includes(userLower);
@@ -838,27 +836,24 @@ async function lookupPppoeViaSNMP(
         });
         
         if (foundTarget || usersData.length === 0) {
-          // Encontramos o usuário alvo OU é nossa primeira opção com dados
-          usersData = users;
-          addressData = addresses;
-          macData = macs;
-          usedOidSet = oidSet.name;
-          if (foundTarget) {
-            console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo encontrado, usando este OID set`);
-            break;
+          if (oidSet.name === "Mikrotik PPP Secret") {
+            console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo encontrado em PPP Secrets (configuração estática, NÃO sessão ativa). Índices de PPP Secrets NÃO correspondem a ifIndex de interfaces. Continuando para próximo OID set...`);
+          } else {
+            usersData = users;
+            addressData = addresses;
+            macData = macs;
+            usedOidSet = oidSet.name;
+            if (foundTarget) {
+              console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo encontrado, usando este OID set`);
+              break;
+            }
+            console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo NÃO encontrado, tentando próximo OID set...`);
           }
-          console.log(`[PPPoE SNMP] ${oidSet.name}: Usuário alvo NÃO encontrado, tentando próximo OID set...`);
         }
       }
     }
 
     console.log(`[PPPoE SNMP] Walk final: ${usersData.length} usuários ativos usando "${usedOidSet || 'nenhum'}"`);
-    
-    if (usedOidSet === "Mikrotik PPP Secret") {
-      console.log(`[PPPoE SNMP] AVISO: Resultado veio de PPP Secrets (configuração estática, não sessão ativa). Indices NÃO são ifIndex de interface. Descartando resultado para evitar ifIndex incorreto.`);
-      session.close();
-      return results;
-    }
     
     // Debug: mostrar primeiros 5 usuários ativos
     if (usersData.length > 0) {
