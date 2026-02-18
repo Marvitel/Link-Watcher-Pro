@@ -1218,10 +1218,17 @@ async function handleIfIndexAutoDiscovery(
     searchName = link.vlanInterface;
   }
   
-  if (link.trafficSourceType === 'concentrator' && link.pppoeUser) {
-    // Use pppoeUser for PPPoE links - this works across different vendors
+  if ((link.trafficSourceType === 'concentrator' || link.concentratorId) && link.pppoeUser) {
     searchName = link.pppoeUser;
     console.log(`[Monitor] ${link.name}: Using pppoeUser "${link.pppoeUser}" for auto-discovery (cross-vendor compatible)`);
+  }
+  
+  // For Cisco Vi interfaces: use snmpInterfaceDescr (contains PPPoE username like "rp.farolandia")
+  // Vi names are unstable and change on reconnection
+  const isCiscoViForDiscovery = /^Vi\d+\.\d+$/i.test(searchName || '');
+  if (isCiscoViForDiscovery && link.snmpInterfaceDescr && !/^Virtual-Access/i.test(link.snmpInterfaceDescr)) {
+    searchName = link.snmpInterfaceDescr;
+    console.log(`[Monitor] ${link.name}: Cisco Vi detected - using snmpInterfaceDescr "${searchName}" for auto-discovery (stable across reconnections)`);
   }
   
   // Determinar IP e perfil SNMP para busca
@@ -1744,13 +1751,15 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               }).where(eq(links.id, link.id));
             }
             if (!verification.matches && verification.actualName !== null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Forcing auto-discovery.`);
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
               previousTrafficData.delete(link.id);
+              await db.update(links).set({ ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 }).where(eq(links.id, link.id));
             } else if (!verification.matches && verification.actualName === null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Forcing auto-discovery.`);
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
               previousTrafficData.delete(link.id);
+              await db.update(links).set({ ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 }).where(eq(links.id, link.id));
             } else if (verification.matches) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"`);
             }

@@ -1,0 +1,29 @@
+3.6.4.1.1.2.1.2.1, memTotalOid: , memUsedOid:
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memConfig: {"memoryOid":"1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1","memoryTotalOid":"","memoryUsedOid":"","memoryIsPercentage":true}
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Resultado CPU/Mem: cpu=0, mem=0
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL-10G (datacom) slot=1 port=1 onu=12
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG84678D48...
+fev 18 14:27:12 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico Zabbix: OLT_RX=-22.92dBm
+fev 18 14:27:13 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: lat=1.8ms, loss=0.0%, status=operational
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: Using concentrator (CE: CISCO ASR1002) for traffic collection (Cisco Vi=true, sourceType=manual). IP: 191.52.255.254, ifIndex: 78, profileId: 7
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: SNMP traffic collection returned null. IP=191.52.255.254, ifIndex=78, profileId=7
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: ifIndex 78 no longer exists (no ifName/ifDescr returned). Forcing auto-discovery.
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - vendorId: 8, vendor: TP-Link, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memOid: 1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1, memTotalOid: , memUsedOid:
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memConfig: {"memoryOid":"1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1","memoryTotalOid":"","memoryUsedOid":"","memoryIsPercentage":true}
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Resultado CPU/Mem: cpu=0, mem=0
+fev 18 14:27:40 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL-10G (datacom) slot=1 port=1 onu=12
+fev 18 14:27:41 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 18 14:27:41 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG84678D48...
+fev 18 14:27:41 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico Zabbix: OLT_RX=-22.92dBm
+fev 18 14:27:41 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: lat=1.0ms, loss=0.0%, status=operational
+fev 18 14:28:08 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: Using concentrator (CE: CISCO ASR1002) for traffic collection (Cisco Vi=true, sourceType=manual). IP: 191.52.255.254, ifIndex: 78, profileId: 7
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: SNMP traffic collection returned null. IP=191.52.255.254, ifIndex=78, profileId=7
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - vendorId: 8, vendor: TP-Link, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memOid: 1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1, memTotalOid: , memUsedOid:
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Coletando CPU/Mem via SNMP: 191.52.248.245, cpuOid: 1.3.6.1.4.1.11863.6.4.1.1.1.1.2.1, cpuDivisor: 1, memConfig: {"memoryOid":"1.3.6.1.4.1.11863.6.4.1.1.2.1.2.1","memoryTotalOid":"","memoryUsedOid":"","memoryIsPercentage":true}
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Resultado CPU/Mem: cpu=0, mem=0
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL-10G (datacom) slot=1 port=1 onu=12
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico OK: RX=-19dBm TX=2dBm OLT_RX=nulldBm
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial TPLG84678D48...
+fev 18 14:28:09 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M - Óptico Zabbix: OLT_RX=-22.92dBm
+fev 18 14:28:10 link-monitor npm[2090094]: [Monitor] RP FAROLANDIA - 100M: lat=1.0ms, loss=0.0%, status=operational
