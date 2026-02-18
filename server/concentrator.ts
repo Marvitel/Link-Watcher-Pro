@@ -1331,6 +1331,111 @@ export async function lookupPppoeSession(
   return results.get(pppoeUser) || null;
 }
 
+/**
+ * Lookup ifIndex via IP routing table on concentrator using targeted SNMP GET
+ * Much faster than full PPPoE walk - uses the link's known IP to find the route entry
+ * Works on Cisco ASR, MikroTik, Huawei, and any device supporting ipCidrRouteTable
+ */
+export async function lookupIfIndexByIp(
+  concentrator: SnmpConcentrator,
+  targetIp: string,
+  snmpProfile?: SnmpProfile | null
+): Promise<{ ifIndex: number | null; ifName: string | null; ifAlias: string | null }> {
+  if (!concentrator.ipAddress || !targetIp) {
+    return { ifIndex: null, ifName: null, ifAlias: null };
+  }
+
+  const profile: ConcentratorSnmpProfile = snmpProfile
+    ? {
+        version: snmpProfile.version,
+        port: snmpProfile.port,
+        community: snmpProfile.community,
+        securityLevel: snmpProfile.securityLevel,
+        authProtocol: snmpProfile.authProtocol,
+        authPassword: snmpProfile.authPassword,
+        privProtocol: snmpProfile.privProtocol,
+        privPassword: snmpProfile.privPassword,
+        username: snmpProfile.username,
+        timeout: snmpProfile.timeout,
+        retries: snmpProfile.retries,
+      }
+    : {
+        version: "2c",
+        port: 161,
+        community: "public",
+        timeout: 5000,
+        retries: 1,
+      };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  const noSuchObject = 128;
+  const noSuchInstance = 129;
+  
+  const snmpGet = (sess: any, oids: string[]): Promise<any[]> => {
+    return new Promise((resolve) => {
+      const timeoutId = setTimeout(() => resolve([]), 10000);
+      (sess as any).get(oids, (error: any, varbinds: any[]) => {
+        clearTimeout(timeoutId);
+        if (error || !varbinds) {
+          resolve([]);
+          return;
+        }
+        resolve(varbinds);
+      });
+    });
+  };
+  
+  const extractInt = (vb: any): number | null => {
+    if (!vb || (snmp as any).isVarbindError?.(vb) || vb.type === noSuchObject || vb.type === noSuchInstance) return null;
+    const val = typeof vb.value === 'number' ? vb.value : parseInt(String(vb.value), 10);
+    return isNaN(val) ? null : val;
+  };
+  
+  const extractStr = (vb: any): string | null => {
+    if (!vb || (snmp as any).isVarbindError?.(vb) || vb.type === noSuchObject || vb.type === noSuchInstance) return null;
+    const val = Buffer.isBuffer(vb.value) ? vb.value.toString('utf8').replace(/\x00/g, '').trim() : String(vb.value);
+    return val || null;
+  };
+
+  try {
+    // Try ipCidrRouteIfIndex: OID.IP.MASK.0.0.0.0.0 = ifIndex
+    const ipCidrRouteOid = `1.3.6.1.2.1.4.24.4.1.5.${targetIp}.255.255.255.255.0.0.0.0.0`;
+    const vbs1 = await snmpGet(session, [ipCidrRouteOid]);
+    let foundIfIndex = vbs1.length > 0 ? extractInt(vbs1[0]) : null;
+
+    if (!foundIfIndex) {
+      // Fallback: try ipRouteIfIndex (older MIB): OID.IP = ifIndex
+      const ipRouteOid = `1.3.6.1.2.1.4.21.1.2.${targetIp}`;
+      const vbs2 = await snmpGet(session, [ipRouteOid]);
+      foundIfIndex = vbs2.length > 0 ? extractInt(vbs2[0]) : null;
+    }
+
+    if (foundIfIndex) {
+      console.log(`[IP Route Lookup] Found ifIndex ${foundIfIndex} for IP ${targetIp} on ${concentrator.name}`);
+      
+      const ifNameOid = `1.3.6.1.2.1.31.1.1.1.1.${foundIfIndex}`;
+      const ifAliasOid = `1.3.6.1.2.1.31.1.1.1.18.${foundIfIndex}`;
+      const detailVbs = await snmpGet(session, [ifNameOid, ifAliasOid]);
+      
+      const ifName = detailVbs.length > 0 ? extractStr(detailVbs[0]) : null;
+      const ifAlias = detailVbs.length > 1 ? extractStr(detailVbs[1]) : null;
+      
+      console.log(`[IP Route Lookup] ifIndex ${foundIfIndex}: ifName="${ifName}", ifAlias="${ifAlias}"`);
+      session.close();
+      return { ifIndex: foundIfIndex, ifName, ifAlias };
+    }
+    
+    console.log(`[IP Route Lookup] No route found for IP ${targetIp} on ${concentrator.name}`);
+    session.close();
+    return { ifIndex: null, ifName: null, ifAlias: null };
+  } catch (error: any) {
+    console.error(`[IP Route Lookup] Error looking up ${targetIp} on ${concentrator.name}:`, error.message);
+    try { session.close(); } catch {}
+    return { ifIndex: null, ifName: null, ifAlias: null };
+  }
+}
+
 export async function lookupMultiplePppoeSessions(
   concentrator: SnmpConcentrator,
   pppoeUsers: string[],

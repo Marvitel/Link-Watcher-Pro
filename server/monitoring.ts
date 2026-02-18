@@ -6,7 +6,7 @@ import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches,
 import { eq, and, not, like, gte, isNotNull, desc, or } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, discoverInterfaces, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
-import { lookupMultiplePppoeSessions } from "./concentrator";
+import { lookupMultiplePppoeSessions, lookupIfIndexByIp } from "./concentrator";
 import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
 
@@ -1546,6 +1546,95 @@ async function handleIfIndexAutoDiscovery(
       } else if (!searchAlias) {
         console.log(`[Monitor] ${link.name}: Cisco Vi interface "${searchName}" not found. No pppoeUser or ifAlias stored - cannot track across reconnections.`);
       }
+    }
+  }
+  
+  // IP route lookup fallback: if link has a known IP, try finding ifIndex via routing table
+  if (!searchResult.found && link.concentratorId && link.monitoredIp) {
+    try {
+      const concentrator = await getConcentrator(link.concentratorId);
+      if (concentrator) {
+        let ipLookupProfile: any = null;
+        if (concentrator.snmpProfileId) {
+          const [concProfile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+          ipLookupProfile = concProfile || null;
+        }
+        
+        console.log(`[Monitor] ${link.name}: Trying IP route lookup for ${link.monitoredIp} on ${concentrator.name}...`);
+        const ipResult = await lookupIfIndexByIp(concentrator, link.monitoredIp, ipLookupProfile);
+        
+        if (ipResult.ifIndex) {
+          searchResult = {
+            found: true,
+            ifIndex: ipResult.ifIndex,
+            ifName: ipResult.ifName || undefined,
+            ifAlias: ipResult.ifAlias || undefined,
+            matchType: 'ip-route-lookup',
+          };
+          console.log(`[Monitor] ${link.name}: Found interface via IP route lookup: ifIndex=${ipResult.ifIndex}, ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}"`);
+          
+          if (!link.pppoeUser && ipResult.ifAlias) {
+            await db.update(links).set({ pppoeUser: ipResult.ifAlias }).where(eq(links.id, link.id));
+            console.log(`[Monitor] ${link.name}: Stored pppoeUser="${ipResult.ifAlias}" discovered via IP route lookup`);
+          }
+        }
+      }
+    } catch (ipLookupError: any) {
+      console.error(`[Monitor] ${link.name}: IP route lookup failed: ${ipLookupError.message}`);
+    }
+  }
+  
+  // Backup concentrator fallback: try all methods on backup concentrator
+  if (!searchResult.found && link.backupConcentratorId && link.backupConcentratorId !== link.concentratorId) {
+    try {
+      const backupConcentrator = await getConcentrator(link.backupConcentratorId);
+      if (backupConcentrator) {
+        console.log(`[Monitor] ${link.name}: Primary concentrator failed. Trying backup concentrator ${backupConcentrator.name}...`);
+        
+        let backupProfile: any = null;
+        if (backupConcentrator.snmpProfileId) {
+          const [concProfile] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, backupConcentrator.snmpProfileId));
+          backupProfile = concProfile || null;
+        }
+        
+        // Try PPPoE lookup on backup
+        const backupPppoeCandidates = effectivePppoeUser ? [effectivePppoeUser, ...derivedPppoeCandidates.filter(c => c !== effectivePppoeUser)] : derivedPppoeCandidates;
+        if (backupPppoeCandidates.length > 0) {
+          const backupSessions = await lookupMultiplePppoeSessions(backupConcentrator, backupPppoeCandidates, undefined, backupProfile);
+          for (const candidate of backupPppoeCandidates) {
+            const session = backupSessions.get(candidate);
+            if (session && session.ifIndex) {
+              searchResult = {
+                found: true,
+                ifIndex: session.ifIndex,
+                ifName: session.ifName || undefined,
+                ifAlias: session.ifAlias || undefined,
+                matchType: 'backup-pppoe-session',
+                ipAddress: session.ipAddress || undefined,
+              };
+              console.log(`[Monitor] ${link.name}: Found on backup concentrator ${backupConcentrator.name} via PPPoE: ifIndex=${session.ifIndex}`);
+              break;
+            }
+          }
+        }
+        
+        // Try IP route lookup on backup
+        if (!searchResult.found && link.monitoredIp) {
+          const ipResult = await lookupIfIndexByIp(backupConcentrator, link.monitoredIp, backupProfile);
+          if (ipResult.ifIndex) {
+            searchResult = {
+              found: true,
+              ifIndex: ipResult.ifIndex,
+              ifName: ipResult.ifName || undefined,
+              ifAlias: ipResult.ifAlias || undefined,
+              matchType: 'backup-ip-route-lookup',
+            };
+            console.log(`[Monitor] ${link.name}: Found on backup concentrator ${backupConcentrator.name} via IP route: ifIndex=${ipResult.ifIndex}`);
+          }
+        }
+      }
+    } catch (backupError: any) {
+      console.error(`[Monitor] ${link.name}: Backup concentrator lookup failed: ${backupError.message}`);
     }
   }
   
