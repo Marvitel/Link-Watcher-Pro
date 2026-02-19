@@ -36,6 +36,7 @@ import {
   insertFirewallSettingsSchema,
   links,
   blacklistChecks,
+  webhookLogs,
   firewallWhitelist,
   firewallSettings,
   trafficInterfaceMetrics,
@@ -10047,6 +10048,73 @@ export async function registerRoutes(
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Erro ao consultar configuração do sistema" });
+    }
+  });
+
+  // ==========================================
+  // Voalle Webhook Receiver (Capture Mode)
+  // ==========================================
+  
+  app.all("/api/webhooks/voalle", async (req: Request, res: Response) => {
+    try {
+      const safeHeaders: Record<string, string> = {};
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-webhook-token') {
+          safeHeaders[key] = '***REDACTED***';
+        } else {
+          safeHeaders[key] = String(value);
+        }
+      }
+      
+      const logEntry = {
+        source: 'voalle' as const,
+        event: req.body?.event || req.body?.tipo || req.body?.type || req.query?.event || 'unknown',
+        method: req.method,
+        headers: safeHeaders,
+        queryParams: req.query || {},
+        body: req.body || null,
+        rawBody: JSON.stringify(req.body, null, 2),
+        ipAddress: req.ip || req.socket?.remoteAddress || 'unknown',
+        processed: false,
+      };
+      
+      await db.insert(webhookLogs).values(logEntry);
+      
+      console.log(`[Webhook/Voalle] Received ${req.method} from ${logEntry.ipAddress}`);
+      console.log(`[Webhook/Voalle] Headers: ${JSON.stringify(safeHeaders, null, 2)}`);
+      console.log(`[Webhook/Voalle] Query: ${JSON.stringify(req.query, null, 2)}`);
+      console.log(`[Webhook/Voalle] Body: ${JSON.stringify(req.body, null, 2)}`);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: "Webhook received and logged",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error(`[Webhook/Voalle] Error processing webhook:`, error);
+      res.status(200).json({ success: true, message: "Received" });
+    }
+  });
+  
+  app.get("/api/webhooks/logs", requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await db.select()
+        .from(webhookLogs)
+        .orderBy(sql`${webhookLogs.receivedAt} DESC`)
+        .limit(limit);
+      res.json(logs);
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao buscar logs de webhook" });
+    }
+  });
+  
+  app.delete("/api/webhooks/logs", requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      await db.delete(webhookLogs);
+      res.json({ success: true, message: "Logs de webhook limpos" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro ao limpar logs" });
     }
   });
 

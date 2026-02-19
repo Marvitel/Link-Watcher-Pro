@@ -1313,6 +1313,24 @@ export type InsertBlacklistCheck = z.infer<typeof insertBlacklistCheckSchema>;
 export type ExternalIntegration = typeof externalIntegrations.$inferSelect;
 export type BlacklistCheck = typeof blacklistChecks.$inferSelect;
 
+export const webhookLogs = pgTable("webhook_logs", {
+  id: serial("id").primaryKey(),
+  source: varchar("source", { length: 50 }).notNull().default("voalle"),
+  event: varchar("event", { length: 100 }),
+  method: varchar("method", { length: 10 }).notNull(),
+  headers: jsonb("headers"),
+  queryParams: jsonb("query_params"),
+  body: jsonb("body"),
+  rawBody: text("raw_body"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  processed: boolean("processed").notNull().default(false),
+  processedAt: timestamp("processed_at"),
+  processResult: text("process_result"),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+});
+
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;
