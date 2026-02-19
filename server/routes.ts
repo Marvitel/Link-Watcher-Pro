@@ -1114,6 +1114,22 @@ export async function registerRoutes(
       }
       
       const previousLink = await storage.getLink(linkId);
+      
+      // When user manually changes SNMP interface settings, reset auto-discovery state
+      // This prevents the system from immediately overwriting manual edits
+      const interfaceManuallyChanged = (
+        ('snmpInterfaceIndex' in filteredBody && filteredBody.snmpInterfaceIndex !== previousLink?.snmpInterfaceIndex) ||
+        ('snmpInterfaceName' in filteredBody && filteredBody.snmpInterfaceName !== previousLink?.snmpInterfaceName)
+      );
+      if (interfaceManuallyChanged) {
+        filteredBody.ifIndexMismatchCount = 0;
+        filteredBody.lastIfIndexValidation = new Date();
+        if (filteredBody.snmpInterfaceName) {
+          filteredBody.originalIfName = filteredBody.snmpInterfaceName;
+        }
+        console.log(`[Link] Link ${linkId}: Interface manually changed (ifIndex: ${previousLink?.snmpInterfaceIndex} -> ${filteredBody.snmpInterfaceIndex}, name: ${previousLink?.snmpInterfaceName} -> ${filteredBody.snmpInterfaceName}). Reset auto-discovery state.`);
+      }
+      
       await storage.updateLink(linkId, filteredBody);
       const updatedLink = await storage.getLink(linkId);
       
