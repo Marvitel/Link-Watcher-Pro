@@ -1419,18 +1419,27 @@ async function handleIfIndexAutoDiscovery(
   
   // Fallback: use findInterfaceByName for non-PPPoE links or if PPPoE lookup failed
   if (!searchResult.found) {
-    const isCiscoVi = /^Vi\d+\.\d+$/i.test(searchName || '');
-    // For Cisco Vi, use ifAlias or ifDescr as stable search identifier (Vi names are unstable)
-    const searchAlias = link.snmpInterfaceAlias || (isCiscoVi ? link.snmpInterfaceDescr : undefined) || undefined;
+    const isCiscoVi = /^Vi\d+\.\d+$/i.test(searchName || '') || /^Virtual-Access/i.test(searchName || '');
+    // For Cisco Vi, use pppoeUser as the PRIMARY search key (it's the stable identifier across reconnections)
+    // Vi names (Vi1.13) and ifDescr (Virtual-Access1.13) both change on PPPoE reconnection
+    // Only ifAlias (= pppoeUser) is stable
+    const stableAlias = link.pppoeUser || link.snmpInterfaceAlias;
+    const searchAlias = stableAlias || (isCiscoVi ? link.snmpInterfaceDescr : undefined) || undefined;
     
-    if (isCiscoVi && searchAlias) {
-      console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}"). Searching by description/alias "${searchAlias}" instead (Vi names change on reconnection)`);
+    if (isCiscoVi) {
+      if (stableAlias) {
+        console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}"). Searching by pppoeUser/alias "${stableAlias}" (Vi names and descriptions change on reconnection)`);
+      } else {
+        console.log(`[Monitor] ${link.name}: Cisco Vi interface detected ("${searchName}") but no pppoeUser or alias stored - searching by description "${link.snmpInterfaceDescr || 'none'}"`);
+      }
     }
     
+    // For Cisco Vi: search primarily by alias (pppoeUser), NOT by Vi name
+    const primarySearchName = isCiscoVi && stableAlias ? stableAlias : searchName;
     const ifResult = await findInterfaceByName(
       searchIp,
       snmpProfileForSearch,
-      isCiscoVi && searchAlias ? searchAlias : searchName,
+      primarySearchName,
       link.snmpInterfaceDescr,
       searchAlias
     );
@@ -1585,9 +1594,10 @@ async function handleIfIndexAutoDiscovery(
   }
   
   // Backup concentrator fallback: try all methods on backup concentrator
-  if (!searchResult.found && link.backupConcentratorId && link.backupConcentratorId !== link.concentratorId) {
+  const backupConcId = (link as any).backupConcentratorId as number | null;
+  if (!searchResult.found && backupConcId && backupConcId !== link.concentratorId) {
     try {
-      const backupConcentrator = await getConcentrator(link.backupConcentratorId);
+      const backupConcentrator = await getConcentrator(backupConcId);
       if (backupConcentrator) {
         console.log(`[Monitor] ${link.name}: Primary concentrator failed. Trying backup concentrator ${backupConcentrator.name}...`);
         
@@ -2003,6 +2013,30 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               }
               await db.update(links).set(aliasUpdate).where(eq(links.id, link.id));
             }
+            
+            // For concentrator PPPoE links (Cisco Vi interfaces): also verify alias
+            // Vi interface names stay the same across sessions, but the alias (PPPoE username) changes
+            // If the alias changed, another PPPoE client took over this Vi - must re-discover
+            const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
+            const isConcentratorLink = link.trafficSourceType === 'concentrator' || link.concentratorId;
+            const knownAlias = link.pppoeUser || link.snmpInterfaceAlias;
+            
+            if (verification.matches && isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
+              const normalizedKnown = knownAlias.toLowerCase().trim();
+              const normalizedActual = verification.actualAlias.toLowerCase().trim();
+              if (normalizedKnown !== normalizedActual) {
+                console.log(`[Monitor] ${link.name}: Cisco Vi alias mismatch! ifIndex ${trafficSourceIfIndex} alias changed from "${knownAlias}" to "${verification.actualAlias}". Another PPPoE session took over ${link.snmpInterfaceName}. Clearing ifIndex for re-discovery.`);
+                trafficDataSuccess = false;
+                previousTrafficData.delete(link.id);
+                trafficSourceIfIndex = null;
+                await db.update(links).set({ 
+                  snmpInterfaceIndex: null,
+                  snmpInterfaceName: null,
+                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
+                }).where(eq(links.id, link.id));
+              }
+            }
+            
             if (!verification.matches && verification.actualName !== null) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Clearing ifIndex and forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
@@ -2022,7 +2056,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
               }).where(eq(links.id, link.id));
             } else if (verification.matches) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"`);
+              if (!(isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias && knownAlias.toLowerCase().trim() !== verification.actualAlias.toLowerCase().trim())) {
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"${verification.actualAlias ? ` (alias: "${verification.actualAlias}")` : ''}`);
+              }
             }
           }
         }
