@@ -1,0 +1,23 @@
+root@link-monitor:~# journalctl -u link-monitor -f | grep palestina
+fev 18 19:40:47 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Using pppoeUser "rp.palestina" for auto-discovery (cross-vendor compatible)
+fev 18 19:40:47 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Auto-discovery triggered after 320 failures. Searching for interface "rp.palestina" on 191.52.248.2
+fev 18 19:40:47 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Using PPPoE lookup for [rp.palestina] on CE: AJU-MVT-BORDA-OSPF (vendor: mikrotik)
+fev 18 19:40:47 link-monitor npm[2657882]: [PPPoE SNMP] Buscando usuários: rp.palestina
+fev 18 19:40:50 link-monitor npm[2657882]: [PPPoE SNMP] Usuário "rp.palestina" não encontrado no índice
+fev 18 19:40:50 link-monitor npm[2657882]: [SNMP Interface Search] Searching for interface "rp.palestina" (alias: "none") on 191.52.248.2
+fev 18 19:40:51 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Interface "rp.palestina" NÃO ENCONTRADA no concentrador. trafficSourceType=manual, concentratorId=2, pppoeUser=rp.palestina, effectivePppoeUser=rp.palestina
+fev 18 19:40:51 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Buscando PPPoE "rp.palestina" no backup CE: CISCO ASR1002 (191.52.255.254)
+fev 18 19:40:55 link-monitor npm[2657882]: [PPPoE SNMP] Buscando usuários: rp.palestina
+fev 18 19:40:55 link-monitor npm[2657882]: [PPPoE SNMP] Usuário "rp.palestina" não encontrado no índice
+fev 18 19:41:00 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Could not auto-discover interface "rp.palestina". Também buscou no backup "CE: CISCO ASR1002" sem sucesso.
+fev 18 19:41:18 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Using pppoeUser "rp.palestina" for auto-discovery (cross-vendor compatible)
+fev 18 19:41:18 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Auto-discovery triggered after 321 failures. Searching for interface "rp.palestina" on 191.52.248.2
+fev 18 19:41:18 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Using PPPoE lookup for [rp.palestina] on CE: AJU-MVT-BORDA-OSPF (vendor: mikrotik)
+fev 18 19:41:19 link-monitor npm[2657882]: [PPPoE SNMP] Buscando usuários: rp.palestina
+fev 18 19:41:21 link-monitor npm[2657882]: [PPPoE SNMP] Usuário "rp.palestina" não encontrado no índice
+fev 18 19:41:21 link-monitor npm[2657882]: [SNMP Interface Search] Searching for interface "rp.palestina" (alias: "none") on 191.52.248.2
+fev 18 19:41:21 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Interface "rp.palestina" NÃO ENCONTRADA no concentrador. trafficSourceType=manual, concentratorId=2, pppoeUser=rp.palestina, effectivePppoeUser=rp.palestina
+fev 18 19:41:21 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Buscando PPPoE "rp.palestina" no backup CE: CISCO ASR1002 (191.52.255.254)
+fev 18 19:41:25 link-monitor npm[2657882]: [PPPoE SNMP] Buscando usuários: rp.palestina
+fev 18 19:41:25 link-monitor npm[2657882]: [PPPoE SNMP] Usuário "rp.palestina" não encontrado no índice
+fev 18 19:41:28 link-monitor npm[2657882]: [Monitor] RP PALESTINA - 50M: Could not auto-discover interface "rp.palestina". Também buscou no backup "CE: CISCO ASR1002" sem sucesso.
