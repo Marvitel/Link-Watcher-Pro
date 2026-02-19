@@ -2024,11 +2024,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               await db.update(links).set(aliasUpdate).where(eq(links.id, link.id));
             }
             
+            // CRITICAL: When SNMP returns null (timeout/unreachable), DO NOT clear the ifIndex!
+            // null means we couldn't reach the device, NOT that the interface doesn't exist.
+            // Only clear when we get a POSITIVE response that the interface changed.
+            if (verification.actualName === null && verification.actualAlias === null) {
+              // SNMP timeout or device unreachable - keep current ifIndex, just log warning
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verification skipped - SNMP timeout/unreachable on ${trafficSourceIp}. Keeping current interface settings.`);
+            }
             // For concentrator PPPoE links (Cisco Vi interfaces): verify alias (PPPoE username)
             // Vi interface NAMES stay the same across sessions (Vi1.13 stays Vi1.13)
             // But the ALIAS changes because a different PPPoE client took over that Vi slot
             // This is the CRITICAL check: if alias changed, we're monitoring the WRONG client!
-            if (isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
+            else if (isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
               const normalizedKnown = knownAlias.toLowerCase().trim();
               const normalizedActual = verification.actualAlias.toLowerCase().trim();
               if (normalizedKnown !== normalizedActual) {
@@ -2055,16 +2062,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 snmpInterfaceIndex: null,
                 ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
               }).where(eq(links.id, link.id));
-            } else if (!verification.matches && verification.actualName === null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} no longer exists (no ifName/ifDescr returned). Clearing ifIndex and forcing immediate auto-discovery.`);
-              trafficDataSuccess = false;
-              previousTrafficData.delete(link.id);
-              trafficSourceIfIndex = null;
-              await db.update(links).set({ 
-                snmpInterfaceIndex: null,
-                ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
-              }).where(eq(links.id, link.id));
-            } else if (verification.matches && !(isCiscoViInterface && isConcentratorLink && knownAlias)) {
+            } else if (verification.matches) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"${verification.actualAlias ? ` (alias: "${verification.actualAlias}")` : ''}`);
             }
           }
