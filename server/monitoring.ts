@@ -899,7 +899,8 @@ async function verifyInterfaceAtIndex(
   });
 }
 
-const IFNAME_VERIFY_INTERVAL_MS = 2 * 60 * 1000;
+const IFNAME_VERIFY_INTERVAL_MS = 60 * 1000; // 1 min for all interfaces
+const CISCO_VI_VERIFY_INTERVAL_MS = 30 * 1000; // 30s for Cisco Vi (PPPoE sessions change frequently)
 const lastIfNameVerification = new Map<number, number>();
 
 // Helper function to parse SNMP values
@@ -1993,9 +1994,18 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       
       {
         if (trafficSourceIfIndex && link.snmpInterfaceName && trafficSourceIp) {
+          const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '') || /^Virtual-Access/i.test(link.snmpInterfaceDescr || '');
+          const isConcentratorLink = link.trafficSourceType === 'concentrator' || link.concentratorId;
+          const knownAlias = link.pppoeUser || link.snmpInterfaceAlias;
+          
+          // Use shorter interval for Cisco Vi interfaces (PPPoE sessions change frequently)
+          const verifyInterval = (isCiscoViInterface && isConcentratorLink && knownAlias) 
+            ? CISCO_VI_VERIFY_INTERVAL_MS 
+            : IFNAME_VERIFY_INTERVAL_MS;
+          
           const lastVerify = lastIfNameVerification.get(link.id) || 0;
           const nowMs = Date.now();
-          if (nowMs - lastVerify >= IFNAME_VERIFY_INTERVAL_MS) {
+          if (nowMs - lastVerify >= verifyInterval) {
             lastIfNameVerification.set(link.id, nowMs);
             const verification = await verifyInterfaceAtIndex(
               trafficSourceIp,
@@ -2014,30 +2024,29 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               await db.update(links).set(aliasUpdate).where(eq(links.id, link.id));
             }
             
-            // For concentrator PPPoE links (Cisco Vi interfaces): also verify alias
-            // Vi interface names stay the same across sessions, but the alias (PPPoE username) changes
-            // If the alias changed, another PPPoE client took over this Vi - must re-discover
-            const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
-            const isConcentratorLink = link.trafficSourceType === 'concentrator' || link.concentratorId;
-            const knownAlias = link.pppoeUser || link.snmpInterfaceAlias;
-            
-            if (verification.matches && isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
+            // For concentrator PPPoE links (Cisco Vi interfaces): verify alias (PPPoE username)
+            // Vi interface NAMES stay the same across sessions (Vi1.13 stays Vi1.13)
+            // But the ALIAS changes because a different PPPoE client took over that Vi slot
+            // This is the CRITICAL check: if alias changed, we're monitoring the WRONG client!
+            if (isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
               const normalizedKnown = knownAlias.toLowerCase().trim();
               const normalizedActual = verification.actualAlias.toLowerCase().trim();
               if (normalizedKnown !== normalizedActual) {
-                console.log(`[Monitor] ${link.name}: Cisco Vi alias mismatch! ifIndex ${trafficSourceIfIndex} alias changed from "${knownAlias}" to "${verification.actualAlias}". Another PPPoE session took over ${link.snmpInterfaceName}. Clearing ifIndex for re-discovery.`);
+                console.log(`[Monitor] ${link.name}: *** CISCO Vi ALIAS MISMATCH *** ifIndex ${trafficSourceIfIndex} (${link.snmpInterfaceName}) alias changed from "${knownAlias}" to "${verification.actualAlias}". WRONG CLIENT! Clearing ifIndex for immediate re-discovery.`);
                 trafficDataSuccess = false;
                 previousTrafficData.delete(link.id);
                 trafficSourceIfIndex = null;
+                lastIfNameVerification.delete(link.id);
                 await db.update(links).set({ 
                   snmpInterfaceIndex: null,
                   snmpInterfaceName: null,
+                  snmpInterfaceDescr: null,
                   ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
                 }).where(eq(links.id, link.id));
+              } else {
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" alias "${verification.actualAlias}" matches pppoeUser "${knownAlias}"`);
               }
-            }
-            
-            if (!verification.matches && verification.actualName !== null) {
+            } else if (!verification.matches && verification.actualName !== null) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Clearing ifIndex and forcing immediate auto-discovery.`);
               trafficDataSuccess = false;
               previousTrafficData.delete(link.id);
@@ -2055,10 +2064,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 snmpInterfaceIndex: null,
                 ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
               }).where(eq(links.id, link.id));
-            } else if (verification.matches) {
-              if (!(isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias && knownAlias.toLowerCase().trim() !== verification.actualAlias.toLowerCase().trim())) {
-                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"${verification.actualAlias ? ` (alias: "${verification.actualAlias}")` : ''}`);
-              }
+            } else if (verification.matches && !(isCiscoViInterface && isConcentratorLink && knownAlias)) {
+              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"${verification.actualAlias ? ` (alias: "${verification.actualAlias}")` : ''}`);
             }
           }
         }
