@@ -10053,40 +10053,82 @@ export async function registerRoutes(
     try {
       const safeHeaders: Record<string, string> = {};
       for (const [key, value] of Object.entries(req.headers)) {
-        if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-webhook-token') {
+        if (['authorization', 'x-webhook-token', 'password'].includes(key.toLowerCase())) {
           safeHeaders[key] = '***REDACTED***';
         } else {
           safeHeaders[key] = String(value);
         }
       }
-      
+
+      const webhookUsername = req.headers['username'] || req.query?.username;
+      const webhookPassword = req.headers['password'] || req.query?.password;
+      const expectedUsername = 'linkmonitor';
+      const expectedPassword = process.env.VOALLE_SYN_V1_TOKEN || '';
+
+      if (webhookUsername && expectedPassword) {
+        if (webhookUsername !== expectedUsername || webhookPassword !== expectedPassword) {
+          console.log(`[Webhook/Voalle] Auth failed: username=${webhookUsername}`);
+          await db.insert(webhookLogs).values({
+            source: 'voalle' as const,
+            event: 'auth_failed',
+            method: req.method,
+            headers: safeHeaders,
+            queryParams: req.query || {},
+            body: req.body || null,
+            rawBody: JSON.stringify(req.body, null, 2),
+            ipAddress: req.ip || req.socket?.remoteAddress || 'unknown',
+            processed: false,
+          });
+          return res.status(401).json({ StatusCode: "401", Content: "Authentication failed" });
+        }
+      }
+
+      const body = req.body;
+      const isArray = Array.isArray(body);
+      const payload = isArray ? body[0] : body;
+      const actionType = payload?.ActionType;
+      const actionLabels: Record<number, string> = { 0: 'Inclusão', 1: 'Alteração', 2: 'Exclusão' };
+      const actionLabel = actionLabels[actionType] || `Desconhecido(${actionType})`;
+
+      let eventType = 'unknown';
+      if (payload?.Authentication) eventType = 'connection';
+      else if (payload?.Contract) eventType = 'contract';
+      else if (payload?.Solicitations) eventType = 'solicitation';
+
       const logEntry = {
         source: 'voalle' as const,
-        event: req.body?.event || req.body?.tipo || req.body?.type || req.query?.event || 'unknown',
+        event: `${eventType}:${actionLabel}`,
         method: req.method,
         headers: safeHeaders,
         queryParams: req.query || {},
-        body: req.body || null,
-        rawBody: JSON.stringify(req.body, null, 2),
+        body: payload || null,
+        rawBody: JSON.stringify(body, null, 2),
         ipAddress: req.ip || req.socket?.remoteAddress || 'unknown',
         processed: false,
       };
-      
+
       await db.insert(webhookLogs).values(logEntry);
-      
-      console.log(`[Webhook/Voalle] Received ${req.method} from ${logEntry.ipAddress}`);
-      console.log(`[Webhook/Voalle] Headers: ${JSON.stringify(safeHeaders, null, 2)}`);
-      console.log(`[Webhook/Voalle] Query: ${JSON.stringify(req.query, null, 2)}`);
-      console.log(`[Webhook/Voalle] Body: ${JSON.stringify(req.body, null, 2)}`);
-      
+
+      console.log(`[Webhook/Voalle] Received ${eventType}:${actionLabel} from ${logEntry.ipAddress}`);
+      console.log(`[Webhook/Voalle] Body: ${JSON.stringify(payload, null, 2)}`);
+
+      if (eventType === 'connection' && payload?.Authentication) {
+        const auth = payload.Authentication;
+        console.log(`[Webhook/Voalle] Conexão do Contrato - Login: ${auth.Login}, ContractID: ${auth.ContractID}, AccessPoint: ${auth.AccessPoint}, Action: ${actionLabel}`);
+        console.log(`[Webhook/Voalle] OltSlot: ${auth.OltSlot}, OltPort: ${auth.OltPort}, ServiceId: ${auth.ServiceId}, Status: ${auth.Status}`);
+
+        await db.update(webhookLogs)
+          .set({ processed: true })
+          .where(eq(webhookLogs.id, (await db.select({ id: webhookLogs.id }).from(webhookLogs).orderBy(sql`${webhookLogs.id} DESC`).limit(1))[0]?.id));
+      }
+
       res.status(200).json({ 
-        success: true, 
-        message: "Webhook received and logged",
-        timestamp: new Date().toISOString()
+        StatusCode: "200",
+        Content: "Webhook received successfully"
       });
     } catch (error: any) {
       console.error(`[Webhook/Voalle] Error processing webhook:`, error);
-      res.status(200).json({ success: true, message: "Received" });
+      res.status(200).json({ StatusCode: "200", Content: "Received" });
     }
   });
   
