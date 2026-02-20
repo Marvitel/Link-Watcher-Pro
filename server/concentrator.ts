@@ -2,6 +2,7 @@ import snmp from "net-snmp";
 import { Client as SSHClient } from "ssh2";
 import { RouterOSClient } from "routeros-client";
 import type { SnmpConcentrator, SnmpProfile } from "@shared/schema";
+import { decrypt, isEncrypted } from "./crypto";
 
 /**
  * Busca MAC na tabela ARP do Mikrotik via API binária (porta 8728/8729)
@@ -1243,10 +1244,11 @@ async function lookupPppoeViaSSH(
     return results;
   }
 
-  const sshPassword = password || concentrator.sshPassword || "";
-  if (!sshPassword) {
+  const rawPassword = password || concentrator.sshPassword || "";
+  if (!rawPassword) {
     return results;
   }
+  const sshPassword = isEncrypted(rawPassword) ? decrypt(rawPassword) : rawPassword;
 
   // Derive vendor from name/model hints or use explicit vendor field
   let vendor = (concentrator.vendor || "").toLowerCase();
