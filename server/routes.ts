@@ -5311,17 +5311,11 @@ export async function registerRoutes(
         const voalleId = parseInt(link.accessPointId, 10);
         if (isNaN(voalleId)) return { oltId: null, switchId: null, concentratorAsAccessPointId: null };
 
-        // Check if access point ID matches a concentrator's voalleAccessPointIds
+        // Check if access point ID matches a concentrator's voalleAccessPointIds (NOT the main voalleIds which are concentrator IDs)
         const concByAPId = existingConcentratorsByAccessPointVoalleId.get(voalleId);
         if (concByAPId) {
           console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concByAPId.name}" via voalleAccessPointIds`);
           return { oltId: null, switchId: null, concentratorAsAccessPointId: concByAPId.id };
-        }
-        // Fallback: check if access point ID matches a concentrator's main voalleIds and it's marked as access point
-        const concAsAP = existingConcentratorsByVoalleId.get(voalleId);
-        if (concAsAP && concAsAP.isAccessPoint) {
-          console.log(`[Voalle Import] Access point ID ${voalleId} matches concentrator "${concAsAP.name}" marked as access point (via main voalleIds)`);
-          return { oltId: null, switchId: null, concentratorAsAccessPointId: concAsAP.id };
         }
 
         const accessPointName = link.oltName || '';
