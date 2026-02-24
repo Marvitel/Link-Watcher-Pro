@@ -707,6 +707,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     linkType: (link as any)?.linkType || "gpon",
     switchId: (link as any)?.switchId || null,
     switchPort: (link as any)?.switchPort || "",
+    switchPortNumber: (link as any)?.switchPortNumber || null,
     concentratorId: (link as any)?.concentratorId || null,
     trafficSourceType: (link as any)?.trafficSourceType || "manual",
     accessPointId: (link as any)?.accessPointId || null,
@@ -1024,9 +1025,9 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
   const filteredSnmpProfiles = snmpProfiles?.filter(p => p.clientId === formData.clientId || p.clientId === null);
 
   // Estado para lembrar de qual modo a descoberta foi feita (para gravar no campo correto)
-  const [discoverMode, setDiscoverMode] = useState<'normal' | 'accessPoint'>('normal');
+  const [discoverMode, setDiscoverMode] = useState<'normal' | 'accessPoint' | 'switch'>('normal');
   
-  const handleDiscoverInterfaces = async (overrideIp?: string, overrideProfileId?: number, mode: 'normal' | 'accessPoint' = 'normal') => {
+  const handleDiscoverInterfaces = async (overrideIp?: string, overrideProfileId?: number, mode: 'normal' | 'accessPoint' | 'switch' = 'normal') => {
     setDiscoverMode(mode);
     const targetIp = overrideIp || formData.snmpRouterIp;
     const profileId = overrideProfileId || formData.snmpProfileId;
@@ -1091,14 +1092,14 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
           title: "Interface do Ponto de Acesso selecionada",
           description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
         });
-      } else if (formData.linkType === "ptp") {
+      } else if (discoverMode === 'switch') {
         setFormData({
           ...formData,
           switchPort: iface.ifName || iface.ifDescr || ifIndex,
-          snmpInterfaceIndex: iface.ifIndex,
+          switchPortNumber: iface.ifIndex,
         });
         toast({
-          title: "Interface selecionada",
+          title: "Interface do Switch selecionada",
           description: `${iface.ifName || iface.ifDescr} (index: ${iface.ifIndex})`,
         });
       } else {
@@ -2119,7 +2120,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                         const swData = await response.json();
                         const profileId = swData.snmpProfileId;
                         if (profileId) {
-                          handleDiscoverInterfaces(selectedSwitch.ipAddress, profileId);
+                          handleDiscoverInterfaces(selectedSwitch.ipAddress, profileId, 'switch');
                         } else {
                           toast({
                             title: "Perfil SNMP nao configurado",
