@@ -195,7 +195,7 @@ function buildSLAIndicators(calc: SLACalculation): SLAIndicator[] {
       description: "Tempo entre a abertura do chamado e o restabelecimento do serviço",
       formula: "N/A",
       target: "Máximo 6 horas",
-      current: repairTime <= 6 ? 100 : Math.max(0, 100 - ((repairTime - 6) * 10)),
+      current: Math.round(repairTime * 100) / 100,
       periodicity: "Mensal",
       status: repairTime <= 6 ? "compliant" : repairTime <= 8 ? "warning" : "non_compliant",
     },

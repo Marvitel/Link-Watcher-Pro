@@ -306,7 +306,7 @@ export default function Reports() {
               <CardContent className="pt-4">
                 <p className="text-sm text-muted-foreground">Prazo de Reparo</p>
                 <p className="text-2xl font-semibold font-mono">
-                  {(slaAccumulated?.find(i => i.id === "sla-repair")?.current ?? 100).toFixed(0)}%
+                  {(slaAccumulated?.find(i => i.id === "sla-repair")?.current ?? 2).toFixed(1)} h
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400">Meta: Máximo 6 horas</p>
               </CardContent>

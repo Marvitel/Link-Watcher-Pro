@@ -52,6 +52,31 @@ function formatDateFile(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function sanitizeForPDF(text: string): string {
+  return text
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
+    .replace(/⁻⁶/g, "^-6")
+    .replace(/⁻/g, "-")
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (m) => {
+      const map: Record<string, string> = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9" };
+      return map[m] || m;
+    })
+    .replace(/ç/g, "c").replace(/Ç/g, "C")
+    .replace(/ã/g, "a").replace(/Ã/g, "A")
+    .replace(/á/g, "a").replace(/Á/g, "A")
+    .replace(/à/g, "a").replace(/À/g, "A")
+    .replace(/â/g, "a").replace(/Â/g, "A")
+    .replace(/é/g, "e").replace(/É/g, "E")
+    .replace(/ê/g, "e").replace(/Ê/g, "E")
+    .replace(/í/g, "i").replace(/Í/g, "I")
+    .replace(/ó/g, "o").replace(/Ó/g, "O")
+    .replace(/ô/g, "o").replace(/Ô/g, "O")
+    .replace(/õ/g, "o").replace(/Õ/g, "O")
+    .replace(/ú/g, "u").replace(/Ú/g, "U")
+    .replace(/–/g, "-");
+}
+
 function getStatusText(status: string): string {
   switch (status) {
     case "compliant": return "Conforme";
@@ -151,9 +176,9 @@ export function exportToPDF(data: ReportData): void {
   
   doc.setFontSize(12);
   doc.setFont("helvetica", "normal");
-  doc.text(`Cliente: ${data.clientName}`, pageWidth / 2, yPos, { align: "center" });
+  doc.text(`Cliente: ${sanitizeForPDF(data.clientName)}`, pageWidth / 2, yPos, { align: "center" });
   yPos += 6;
-  doc.text(`Gerado em: ${formatDate(data.generatedAt)}`, pageWidth / 2, yPos, { align: "center" });
+  doc.text(`Gerado em: ${sanitizeForPDF(formatDate(data.generatedAt))}`, pageWidth / 2, yPos, { align: "center" });
   yPos += 15;
 
   doc.setFontSize(14);
@@ -161,13 +186,20 @@ export function exportToPDF(data: ReportData): void {
   doc.text("Indicadores SLA/ANS", 14, yPos);
   yPos += 5;
 
-  const slaRows = data.slaIndicators.map((indicator) => [
-    indicator.name,
-    indicator.description.length > 30 ? indicator.description.substring(0, 30) + "..." : indicator.description,
-    indicator.target,
-    formatNumberPtBR(indicator.current),
-    getStatusText(indicator.status),
-  ]);
+  const slaRows = data.slaIndicators.map((indicator) => {
+    let currentFormatted = formatNumberPtBR(indicator.current);
+    if (indicator.id === "sla-repair") {
+      currentFormatted = `${currentFormatted} h`;
+    }
+    const desc = indicator.description.length > 30 ? indicator.description.substring(0, 30) + "..." : indicator.description;
+    return [
+      sanitizeForPDF(indicator.name),
+      sanitizeForPDF(desc),
+      sanitizeForPDF(indicator.target),
+      currentFormatted,
+      sanitizeForPDF(getStatusText(indicator.status)),
+    ];
+  });
 
   autoTable(doc, {
     startY: yPos,
@@ -224,8 +256,8 @@ export function exportToPDF(data: ReportData): void {
   yPos += 5;
 
   const linkRows = data.links.map((link) => [
-    link.name,
-    link.location,
+    sanitizeForPDF(link.name),
+    sanitizeForPDF(link.location || ""),
     formatBandwidth(link.bandwidth),
     getStatusTextLink(link.status),
     `${formatNumberPtBR(link.uptime ?? 0)}%`,
