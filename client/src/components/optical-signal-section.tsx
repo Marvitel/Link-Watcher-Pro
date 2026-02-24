@@ -240,12 +240,10 @@ function SignalMeter({ value, thresholds }: {
 }
 
 export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProps) {
-  // Métricas são retornadas em ordem descendente (mais recente primeiro)
-  // Então a métrica mais recente está em metrics[0]
-  const latestMetric = metrics[0];
-  const currentRxPower = latestMetric?.opticalRxPower;
-  const currentTxPower = latestMetric?.opticalTxPower;
-  const currentOltRxPower = latestMetric?.opticalOltRxPower;
+  const latestOpticalMetric = metrics.find(m => m.opticalRxPower !== null || m.opticalTxPower !== null);
+  const currentRxPower = latestOpticalMetric?.opticalRxPower;
+  const currentTxPower = latestOpticalMetric?.opticalTxPower;
+  const currentOltRxPower = latestOpticalMetric?.opticalOltRxPower;
   
   // Verificar se é link PTP (via switch)
   const isPtp = link.linkType === "ptp";
