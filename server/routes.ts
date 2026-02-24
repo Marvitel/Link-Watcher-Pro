@@ -1091,7 +1091,14 @@ export async function registerRoutes(
         'opticalRxOid', 'opticalTxOid', 'opticalOltRxOid',
         'mainGraphMode', 'mainGraphInterfaceIds',
         'snmpProfileId', 'snmpInterfaceIndex', 'snmpInterfaceName', 'snmpInterfaceDescr', 'snmpInterfaceAlias',
-        'pppoeUser', 'vlanInterface',
+        'pppoeUser', 'pppoePassword', 'vlanInterface',
+        'switchPort', 'switchPortNumber',
+        'snmpRouterIp', 'equipmentVendorId', 'equipmentModel', 'customCpuOid', 'customMemoryOid',
+        'voalleContractTagId', 'voalleContractTagServiceTag', 'voalleConnectionId', 'voalleContractNumber',
+        'accessPointId', 'accessPointInterfaceIndex', 'accessPointInterfaceName',
+        'latitude', 'longitude', 'invertBandwidth', 'sfpType',
+        'isL2Link', 'icmpBlocked', 'tcpCheckPort',
+        'wifiName', 'wifiPassword',
       ]);
       const filteredBody: Record<string, any> = {};
       for (const [key, value] of Object.entries(req.body)) {
@@ -3494,13 +3501,20 @@ export async function registerRoutes(
           }
         }
         if (!currentPppoePassword) {
-          console.log(`[Voalle Sync] Senha PPPoE não disponível (Portal API e RADIUS). Sync bloqueado.`);
-          return res.json({ success: false, message: "Senha PPPoE atual não encontrada. Impossível sincronizar sem alterar a senha do cliente." });
+          const isCorporateOrPtp = updatedLink.authType === 'corporate' || updatedLink.linkType === 'ptp';
+          if (isCorporateOrPtp) {
+            console.log(`[Voalle Sync] Link corporativo/PTP sem senha PPPoE. Sincronizando apenas endereço (campos API ignorados).`);
+          } else {
+            console.log(`[Voalle Sync] Senha PPPoE não disponível (Portal API e RADIUS). Sync bloqueado.`);
+            return res.json({ success: false, message: "Senha PPPoE atual não encontrada. Impossível sincronizar sem alterar a senha do cliente." });
+          }
         }
-        updateResult = await adapter.updateConnectionFields(connectionId, fields, currentPppoePassword);
-        if (!updateResult.success) {
-          console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);
-          return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
+        if (currentPppoePassword) {
+          updateResult = await adapter.updateConnectionFields(connectionId, fields, currentPppoePassword);
+          if (!updateResult.success) {
+            console.error(`[Voalle Sync] Falha ao atualizar conexão ${connectionId}:`, updateResult.message);
+            return res.json({ success: false, message: updateResult.message || "Erro ao atualizar Voalle" });
+          }
         }
       }
 
