@@ -10146,6 +10146,24 @@ export async function registerRoutes(
     }
   });
   
+  app.get("/api/webhooks/voalle/status", async (req: Request, res: Response) => {
+    try {
+      const total = await db.select({ count: sql<number>`count(*)` }).from(webhookLogs);
+      const latest = await db.select({
+        id: webhookLogs.id,
+        source: webhookLogs.source,
+        event: webhookLogs.event,
+        method: webhookLogs.method,
+        ipAddress: webhookLogs.ipAddress,
+        processed: webhookLogs.processed,
+        receivedAt: webhookLogs.receivedAt,
+      }).from(webhookLogs).orderBy(sql`${webhookLogs.receivedAt} DESC`).limit(10);
+      res.json({ totalLogs: total[0]?.count || 0, latest });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/webhooks/logs", requireSuperAdmin, async (req: Request, res: Response) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
