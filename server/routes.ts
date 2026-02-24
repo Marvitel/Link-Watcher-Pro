@@ -10063,7 +10063,7 @@ export async function registerRoutes(
   // Voalle Webhook Receiver (Capture Mode)
   // ==========================================
   
-  app.all("/api/webhooks/voalle", async (req: Request, res: Response) => {
+  app.post("/api/webhooks/voalle", async (req: Request, res: Response) => {
     try {
       const safeHeaders: Record<string, string> = {};
       for (const [key, value] of Object.entries(req.headers)) {
