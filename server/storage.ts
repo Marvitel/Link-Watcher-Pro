@@ -864,19 +864,11 @@ export class DatabaseStorage {
   }
 
   async calculateSLAFromMetrics(clientId?: number, fromDate?: Date, toDate?: Date, linkId?: number): Promise<SLACalculation> {
-    // If linkId provided, filter to that specific link only
     let targetLinks: Link[];
     if (linkId) {
       const link = await this.getLink(linkId);
       if (!link) {
-        return {
-          availability: 0,
-          avgLatency: 0,
-          avgPacketLoss: 0,
-          totalMetrics: 0,
-          operationalMetrics: 0,
-          avgRepairTime: 0,
-        };
+        return { availability: 0, avgLatency: 0, avgPacketLoss: 0, totalMetrics: 0, operationalMetrics: 0, avgRepairTime: 0 };
       }
       targetLinks = [link];
     } else {
@@ -884,111 +876,71 @@ export class DatabaseStorage {
     }
     
     if (targetLinks.length === 0) {
-      return {
-        availability: 0,
-        avgLatency: 0,
-        avgPacketLoss: 0,
-        totalMetrics: 0,
-        operationalMetrics: 0,
-        avgRepairTime: 0,
-      };
+      return { availability: 0, avgLatency: 0, avgPacketLoss: 0, totalMetrics: 0, operationalMetrics: 0, avgRepairTime: 0 };
     }
 
-    // Build date conditions
     const conditions: any[] = [];
-    if (fromDate) {
-      conditions.push(gte(metrics.timestamp, fromDate));
-    }
-    if (toDate) {
-      conditions.push(lte(metrics.timestamp, toDate));
-    }
-    
-    // If no dates, use last 6 months (default retention)
+    if (fromDate) conditions.push(gte(metrics.timestamp, fromDate));
+    if (toDate) conditions.push(lte(metrics.timestamp, toDate));
     if (!fromDate && !toDate) {
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
       conditions.push(gte(metrics.timestamp, sixMonthsAgo));
     }
 
-    // Filter by target links
     const targetLinkIds = targetLinks.map(l => l.id);
-    
-    // Get all metrics for the period
-    let allMetrics: Metric[] = [];
-    for (const lid of targetLinkIds) {
-      const linkMetrics = await db
-        .select()
-        .from(metrics)
-        .where(and(
-          eq(metrics.linkId, lid),
-          ...conditions
-        ));
-      allMetrics = allMetrics.concat(linkMetrics);
+
+    if (linkId) {
+      conditions.push(eq(metrics.linkId, linkId));
+    } else if (clientId) {
+      conditions.push(eq(metrics.clientId, clientId));
+    } else if (targetLinkIds.length > 0) {
+      conditions.push(sql`${metrics.linkId} IN (${sql.join(targetLinkIds.map(id => sql`${id}`), sql`, `)})`);
     }
 
-    if (allMetrics.length === 0) {
-      // Fall back to current link values if no metrics
+    const aggregateResult = await db
+      .select({
+        totalCount: sql<number>`count(*)::int`,
+        operationalCount: sql<number>`count(*) filter (where ${metrics.status} = 'operational')::int`,
+        avgLatency: sql<number>`coalesce(avg(${metrics.latency}) filter (where ${metrics.latency} > 0), 0)::float`,
+        avgPacketLoss: sql<number>`coalesce(avg(${metrics.packetLoss}), 0)::float`,
+      })
+      .from(metrics)
+      .where(and(...conditions));
+
+    const result = aggregateResult[0];
+    const totalCount = result?.totalCount ?? 0;
+    const operationalCount = result?.operationalCount ?? 0;
+
+    if (totalCount === 0) {
       const avgUptime = targetLinks.reduce((sum, l) => sum + l.uptime, 0) / targetLinks.length;
-      const avgLatency = targetLinks.reduce((sum, l) => sum + l.latency, 0) / targetLinks.length;
-      const avgPacketLoss = targetLinks.reduce((sum, l) => sum + l.packetLoss, 0) / targetLinks.length;
-      return {
-        availability: avgUptime,
-        avgLatency: avgLatency,
-        avgPacketLoss: avgPacketLoss,
-        totalMetrics: 0,
-        operationalMetrics: 0,
-        avgRepairTime: 2,
-      };
+      const avgLat = targetLinks.reduce((sum, l) => sum + l.latency, 0) / targetLinks.length;
+      const avgLoss = targetLinks.reduce((sum, l) => sum + l.packetLoss, 0) / targetLinks.length;
+      return { availability: avgUptime, avgLatency: avgLat, avgPacketLoss: avgLoss, totalMetrics: 0, operationalMetrics: 0, avgRepairTime: 2 };
     }
 
-    // Calculate availability: % of metrics where status is "operational"
-    const operationalMetrics = allMetrics.filter(m => m.status === "operational").length;
-    const availability = (operationalMetrics / allMetrics.length) * 100;
+    const availability = (operationalCount / totalCount) * 100;
 
-    // Calculate average latency (ignoring zeros)
-    const latencyMetrics = allMetrics.filter(m => m.latency > 0);
-    const avgLatency = latencyMetrics.length > 0
-      ? latencyMetrics.reduce((sum, m) => sum + m.latency, 0) / latencyMetrics.length
-      : 0;
+    const incidentConditions: any[] = [sql`${incidents.closedAt} IS NOT NULL`];
+    if (clientId) incidentConditions.push(eq(incidents.clientId, clientId));
+    if (fromDate) incidentConditions.push(gte(incidents.openedAt, fromDate));
+    if (toDate) incidentConditions.push(lte(incidents.openedAt, toDate));
 
-    // Calculate average packet loss
-    const avgPacketLoss = allMetrics.reduce((sum, m) => sum + m.packetLoss, 0) / allMetrics.length;
-
-    // Calculate average repair time from incidents
-    const incidentConditions: any[] = [];
-    if (clientId) {
-      incidentConditions.push(eq(incidents.clientId, clientId));
-    }
-    if (fromDate) {
-      incidentConditions.push(gte(incidents.openedAt, fromDate));
-    }
-    if (toDate) {
-      incidentConditions.push(lte(incidents.openedAt, toDate));
-    }
-    
-    const closedIncidents = await db
-      .select()
+    const repairResult = await db
+      .select({
+        avgRepairHours: sql<number>`coalesce(avg(extract(epoch from (${incidents.closedAt} - ${incidents.openedAt})) / 3600), 2)::float`,
+      })
       .from(incidents)
-      .where(incidentConditions.length > 0 ? and(...incidentConditions, sql`${incidents.closedAt} IS NOT NULL`) : sql`${incidents.closedAt} IS NOT NULL`);
-    
-    let avgRepairTime = 2; // Default 2 hours if no incidents
-    if (closedIncidents.length > 0) {
-      const totalRepairHours = closedIncidents.reduce((sum, inc) => {
-        if (inc.closedAt && inc.openedAt) {
-          const diffMs = new Date(inc.closedAt).getTime() - new Date(inc.openedAt).getTime();
-          return sum + (diffMs / (1000 * 60 * 60)); // convert to hours
-        }
-        return sum;
-      }, 0);
-      avgRepairTime = totalRepairHours / closedIncidents.length;
-    }
+      .where(and(...incidentConditions));
+
+    const avgRepairTime = repairResult[0]?.avgRepairHours ?? 2;
 
     return {
       availability,
-      avgLatency,
-      avgPacketLoss,
-      totalMetrics: allMetrics.length,
-      operationalMetrics,
+      avgLatency: result?.avgLatency ?? 0,
+      avgPacketLoss: result?.avgPacketLoss ?? 0,
+      totalMetrics: totalCount,
+      operationalMetrics: operationalCount,
       avgRepairTime,
     };
   }
