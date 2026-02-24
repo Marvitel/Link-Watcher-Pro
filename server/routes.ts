@@ -10149,6 +10149,11 @@ export async function registerRoutes(
   app.get("/api/webhooks/voalle/status", async (req: Request, res: Response) => {
     try {
       const total = await db.select({ count: sql<number>`count(*)` }).from(webhookLogs);
+      const detailId = req.query.id ? parseInt(req.query.id as string) : null;
+      if (detailId) {
+        const log = await db.select().from(webhookLogs).where(eq(webhookLogs.id, detailId)).limit(1);
+        return res.json(log[0] || { error: "Not found" });
+      }
       const latest = await db.select({
         id: webhookLogs.id,
         source: webhookLogs.source,
