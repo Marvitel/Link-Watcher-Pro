@@ -2468,6 +2468,17 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             console.log(`[Monitor] ${link.name} - Óptico PTP Datacom: usando OIDs padrão (divisor: 100)`);
           }
           
+          // MikroTik: usar OIDs padrão se não configurados (mtxrOptical table)
+          // OID RX: 1.3.6.1.4.1.14988.1.1.19.1.1.10.{ifIndex} (milésimos de dBm, divisor 1000)
+          // OID TX: 1.3.6.1.4.1.14988.1.1.19.1.1.9.{ifIndex} (milésimos de dBm, divisor 1000)
+          const isMikrotik = vendorSlug.includes("mikrotik") || vendorSlug.includes("routeros") || sw.vendor?.toLowerCase().includes("mikrotik");
+          if (isMikrotik && !opticalRxOid && !opticalTxOid) {
+            opticalRxOid = "1.3.6.1.4.1.14988.1.1.19.1.1.10.{ifIndex}";
+            opticalTxOid = "1.3.6.1.4.1.14988.1.1.19.1.1.9.{ifIndex}";
+            opticalDivisor = 1000; // MikroTik retorna milésimos de dBm
+            console.log(`[Monitor] ${link.name} - Óptico PTP MikroTik: usando OIDs padrão mtxrOptical (divisor: 1000)`);
+          }
+          
           if (isCisco) {
             // Cisco usa Entity MIB - buscar índices de sensor no cache
             console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: buscando sensores no cache...`);
@@ -2535,8 +2546,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             }
           } else if (opticalRxOid || opticalTxOid) {
             // Outros fabricantes (Mikrotik, Datacom, etc) - método tradicional com templates
-            // Para Datacom e outros que usam {ifIndex}, passar o snmpInterfaceIndex do link
-            const linkIfIndex = link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null;
+            // Para ifIndex: usar switchPortNumber (ifIndex do switch) preferencialmente, não snmpInterfaceIndex (que é do concentrador)
+            const switchPortNum = (link as any).switchPortNumber ? parseInt((link as any).switchPortNumber.toString(), 10) : null;
+            const linkIfIndex = switchPortNum || (link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null);
             opticalSignal = await getOpticalSignalFromSwitch(
               sw.ipAddress,
               swProfile,
