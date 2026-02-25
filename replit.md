@@ -50,6 +50,25 @@ Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤
 ### Link Groups
 Supports grouping links with different profiles for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
 
+### Batch Link Diagnostics & Enrichment
+Admin tab "Diagnóstico de Links" analyzes all links and provides batch enrichment tools:
+- **Categories**: missingVoalleLogin, missingIp, missingConcentrator, missingInterface, missingOptical, missingOltAssignment, missingCpe, missingOzmapData, missingPppoeUser, missingSnmpProfile, missingVoalleTag, missingCoordinates
+- **Enrichment Actions**:
+  - `discover_voalle_login`: Validates Portal Voalle access using CPF/CNPJ as username/password, updates client `voallePortalUsername`/`voallePortalPassword`
+  - `discover_ips`: Searches RADIUS DB for framed IP address by PPPoE username
+  - `discover_mac`: Searches RADIUS DB for MAC (Calling-Station-Id) by PPPoE username
+  - `discover_voalle`: Fetches contract tags from Voalle Portal API, fills pppoeUser, monitoredIp, slotOlt, portOlt, serial, etc.
+  - `assign_concentrators`: Matches links to concentrators using Voalle concentrator IDs (`snmpConcentrators.voalleIds`)
+  - `assign_olts`: Matches links to OLTs/Switches using Voalle access point IDs (`olts.voalleIds`, `switches.voalleIds`)
+  - `discover_interfaces`: SNMP ifIndex discovery for links with IP but no interface
+  - `sync_ozmap`: Fetches OZmap potency/route data using service tags
+  - `create_cpes`: Auto-creates CPE entries and link associations for links with monitoring IP
+  - `discover_all`: Runs all actions in sequence
+- **Progress tracking**: `skipped` (no data available) vs `failed` (actual errors) vs `success`
+- **RADIUS connection test** before bulk operations to detect DB issues early
+- **Key fix**: `RadiusDbSession.framedIpAddress` (camelCase) - not `framedipaddress`
+- **Files**: `server/routes.ts` (endpoints), `client/src/components/admin/link-diagnostics-tab.tsx` (UI)
+
 ## External Dependencies
 
 ### Database

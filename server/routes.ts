@@ -43,6 +43,11 @@ import {
   firewallSettings,
   trafficInterfaceMetrics,
   splitters,
+  snmpConcentrators,
+  olts,
+  switches,
+  cpes,
+  linkCpes,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -10225,6 +10230,9 @@ export async function registerRoutes(
     try {
       const allLinks = await db.select().from(links);
 
+      const allClients = await db.select().from(clientsTable);
+      const clientMap = new Map(allClients.map(c => [c.id, c]));
+
       const missingIp = allLinks.filter(l => !l.monitoredIp);
       const missingInterface = allLinks.filter(l => l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined);
       const missingConcentrator = allLinks.filter(l => !l.concentratorId && (l.authType === 'pppoe' || l.trafficSourceType === 'concentrator'));
@@ -10233,23 +10241,43 @@ export async function registerRoutes(
       const missingVoalleTag = allLinks.filter(l => !l.voalleContractTagId);
       const missingOptical = allLinks.filter(l => l.linkType === 'gpon' && (!l.opticalMonitoringEnabled || !l.oltId));
       const missingCoordinates = allLinks.filter(l => !l.latitude || !l.longitude);
+      const missingOltAssignment = allLinks.filter(l => l.linkType === 'gpon' && !l.oltId && l.voalleAccessPointId);
+      const missingOzmapData = allLinks.filter(l => (l.voalleContractTagServiceTag || l.ozmapTag) && !l.ozmapArrivingPotency);
+
+      const clientsWithoutPortal = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
+      const linksOfClientsWithoutPortal = allLinks.filter(l => {
+        const client = clientMap.get(l.clientId);
+        return client && client.cnpj && (!client.voallePortalUsername || !client.voallePortalPassword);
+      });
+
+      const allCpes = await db.select().from(cpes);
+      const allLinkCpes = await db.select().from(linkCpes);
+      const linksWithCpe = new Set(allLinkCpes.map(lc => lc.linkId));
+      const missingCpe = allLinks.filter(l => l.monitoredIp && !linksWithCpe.has(l.id));
+
       const hasIpNoPppoe = allLinks.filter(l => l.pppoeUser && !l.monitoredIp);
       const hasIpNoInterface = allLinks.filter(l => l.monitoredIp && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
 
       const categories = {
-        missingIp: { count: missingIp.length, ids: missingIp.map(l => l.id), label: "Sem IP de monitoramento", enrichable: hasIpNoPppoe.length },
-        missingInterface: { count: missingInterface.length, ids: missingInterface.map(l => l.id), label: "Sem interface SNMP (ifIndex)", enrichable: hasIpNoInterface.length },
-        missingConcentrator: { count: missingConcentrator.length, ids: missingConcentrator.map(l => l.id), label: "Sem concentrador (PPPoE)" },
+        missingVoalleLogin: { count: linksOfClientsWithoutPortal.length, ids: linksOfClientsWithoutPortal.map(l => l.id), label: "Clientes sem login Portal Voalle", enrichAction: "discover_voalle_login", clientCount: clientsWithoutPortal.length },
+        missingIp: { count: missingIp.length, ids: missingIp.map(l => l.id), label: "Sem IP de monitoramento", enrichAction: "discover_ips", enrichable: hasIpNoPppoe.length },
+        missingConcentrator: { count: missingConcentrator.length, ids: missingConcentrator.map(l => l.id), label: "Sem concentrador (tráfego)", enrichAction: "assign_concentrators" },
+        missingInterface: { count: missingInterface.length, ids: missingInterface.map(l => l.id), label: "Sem interface SNMP (ifIndex)", enrichAction: "discover_interfaces", enrichable: hasIpNoInterface.length },
+        missingOptical: { count: missingOptical.length, ids: missingOptical.map(l => l.id), label: "GPON sem monitoramento óptico", enrichAction: "assign_olts" },
+        missingOltAssignment: { count: missingOltAssignment.length, ids: missingOltAssignment.map(l => l.id), label: "Sem OLT atribuída (tem AccessPoint Voalle)" },
+        missingCpe: { count: missingCpe.length, ids: missingCpe.map(l => l.id), label: "Sem CPE cadastrado", enrichAction: "create_cpes" },
+        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap" },
         missingPppoeUser: { count: missingPppoeUser.length, ids: missingPppoeUser.map(l => l.id), label: "Sem usuário PPPoE" },
         missingSnmpProfile: { count: missingSnmpProfile.length, ids: missingSnmpProfile.map(l => l.id), label: "Sem perfil SNMP" },
-        missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)" },
-        missingOptical: { count: missingOptical.length, ids: missingOptical.map(l => l.id), label: "GPON sem monitoramento óptico" },
+        missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)", enrichAction: "discover_voalle" },
         missingCoordinates: { count: missingCoordinates.length, ids: missingCoordinates.map(l => l.id), label: "Sem coordenadas" },
       };
 
+      const criticalIssues = new Set([...missingIp, ...missingInterface, ...missingConcentrator].map(l => l.id));
+
       res.json({
         totalLinks: allLinks.length,
-        healthyLinks: allLinks.length - new Set([...missingIp, ...missingInterface, ...missingPppoeUser].map(l => l.id)).size,
+        healthyLinks: allLinks.length - criticalIssues.size,
         categories,
       });
     } catch (error: any) {
@@ -10452,7 +10480,401 @@ export async function registerRoutes(
           }
         }
 
-        console.log(`[Enrich] Completed: ${enrichmentProgress.success} success, ${enrichmentProgress.failed} failed out of ${enrichmentProgress.total}`);
+        if (action === 'discover_voalle_login' || action === 'discover_all') {
+          enrichmentProgress.action = 'discover_voalle_login';
+          console.log(`[Enrich] Starting Voalle Portal login discovery (CPF/CNPJ)`);
+
+          try {
+            const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+            if (!voalleIntegration) {
+              enrichmentProgress.errors.push("Integração Voalle não configurada para login portal");
+            } else {
+              const adapter = configureErpAdapter(voalleIntegration) as any;
+              const allClients = await db.select().from(clientsTable);
+              const clientsNeedingLogin = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
+              enrichmentProgress.total += clientsNeedingLogin.length;
+              console.log(`[Enrich] ${clientsNeedingLogin.length} clientes sem login portal (tentando CPF/CNPJ)`);
+
+              for (const client of clientsNeedingLogin) {
+                try {
+                  const cnpj = client.cnpj!.replace(/[^\d]/g, '');
+                  const validation = await adapter.validatePortalCredentials(cnpj, cnpj);
+                  if (validation.success) {
+                    await db.update(clientsTable).set({
+                      voallePortalUsername: cnpj,
+                      voallePortalPassword: cnpj,
+                      voalleCustomerId: validation.person?.id || client.voalleCustomerId,
+                    }).where(eq(clientsTable.id, client.id));
+                    enrichmentProgress.success++;
+                    console.log(`[Enrich] ${client.name}: Portal login OK (CPF/CNPJ: ${cnpj.substring(0, 4)}...)`);
+                  } else {
+                    enrichmentProgress.skipped++;
+                  }
+                } catch (err: any) {
+                  enrichmentProgress.failed++;
+                  if (enrichmentProgress.errors.length < 50) {
+                    enrichmentProgress.errors.push(`${client.name}: ${err.message}`);
+                  }
+                }
+                enrichmentProgress.processed++;
+              }
+            }
+          } catch (err: any) {
+            console.error("[Enrich] Voalle login error:", err);
+            enrichmentProgress.errors.push(`Voalle login: ${err.message}`);
+          }
+        }
+
+        if (action === 'assign_concentrators' || action === 'discover_all') {
+          enrichmentProgress.action = 'assign_concentrators';
+          console.log(`[Enrich] Starting concentrator assignment`);
+
+          try {
+            const allConcentrators = await db.select().from(snmpConcentrators);
+            const linksNeedingConcentrator = targetLinks.filter(l => !l.concentratorId && (l.authType === 'pppoe' || l.trafficSourceType === 'concentrator'));
+            enrichmentProgress.total += linksNeedingConcentrator.length;
+
+            const voalleIdToConcentrator = new Map<string, number>();
+            for (const conc of allConcentrators) {
+              if (conc.voalleIds) {
+                for (const vid of conc.voalleIds.split(',').map(s => s.trim())) {
+                  if (vid) voalleIdToConcentrator.set(vid, conc.id);
+                }
+              }
+            }
+
+            const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+            let adapter: any = null;
+            if (voalleIntegration) {
+              adapter = configureErpAdapter(voalleIntegration) as any;
+            }
+
+            const clientIds = [...new Set(linksNeedingConcentrator.map(l => l.clientId))];
+            const tagsByClient = new Map<number, any[]>();
+
+            if (adapter) {
+              for (const cId of clientIds) {
+                try {
+                  const clientData = await db.select().from(clientsTable).where(eq(clientsTable.id, cId));
+                  const client = clientData[0];
+                  if (client?.voallePortalUsername && client?.voallePortalPassword) {
+                    const tags = await adapter.getContractTags({
+                      voalleCustomerId: client.voalleCustomerId ? String(client.voalleCustomerId) : null,
+                      cnpj: client.cnpj || null,
+                      portalUsername: client.voallePortalUsername,
+                      portalPassword: client.voallePortalPassword,
+                    });
+                    tagsByClient.set(cId, tags);
+                  }
+                } catch (e: any) {
+                  if (enrichmentProgress.errors.length < 50) {
+                    enrichmentProgress.errors.push(`Tags cliente ${cId}: ${e.message}`);
+                  }
+                }
+              }
+            }
+
+            for (const link of linksNeedingConcentrator) {
+              try {
+                let concentratorId: number | null = null;
+                const clientTags = tagsByClient.get(link.clientId) || [];
+                const tag = link.voalleContractTagId ? clientTags.find((t: any) => t.id === link.voalleContractTagId) : null;
+
+                if (tag?.concentratorId) {
+                  concentratorId = voalleIdToConcentrator.get(String(tag.concentratorId)) || null;
+                }
+
+                if (!concentratorId && allConcentrators.length === 1) {
+                  concentratorId = allConcentrators[0].id;
+                }
+
+                if (concentratorId) {
+                  await db.update(links).set({ concentratorId, trafficSourceType: 'concentrator' }).where(eq(links.id, link.id));
+                  enrichmentProgress.success++;
+                } else {
+                  enrichmentProgress.skipped++;
+                }
+              } catch (err: any) {
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
+              }
+              enrichmentProgress.processed++;
+            }
+            console.log(`[Enrich] Concentrator assignment done: ${enrichmentProgress.success} assigned`);
+          } catch (err: any) {
+            console.error("[Enrich] Concentrator error:", err);
+            enrichmentProgress.errors.push(`Concentrador: ${err.message}`);
+          }
+        }
+
+        if (action === 'assign_olts' || action === 'discover_all') {
+          enrichmentProgress.action = 'assign_olts';
+          console.log(`[Enrich] Starting OLT assignment`);
+
+          try {
+            const allOlts = await db.select().from(olts);
+            const allSwitches = await db.select().from(switches);
+            const linksNeedingOlt = targetLinks.filter(l => l.linkType === 'gpon' && !l.oltId && (l.voalleAccessPointId || l.slotOlt));
+            enrichmentProgress.total += linksNeedingOlt.length;
+
+            const voalleIdToOlt = new Map<string, number>();
+            for (const olt of allOlts) {
+              if (olt.voalleIds) {
+                for (const vid of olt.voalleIds.split(',').map(s => s.trim())) {
+                  if (vid) voalleIdToOlt.set(vid, olt.id);
+                }
+              }
+            }
+            for (const sw of allSwitches) {
+              if (sw.voalleIds) {
+                for (const vid of sw.voalleIds.split(',').map(s => s.trim())) {
+                  if (vid) voalleIdToOlt.set(vid, sw.id);
+                }
+              }
+            }
+
+            for (const link of linksNeedingOlt) {
+              try {
+                let oltId: number | null = null;
+                let isSwitchType = false;
+
+                if (link.voalleAccessPointId) {
+                  oltId = voalleIdToOlt.get(String(link.voalleAccessPointId)) || null;
+                  if (oltId) {
+                    isSwitchType = allSwitches.some(s => s.id === oltId);
+                  }
+                }
+
+                if (oltId) {
+                  const updateData: Record<string, any> = {};
+                  if (isSwitchType) {
+                    updateData.switchId = oltId;
+                    updateData.linkType = 'ptp';
+                  } else {
+                    updateData.oltId = oltId;
+                    updateData.opticalMonitoringEnabled = true;
+                  }
+
+                  if (link.equipmentSerialNumber) {
+                    updateData.onuSearchString = link.equipmentSerialNumber;
+                  }
+
+                  await db.update(links).set(updateData).where(eq(links.id, link.id));
+                  enrichmentProgress.success++;
+                  console.log(`[Enrich] ${link.name}: OLT/Switch assigned (voalleAP: ${link.voalleAccessPointId} -> ${isSwitchType ? 'switch' : 'olt'} ${oltId})`);
+                } else {
+                  enrichmentProgress.skipped++;
+                }
+              } catch (err: any) {
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
+              }
+              enrichmentProgress.processed++;
+            }
+            console.log(`[Enrich] OLT assignment done: ${enrichmentProgress.success} assigned`);
+          } catch (err: any) {
+            console.error("[Enrich] OLT error:", err);
+            enrichmentProgress.errors.push(`OLT: ${err.message}`);
+          }
+        }
+
+        if (action === 'discover_interfaces' || action === 'discover_all') {
+          enrichmentProgress.action = 'discover_interfaces';
+          const linksNeedingInterface = targetLinks.filter(l => l.monitoredIp && l.snmpProfileId && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
+          enrichmentProgress.total += linksNeedingInterface.length;
+          console.log(`[Enrich] Starting SNMP interface discovery for ${linksNeedingInterface.length} links`);
+
+          for (const link of linksNeedingInterface) {
+            try {
+              const profile = await storage.getSnmpProfile(link.snmpProfileId!);
+              if (!profile) {
+                enrichmentProgress.skipped++;
+                enrichmentProgress.processed++;
+                continue;
+              }
+
+              const interfaces = await discoverInterfaces(link.monitoredIp!, profile);
+              if (interfaces && interfaces.length > 0) {
+                const targetName = link.snmpInterfaceName || link.originalIfName;
+                let matchedIf: SnmpInterface | undefined;
+
+                if (targetName) {
+                  matchedIf = interfaces.find(i => i.ifName === targetName || i.ifDescr === targetName || i.ifAlias === targetName);
+                }
+
+                if (!matchedIf) {
+                  matchedIf = interfaces.find(i =>
+                    i.ifName?.match(/^(ether1|eth0|GigabitEthernet0\/0\/0|ge-0\/0\/0)$/i) ||
+                    (i.ifAdminStatus === 'up' && i.ifOperStatus === 'up')
+                  );
+                }
+
+                if (matchedIf) {
+                  await db.update(links).set({
+                    snmpInterfaceIndex: matchedIf.ifIndex,
+                    snmpInterfaceName: matchedIf.ifName || undefined,
+                    snmpInterfaceDescr: matchedIf.ifDescr || undefined,
+                    snmpInterfaceAlias: matchedIf.ifAlias || undefined,
+                  }).where(eq(links.id, link.id));
+                  enrichmentProgress.success++;
+                } else {
+                  enrichmentProgress.skipped++;
+                }
+              } else {
+                enrichmentProgress.skipped++;
+              }
+            } catch (err: any) {
+              enrichmentProgress.failed++;
+              if (enrichmentProgress.errors.length < 50) {
+                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+              }
+            }
+            enrichmentProgress.processed++;
+          }
+          console.log(`[Enrich] Interface discovery done: ${enrichmentProgress.success} found`);
+        }
+
+        if (action === 'sync_ozmap' || action === 'discover_all') {
+          enrichmentProgress.action = 'sync_ozmap';
+          const linksForOzmap = targetLinks.filter(l => (l.voalleContractTagServiceTag || l.ozmapTag) && !l.ozmapArrivingPotency);
+          enrichmentProgress.total += linksForOzmap.length;
+          console.log(`[Enrich] Starting OZmap sync for ${linksForOzmap.length} links`);
+
+          try {
+            const ozmapIntegration = await storage.getExternalIntegrationByProvider?.('ozmap');
+            if (!ozmapIntegration || !ozmapIntegration.enabled) {
+              enrichmentProgress.errors.push("Integração OZmap não configurada ou inativa");
+              for (const link of linksForOzmap) {
+                enrichmentProgress.failed++;
+                enrichmentProgress.processed++;
+              }
+            } else {
+              const apiUrl = ozmapIntegration.apiUrl;
+              const apiKey = ozmapIntegration.apiKey;
+
+              for (const link of linksForOzmap) {
+                try {
+                  const tag = link.ozmapTag || link.voalleContractTagServiceTag;
+                  if (!tag) {
+                    enrichmentProgress.skipped++;
+                    enrichmentProgress.processed++;
+                    continue;
+                  }
+
+                  const potencyUrl = `${apiUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`;
+                  const resp = await fetch(potencyUrl, {
+                    headers: { 'Authorization': apiKey || '', 'Accept': 'application/json' },
+                  });
+
+                  if (resp.ok) {
+                    const data = await resp.json() as any;
+                    const updateData: Record<string, any> = {
+                      ozmapLastSync: new Date(),
+                    };
+
+                    if (data.arriving_potency !== undefined) updateData.ozmapArrivingPotency = data.arriving_potency;
+                    if (data.attenuation !== undefined) updateData.ozmapAttenuation = data.attenuation;
+                    if (data.distance !== undefined) updateData.ozmapDistance = data.distance;
+                    if (data.pon_reached !== undefined) updateData.ozmapPonReached = data.pon_reached;
+
+                    if (data.elements && Array.isArray(data.elements)) {
+                      const splitter = [...data.elements].reverse().find((e: any) => e.type === 'splitter');
+                      const oltElement = data.elements.find((e: any) => e.type === 'olt');
+                      if (splitter) {
+                        updateData.ozmapSplitterName = splitter.name;
+                        updateData.ozmapSplitterPort = splitter.port ? String(splitter.port) : null;
+                      }
+                      if (oltElement) {
+                        updateData.ozmapOltName = oltElement.name;
+                        if (oltElement.slot !== undefined) updateData.ozmapSlot = oltElement.slot;
+                        if (oltElement.port !== undefined) updateData.ozmapPort = oltElement.port;
+                      }
+                    }
+
+                    if (!link.opticalRxBaseline && updateData.ozmapArrivingPotency) {
+                      updateData.opticalRxBaseline = updateData.ozmapArrivingPotency;
+                    }
+
+                    await db.update(links).set(updateData).where(eq(links.id, link.id));
+                    enrichmentProgress.success++;
+                  } else if (resp.status === 404) {
+                    enrichmentProgress.skipped++;
+                  } else {
+                    enrichmentProgress.failed++;
+                    if (enrichmentProgress.errors.length < 50) {
+                      enrichmentProgress.errors.push(`${link.name}: OZmap ${resp.status}`);
+                    }
+                  }
+                } catch (err: any) {
+                  enrichmentProgress.failed++;
+                  if (enrichmentProgress.errors.length < 50) {
+                    enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                  }
+                }
+                enrichmentProgress.processed++;
+              }
+            }
+            console.log(`[Enrich] OZmap sync done: ${enrichmentProgress.success} synced`);
+          } catch (err: any) {
+            console.error("[Enrich] OZmap error:", err);
+            enrichmentProgress.errors.push(`OZmap: ${err.message}`);
+          }
+        }
+
+        if (action === 'create_cpes' || action === 'discover_all') {
+          enrichmentProgress.action = 'create_cpes';
+          const allLinkCpeRows = await db.select().from(linkCpes);
+          const linksWithCpeSet = new Set(allLinkCpeRows.map(lc => lc.linkId));
+          const linksNeedingCpe = targetLinks.filter(l => l.monitoredIp && !linksWithCpeSet.has(l.id));
+          enrichmentProgress.total += linksNeedingCpe.length;
+          console.log(`[Enrich] Starting CPE creation for ${linksNeedingCpe.length} links`);
+
+          const existingCpes = await db.select().from(cpes);
+          const cpeByIp = new Map(existingCpes.filter(c => c.ipAddress).map(c => [c.ipAddress, c]));
+
+          for (const link of linksNeedingCpe) {
+            try {
+              let cpe = cpeByIp.get(link.monitoredIp!);
+
+              if (!cpe) {
+                const cpeName = `CPE - ${link.name}`;
+                const newCpe = await storage.createCpe({
+                  name: cpeName,
+                  ipAddress: link.monitoredIp!,
+                  model: link.equipmentModel || 'Auto-discovered',
+                  serialNumber: link.equipmentSerialNumber || null,
+                  macAddress: link.macAddress || null,
+                  snmpProfileId: link.snmpProfileId || null,
+                  vendorId: link.equipmentVendorId || null,
+                  isStandard: false,
+                });
+                cpe = newCpe;
+                cpeByIp.set(link.monitoredIp!, cpe);
+              }
+
+              await db.insert(linkCpes).values({
+                linkId: link.id,
+                cpeId: cpe.id,
+                role: 'primary',
+              });
+
+              enrichmentProgress.success++;
+            } catch (err: any) {
+              enrichmentProgress.failed++;
+              if (enrichmentProgress.errors.length < 50) {
+                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+              }
+            }
+            enrichmentProgress.processed++;
+          }
+          console.log(`[Enrich] CPE creation done: ${enrichmentProgress.success} created/linked`);
+        }
+
+        console.log(`[Enrich] Completed: ${enrichmentProgress.success} success, ${enrichmentProgress.skipped} skipped, ${enrichmentProgress.failed} failed out of ${enrichmentProgress.total}`);
       } catch (error: any) {
         console.error("[Enrich] Fatal error:", error);
         enrichmentProgress.errors.push(`Fatal: ${error.message}`);
