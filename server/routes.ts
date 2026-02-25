@@ -10299,25 +10299,36 @@ export async function registerRoutes(
           enrichmentProgress.action = 'discover_ips';
           console.log(`[Enrich] Starting IP discovery for ${linksNeedingIp.length} links via RADIUS`);
 
-          const { getRadiusSessionByUsername } = await import("./radius");
-          for (const link of linksNeedingIp) {
-            try {
-              const session = await getRadiusSessionByUsername(link.pppoeUser!);
-              if (session?.framedipaddress) {
-                await db.update(links).set({ monitoredIp: session.framedipaddress }).where(eq(links.id, link.id));
-                enrichmentProgress.success++;
-              } else {
-                enrichmentProgress.skipped++;
-              }
-            } catch (err: any) {
+          const { getRadiusSessionByUsername, testRadiusDbConnection } = await import("./radius");
+          const radiusTest = await testRadiusDbConnection();
+          if (!radiusTest.success) {
+            console.error(`[Enrich] RADIUS DB não disponível: ${radiusTest.message}`);
+            enrichmentProgress.errors.push(`RADIUS DB: ${radiusTest.message}`);
+            for (const link of linksNeedingIp) {
               enrichmentProgress.failed++;
-              if (enrichmentProgress.errors.length < 50) {
-                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
-              }
+              enrichmentProgress.processed++;
             }
-            enrichmentProgress.processed++;
+          } else {
+            console.log(`[Enrich] RADIUS DB conectado (${radiusTest.activeSessionsCount} sessões ativas)`);
+            for (const link of linksNeedingIp) {
+              try {
+                const session = await getRadiusSessionByUsername(link.pppoeUser!);
+                if (session?.framedIpAddress) {
+                  await db.update(links).set({ monitoredIp: session.framedIpAddress }).where(eq(links.id, link.id));
+                  enrichmentProgress.success++;
+                } else {
+                  enrichmentProgress.skipped++;
+                }
+              } catch (err: any) {
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
+              }
+              enrichmentProgress.processed++;
+            }
+            console.log(`[Enrich] IP discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
           }
-          console.log(`[Enrich] IP discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
         }
 
         if (action === 'discover_mac' || action === 'discover_all') {
@@ -10326,25 +10337,36 @@ export async function registerRoutes(
           enrichmentProgress.action = 'discover_mac';
           console.log(`[Enrich] Starting MAC discovery for ${linksNeedingMac.length} links via RADIUS`);
 
-          const { getMacFromRadiusByUsername } = await import("./radius");
-          for (const link of linksNeedingMac) {
-            try {
-              const mac = await getMacFromRadiusByUsername(link.pppoeUser!);
-              if (mac) {
-                await db.update(links).set({ macAddress: mac }).where(eq(links.id, link.id));
-                enrichmentProgress.success++;
-              } else {
-                enrichmentProgress.skipped++;
-              }
-            } catch (err: any) {
+          const { getMacFromRadiusByUsername, testRadiusDbConnection: testRadiusDb2 } = await import("./radius");
+          const radiusTest2 = await testRadiusDb2();
+          if (!radiusTest2.success) {
+            console.error(`[Enrich] RADIUS DB não disponível para MAC: ${radiusTest2.message}`);
+            enrichmentProgress.errors.push(`RADIUS DB (MAC): ${radiusTest2.message}`);
+            for (const link of linksNeedingMac) {
               enrichmentProgress.failed++;
-              if (enrichmentProgress.errors.length < 50) {
-                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
-              }
+              enrichmentProgress.processed++;
             }
-            enrichmentProgress.processed++;
+          } else {
+            console.log(`[Enrich] RADIUS DB conectado para MAC (${radiusTest2.activeSessionsCount} sessões ativas)`);
+            for (const link of linksNeedingMac) {
+              try {
+                const mac = await getMacFromRadiusByUsername(link.pppoeUser!);
+                if (mac) {
+                  await db.update(links).set({ macAddress: mac }).where(eq(links.id, link.id));
+                  enrichmentProgress.success++;
+                } else {
+                  enrichmentProgress.skipped++;
+                }
+              } catch (err: any) {
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
+              }
+              enrichmentProgress.processed++;
+            }
+            console.log(`[Enrich] MAC discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
           }
-          console.log(`[Enrich] MAC discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
         }
 
         if (action === 'discover_voalle' || action === 'discover_all') {
