@@ -86,6 +86,7 @@ import { CpesTab } from "@/components/admin/cpes-tab";
 import { CommandTemplatesTab } from "@/components/admin/command-templates-tab";
 import { DiagnosticTargetsTab } from "@/components/admin/diagnostic-targets-tab";
 import { VoalleImportTab } from "@/components/admin/voalle-import-tab";
+import { LinkDiagnosticsTab } from "@/components/admin/link-diagnostics-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
@@ -5456,6 +5457,10 @@ export default function Admin() {
             <FileText className="w-4 h-4" />
             Importar Voalle
           </TabsTrigger>
+          <TabsTrigger value="link-diagnostics" className="gap-2" data-testid="tab-link-diagnostics">
+            <Activity className="w-4 h-4" />
+            Diagnóstico
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -6144,6 +6149,9 @@ export default function Admin() {
 
         <TabsContent value="voalle-import" className="space-y-4">
           <VoalleImportTab />
+        </TabsContent>
+        <TabsContent value="link-diagnostics" className="space-y-4">
+          <LinkDiagnosticsTab />
         </TabsContent>
       </Tabs>
     </div>

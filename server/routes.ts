@@ -35,6 +35,8 @@ import {
   insertFirewallWhitelistSchema,
   insertFirewallSettingsSchema,
   links,
+  clients as clientsTable,
+  clientSettings as clientSettingsTable,
   blacklistChecks,
   webhookLogs,
   firewallWhitelist,
@@ -10189,6 +10191,250 @@ export async function registerRoutes(
     } catch (error: any) {
       res.status(500).json({ error: "Erro ao limpar logs" });
     }
+  });
+
+  // ==========================================
+  // Link Diagnostics & Batch Enrichment
+  // ==========================================
+
+  interface EnrichmentProgress {
+    running: boolean;
+    action: string;
+    total: number;
+    processed: number;
+    success: number;
+    failed: number;
+    errors: string[];
+    startedAt: number;
+  }
+
+  let enrichmentProgress: EnrichmentProgress = {
+    running: false,
+    action: '',
+    total: 0,
+    processed: 0,
+    success: 0,
+    failed: 0,
+    errors: [],
+    startedAt: 0,
+  };
+
+  app.get("/api/admin/links/diagnostics", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      const allLinks = await db.select().from(links);
+
+      const missingIp = allLinks.filter(l => !l.monitoredIp);
+      const missingInterface = allLinks.filter(l => l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined);
+      const missingConcentrator = allLinks.filter(l => !l.concentratorId && (l.authType === 'pppoe' || l.trafficSourceType === 'concentrator'));
+      const missingPppoeUser = allLinks.filter(l => !l.pppoeUser && l.authType === 'pppoe');
+      const missingSnmpProfile = allLinks.filter(l => !l.snmpProfileId);
+      const missingVoalleTag = allLinks.filter(l => !l.voalleContractTagId);
+      const missingOptical = allLinks.filter(l => l.linkType === 'gpon' && (!l.opticalMonitoringEnabled || !l.oltId));
+      const missingCoordinates = allLinks.filter(l => !l.latitude || !l.longitude);
+      const hasIpNoPppoe = allLinks.filter(l => l.pppoeUser && !l.monitoredIp);
+      const hasIpNoInterface = allLinks.filter(l => l.monitoredIp && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
+
+      const categories = {
+        missingIp: { count: missingIp.length, ids: missingIp.map(l => l.id), label: "Sem IP de monitoramento", enrichable: hasIpNoPppoe.length },
+        missingInterface: { count: missingInterface.length, ids: missingInterface.map(l => l.id), label: "Sem interface SNMP (ifIndex)", enrichable: hasIpNoInterface.length },
+        missingConcentrator: { count: missingConcentrator.length, ids: missingConcentrator.map(l => l.id), label: "Sem concentrador (PPPoE)" },
+        missingPppoeUser: { count: missingPppoeUser.length, ids: missingPppoeUser.map(l => l.id), label: "Sem usuário PPPoE" },
+        missingSnmpProfile: { count: missingSnmpProfile.length, ids: missingSnmpProfile.map(l => l.id), label: "Sem perfil SNMP" },
+        missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)" },
+        missingOptical: { count: missingOptical.length, ids: missingOptical.map(l => l.id), label: "GPON sem monitoramento óptico" },
+        missingCoordinates: { count: missingCoordinates.length, ids: missingCoordinates.map(l => l.id), label: "Sem coordenadas" },
+      };
+
+      res.json({
+        totalLinks: allLinks.length,
+        healthyLinks: allLinks.length - new Set([...missingIp, ...missingInterface, ...missingPppoeUser].map(l => l.id)).size,
+        categories,
+      });
+    } catch (error: any) {
+      console.error("[Diagnostics] Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    res.json(enrichmentProgress);
+  });
+
+  app.post("/api/admin/links/enrich", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    if (enrichmentProgress.running) {
+      return res.status(409).json({ error: "Enriquecimento já em andamento", progress: enrichmentProgress });
+    }
+
+    const { action, linkIds } = req.body as { action: string; linkIds?: number[] };
+    if (!action) {
+      return res.status(400).json({ error: "Ação é obrigatória" });
+    }
+
+    res.json({ started: true, action });
+
+    enrichmentProgress = {
+      running: true,
+      action,
+      total: 0,
+      processed: 0,
+      success: 0,
+      failed: 0,
+      errors: [],
+      startedAt: Date.now(),
+    };
+
+    (async () => {
+      try {
+        let targetLinks = await db.select().from(links);
+        if (linkIds && linkIds.length > 0) {
+          targetLinks = targetLinks.filter(l => linkIds.includes(l.id));
+        }
+
+        if (action === 'discover_ips' || action === 'discover_all') {
+          const linksNeedingIp = targetLinks.filter(l => l.pppoeUser && !l.monitoredIp);
+          enrichmentProgress.total += linksNeedingIp.length;
+          enrichmentProgress.action = 'discover_ips';
+          console.log(`[Enrich] Starting IP discovery for ${linksNeedingIp.length} links via RADIUS`);
+
+          const { getRadiusSessionByUsername } = await import("./radius");
+          for (const link of linksNeedingIp) {
+            try {
+              const session = await getRadiusSessionByUsername(link.pppoeUser!);
+              if (session?.framedipaddress) {
+                await db.update(links).set({ monitoredIp: session.framedipaddress }).where(eq(links.id, link.id));
+                enrichmentProgress.success++;
+                console.log(`[Enrich] ${link.name}: IP found ${session.framedipaddress} via RADIUS`);
+              } else {
+                enrichmentProgress.failed++;
+              }
+            } catch (err: any) {
+              enrichmentProgress.failed++;
+              if (enrichmentProgress.errors.length < 50) {
+                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+              }
+            }
+            enrichmentProgress.processed++;
+          }
+        }
+
+        if (action === 'discover_mac' || action === 'discover_all') {
+          const linksNeedingMac = targetLinks.filter(l => l.pppoeUser && !l.macAddress);
+          enrichmentProgress.total += linksNeedingMac.length;
+          enrichmentProgress.action = 'discover_mac';
+          console.log(`[Enrich] Starting MAC discovery for ${linksNeedingMac.length} links via RADIUS`);
+
+          const { getMacFromRadiusByUsername } = await import("./radius");
+          for (const link of linksNeedingMac) {
+            try {
+              const mac = await getMacFromRadiusByUsername(link.pppoeUser!);
+              if (mac) {
+                await db.update(links).set({ macAddress: mac }).where(eq(links.id, link.id));
+                enrichmentProgress.success++;
+                console.log(`[Enrich] ${link.name}: MAC found ${mac} via RADIUS`);
+              } else {
+                enrichmentProgress.failed++;
+              }
+            } catch (err: any) {
+              enrichmentProgress.failed++;
+              if (enrichmentProgress.errors.length < 50) {
+                enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+              }
+            }
+            enrichmentProgress.processed++;
+          }
+        }
+
+        if (action === 'discover_voalle' || action === 'discover_all') {
+          const linksForVoalle = targetLinks.filter(l => l.voalleContractTagId || l.voalleConnectionId);
+          enrichmentProgress.total += linksForVoalle.length;
+          enrichmentProgress.action = 'discover_voalle';
+          console.log(`[Enrich] Starting Voalle data fetch for ${linksForVoalle.length} links`);
+
+          try {
+            const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+            if (!voalleIntegration) {
+              enrichmentProgress.errors.push("Integração Voalle não configurada");
+              for (const link of linksForVoalle) {
+                enrichmentProgress.processed++;
+                enrichmentProgress.failed++;
+              }
+            } else {
+              const adapter = configureErpAdapter(voalleIntegration) as any;
+              const clientIds = [...new Set(linksForVoalle.map(l => l.clientId))];
+
+              for (const cId of clientIds) {
+                const clientLinks = linksForVoalle.filter(l => l.clientId === cId);
+                const clientData = await db.select().from(clientsTable).where(eq(clientsTable.id, cId));
+                const client = clientData[0];
+
+                let allTags: any[] = [];
+                try {
+                  allTags = await adapter.getContractTags({
+                    voalleCustomerId: client?.voalleCustomerId ? String(client.voalleCustomerId) : null,
+                    cnpj: client?.cnpj || null,
+                    portalUsername: client?.voallePortalUsername || null,
+                    portalPassword: client?.voallePortalPassword || null,
+                  });
+                  console.log(`[Enrich] Cliente ${cId} (${client?.name}): ${allTags.length} tags Voalle encontradas`);
+                } catch (tagErr: any) {
+                  if (enrichmentProgress.errors.length < 50) {
+                    enrichmentProgress.errors.push(`Cliente ${client?.name || cId}: ${tagErr.message}`);
+                  }
+                }
+
+                const tagMap = new Map(allTags.map((t: any) => [t.id, t]));
+
+                for (const link of clientLinks) {
+                  try {
+                    const tag = link.voalleContractTagId ? tagMap.get(link.voalleContractTagId) : null;
+                    if (tag) {
+                      const updateData: Record<string, any> = {};
+                      if (tag.pppoeUser && !link.pppoeUser) updateData.pppoeUser = tag.pppoeUser;
+                      if (tag.pppoePassword && !link.pppoePassword) updateData.pppoePassword = tag.pppoePassword;
+                      if (tag.ip && !link.monitoredIp) updateData.monitoredIp = tag.ip;
+                      if (tag.address && !link.address) updateData.address = tag.address;
+                      if (tag.location && !link.location) updateData.location = tag.location;
+                      if (tag.bandwidth && !link.bandwidth) updateData.bandwidth = tag.bandwidth;
+                      if (tag.slotOlt !== undefined && tag.slotOlt !== null && !link.slotOlt) updateData.slotOlt = String(tag.slotOlt);
+                      if (tag.portOlt !== undefined && tag.portOlt !== null && !link.portOlt) updateData.portOlt = String(tag.portOlt);
+                      if (tag.equipmentSerialNumber && !link.equipmentSerialNumber) updateData.equipmentSerialNumber = tag.equipmentSerialNumber;
+                      if (tag.wifiName && !link.wifiName) updateData.wifiName = tag.wifiName;
+                      if (tag.wifiPassword && !link.wifiPassword) updateData.wifiPassword = tag.wifiPassword;
+
+                      if (Object.keys(updateData).length > 0) {
+                        await db.update(links).set(updateData).where(eq(links.id, link.id));
+                        enrichmentProgress.success++;
+                        console.log(`[Enrich] ${link.name}: Voalle data updated (${Object.keys(updateData).join(', ')})`);
+                      } else {
+                        enrichmentProgress.failed++;
+                      }
+                    } else {
+                      enrichmentProgress.failed++;
+                    }
+                  } catch (err: any) {
+                    enrichmentProgress.failed++;
+                    if (enrichmentProgress.errors.length < 50) {
+                      enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                    }
+                  }
+                  enrichmentProgress.processed++;
+                }
+              }
+            }
+          } catch (err: any) {
+            console.error("[Enrich] Voalle error:", err);
+            enrichmentProgress.errors.push(`Voalle global error: ${err.message}`);
+          }
+        }
+
+        console.log(`[Enrich] Completed: ${enrichmentProgress.success} success, ${enrichmentProgress.failed} failed out of ${enrichmentProgress.total}`);
+      } catch (error: any) {
+        console.error("[Enrich] Fatal error:", error);
+        enrichmentProgress.errors.push(`Fatal: ${error.message}`);
+      } finally {
+        enrichmentProgress.running = false;
+      }
+    })();
   });
 
   return httpServer;
