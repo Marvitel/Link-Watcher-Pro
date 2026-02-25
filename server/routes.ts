@@ -10204,6 +10204,7 @@ export async function registerRoutes(
     processed: number;
     success: number;
     failed: number;
+    skipped: number;
     errors: string[];
     startedAt: number;
   }
@@ -10215,6 +10216,7 @@ export async function registerRoutes(
     processed: 0,
     success: 0,
     failed: 0,
+    skipped: 0,
     errors: [],
     startedAt: 0,
   };
@@ -10279,6 +10281,7 @@ export async function registerRoutes(
       processed: 0,
       success: 0,
       failed: 0,
+      skipped: 0,
       errors: [],
       startedAt: Date.now(),
     };
@@ -10303,9 +10306,8 @@ export async function registerRoutes(
               if (session?.framedipaddress) {
                 await db.update(links).set({ monitoredIp: session.framedipaddress }).where(eq(links.id, link.id));
                 enrichmentProgress.success++;
-                console.log(`[Enrich] ${link.name}: IP found ${session.framedipaddress} via RADIUS`);
               } else {
-                enrichmentProgress.failed++;
+                enrichmentProgress.skipped++;
               }
             } catch (err: any) {
               enrichmentProgress.failed++;
@@ -10315,6 +10317,7 @@ export async function registerRoutes(
             }
             enrichmentProgress.processed++;
           }
+          console.log(`[Enrich] IP discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
         }
 
         if (action === 'discover_mac' || action === 'discover_all') {
@@ -10330,9 +10333,8 @@ export async function registerRoutes(
               if (mac) {
                 await db.update(links).set({ macAddress: mac }).where(eq(links.id, link.id));
                 enrichmentProgress.success++;
-                console.log(`[Enrich] ${link.name}: MAC found ${mac} via RADIUS`);
               } else {
-                enrichmentProgress.failed++;
+                enrichmentProgress.skipped++;
               }
             } catch (err: any) {
               enrichmentProgress.failed++;
@@ -10342,6 +10344,7 @@ export async function registerRoutes(
             }
             enrichmentProgress.processed++;
           }
+          console.log(`[Enrich] MAC discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} no session`);
         }
 
         if (action === 'discover_voalle' || action === 'discover_all') {
@@ -10406,10 +10409,10 @@ export async function registerRoutes(
                         enrichmentProgress.success++;
                         console.log(`[Enrich] ${link.name}: Voalle data updated (${Object.keys(updateData).join(', ')})`);
                       } else {
-                        enrichmentProgress.failed++;
+                        enrichmentProgress.skipped++;
                       }
                     } else {
-                      enrichmentProgress.failed++;
+                      enrichmentProgress.skipped++;
                     }
                   } catch (err: any) {
                     enrichmentProgress.failed++;

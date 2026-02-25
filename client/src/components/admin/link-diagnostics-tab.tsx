@@ -54,6 +54,7 @@ interface EnrichStatus {
   processed: number;
   success: number;
   failed: number;
+  skipped: number;
   errors: string[];
   startedAt: number;
 }
@@ -205,12 +206,17 @@ export function LinkDiagnosticsTab() {
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600">
                   <CheckCircle2 className="h-3 w-3 inline mr-1" />
-                  {enrichStatus.success} sucesso
+                  {enrichStatus.success} atualizados
                 </span>
-                <span className="text-red-600">
-                  <XCircle className="h-3 w-3 inline mr-1" />
-                  {enrichStatus.failed} falhas
+                <span className="text-muted-foreground">
+                  {enrichStatus.skipped} sem dados
                 </span>
+                {enrichStatus.failed > 0 && (
+                  <span className="text-red-600">
+                    <XCircle className="h-3 w-3 inline mr-1" />
+                    {enrichStatus.failed} erros
+                  </span>
+                )}
               </div>
             </div>
           </CardContent>
@@ -221,10 +227,15 @@ export function LinkDiagnosticsTab() {
         <Alert data-testid="alert-enrich-complete">
           <CheckCircle2 className="h-4 w-4" />
           <AlertDescription>
-            Último enriquecimento concluído: {enrichStatus.success} atualizados, {enrichStatus.failed} sem dados.
+            Último enriquecimento concluído: {enrichStatus.success} atualizados, {enrichStatus.skipped} sem dados no RADIUS/Voalle.
+            {enrichStatus.failed > 0 && (
+              <span className="text-red-500 ml-1">
+                {enrichStatus.failed} erros
+              </span>
+            )}
             {enrichStatus.errors.length > 0 && (
               <span className="text-red-500 ml-1">
-                ({enrichStatus.errors.length} erros)
+                ({enrichStatus.errors.length} detalhes)
               </span>
             )}
           </AlertDescription>
