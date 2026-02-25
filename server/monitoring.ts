@@ -110,8 +110,11 @@ async function updateLinkZabbixSplitterData(
   }
 }
 
-const PARALLEL_WORKERS = 5;
-const COLLECTION_TIMEOUT_MS = 30000;
+const PARALLEL_WORKERS = 10;
+const COLLECTION_TIMEOUT_MS = 25000;
+let isCollecting = false;
+const discoveryFailCounts = new Map<number, number>();
+const MAX_DISCOVERY_ATTEMPTS_PER_CYCLE = 20;
 
 // ============ Moving Average & Persistence Alert System ============
 
@@ -1199,10 +1202,14 @@ async function handleIfIndexAutoDiscovery(
   }
   
   if (ifIndexIsNull) {
-    console.log(`[Monitor] ${link.name}: snmpInterfaceIndex is null - attempting immediate auto-discovery (bypassing cooldown)`);
+    const failCount = discoveryFailCounts.get(link.id) || 0;
+    const cooldownMs = Math.min(failCount * 300000, 3600000);
+    if (lastValidation && (now.getTime() - lastValidation.getTime()) < cooldownMs) {
+      return { updated: false };
+    }
+    console.log(`[Monitor] ${link.name}: snmpInterfaceIndex is null - attempting auto-discovery (attempt #${failCount + 1})`);
   }
   
-  // Check if we should skip auto-discovery (cooldown) - bypass when ifIndex is null
   if (!ifIndexIsNull && lastValidation && (now.getTime() - lastValidation.getTime()) < IFINDEX_VALIDATION_INTERVAL_MS) {
     await db.update(links).set({
       ifIndexMismatchCount: newMismatchCount,
@@ -1854,22 +1861,25 @@ async function handleIfIndexAutoDiscovery(
       }
     }
     console.log(`[Monitor] ${link.name}: Could not auto-discover interface "${searchName}".${backupInfo}`);
+    discoveryFailCounts.set(link.id, (discoveryFailCounts.get(link.id) || 0) + 1);
     
     await db.update(links).set({
       ifIndexMismatchCount: newMismatchCount,
       lastIfIndexValidation: now,
     }).where(eq(links.id, link.id));
     
-    // Only create event once per validation interval
-    await db.insert(events).values({
-      linkId: link.id,
-      clientId: link.clientId,
-      type: "warning",
-      title: `Interface não encontrada em ${link.name}`,
-      description: `A interface SNMP "${searchName}" (ifIndex: ${link.snmpInterfaceIndex}) não foi encontrada no equipamento.${backupInfo} Verifique a configuração do link.`,
-      timestamp: now,
-      resolved: false,
-    });
+    const failCount = discoveryFailCounts.get(link.id) || 0;
+    if (failCount <= 1) {
+      await db.insert(events).values({
+        linkId: link.id,
+        clientId: link.clientId,
+        type: "warning",
+        title: `Interface não encontrada em ${link.name}`,
+        description: `A interface SNMP "${searchName}" (ifIndex: ${link.snmpInterfaceIndex}) não foi encontrada no equipamento.${backupInfo} Verifique a configuração do link.`,
+        timestamp: now,
+        resolved: false,
+      });
+    }
   }
   
   return { updated: false };
@@ -1989,7 +1999,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           console.log(`[Monitor] ${link.name}: SNMP traffic collection returned null. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}, profileId=${trafficSourceProfileId}`);
         }
       } else {
-        console.log(`[Monitor] ${link.name}: snmpInterfaceIndex is null - cannot collect traffic. Will attempt auto-discovery.`);
+        // Log only first few times per link to avoid flooding
+
       }
       
       {
@@ -2142,7 +2153,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           memoryUsage = systemResources.memoryUsage;
         }
       } else {
-        console.log(`[Monitor] ${link.name} - Sem OIDs para CPU/Mem. vendorId: ${link.equipmentVendorId}, customCpu: ${link.customCpuOid}, customMem: ${link.customMemoryOid}`);
+        // Silent - no CPU/Mem OIDs configured
       }
     }
   }
@@ -3328,25 +3339,32 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
 }
 
 export async function collectAllLinksMetrics(): Promise<void> {
+  if (isCollecting) {
+    console.log(`[Monitor] Previous collection cycle still running, skipping this cycle`);
+    return;
+  }
+  isCollecting = true;
   try {
-    // Load blacklist cache once per cycle (instead of querying per link)
     await loadBlacklistCache();
     
     const allLinks = await db.select().from(links);
     const enabledLinks = allLinks.filter(l => l.monitoringEnabled);
     const disabledLinks = allLinks.filter(l => !l.monitoringEnabled);
     
-    // Log links with monitoring disabled for diagnostics
-    if (disabledLinks.length > 0) {
-      console.log(`[Monitor] Skipping ${disabledLinks.length} links with monitoring disabled: ${disabledLinks.map(l => `${l.id}:${l.name}`).join(', ')}`);
+    if (disabledLinks.length > 0 && disabledLinks.length <= 20) {
+      console.log(`[Monitor] Skipping ${disabledLinks.length} links with monitoring disabled`);
+    } else if (disabledLinks.length > 20) {
+      console.log(`[Monitor] Skipping ${disabledLinks.length} links with monitoring disabled`);
     }
     
     if (enabledLinks.length === 0) return;
     
-    const startTime = Date.now();
-    console.log(`[Monitor] Starting parallel collection for ${enabledLinks.length} links (${PARALLEL_WORKERS} workers)`);
+    const workers = Math.min(Math.max(PARALLEL_WORKERS, Math.ceil(enabledLinks.length / 50)), 30);
     
-    const results = await runWithConcurrencyLimit(enabledLinks, PARALLEL_WORKERS, processLinkMetrics);
+    const startTime = Date.now();
+    console.log(`[Monitor] Starting parallel collection for ${enabledLinks.length} links (${workers} workers)`);
+    
+    const results = await runWithConcurrencyLimit(enabledLinks, workers, processLinkMetrics);
     
     const successful = results.filter(r => r === true).length;
     const failed = results.filter(r => r === false || r === null).length;
@@ -3354,7 +3372,6 @@ export async function collectAllLinksMetrics(): Promise<void> {
     
     console.log(`[Monitor] Collection complete: ${successful} ok, ${failed} failed, ${elapsed}ms elapsed`);
     
-    // Coletar métricas dos CPEs após a coleta de links
     try {
       await collectAllCpesMetrics();
     } catch (err) {
@@ -3362,6 +3379,8 @@ export async function collectAllLinksMetrics(): Promise<void> {
     }
   } catch (error) {
     console.error("[Monitor] Error in collectAllLinksMetrics:", error);
+  } finally {
+    isCollecting = false;
   }
 }
 
@@ -3876,7 +3895,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
   }
 }
 
-export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
+export async function startRealTimeMonitoring(intervalSeconds: number = 30): Promise<void> {
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
   }
@@ -3887,15 +3906,22 @@ export function startRealTimeMonitoring(intervalSeconds: number = 30): void {
     clearInterval(ozmapSyncInterval);
   }
 
-  console.log(`[Monitor] Starting real-time monitoring with ${intervalSeconds}s interval`);
+  const allLinks = await db.select({ id: links.id }).from(links).where(eq(links.monitoringEnabled, true));
+  const linkCount = allLinks.length;
+  let effectiveInterval = intervalSeconds;
+  if (linkCount > 100) effectiveInterval = Math.max(intervalSeconds, 45);
+  if (linkCount > 500) effectiveInterval = Math.max(intervalSeconds, 60);
+  if (linkCount > 1000) effectiveInterval = Math.max(intervalSeconds, 90);
+
+  console.log(`[Monitor] Starting real-time monitoring: ${linkCount} links, ${effectiveInterval}s interval (requested: ${intervalSeconds}s)`);
 
   collectAllLinksMetrics();
-  syncWanguardForAllClients(); // Sincronização inicial
-  syncOzmapForAllLinks(); // Sincronização inicial do OZmap
+  syncWanguardForAllClients();
+  syncOzmapForAllLinks();
 
   monitoringInterval = setInterval(() => {
     collectAllLinksMetrics();
-  }, intervalSeconds * 1000);
+  }, effectiveInterval * 1000);
 
   // Sincronização do Wanguard a cada 120 segundos (reduzido de 60s para economizar CPU)
   wanguardSyncInterval = setInterval(() => {
