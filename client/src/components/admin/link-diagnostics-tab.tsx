@@ -86,7 +86,10 @@ export function LinkDiagnosticsTab() {
 
   const { data: enrichStatus } = useQuery<EnrichStatus>({
     queryKey: ["/api/admin/links/enrich/status"],
-    refetchInterval: enrichStatus?.running ? 2000 : 10000,
+    refetchInterval: (query) => {
+      const data = query.state.data as EnrichStatus | undefined;
+      return data?.running ? 2000 : 10000;
+    },
   });
 
   const enrichMutation = useMutation({
