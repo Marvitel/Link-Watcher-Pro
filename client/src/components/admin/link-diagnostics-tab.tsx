@@ -35,6 +35,8 @@ interface DiagnosticCategory {
   enrichAction?: string;
   enrichable?: number;
   clientCount?: number;
+  withTag?: number;
+  withoutTag?: number;
 }
 
 interface DiagnosticsData {
@@ -278,6 +280,12 @@ export function LinkDiagnosticsTab() {
                 <p className="text-sm font-medium leading-tight">{cat.label}</p>
                 {cat.clientCount !== undefined && cat.clientCount > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">{cat.clientCount} clientes</p>
+                )}
+                {key === 'missingOzmapData' && cat.withTag !== undefined && (
+                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                    <p>{cat.withTag} com etiqueta ({cat.withoutTag} sem)</p>
+                    {cat.count > 0 && <p>{cat.count} com etiqueta sem dados OZmap</p>}
+                  </div>
                 )}
                 {enrichAction && cat.count > 0 && (
                   <Button

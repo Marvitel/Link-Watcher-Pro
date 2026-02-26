@@ -10243,7 +10243,9 @@ export async function registerRoutes(
       const missingCoordinates = allLinks.filter(l => !l.latitude || !l.longitude);
       const missingOltAssignment = allLinks.filter(l => l.linkType === 'gpon' && !l.oltId && l.voalleAccessPointId);
       const missingOnuId = allLinks.filter(l => l.oltId && l.equipmentSerialNumber && !l.onuId);
-      const missingOzmapData = allLinks.filter(l => (l.voalleContractTagServiceTag || l.ozmapTag) && !l.ozmapArrivingPotency);
+      const linksWithTag = allLinks.filter(l => l.voalleContractTagServiceTag || l.ozmapTag);
+      const linksWithoutTag = allLinks.filter(l => !l.voalleContractTagServiceTag && !l.ozmapTag);
+      const missingOzmapData = linksWithTag.filter(l => !l.ozmapArrivingPotency);
 
       const clientsWithoutPortal = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
       const linksOfClientsWithoutPortal = allLinks.filter(l => {
@@ -10268,7 +10270,7 @@ export async function registerRoutes(
         missingOnuId: { count: missingOnuId.length, ids: missingOnuId.map(l => l.id), label: "Sem ID da ONU (tem serial e OLT)", enrichAction: "discover_onu_ids" },
         missingOltAssignment: { count: missingOltAssignment.length, ids: missingOltAssignment.map(l => l.id), label: "Sem OLT atribuída (tem AccessPoint Voalle)" },
         missingCpe: { count: missingCpe.length, ids: missingCpe.map(l => l.id), label: "Sem CPE cadastrado", enrichAction: "create_cpes" },
-        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap" },
+        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap", enrichable: missingOzmapData.length, withTag: linksWithTag.length, withoutTag: linksWithoutTag.length },
         missingPppoeUser: { count: missingPppoeUser.length, ids: missingPppoeUser.map(l => l.id), label: "Sem usuário PPPoE" },
         missingSnmpProfile: { count: missingSnmpProfile.length, ids: missingSnmpProfile.map(l => l.id), label: "Sem perfil SNMP" },
         missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)", enrichAction: "discover_voalle" },
@@ -10868,6 +10870,9 @@ export async function registerRoutes(
                     enrichmentProgress.success++;
                   } else if (resp.status === 404) {
                     enrichmentProgress.skipped++;
+                    if (enrichmentProgress.errors.length < 50) {
+                      enrichmentProgress.errors.push(`${link.name}: Etiqueta "${tag}" não encontrada no OZmap`);
+                    }
                   } else {
                     enrichmentProgress.failed++;
                     if (enrichmentProgress.errors.length < 50) {
