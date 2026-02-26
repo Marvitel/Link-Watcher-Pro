@@ -2689,15 +2689,12 @@ export class DatabaseStorage {
 
   // Link-CPE Associations
   async getLinkCpes(linkId: number): Promise<(LinkCpe & { cpe: Cpe })[]> {
-    const associations = await db.select().from(linkCpes).where(eq(linkCpes.linkId, linkId));
-    const result: (LinkCpe & { cpe: Cpe })[] = [];
-    for (const assoc of associations) {
-      const cpe = await this.getCpe(assoc.cpeId);
-      if (cpe && cpe.isActive) {
-        result.push({ ...assoc, cpe });
-      }
-    }
-    return result;
+    const rows = await db
+      .select()
+      .from(linkCpes)
+      .innerJoin(cpes, eq(linkCpes.cpeId, cpes.id))
+      .where(and(eq(linkCpes.linkId, linkId), eq(cpes.isActive, true)));
+    return rows.map(r => ({ ...r.link_cpes, cpe: r.cpes }));
   }
 
   async addCpeToLink(data: InsertLinkCpe): Promise<LinkCpe> {

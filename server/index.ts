@@ -6,6 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupTerminalWebSocket } from "./terminal";
 import { initializeFirewall, createFirewallMiddleware } from "./firewall";
+import { ensurePerformanceIndexes } from "./db";
 
 process.on('uncaughtException', (err) => {
   console.error(`[Process] Uncaught exception (handled, not crashing): ${err.message}`);
@@ -158,23 +159,11 @@ export function log(message: string, source = "express") {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      log(logLine);
+    if (path.startsWith("/api") && (duration > 200 || res.statusCode >= 400)) {
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 
@@ -186,6 +175,11 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   const adminPort = parseInt(process.env.ADMIN_PORT || "5001", 10);
   const isSinglePortMode = adminPort === port;
+  
+  // Criar índices de performance no banco (idempotente)
+  ensurePerformanceIndexes().catch(err => {
+    console.error(`[DB] Failed to create performance indexes: ${err.message}`);
+  });
   
   // Inicializar firewall do banco de dados
   await initializeFirewall();

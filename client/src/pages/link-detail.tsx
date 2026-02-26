@@ -200,13 +200,13 @@ export default function LinkDetail() {
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
     enabled: !isNaN(linkId),
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   });
 
   const { data: statusDetail } = useQuery<LinkStatusDetail>({
     queryKey: ["/api/links", linkId, "status-detail"],
     enabled: !isNaN(linkId),
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   });
 
   interface MitigationStatus {
@@ -355,7 +355,7 @@ export default function LinkDetail() {
       return res.json();
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 5000, // Não atualizar automaticamente em modo personalizado
+    refetchInterval: isCustomRange ? false : 30000,
   });
 
   // Query para interfaces de tráfego adicionais
@@ -416,7 +416,7 @@ export default function LinkDetail() {
       }));
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 5000,
+    refetchInterval: isCustomRange ? false : 30000,
   });
 
   const additionalInterfaces = trafficInterfacesData || [];
