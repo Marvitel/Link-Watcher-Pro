@@ -1,0 +1,31 @@
+mpse.pacatuba: Sem perfil SNMP disponível
+Geraldo_Margella-Haras: Sem perfil SNMP disponível
+VIDAM-HOTEL: Sem perfil SNMP disponível
+PATHOLOGIKA - ONU BRIDGE (user: support): Sem perfil SNMP disponível
+XINGO-JARDINS: Sem perfil SNMP disponível
+Dados - CENTRO MÉDICO JOUBERTO UCHOA: Sem perfil SNMP disponível
+29012019 08:01:00 [automatico] - Mudou status para Ativado. 07012019 01:00:04 [automatico] - Contrato Bloqueado (Financeiro) devido Contas a Receber N° 4277.07012019 01:00:04 [automatico] - Mudou status para Bloqueado (Financeiro).10122018 10:31:18 [sileide] - Alteração de Local de Cobrança. [Bradesco Registrado NF - Multas e Juros Prox. Fatura Sicredi Registrado NF Multas e Juros Prox. Fatura]22102018 12:10:12 [cleiton] - Alteração do Parâmetro - IP [ 191.52.253.236]27092018 07:54:00 [automatico] - Mudou status para Ativado. 26092018 15:15:09 [sileide] - Alteração de Local de Cobrança. [Sicredi Registrado NF Multas e Juros Prox. Fatura Bradesco Registrado NF - Multas e Juros Prox. Fatura]25092018 16:52:45 [sileide] - Alteração de Local de Cobrança. [Bradesco Registrado NF - Multas e Juros Prox. Fatura Sicredi Registrado NF Multas e Juros Prox. Fatura]25092018 10:15:20 [sileide] - Alteração de Local de Cobrança. [Sicredi Registrado NF Multas e Juros Prox. Fatura Bradesco Registrado NF - Multas e Juros Prox. Fatura]25092018 10:15:20 [sileide] - Alteração de QTD. Meses Fidelidade. [0 12]05092018 01:00:04 [automatico] - Contrato Bloqueado (Financeiro) devido Contas a Receber N° 3697.05092018 01:00:04 [automatico] - Mudou status para Bloqueado (Financeiro).09082018 15:12:00 [automatico] - Mudou status para Ativado. 06082018 01:00:04 [automatico] - Contrato Bloqueado (Financeiro) devido Contas a Receber N° 3575.06082018 01:00:04 [automatico] - Mudou status para Bloqueado (Financeiro).09052018 17:59:55 [marcus] - Migrado do Contrato nº 69.: Sem perfil SNMP disponível
+Dupla-Abordagem-GALPAO: Sem perfil SNMP disponível
+SESI-ROBERTO-SIMONSEN: Sem perfil SNMP disponível
+sandra.rezende: Sem perfil SNMP disponível
+PeP===DACM00024D9F: Sem perfil SNMP disponível
+F2-VELCOM-SOCORRO: Sem perfil SNMP disponível
+tahaa-casa20: Sem perfil SNMP disponível
+POSTO ALPHA NOVA SEDE: Sem perfil SNMP disponível
+POSTO_ALPHA07_COROA_MEIO: Sem perfil SNMP disponível
+aracaju.ltda: Sem perfil SNMP disponível
+HOTEL REAL PRAIA - ONU BRIDGE (user: support): Sem perfil SNMP disponível
+Serviço Internet Dedicado 500 MEGA - SCM - TESTE CIANET: Sem perfil SNMP disponível
+SESI-CETCC: Sem perfil SNMP disponível
+lumina.ltda: Sem perfil SNMP disponível
+TJSE-NSS-PQ-DOS-FAROIS: Sem perfil SNMP disponível
+glaucia.morais: Sem perfil SNMP disponível
+MPSE-SANTA-MARIA: Sem perfil SNMP disponível
+VITTORIO-EMANUELLE-BKP: Sem perfil SNMP disponível
+ANDRADE-DISTRIBUIDOR: Sem perfil SNMP disponível
+CENTRAIS_VOIP_TRT: Sem perfil SNMP disponível
+tjse.gloria: Sem perfil SNMP disponível
+TRIBUNAL DE JUSTIÇA - AQUIDABÃ: Sem perfil SNMP disponível
+jose.junior: Sem perfil SNMP disponível
+MAVEQ===TPLGD0FFFCB0: Sem perfil SNMP disponível
+... e mais 20 erros

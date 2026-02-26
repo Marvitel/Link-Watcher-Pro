@@ -10737,21 +10737,23 @@ export async function registerRoutes(
                 if (defaultProfile) profile = defaultProfile;
               }
 
-              if (!searchIp || !profile) {
+              if (!searchIp || !profile || !searchName) {
                 enrichmentProgress.skipped++;
                 enrichmentProgress.processed++;
                 if (enrichmentProgress.errors.length < 50) {
-                  const reason = !searchIp ? 'Sem IP para consulta SNMP' : 'Sem perfil SNMP disponível';
-                  enrichmentProgress.errors.push(`${link.name}: ${reason}`);
-                }
-                continue;
-              }
-
-              if (!searchName) {
-                enrichmentProgress.skipped++;
-                enrichmentProgress.processed++;
-                if (enrichmentProgress.errors.length < 50) {
-                  enrichmentProgress.errors.push(`${link.name}: Sem nome de interface para buscar (pppoeUser, snmpInterfaceName ou originalIfName)`);
+                  const reasons: string[] = [];
+                  if (!link.concentratorId) reasons.push('sem concentrador atribuído');
+                  else if (!searchIp) reasons.push('concentrador sem IP');
+                  if (!profile) {
+                    if (link.concentratorId) {
+                      const conc = concentratorMap.get(link.concentratorId);
+                      reasons.push(conc?.snmpProfileId ? 'perfil SNMP do concentrador não encontrado' : 'concentrador sem perfil SNMP');
+                    } else {
+                      reasons.push('sem perfil SNMP');
+                    }
+                  }
+                  if (!searchName) reasons.push('sem nome de interface (pppoeUser/snmpInterfaceName)');
+                  enrichmentProgress.errors.push(`${link.name}: ${reasons.join(', ')}`);
                 }
                 continue;
               }
