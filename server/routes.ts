@@ -10711,14 +10711,19 @@ export async function registerRoutes(
                 searchName = (link as any).vlanInterface;
               }
 
+              if (link.snmpProfileId) {
+                profile = profileMap.get(link.snmpProfileId);
+              }
+
               if (link.concentratorId) {
                 const concentrator = concentratorMap.get(link.concentratorId);
                 if (concentrator) {
                   searchIp = concentrator.ipAddress;
                   if (concentrator.snmpProfileId) {
-                    profile = profileMap.get(concentrator.snmpProfileId);
+                    const concProfile = profileMap.get(concentrator.snmpProfileId);
+                    if (concProfile) profile = concProfile;
                   }
-                  if ((link.trafficSourceType === 'concentrator' || link.concentratorId) && link.pppoeUser) {
+                  if (link.pppoeUser) {
                     searchName = link.pppoeUser;
                   }
                 }
@@ -10728,13 +10733,8 @@ export async function registerRoutes(
                 searchIp = link.snmpRouterIp || link.monitoredIp;
               }
 
-              if (!profile && link.snmpProfileId) {
-                profile = profileMap.get(link.snmpProfileId);
-              }
-
-              if (!profile) {
-                const defaultProfile = allProfiles[0];
-                if (defaultProfile) profile = defaultProfile;
+              if (!profile && allProfiles.length > 0) {
+                profile = allProfiles[0];
               }
 
               if (!searchIp || !profile || !searchName) {
