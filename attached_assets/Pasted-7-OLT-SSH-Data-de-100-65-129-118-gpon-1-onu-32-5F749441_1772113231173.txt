@@ -1,0 +1,46 @@
+7]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 32 5F749441 ITBS AX1800V PONAX1800V_v1. 2.2-240822
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 33 5F7320A7 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 34 5F74945C ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 35 5F730676 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link Yazaki - Link Principal: 114 elementos na rota
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link Yazaki - Link Principal: Splitter: CEO MVT 263, Porta: 1
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 40 5F74656D ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 1 onu 42 5F74925B ITBS AX1800V PONAX1800V_v1. 2.2-250203
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link Yazaki - Link Principal: Salvo - Splitter: CEO MVT 263, Porta: 1, Potência: -16.79945139480193
+fev 26 10:38:14 link-monitor npm[1131947]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+fev 26 10:38:14 link-monitor npm[1131947]: [BlacklistAutoCheck] Error checking IP 192.168.89.57: Error: HetrixTools API error: 429 Too Many Requests
+fev 26 10:38:14 link-monitor npm[1131947]:     at Sl.request (/opt/link-monitor/dist/index.cjs:371:23299)
+fev 26 10:38:14 link-monitor npm[1131947]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+fev 26 10:38:14 link-monitor npm[1131947]:     at async Sl.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:371:23855)
+fev 26 10:38:14 link-monitor npm[1131947]:     at async Timeout.n [as _onTimeout] (/opt/link-monitor/dist/index.cjs:371:26518)
+fev 26 10:38:14 link-monitor npm[1131947]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=192.168.89.58&exact_target=true&type=ipv4
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 1 F1E58EAE ITBS R1v2 ONUR1_v2.0 1.3-220719
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link rita.santos: 12 elementos na rota
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link rita.santos: Splitter: CONDOMINIO THAI, Porta: 1
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link rita.santos: Splitter: CEO 24FO - 193, Porta: 3
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link rita.santos: Splitter: CTO THAI LOTES 406 A 410 / LOTES 501 A 505, Porta: 2
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 2 F1E58E74 ITBS R1v2 ONUR1_v2.0 1.3-220719
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 3 F1E58EBC ITBS R1v2 ONUR1_v2.0 1.3-220719
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link rita.santos: Salvo - Splitter: CTO THAI LOTES 406 A 410 / LOTES 501 A 505, Porta: 2, Potência: -20.743295554875473
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 5 F1E58EB0 ITBS R1v2 ONUR1_v2.0 1.3-220719
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 6 F1E58E40 ITBS R1v2 ONUR1_v2.0 1.3-220719
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 7 5F746309 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 8 5F746588 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+fev 26 10:38:14 link-monitor npm[1131947]: [BlacklistAutoCheck] Error checking IP 192.168.89.58: Error: HetrixTools API error: 429 Too Many Requests
+fev 26 10:38:14 link-monitor npm[1131947]:     at Sl.request (/opt/link-monitor/dist/index.cjs:371:23299)
+fev 26 10:38:14 link-monitor npm[1131947]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+fev 26 10:38:14 link-monitor npm[1131947]:     at async Sl.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:371:23855)
+fev 26 10:38:14 link-monitor npm[1131947]:     at async Timeout.n [as _onTimeout] (/opt/link-monitor/dist/index.cjs:371:26518)
+fev 26 10:38:14 link-monitor npm[1131947]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=192.168.89.59&exact_target=true&type=ipv4
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link luis.correia: 22 elementos na rota
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link luis.correia: Splitter: CONDOMINIO THAI, Porta: 1
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link luis.correia: Splitter: CEO 24FO - 194, Porta: 2
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link luis.correia: Splitter: CTO THAI LOTES 506 A 510 / LOTES 601 A 606, Porta: 1
+fev 26 10:38:14 link-monitor npm[1131947]: [OZmap Auto-Sync] Link luis.correia: Salvo - Splitter: CTO THAI LOTES 506 A 510 / LOTES 601 A 606, Porta: 1, Potência: -21.210460201775337
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 15 5F7464A7 ITBS AX1800V PONAX1800V_v1. 2.2-250203
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 16 5F74725D ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 19 5F74CDB3 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 20 5F7462A6 ITBS AX1800V PONAX1800V_v1. 2.2-221122
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 21 5F746495 ITBS AX1800V PONAX1800V_v1. 2.2-240822
+fev 26 10:38:14 link-monitor npm[1131947]: [OLT SSH] Data de 100.65.129.118: gpon 2 onu 22 5F7471D6 ITBS AX1800V PONAX1800V_v1. 2.2-221122

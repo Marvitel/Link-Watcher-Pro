@@ -1835,9 +1835,18 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
     } else if (vendor.includes("intelbras")) {
       // Intelbras: "onu inventory" output
       // Formato: "gpon 1 onu 4    5F74C02A    ITBS    AX1800V ..."
-      // Buscar o serial na lista de inventário
+      // Serial pode vir com prefixo de vendor (ITBS5F746588) mas no output aparece só o hex (5F746588)
+      const serialVariants = [searchString.toLowerCase()];
+      // Remove prefixos de vendor conhecidos para match (ITBS, DACM, ZNTS, HWTC, FHTT, etc.)
+      const stripped = searchString.replace(/^(ITBS|DACM|ZNTS|HWTC|FHTT|TPLG|ALCL|RTKG|UBNT|NKIA|CMSZ)/i, "");
+      if (stripped.toLowerCase() !== searchString.toLowerCase()) {
+        serialVariants.push(stripped.toLowerCase());
+      }
+      
       for (const line of lines) {
-        if (line.toLowerCase().includes(searchString.toLowerCase())) {
+        const lineLower = line.toLowerCase();
+        const matchesSerial = serialVariants.some(v => lineLower.includes(v));
+        if (matchesSerial) {
           // Match: "gpon X onu Y    SERIAL ..."
           const invMatch = line.match(/gpon\s+(\d+)\s+onu\s+(\d+)\s+/i);
           if (invMatch) {
@@ -1846,7 +1855,7 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
             onuId = onuNumber;
             discoveredSlot = 1;
             discoveredPort = gponPort;
-            console.log(`[OLT Search] Intelbras ONU found: gpon ${gponPort} onu ${onuNumber}`);
+            console.log(`[OLT Search] Intelbras ONU found: gpon ${gponPort} onu ${onuNumber} (serial match: ${searchString})`);
             break;
           }
         }
@@ -1855,7 +1864,9 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
       // Fallback: buscar em saída de "onu show unconfigured"
       if (!onuId) {
         for (const line of lines) {
-          if (line.toLowerCase().includes(searchString.toLowerCase())) {
+          const lineLower = line.toLowerCase();
+          const matchesSerial = serialVariants.some(v => lineLower.includes(v));
+          if (matchesSerial) {
             const uncfgMatch = line.match(/(\d+)\s+\S*\s*\S*\s*$/);
             if (uncfgMatch) {
               onuId = uncfgMatch[1];
