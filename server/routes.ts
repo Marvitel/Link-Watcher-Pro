@@ -10242,6 +10242,7 @@ export async function registerRoutes(
       const missingOptical = allLinks.filter(l => l.linkType === 'gpon' && (!l.opticalMonitoringEnabled || !l.oltId));
       const missingCoordinates = allLinks.filter(l => !l.latitude || !l.longitude);
       const missingOltAssignment = allLinks.filter(l => l.linkType === 'gpon' && !l.oltId && l.voalleAccessPointId);
+      const missingOnuId = allLinks.filter(l => l.oltId && l.equipmentSerialNumber && !l.onuId);
       const missingOzmapData = allLinks.filter(l => (l.voalleContractTagServiceTag || l.ozmapTag) && !l.ozmapArrivingPotency);
 
       const clientsWithoutPortal = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
@@ -10264,6 +10265,7 @@ export async function registerRoutes(
         missingConcentrator: { count: missingConcentrator.length, ids: missingConcentrator.map(l => l.id), label: "Sem concentrador (tráfego)", enrichAction: "assign_concentrators" },
         missingInterface: { count: missingInterface.length, ids: missingInterface.map(l => l.id), label: "Sem interface SNMP (ifIndex)", enrichAction: "discover_interfaces", enrichable: hasIpNoInterface.length },
         missingOptical: { count: missingOptical.length, ids: missingOptical.map(l => l.id), label: "GPON sem monitoramento óptico", enrichAction: "assign_olts" },
+        missingOnuId: { count: missingOnuId.length, ids: missingOnuId.map(l => l.id), label: "Sem ID da ONU (tem serial e OLT)", enrichAction: "discover_onu_ids" },
         missingOltAssignment: { count: missingOltAssignment.length, ids: missingOltAssignment.map(l => l.id), label: "Sem OLT atribuída (tem AccessPoint Voalle)" },
         missingCpe: { count: missingCpe.length, ids: missingCpe.map(l => l.id), label: "Sem CPE cadastrado", enrichAction: "create_cpes" },
         missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap" },
@@ -10823,6 +10825,69 @@ export async function registerRoutes(
             console.error("[Enrich] OZmap error:", err);
             enrichmentProgress.errors.push(`OZmap: ${err.message}`);
           }
+        }
+
+        if (action === 'discover_onu_ids' || action === 'discover_all') {
+          enrichmentProgress.action = 'discover_onu_ids';
+          const { searchOnuBySerial } = await import("./olt");
+          const linksNeedingOnuId = targetLinks.filter(l => l.oltId && l.equipmentSerialNumber && !l.onuId);
+          enrichmentProgress.total += linksNeedingOnuId.length;
+          console.log(`[Enrich] Starting ONU ID discovery for ${linksNeedingOnuId.length} links`);
+
+          const linksByOlt = new Map<number, typeof linksNeedingOnuId>();
+          for (const link of linksNeedingOnuId) {
+            const oltId = link.oltId!;
+            if (!linksByOlt.has(oltId)) linksByOlt.set(oltId, []);
+            linksByOlt.get(oltId)!.push(link);
+          }
+
+          const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+          for (const [oltId, oltLinks] of Array.from(linksByOlt.entries())) {
+            const olt = await storage.getOlt(oltId);
+            if (!olt) {
+              console.log(`[Enrich] OLT ${oltId} not found, skipping ${oltLinks.length} links`);
+              for (const link of oltLinks) {
+                enrichmentProgress.skipped++;
+                enrichmentProgress.processed++;
+              }
+              continue;
+            }
+
+            console.log(`[Enrich] Searching ONU IDs on ${olt.name} for ${oltLinks.length} links...`);
+
+            for (let i = 0; i < oltLinks.length; i++) {
+              const link = oltLinks[i];
+              if (i > 0) await delay(1000);
+
+              try {
+                const searchStr = link.onuSearchString || link.equipmentSerialNumber!;
+                const result = await searchOnuBySerial(olt, searchStr);
+
+                if (result.success && result.onuId) {
+                  const updateData: any = { onuId: result.onuId };
+                  if (result.slotOlt !== undefined) updateData.slotOlt = result.slotOlt;
+                  if (result.portOlt !== undefined) updateData.portOlt = result.portOlt;
+                  await storage.updateLink(link.id, updateData);
+                  console.log(`[Enrich] ${link.name}: ONU ID=${result.onuId} (slot=${result.slotOlt} port=${result.portOlt})`);
+                  enrichmentProgress.success++;
+                } else {
+                  console.log(`[Enrich] ${link.name}: ONU not found (${result.message})`);
+                  enrichmentProgress.skipped++;
+                }
+              } catch (err: any) {
+                console.error(`[Enrich] ${link.name}: ONU error: ${err.message}`);
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
+              }
+              enrichmentProgress.processed++;
+            }
+
+            await delay(2000);
+          }
+          console.log(`[Enrich] ONU ID discovery done: ${enrichmentProgress.success} found`);
         }
 
         if (action === 'create_cpes' || action === 'discover_all') {

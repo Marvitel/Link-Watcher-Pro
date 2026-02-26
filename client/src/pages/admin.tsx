@@ -5447,7 +5447,7 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="diagnostics" className="gap-2" data-testid="tab-diagnostics">
             <Activity className="w-4 h-4" />
-            Diagnóstico
+            Sistema
           </TabsTrigger>
           <TabsTrigger value="firewall" className="gap-2" data-testid="tab-firewall">
             <ShieldCheck className="w-4 h-4" />
@@ -5459,7 +5459,7 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="link-diagnostics" className="gap-2" data-testid="tab-link-diagnostics">
             <Activity className="w-4 h-4" />
-            Diagnóstico
+            Diagnóstico de Links
           </TabsTrigger>
         </TabsList>
 

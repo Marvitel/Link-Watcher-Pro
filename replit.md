@@ -52,7 +52,7 @@ Supports grouping links with different profiles for redundancy (Active/Passive),
 
 ### Batch Link Diagnostics & Enrichment
 Admin tab "Diagnóstico de Links" analyzes all links and provides batch enrichment tools:
-- **Categories**: missingVoalleLogin, missingIp, missingConcentrator, missingInterface, missingOptical, missingOltAssignment, missingCpe, missingOzmapData, missingPppoeUser, missingSnmpProfile, missingVoalleTag, missingCoordinates
+- **Categories**: missingVoalleLogin, missingIp, missingConcentrator, missingInterface, missingOptical, missingOnuId, missingOltAssignment, missingCpe, missingOzmapData, missingPppoeUser, missingSnmpProfile, missingVoalleTag, missingCoordinates
 - **Enrichment Actions**:
   - `discover_voalle_login`: Validates Portal Voalle access using CPF/CNPJ as username/password, updates client `voallePortalUsername`/`voallePortalPassword`
   - `discover_ips`: Searches RADIUS DB for framed IP address by PPPoE username
@@ -62,6 +62,7 @@ Admin tab "Diagnóstico de Links" analyzes all links and provides batch enrichme
   - `assign_olts`: Matches links to OLTs/Switches using Voalle access point IDs (`olts.voalleIds`, `switches.voalleIds`)
   - `discover_interfaces`: SNMP ifIndex discovery for links with IP but no interface
   - `sync_ozmap`: Fetches OZmap potency/route data using service tags
+  - `discover_onu_ids`: Batch ONU ID discovery via OLT CLI (SSH/Telnet) using equipment serial number, groups by OLT with delays
   - `create_cpes`: Auto-creates CPE entries and link associations for links with monitoring IP
   - `discover_all`: Runs all actions in sequence
 - **Progress tracking**: `skipped` (no data available) vs `failed` (actual errors) vs `success`

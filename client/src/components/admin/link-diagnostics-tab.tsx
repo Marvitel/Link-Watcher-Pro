@@ -63,13 +63,14 @@ const categoryConfig: Record<string, { icon: IconComponent; color: string; enric
   missingConcentrator: { icon: Router, color: "text-amber-500", enrichLabel: "Atribuir concentradores", priority: 3 },
   missingInterface: { icon: Network, color: "text-orange-500", enrichLabel: "Descobrir interfaces SNMP", priority: 4 },
   missingOptical: { icon: Zap, color: "text-teal-500", enrichLabel: "Atribuir OLTs", priority: 5 },
-  missingOltAssignment: { icon: Radio, color: "text-cyan-500", priority: 6 },
-  missingCpe: { icon: MonitorSmartphone, color: "text-indigo-500", enrichLabel: "Criar CPEs", priority: 7 },
-  missingOzmapData: { icon: Map, color: "text-emerald-500", enrichLabel: "Sincronizar OZmap", priority: 8 },
-  missingPppoeUser: { icon: User, color: "text-yellow-500", priority: 9 },
-  missingSnmpProfile: { icon: Shield, color: "text-blue-500", priority: 10 },
-  missingVoalleTag: { icon: Tag, color: "text-purple-500", enrichLabel: "Buscar dados Voalle", priority: 11 },
-  missingCoordinates: { icon: MapPin, color: "text-gray-500", priority: 12 },
+  missingOnuId: { icon: Activity, color: "text-pink-500", enrichLabel: "Descobrir ID da ONU", priority: 6 },
+  missingOltAssignment: { icon: Radio, color: "text-cyan-500", priority: 7 },
+  missingCpe: { icon: MonitorSmartphone, color: "text-indigo-500", enrichLabel: "Criar CPEs", priority: 8 },
+  missingOzmapData: { icon: Map, color: "text-emerald-500", enrichLabel: "Sincronizar OZmap", priority: 9 },
+  missingPppoeUser: { icon: User, color: "text-yellow-500", priority: 10 },
+  missingSnmpProfile: { icon: Shield, color: "text-blue-500", priority: 11 },
+  missingVoalleTag: { icon: Tag, color: "text-purple-500", enrichLabel: "Buscar dados Voalle", priority: 12 },
+  missingCoordinates: { icon: MapPin, color: "text-gray-500", priority: 13 },
 };
 
 const actionLabels: Record<string, string> = {
@@ -82,6 +83,7 @@ const actionLabels: Record<string, string> = {
   discover_interfaces: "Descobrindo interfaces SNMP",
   sync_ozmap: "Sincronizando dados OZmap",
   create_cpes: "Criando CPEs automaticamente",
+  discover_onu_ids: "Descobrindo ID da ONU via OLT",
   discover_all: "Enriquecimento completo",
 };
 
