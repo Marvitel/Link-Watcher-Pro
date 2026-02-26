@@ -93,6 +93,11 @@ export interface OltDiagnosis {
   description: string;
   diagnosis: string;
   rawOutput: string;
+  opticalData?: {
+    oltRxPower?: number;
+    onuRxPower?: number;
+    distance?: number;
+  };
 }
 
 // Interface para dados do link usados no diagnóstico
@@ -172,6 +177,14 @@ export function buildOnuDiagnosisKey(olt: Olt, link: LinkDiagnosisData): string 
     return null;
   }
   
+  // Intelbras: monta chave "port:onuId" para diagnosisCommand usar
+  if (normalizedVendor === "intelbras") {
+    if (link.onuId && link.portOlt != null) {
+      return `${link.portOlt}:${link.onuId}`;
+    }
+    return link.onuId;
+  }
+  
   // Outros vendors (Furukawa, Huawei, ZTE, Nokia, etc): usam o serial
   if (link.onuSearchString) {
     return link.onuSearchString;
@@ -221,6 +234,8 @@ export function buildOnuSearchCommand(olt: Olt, searchString: string, link?: Lin
       return `show gpon onu by sn ${searchString}`;
     case "nokia":
       return `show equipment ont interface | match ${searchString}`;
+    case "intelbras":
+      return `onu inventory`;
     default:
       console.log(`[OLT Search] Vendor ${vendor} não tem comando de busca configurado`);
       return null;
@@ -868,6 +883,11 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
 function normalizeOnuId(onuId: string): string {
   // Remove prefixos como "gpon-olt_", "gpon-", etc
   let normalized = onuId.replace(/^(gpon-olt_|gpon-|olt_)/i, "");
+  // Intelbras: "gpon X onu Y" -> "X/onu/Y" -> simplificado
+  const intelbrasMatch = normalized.match(/^gpon\s+(\d+)\s+onu\s+(\d+)$/i);
+  if (intelbrasMatch) {
+    normalized = `1/${intelbrasMatch[1]}/${intelbrasMatch[2]}`;
+  }
   // Converte ":" para "/" para unificar formato (1/1/3:116 -> 1/1/3/116)
   normalized = normalized.replace(":", "/");
   return normalized;
@@ -1078,10 +1098,183 @@ const furukawaConfig: VendorConfig = {
   requiresEnable: true, // AsGOS precisa de "enable" primeiro
 };
 
-// Comando e parser para Intelbras - A VALIDAR
+// Parser de alarmes para Intelbras (OLT G/GPON series)
+// Formato: " Num  AlarmType  ResourceId  Info  AlarmSeverity  Date"
+// Exemplo: "5252  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-26 04:35:47"
+function parseIntelbrasAlarms(output: string): OltAlarm[] {
+  const alarms: OltAlarm[] = [];
+  const cleanOutput = stripAnsiCodes(output);
+  const lines = cleanOutput.split("\n");
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    if (!trimmedLine || 
+        trimmedLine.startsWith("----") ||
+        trimmedLine.startsWith("Num") ||
+        trimmedLine.startsWith("***") ||
+        trimmedLine.includes("Alarm Count") ||
+        trimmedLine.includes("History Count") ||
+        trimmedLine.includes("intelbras-olt")) {
+      continue;
+    }
+    
+    // Formato: "5252  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-26 04:35:47"
+    // ou:      "5267  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-26 08:04:08"
+    // ou:      "5058  Loss of Signal    gpon 1 onu 1             LOSi+LOFi          Minor          2026-02-24 05:30:23"
+    const match = trimmedLine.match(/^\s*(\d+)\s+([\w\s]+?)\s{2,}(gpon\s+\d+\s+onu\s+\d+)\s{2,}([\w\-\.\+]+(?:dBm)?)\s{2,}(\w+)\s{2,}(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+    if (match) {
+      const alarmType = match[2].trim();
+      const resource = match[3].trim();
+      const info = match[4].trim();
+      const severity = match[5].trim();
+      const timestamp = match[6].trim();
+      
+      let alarmName = "UNKNOWN";
+      const alarmTypeLower = alarmType.toLowerCase();
+      if (alarmTypeLower.includes("loss of signal") || alarmTypeLower.includes("los")) {
+        if (info.includes("LOFi") || info.includes("LOSi")) {
+          alarmName = "GPON_LOSi";
+        } else if (info.includes("LOAMi")) {
+          alarmName = "GPON_LOAMi";
+        } else {
+          alarmName = "GPON_LOSi";
+        }
+      } else if (alarmTypeLower.includes("dying gasp") || info.includes("DGi")) {
+        alarmName = "GPON_DGi";
+      } else if (alarmTypeLower.includes("power optical")) {
+        alarmName = "GPON_DOWi";
+      }
+      
+      alarms.push({
+        timestamp,
+        severity: severity.toUpperCase(),
+        source: resource,
+        status: "Active",
+        name: alarmName,
+        description: `${alarmType}: ${info}`,
+      });
+      continue;
+    }
+    
+    // Fallback: "System" alarm format
+    const sysMatch = trimmedLine.match(/^\s*(\d+)\s+(System)\s{2,}(.+?)\s{2,}(.+?)\s{2,}(\w+)\s{2,}(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+    if (sysMatch) {
+      alarms.push({
+        timestamp: sysMatch[6].trim(),
+        severity: sysMatch[5].trim().toUpperCase(),
+        source: "System",
+        status: "Active",
+        name: "SYSTEM",
+        description: `${sysMatch[3].trim()}: ${sysMatch[4].trim()}`,
+      });
+    }
+  }
+  
+  return alarms;
+}
+
+// Parser de diagnóstico Intelbras: onu status gpon {port} onu {onuId}
+// Output: ONU data with OLT Rx Power and ONU Rx Power
+function parseIntelbrasDiagnosis(output: string, onuId: string): OltDiagnosis | null {
+  const cleanOutput = stripAnsiCodes(output);
+  
+  // Extrair ONU ID numérico para localizar na saída
+  const numericId = onuId.replace(/\D/g, '') || onuId;
+  
+  // Buscar linha de dados do onu status
+  // Formato: "1   5F74C19B  Active      OK            -31.55 dBm  -29.59 dBm  0.043   1:23:44:11  no"
+  const lines = cleanOutput.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Pular cabeçalhos e linhas vazias
+    if (!trimmed || trimmed.startsWith("===") || trimmed.startsWith("ONU") || trimmed.startsWith("GPON")) continue;
+    
+    // Match na linha de dados
+    const dataMatch = trimmed.match(/^(\d+)\s+(\w+)\s+(Active|Inactive|Disabled)\s+(\w+)\s+([\-\d\.]+)\s*dBm\s+([\-\d\.]+)\s*dBm\s+([\d\.]+)/);
+    if (dataMatch) {
+      const matchedOnuNum = dataMatch[1];
+      const serial = dataMatch[2];
+      const operStatus = dataMatch[3];
+      const omciStatus = dataMatch[4];
+      const oltRxPower = parseFloat(dataMatch[5]);
+      const onuRxPower = parseFloat(dataMatch[6]);
+      const distance = parseFloat(dataMatch[7]);
+      
+      if (matchedOnuNum === numericId || numericId === '') {
+        // Verificar se sinal está crítico
+        if (oltRxPower < -28 || onuRxPower < -27) {
+          return {
+            alarmType: "GPON_DOWi",
+            alarmCode: `gpon onu ${matchedOnuNum}`,
+            description: `Sinal degradado - OLT Rx: ${oltRxPower}dBm, ONU Rx: ${onuRxPower}dBm, Distância: ${distance}km`,
+            diagnosis: "Sinal Degradado",
+            rawOutput: cleanOutput,
+            opticalData: {
+              oltRxPower,
+              onuRxPower,
+              distance,
+            },
+          };
+        }
+        
+        return {
+          alarmType: null,
+          alarmCode: null,
+          description: `ONU ${operStatus} (${omciStatus}) - OLT Rx: ${oltRxPower}dBm, ONU Rx: ${onuRxPower}dBm, Distância: ${distance}km`,
+          diagnosis: operStatus === "Active" ? "Sem alarmes ativos" : `ONU ${operStatus}`,
+          rawOutput: cleanOutput,
+          opticalData: {
+            oltRxPower,
+            onuRxPower,
+            distance,
+          },
+        };
+      }
+    }
+  }
+  
+  // Se não encontrou dados, verificar se ONU está offline
+  if (cleanOutput.toLowerCase().includes("inactive") || cleanOutput.toLowerCase().includes("disabled")) {
+    return {
+      alarmType: "GPON_LOSi",
+      alarmCode: `gpon onu ${numericId}`,
+      description: "ONU inativa/desabilitada",
+      diagnosis: "ONU Inativa",
+      rawOutput: cleanOutput,
+    };
+  }
+  
+  return null;
+}
+
 const intelbrasConfig: VendorConfig = {
-  listAlarmsCommand: "show alarm active",
-  parseAlarms: parseDatacomAlarms, // Usar parser genérico até validar
+  listAlarmsCommand: "alarm show",
+  parseAlarms: parseIntelbrasAlarms,
+  alarmNameMapping: {
+    "Loss of Signal": "GPON_LOSi",
+    "Dying Gasp": "GPON_DGi",
+    "Power Optical": "GPON_DOWi",
+    "LOSi": "GPON_LOSi",
+    "LOFi": "GPON_LOSi",
+    "LOAMi": "GPON_LOAMi",
+    "DGi": "GPON_DGi",
+  },
+  diagnosisCommand: (onuId: string) => {
+    // onuId pode ser "4" (número simples) ou "gpon 1 onu 4" (formato completo)
+    const gponMatch = onuId.match(/gpon\s*(\d+)\s*onu\s*(\d+)/i);
+    if (gponMatch) {
+      return `onu status gpon ${gponMatch[1]} onu ${gponMatch[2]}`;
+    }
+    // Formato "port:id" (ex: "1:4") quando temos portOlt salvo
+    const portIdMatch = onuId.match(/^(\d+):(\d+)$/);
+    if (portIdMatch) {
+      return `onu status gpon ${portIdMatch[1]} onu ${portIdMatch[2]}`;
+    }
+    const numId = onuId.replace(/\D/g, '') || onuId;
+    return `onu status gpon 1 onu ${numId}`;
+  },
+  parseDiagnosis: parseIntelbrasDiagnosis,
 };
 
 // Comando e parser para TP-Link - A VALIDAR
@@ -1637,6 +1830,38 @@ export async function searchOnuBySerial(olt: Olt, searchString: string): Promise
         if (match) {
           onuId = match[1];
           break;
+        }
+      }
+    } else if (vendor.includes("intelbras")) {
+      // Intelbras: "onu inventory" output
+      // Formato: "gpon 1 onu 4    5F74C02A    ITBS    AX1800V ..."
+      // Buscar o serial na lista de inventário
+      for (const line of lines) {
+        if (line.toLowerCase().includes(searchString.toLowerCase())) {
+          // Match: "gpon X onu Y    SERIAL ..."
+          const invMatch = line.match(/gpon\s+(\d+)\s+onu\s+(\d+)\s+/i);
+          if (invMatch) {
+            const gponPort = parseInt(invMatch[1], 10);
+            const onuNumber = invMatch[2];
+            onuId = onuNumber;
+            discoveredSlot = 1;
+            discoveredPort = gponPort;
+            console.log(`[OLT Search] Intelbras ONU found: gpon ${gponPort} onu ${onuNumber}`);
+            break;
+          }
+        }
+      }
+      
+      // Fallback: buscar em saída de "onu show unconfigured"
+      if (!onuId) {
+        for (const line of lines) {
+          if (line.toLowerCase().includes(searchString.toLowerCase())) {
+            const uncfgMatch = line.match(/(\d+)\s+\S*\s*\S*\s*$/);
+            if (uncfgMatch) {
+              onuId = uncfgMatch[1];
+              break;
+            }
+          }
         }
       }
     }

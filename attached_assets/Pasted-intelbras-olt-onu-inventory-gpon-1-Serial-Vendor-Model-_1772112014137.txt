@@ -1,0 +1,188 @@
+intelbras-olt> onu inventory gpon 1   
+                 Serial     Vendor    Model      ONT           Software
+ ONU Name         Number      ID       ID      Version          Version
+=============== =========== ======= ======= =============== ===============
+gpon 1 onu 1    5F74C19B    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 2    5F74CB97    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 3    5F7468FA    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 4    5F74C02A    ITBS    AX1800V PONAX1800V_v1.  2.2-250203     
+gpon 1 onu 5    5F740D1D    ITBS    AX1800V PONAX1800V_v1.  2.2-250203     
+gpon 1 onu 6    5F74628B    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 7    5F73CEC8    ITBS    AX1800V PONAX1800V_v1.  2.2-240822     
+gpon 1 onu 8    F1E58EBE    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 9    F1E58EB8    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 10   F1E58E66    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 11   442921B1    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 12   F1B089F0    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 14   5F73E3F2    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 15   5F74BE8C    ITBS    AX1800V PONAX1800V_v1.  2.2-240822     
+gpon 1 onu 16   5F746078    ITBS    AX1800V PONAX1800V_v1.  2.2-240822     
+gpon 1 onu 19   F1E58E8C    ITBS    R1v2    ONUR1_v2.0      1.3-220719     
+gpon 1 onu 20   5F74651C    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 26   5F7495BB    ITBS    AX1800V PONAX1800V_v1.  2.2-250203     
+gpon 1 onu 28   5F7469FF    ITBS    AX1800V PONAX1800V_v1.  2.2-250203     
+gpon 1 onu 32   5F749441    ITBS    AX1800V PONAX1800V_v1.  2.2-240822     
+gpon 1 onu 33   5F7320A7    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 34   5F74945C    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 35   5F730676    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 40   5F74656D    ITBS    AX1800V PONAX1800V_v1.  2.2-221122     
+gpon 1 onu 42   5F74925B    ITBS    AX1800V PONAX1800V_v1.  2.2-250203     
+intelbras-olt> onu status gpon 1 onu 1
+GPON 1
+
+     Serial                OMCI Config     OLT         ONU       Distance            GPON            Uptime
+ONU  Number    OperStatus   Status       Rx Power    Rx Power      (km)          ONU Status        ddd:hh:mm:ss    Auto
+=== ========= =========== ============= =========== ==========  =========== ==================== ================ ====== 
+1   5F74C19B  Active      OK            -31.55 dBm  -29.59 dBm  0.043                            1:23:44:11       no     
+intelbras-olt> alarm show
+************   Central Alarm Manager   ************
+    Alarm Count     : 34
+    History Count   : 100
+
+
+********************************************** Alarms **************************************************
+ Num        AlarmType            ResourceId               Info        AlarmSeverity         Date
+------  ----------------  -----------------------  -----------------  -------------  -------------------
+     1  System            abnormal reboot 0        2021-10-07 16:24   Critical       2026-01-30 06:10:07
+     2  System            abnormal reboot 1        2021-10-08 07:27   Critical       2026-01-30 06:10:07
+     3  System            abnormal reboot 2        2022-12-06 06:14   Critical       2026-01-30 06:10:07
+     4  System            abnormal reboot 3        2022-12-07 09:21   Critical       2026-01-30 06:10:07
+     5  System            abnormal reboot 4        2022-12-12 13:42   Critical       2026-01-30 06:10:07
+     6  System            abnormal reboot 5        2022-12-12 13:43   Critical       2026-01-30 06:10:07
+     7  System            abnormal reboot 6        2022-12-13 07:41   Critical       2026-01-30 06:10:07
+     8  System            abnormal reboot 7        2023-02-05 15:08   Critical       2026-01-30 06:10:07
+     9  System            abnormal reboot 8        2023-02-07 16:56   Critical       2026-01-30 06:10:07
+    10  System            abnormal reboot 9        2023-02-21 16:39   Critical       2026-01-30 06:10:07
+    11  System            abnormal reboot 10       2023-11-25 04:49   Critical       2026-01-30 06:10:07
+    12  System            abnormal reboot 11       2023-12-14 09:22   Critical       2026-01-30 06:10:07
+    13  System            abnormal reboot 12       2023-12-16 08:49   Critical       2026-01-30 06:10:08
+    14  System            abnormal reboot 13       2023-12-16 15:27   Critical       2026-01-30 06:10:08
+    15  System            abnormal reboot 14       2023-12-19 12:55   Critical       2026-01-30 06:10:08
+    16  System            abnormal reboot 15       2023-12-26 15:04   Critical       2026-01-30 06:10:08
+    17  System            abnormal reboot 16       2023-12-27 07:28   Critical       2026-01-30 06:10:08
+    18  System            abnormal reboot 17       2025-10-21 09:03   Critical       2026-01-30 06:10:08
+    19  System            abnormal reboot 18       2025-10-22 06:45   Critical       2026-01-30 06:10:08
+    20  System            abnormal reboot 19       2025-10-24 08:44   Critical       2026-01-30 06:10:08
+    21  System            abnormal reboot 20       2025-10-24 08:46   Critical       2026-01-30 06:10:08
+    22  System            abnormal reboot 21       2025-11-10 22:23   Critical       2026-01-30 06:10:08
+    23  System            abnormal reboot 22       2025-11-15 03:47   Critical       2026-01-30 06:10:08
+    24  System            abnormal reboot 23       2025-11-22 16:21   Critical       2026-01-30 06:10:08
+    25  System            abnormal reboot 24       2025-11-23 12:04   Critical       2026-01-30 06:10:08
+    26  System            abnormal reboot 25       2025-12-20 04:31   Critical       2026-01-30 06:10:08
+    27  System            abnormal reboot 26       2026-01-02 23:36   Critical       2026-01-30 06:10:08
+    28  System            abnormal reboot 27       2026-01-02 23:36   Critical       2026-01-30 06:10:08
+    29  System            abnormal reboot 28       2026-01-03 23:30   Critical       2026-01-30 06:10:08
+    30  System            abnormal reboot 29       2026-01-21 00:05   Critical       2026-01-30 06:10:08
+    31  System            abnormal reboot 30       2026-01-30 06:06   Critical       2026-01-30 06:10:08
+    32  System            images version           differents         Critical       2026-01-30 06:10:08
+  5252  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-26 04:35:47
+  5267  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-26 08:04:08
+
+
+
+********************************************* History **************************************************
+ Num        AlarmType            ResourceId               Info        AlarmSeverity         Date
+------  ----------------  -----------------------  -----------------  -------------  -------------------
+  5041  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:14:56
+  5042  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:15:05
+  5044  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:16:09
+  5046  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:17:05
+  5047  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:18:10
+  5048  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:18:25
+  5049  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:20:31
+  5050  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:20:56
+  5053  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:26:37
+  5054  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:27:16
+  5055  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:27:38
+  5056  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:27:56
+  5058  Loss of Signal    gpon 1 onu 1             LOSi+LOFi          Minor          2026-02-24 05:30:23
+  5059  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:31:06
+  5062  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:33:28
+  5063  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:34:06
+  5064  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:35:31
+  5065  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:36:03
+  5066  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:36:21
+  5067  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:36:41
+  5069  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:38:01
+  5070  Loss of Signal    gpon 1 onu 1             LOSi+LOFi          Minor          2026-02-24 05:38:11
+  5071  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:38:52
+  5072  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:38:56
+  5074  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:39:12
+  5078  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:40:38
+  5079  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:40:48
+  5081  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:41:34
+  5082  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:42:18
+  5083  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:42:34
+  5088  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:46:01
+  5089  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:46:34
+  5090  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:46:49
+  5094  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:49:22
+  5096  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:49:59
+  5097  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 05:50:19
+  5099  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:51:04
+  5101  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:52:10
+  5102  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:52:25
+  5103  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:52:55
+  5105  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:53:10
+  5108  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 05:54:22
+  5110  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 05:55:07
+  5117  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:00:13
+  5118  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:00:19
+  5119  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:00:51
+  5121  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:01:09
+  5122  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:02:14
+  5123  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:02:51
+  5128  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:04:51
+  5129  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:05:17
+  5130  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:05:33
+  5131  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:05:53
+  5132  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:06:04
+  5133  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:06:48
+  5135  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:10:34
+  5136  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:11:01
+  5137  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:11:14
+  5140  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:12:36
+  5141  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:12:59
+  5143  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:13:36
+  5144  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:14:14
+  5145  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:14:48
+  5146  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:15:29
+  5147  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:15:34
+  5148  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:15:49
+  5152  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:17:47
+  5153  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:18:30
+  5154  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:18:54
+  5155  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:19:10
+  5163  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:23:45
+  5164  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:24:06
+  5166  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:25:01
+  5167  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:25:16
+  5168  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:25:18
+  5173  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 06:27:51
+  5176  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:29:00
+  5177  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:30:37
+  5181  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:33:44
+  5191  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:38:07
+  5192  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:39:07
+  5195  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:40:21
+  5196  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:40:43
+  5198  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:41:22
+  5205  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:43:43
+  5211  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:46:56
+  5216  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:48:38
+  5218  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:49:06
+  5219  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:49:19
+  5222  Loss of Signal    gpon 1 onu 1             LOFi               Minor          2026-02-24 06:50:38
+  5223  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:50:49
+  5229  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 06:53:05
+  5233  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 07:18:16
+  5235  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 07:19:42
+  5237  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-24 08:13:39
+  5241  Dying Gasp        gpon 2 onu 19            DGi                Minor          2026-02-24 09:59:26
+  5242  Power Optical     gpon 1 onu 1             -29dBm             Critical       2026-02-24 10:34:17
+  5243  Loss of Signal    gpon 1 onu 7             LOSi+LOFi+LOAMi    Minor          2026-02-25 03:00:13
+  5248  Loss of Signal    gpon 1 onu 7             LOSi+LOFi+LOAMi    Minor          2026-02-26 03:00:13
+  5251  Loss of Signal    gpon 1 onu 1             LOAMi              Minor          2026-02-26 04:35:35
+
+
+intelbras-olt> 
