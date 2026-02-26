@@ -10686,55 +10686,87 @@ export async function registerRoutes(
 
         if (action === 'discover_interfaces' || action === 'discover_all') {
           enrichmentProgress.action = 'discover_interfaces';
-          const linksNeedingInterface = targetLinks.filter(l => l.monitoredIp && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
+          const linksNeedingInterface = targetLinks.filter(l => 
+            (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined) &&
+            (l.concentratorId || l.monitoredIp || l.snmpRouterIp)
+          );
           enrichmentProgress.total += linksNeedingInterface.length;
 
           const allProfiles = await storage.getSnmpProfiles();
           const profileMap = new Map(allProfiles.map(p => [p.id, p]));
-          const allConcentrators = await storage.getSnmpConcentrators();
+          const allConcentrators = await storage.getConcentrators();
           const concentratorMap = new Map(allConcentrators.map(c => [c.id, c]));
-          const defaultProfile = allProfiles.find(p => (p as any).isDefault) || allProfiles[0];
 
-          const noProfileCount = linksNeedingInterface.filter(l => !l.snmpProfileId).length;
-          console.log(`[Enrich] Starting SNMP interface discovery for ${linksNeedingInterface.length} links (${noProfileCount} without own profile, will use concentrator/default fallback)`);
+          console.log(`[Enrich] Starting SNMP interface discovery for ${linksNeedingInterface.length} links`);
 
           for (const link of linksNeedingInterface) {
             try {
-              let profile = link.snmpProfileId ? profileMap.get(link.snmpProfileId) : undefined;
+              let searchIp: string | null = null;
+              let profile: any = null;
+              let searchName = link.originalIfName || link.snmpInterfaceName;
 
-              if (!profile && link.concentratorId) {
-                const conc = concentratorMap.get(link.concentratorId);
-                if (conc?.snmpProfileId) {
-                  profile = profileMap.get(conc.snmpProfileId);
+              if (!searchName && link.authType === 'corporate' && (link as any).vlanInterface) {
+                searchName = (link as any).vlanInterface;
+              }
+
+              if (link.concentratorId) {
+                const concentrator = concentratorMap.get(link.concentratorId);
+                if (concentrator) {
+                  searchIp = concentrator.ipAddress;
+                  if (concentrator.snmpProfileId) {
+                    profile = profileMap.get(concentrator.snmpProfileId);
+                  }
+                  if ((link.trafficSourceType === 'concentrator' || link.concentratorId) && link.pppoeUser) {
+                    searchName = link.pppoeUser;
+                  }
                 }
               }
 
-              if (!profile && defaultProfile) {
-                profile = defaultProfile;
+              if (!searchIp) {
+                searchIp = link.snmpRouterIp || link.monitoredIp;
+              }
+
+              if (!profile && link.snmpProfileId) {
+                profile = profileMap.get(link.snmpProfileId);
               }
 
               if (!profile) {
+                const defaultProfile = allProfiles[0];
+                if (defaultProfile) profile = defaultProfile;
+              }
+
+              if (!searchIp || !profile) {
                 enrichmentProgress.skipped++;
                 enrichmentProgress.processed++;
                 if (enrichmentProgress.errors.length < 50) {
-                  enrichmentProgress.errors.push(`${link.name}: Sem perfil SNMP disponível`);
+                  const reason = !searchIp ? 'Sem IP para consulta SNMP' : 'Sem perfil SNMP disponível';
+                  enrichmentProgress.errors.push(`${link.name}: ${reason}`);
                 }
                 continue;
               }
 
-              const interfaces = await discoverInterfaces(link.monitoredIp!, profile);
+              if (!searchName) {
+                enrichmentProgress.skipped++;
+                enrichmentProgress.processed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: Sem nome de interface para buscar (pppoeUser, snmpInterfaceName ou originalIfName)`);
+                }
+                continue;
+              }
+
+              const interfaces = await discoverInterfaces(searchIp, profile);
               if (interfaces && interfaces.length > 0) {
-                const targetName = link.snmpInterfaceName || link.originalIfName;
                 let matchedIf: SnmpInterface | undefined;
 
-                if (targetName) {
-                  matchedIf = interfaces.find(i => i.ifName === targetName || i.ifDescr === targetName || i.ifAlias === targetName);
-                }
+                matchedIf = interfaces.find(i => 
+                  i.ifName === searchName || i.ifDescr === searchName || i.ifAlias === searchName
+                );
 
                 if (!matchedIf) {
-                  matchedIf = interfaces.find(i =>
-                    i.ifName?.match(/^(ether1|eth0|GigabitEthernet0\/0\/0|ge-0\/0\/0)$/i) ||
-                    (i.ifAdminStatus === 'up' && i.ifOperStatus === 'up')
+                  matchedIf = interfaces.find(i => 
+                    i.ifName?.toLowerCase().includes(searchName!.toLowerCase()) ||
+                    i.ifDescr?.toLowerCase().includes(searchName!.toLowerCase()) ||
+                    i.ifAlias?.toLowerCase().includes(searchName!.toLowerCase())
                   );
                 }
 
@@ -10745,22 +10777,19 @@ export async function registerRoutes(
                     snmpInterfaceDescr: matchedIf.ifDescr || undefined,
                     snmpInterfaceAlias: matchedIf.ifAlias || undefined,
                   };
-                  if (!link.snmpProfileId && profile) {
-                    updateData.snmpProfileId = profile.id;
-                  }
                   await db.update(links).set(updateData).where(eq(links.id, link.id));
                   enrichmentProgress.success++;
                 } else {
                   enrichmentProgress.skipped++;
                   if (enrichmentProgress.errors.length < 50) {
-                    const discoveredNames = interfaces.slice(0, 5).map(i => i.ifName || i.ifDescr).join(', ');
-                    enrichmentProgress.errors.push(`${link.name}: Interface não encontrada (buscando "${targetName || 'auto'}"). Disponíveis: ${discoveredNames}`);
+                    const discoveredNames = interfaces.slice(0, 8).map(i => `${i.ifName || i.ifDescr}${i.ifAlias ? ' ('+i.ifAlias+')' : ''}`).join(', ');
+                    enrichmentProgress.errors.push(`${link.name}: Interface "${searchName}" não encontrada em ${searchIp}. Disponíveis: ${discoveredNames}`);
                   }
                 }
               } else {
                 enrichmentProgress.skipped++;
                 if (enrichmentProgress.errors.length < 50) {
-                  enrichmentProgress.errors.push(`${link.name}: SNMP sem resposta em ${link.monitoredIp}`);
+                  enrichmentProgress.errors.push(`${link.name}: SNMP sem resposta em ${searchIp}`);
                 }
               }
             } catch (err: any) {
