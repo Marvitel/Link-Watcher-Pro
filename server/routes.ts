@@ -10686,16 +10686,39 @@ export async function registerRoutes(
 
         if (action === 'discover_interfaces' || action === 'discover_all') {
           enrichmentProgress.action = 'discover_interfaces';
-          const linksNeedingInterface = targetLinks.filter(l => l.monitoredIp && l.snmpProfileId && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
+          const linksNeedingInterface = targetLinks.filter(l => l.monitoredIp && (l.snmpInterfaceIndex === null || l.snmpInterfaceIndex === undefined));
           enrichmentProgress.total += linksNeedingInterface.length;
-          console.log(`[Enrich] Starting SNMP interface discovery for ${linksNeedingInterface.length} links`);
+
+          const allProfiles = await storage.getSnmpProfiles();
+          const profileMap = new Map(allProfiles.map(p => [p.id, p]));
+          const allConcentrators = await storage.getSnmpConcentrators();
+          const concentratorMap = new Map(allConcentrators.map(c => [c.id, c]));
+          const defaultProfile = allProfiles.find(p => (p as any).isDefault) || allProfiles[0];
+
+          const noProfileCount = linksNeedingInterface.filter(l => !l.snmpProfileId).length;
+          console.log(`[Enrich] Starting SNMP interface discovery for ${linksNeedingInterface.length} links (${noProfileCount} without own profile, will use concentrator/default fallback)`);
 
           for (const link of linksNeedingInterface) {
             try {
-              const profile = await storage.getSnmpProfile(link.snmpProfileId!);
+              let profile = link.snmpProfileId ? profileMap.get(link.snmpProfileId) : undefined;
+
+              if (!profile && link.concentratorId) {
+                const conc = concentratorMap.get(link.concentratorId);
+                if (conc?.snmpProfileId) {
+                  profile = profileMap.get(conc.snmpProfileId);
+                }
+              }
+
+              if (!profile && defaultProfile) {
+                profile = defaultProfile;
+              }
+
               if (!profile) {
                 enrichmentProgress.skipped++;
                 enrichmentProgress.processed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: Sem perfil SNMP disponível`);
+                }
                 continue;
               }
 
@@ -10716,18 +10739,29 @@ export async function registerRoutes(
                 }
 
                 if (matchedIf) {
-                  await db.update(links).set({
+                  const updateData: any = {
                     snmpInterfaceIndex: matchedIf.ifIndex,
                     snmpInterfaceName: matchedIf.ifName || undefined,
                     snmpInterfaceDescr: matchedIf.ifDescr || undefined,
                     snmpInterfaceAlias: matchedIf.ifAlias || undefined,
-                  }).where(eq(links.id, link.id));
+                  };
+                  if (!link.snmpProfileId && profile) {
+                    updateData.snmpProfileId = profile.id;
+                  }
+                  await db.update(links).set(updateData).where(eq(links.id, link.id));
                   enrichmentProgress.success++;
                 } else {
                   enrichmentProgress.skipped++;
+                  if (enrichmentProgress.errors.length < 50) {
+                    const discoveredNames = interfaces.slice(0, 5).map(i => i.ifName || i.ifDescr).join(', ');
+                    enrichmentProgress.errors.push(`${link.name}: Interface não encontrada (buscando "${targetName || 'auto'}"). Disponíveis: ${discoveredNames}`);
+                  }
                 }
               } else {
                 enrichmentProgress.skipped++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: SNMP sem resposta em ${link.monitoredIp}`);
+                }
               }
             } catch (err: any) {
               enrichmentProgress.failed++;
@@ -10737,7 +10771,7 @@ export async function registerRoutes(
             }
             enrichmentProgress.processed++;
           }
-          console.log(`[Enrich] Interface discovery done: ${enrichmentProgress.success} found`);
+          console.log(`[Enrich] Interface discovery done: ${enrichmentProgress.success} found, ${enrichmentProgress.skipped} skipped, ${enrichmentProgress.failed} failed`);
         }
 
         if (action === 'sync_ozmap' || action === 'discover_all') {
@@ -10748,8 +10782,8 @@ export async function registerRoutes(
 
           try {
             const ozmapIntegration = await storage.getExternalIntegrationByProvider?.('ozmap');
-            if (!ozmapIntegration || !ozmapIntegration.enabled) {
-              enrichmentProgress.errors.push("Integração OZmap não configurada ou inativa");
+            if (!ozmapIntegration || !ozmapIntegration.isActive || !ozmapIntegration.apiKey || !ozmapIntegration.apiUrl) {
+              enrichmentProgress.errors.push("Integração OZmap não configurada ou inativa. Configure em Configurações > Integrações Externas.");
               for (const link of linksForOzmap) {
                 enrichmentProgress.failed++;
                 enrichmentProgress.processed++;
