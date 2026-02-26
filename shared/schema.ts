@@ -217,6 +217,14 @@ export const links = pgTable("links", {
   wifiPassword: text("wifi_password"), // Senha do WiFi
   // Complemento de endereço
   addressComplement: text("address_complement"), // Complemento do endereço
+  // Status do contrato no ERP (Voalle)
+  contractStatus: varchar("contract_status", { length: 20 }).notNull().default("active"), // active, blocked, cancelled, unknown
+  contractStatusReason: text("contract_status_reason"), // Motivo do bloqueio/cancelamento
+  contractStatusUpdatedAt: timestamp("contract_status_updated_at"), // Quando o status mudou
+  voalleStatusRaw: varchar("voalle_status_raw", { length: 100 }), // Valor bruto do status no Voalle
+  // Soft-delete
+  deletedAt: timestamp("deleted_at"), // Se preenchido, link é considerado excluído
+  deletedReason: varchar("deleted_reason", { length: 100 }), // "voalle_webhook", "manual", etc
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

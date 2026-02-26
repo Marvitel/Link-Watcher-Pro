@@ -3,7 +3,7 @@ import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
 import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators, externalIntegrations } from "@shared/schema";
-import { eq, and, not, like, gte, isNotNull, desc, or } from "drizzle-orm";
+import { eq, and, not, like, gte, isNotNull, isNull, desc, or, sql } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, discoverInterfaces, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { lookupMultiplePppoeSessions, lookupIfIndexByIp } from "./concentrator";
@@ -2739,10 +2739,13 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     const currentUptime = link.uptime || 99;
     let newUptime = currentUptime;
 
-    if (collectedMetrics.status === "offline") {
-      newUptime = Math.max(0, currentUptime - 0.01);
-    } else if (collectedMetrics.status === "operational") {
-      newUptime = Math.min(100, currentUptime + 0.001);
+    const isContractBlockedForSla = link.contractStatus === "blocked" || link.contractStatus === "cancelled";
+    if (!isContractBlockedForSla) {
+      if (collectedMetrics.status === "offline") {
+        newUptime = Math.max(0, currentUptime - 0.01);
+      } else if (collectedMetrics.status === "operational") {
+        newUptime = Math.min(100, currentUptime + 0.001);
+      }
     }
 
     const safeDownload = isFinite(collectedMetrics.downloadMbps) ? collectedMetrics.downloadMbps : 0;
@@ -2856,8 +2859,10 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       console.log(`[Monitor] ${link.name}: OLT diagnosis result: "${diagnosisSuffix}"`);
     }
     
-    // Create event on status change
-    if (previousStatus !== newStatus) {
+    const isContractBlocked = link.contractStatus === "blocked" || link.contractStatus === "cancelled";
+
+    // Create event on status change (skip for blocked/cancelled contracts)
+    if (previousStatus !== newStatus && !isContractBlocked) {
       const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
       if (eventConfig) {
         let eventDescription = eventConfig.description + diagnosisSuffix;
@@ -2937,7 +2942,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     const latencyThreshold = link.latencyThreshold || 80;
     const packetLossThreshold = link.packetLossThreshold || 2;
     
-    if (safeLatency > latencyThreshold && link.latency <= latencyThreshold) {
+    if (safeLatency > latencyThreshold && link.latency <= latencyThreshold && !isContractBlocked) {
       await db.insert(events).values({
         linkId: link.id,
         clientId: link.clientId,
@@ -2953,7 +2958,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     // Skip packet loss alerts if link is offline (status = 'offline' or 'down')
     const isLinkDown = collectedMetrics.status === 'offline' || collectedMetrics.status === 'down';
     
-    if (!isLinkDown) {
+    if (!isLinkDown && !isContractBlocked) {
       const globalSettings = await loadMonitoringSettings();
       const lossState = await updatePacketLossState(link.id, safePacketLoss, globalSettings);
       
@@ -2971,7 +2976,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         // Mark alert sent to reset consecutive counter and avoid repeated alerts
         markAlertSent(link.id);
       }
-    } else {
+    } else if (isLinkDown) {
       // Reset packet loss state when link is down to avoid false alerts when it comes back
       resetLinkState(link.id);
     }
@@ -3010,7 +3015,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       const hasRecentOpticalEvent = recentOpticalEvents.length > 0;
       
       // Criar evento de sinal crítico/warning se não há evento ativo E não há evento recente (debounce 6h)
-      if ((opticalStatus === 'critical' || opticalStatus === 'warning') && !hasActiveOpticalEvent && !hasRecentOpticalEvent) {
+      // Skip optical events for blocked/cancelled contracts
+      if ((opticalStatus === 'critical' || opticalStatus === 'warning') && !hasActiveOpticalEvent && !hasRecentOpticalEvent && !isContractBlocked) {
         const eventType = opticalStatus === 'critical' ? 'critical' : 'warning';
         const statusLabel = opticalStatus === 'critical' ? 'Crítico' : 'Degradado';
         await db.insert(events).values({
@@ -3053,7 +3059,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       
       const hasCongestionEvent = activeCongestionEvent.length > 0;
       
-      if (maxUsagePercent >= congestionThreshold && !hasCongestionEvent) {
+      if (maxUsagePercent >= congestionThreshold && !hasCongestionEvent && !isContractBlocked) {
         // Criar evento de congestionamento
         const direction = downloadUsagePercent > uploadUsagePercent ? 'Download' : 'Upload';
         await db.insert(events).values({
@@ -3347,7 +3353,7 @@ export async function collectAllLinksMetrics(): Promise<void> {
   try {
     await loadBlacklistCache();
     
-    const allLinks = await db.select().from(links);
+    const allLinks = await db.select().from(links).where(isNull(links.deletedAt));
     const enabledLinks = allLinks.filter(l => l.monitoringEnabled);
     const disabledLinks = allLinks.filter(l => !l.monitoringEnabled);
     

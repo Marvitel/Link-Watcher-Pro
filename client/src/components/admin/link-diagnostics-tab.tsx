@@ -26,6 +26,8 @@ import {
   MonitorSmartphone,
   Map,
   Radio,
+  Ban,
+  Trash2,
 } from "lucide-react";
 
 interface DiagnosticCategory {
@@ -39,10 +41,19 @@ interface DiagnosticCategory {
   withoutTag?: number;
 }
 
+interface ContractStatusSummary {
+  active: number;
+  blocked: number;
+  cancelled: number;
+  unknown: number;
+  deleted: number;
+}
+
 interface DiagnosticsData {
   totalLinks: number;
   healthyLinks: number;
   categories: Record<string, DiagnosticCategory>;
+  contractStatusSummary?: ContractStatusSummary;
 }
 
 interface EnrichStatus {
@@ -204,6 +215,61 @@ export function LinkDiagnosticsTab() {
           </CardContent>
         </Card>
       </div>
+
+      {diagnostics.contractStatusSummary && (diagnostics.contractStatusSummary.blocked > 0 || diagnostics.contractStatusSummary.cancelled > 0 || diagnostics.contractStatusSummary.deleted > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card data-testid="card-contract-active">
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-lg font-bold">{diagnostics.contractStatusSummary.active}</p>
+                  <p className="text-xs text-muted-foreground">Contratos Ativos</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {diagnostics.contractStatusSummary.blocked > 0 && (
+            <Card className="border-orange-500/30" data-testid="card-contract-blocked">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <Ban className="h-5 w-5 text-orange-500" />
+                  <div>
+                    <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{diagnostics.contractStatusSummary.blocked}</p>
+                    <p className="text-xs text-muted-foreground">Contratos Bloqueados</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {diagnostics.contractStatusSummary.cancelled > 0 && (
+            <Card className="border-gray-500/30" data-testid="card-contract-cancelled">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-5 w-5 text-gray-500" />
+                  <div>
+                    <p className="text-lg font-bold text-gray-600 dark:text-gray-400">{diagnostics.contractStatusSummary.cancelled}</p>
+                    <p className="text-xs text-muted-foreground">Contratos Cancelados</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {diagnostics.contractStatusSummary.deleted > 0 && (
+            <Card className="border-red-500/30" data-testid="card-contract-deleted">
+              <CardContent className="pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <Trash2 className="h-5 w-5 text-red-500" />
+                  <div>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">{diagnostics.contractStatusSummary.deleted}</p>
+                    <p className="text-xs text-muted-foreground">Links Excluídos</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {enrichStatus?.running && (
         <Card className="border-blue-200 dark:border-blue-800" data-testid="card-enrich-progress">

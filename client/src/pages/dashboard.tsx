@@ -626,9 +626,21 @@ function CompactLinkCard({ link, metricsHistory = [] }: {
                 {link.location || "Sem localização"}
               </p>
             </div>
-            <Badge variant="outline" className={`text-[10px] shrink-0 ${statusInfo.className}`}>
-              {statusInfo.label}
-            </Badge>
+            <div className="flex items-center gap-1 shrink-0">
+              {(link as any).contractStatus === "blocked" && (
+                <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20" data-testid={`badge-blocked-${link.id}`}>
+                  Bloqueado
+                </Badge>
+              )}
+              {(link as any).contractStatus === "cancelled" && (
+                <Badge variant="outline" className="text-[10px] bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20" data-testid={`badge-cancelled-${link.id}`}>
+                  Cancelado
+                </Badge>
+              )}
+              <Badge variant="outline" className={`text-[10px] ${statusInfo.className}`}>
+                {statusInfo.label}
+              </Badge>
+            </div>
           </div>
 
           {/* Mini Gráfico de Banda */}

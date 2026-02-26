@@ -365,9 +365,12 @@ export class DatabaseStorage {
     };
   }
 
-  async getLinks(clientId?: number): Promise<Link[]> {
+  async getLinks(clientId?: number, includeDeleted = false): Promise<Link[]> {
+    const deletedFilter = includeDeleted ? undefined : isNull(links.deletedAt);
     if (clientId) {
-      return await db.select().from(links).where(eq(links.clientId, clientId));
+      const conditions = [eq(links.clientId, clientId)];
+      if (deletedFilter) conditions.push(deletedFilter);
+      return await db.select().from(links).where(and(...conditions));
     }
     // Filter to only show links from active clients
     const activeClients = await db.select({ id: clients.id }).from(clients).where(eq(clients.isActive, true));
@@ -375,7 +378,11 @@ export class DatabaseStorage {
     if (activeClientIds.length === 0) {
       return [];
     }
-    return await db.select().from(links).where(sql`${links.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`);
+    const baseCondition = sql`${links.clientId} IN (${sql.join(activeClientIds.map(id => sql`${id}`), sql`, `)})`;
+    if (deletedFilter) {
+      return await db.select().from(links).where(and(baseCondition, deletedFilter));
+    }
+    return await db.select().from(links).where(baseCondition);
   }
 
   async getLink(id: number): Promise<Link | undefined> {
@@ -872,7 +879,8 @@ export class DatabaseStorage {
       }
       targetLinks = [link];
     } else {
-      targetLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
+      const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
+      targetLinks = allLinks.filter(l => l.contractStatus !== "blocked" && l.contractStatus !== "cancelled");
     }
     
     if (targetLinks.length === 0) {

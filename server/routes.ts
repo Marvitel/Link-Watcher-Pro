@@ -53,7 +53,7 @@ import {
 } from "@shared/schema";
 import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, or, isNull, sql } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 import {
   getFlashmanConfigForClient,
@@ -10067,6 +10067,278 @@ export async function registerRoutes(
   });
 
   // ==========================================
+  // Voalle Webhook - Connection Processing
+  // ==========================================
+
+  function mapVoalleStatus(voalleStatus: string | number | null | undefined): { contractStatus: string; reason: string } {
+    if (voalleStatus === null || voalleStatus === undefined) return { contractStatus: "unknown", reason: "Status não informado" };
+    const statusStr = String(voalleStatus).toLowerCase().trim();
+    const activeStatuses = ["ativo", "active", "habilitado", "enabled", "1", "a"];
+    const blockedStatuses = ["bloqueado", "blocked", "suspenso", "suspended", "desabilitado", "disabled", "2", "b", "s"];
+    const cancelledStatuses = ["cancelado", "cancelled", "canceled", "desativado", "deactivated", "3", "c", "d"];
+    if (activeStatuses.includes(statusStr)) return { contractStatus: "active", reason: "" };
+    if (blockedStatuses.includes(statusStr)) return { contractStatus: "blocked", reason: `Status Voalle: ${voalleStatus}` };
+    if (cancelledStatuses.includes(statusStr)) return { contractStatus: "cancelled", reason: `Status Voalle: ${voalleStatus}` };
+    return { contractStatus: "unknown", reason: `Status Voalle desconhecido: ${voalleStatus}` };
+  }
+
+  async function findLinkByVoalleData(auth: any, includeDeleted = false): Promise<typeof links.$inferSelect | null> {
+    const deletedFilter = includeDeleted ? undefined : isNull(links.deletedAt);
+    const buildWhere = (condition: any) => deletedFilter ? and(condition, deletedFilter) : condition;
+
+    if (auth.ServiceId) {
+      const byConnectionId = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
+        .limit(1);
+      if (byConnectionId.length > 0) return byConnectionId[0];
+    }
+    if (auth.ContractServiceTag || auth.ServiceTag) {
+      const tag = auth.ContractServiceTag || auth.ServiceTag;
+      const byTag = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleContractTagServiceTag, String(tag))))
+        .limit(1);
+      if (byTag.length > 0) return byTag[0];
+    }
+    if (auth.Login) {
+      const byPppoe = await db.select().from(links)
+        .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
+        .limit(1);
+      if (byPppoe.length > 0) return byPppoe[0];
+    }
+    return null;
+  }
+
+  async function processVoalleConnectionWebhook(actionType: number, auth: any, req: Request): Promise<void> {
+    const { contractStatus, reason } = mapVoalleStatus(auth.Status);
+
+    if (actionType === 0) {
+      let existingLink = await findLinkByVoalleData(auth);
+      if (!existingLink) {
+        existingLink = await findLinkByVoalleData(auth, true);
+        if (existingLink && existingLink.deletedAt) {
+          console.log(`[Webhook/Voalle] Found soft-deleted link id=${existingLink.id}, reactivating`);
+          await db.update(links).set({
+            deletedAt: null,
+            deletedReason: null,
+            contractStatus,
+            contractStatusReason: reason || null,
+            contractStatusUpdatedAt: new Date(),
+            voalleStatusRaw: auth.Status != null ? String(auth.Status) : null,
+          }).where(eq(links.id, existingLink.id));
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            entityId: existingLink.id,
+            entityName: existingLink.name,
+            clientId: existingLink.clientId,
+            previous: { deletedAt: existingLink.deletedAt, contractStatus: existingLink.contractStatus },
+            current: { deletedAt: null, contractStatus, reactivated: true },
+            metadata: { source: "voalle_webhook", actionType: 0, reactivation: true },
+            request: req,
+          });
+          return;
+        }
+      }
+      if (existingLink) {
+        console.log(`[Webhook/Voalle] Link already exists (id=${existingLink.id}), enriching`);
+        const updates: Record<string, any> = {};
+        if (auth.ServiceId && !existingLink.voalleConnectionId) updates.voalleConnectionId = Number(auth.ServiceId);
+        if (auth.ContractID && !existingLink.voalleContractNumber) updates.voalleContractNumber = String(auth.ContractID);
+        if (auth.AccessPoint && !existingLink.voalleAccessPointId) updates.voalleAccessPointId = Number(auth.AccessPoint);
+        if (auth.OltSlot !== undefined && auth.OltSlot !== null && !existingLink.slotOlt) updates.slotOlt = Number(auth.OltSlot);
+        if (auth.OltPort !== undefined && auth.OltPort !== null && !existingLink.portOlt) updates.portOlt = Number(auth.OltPort);
+        if (contractStatus !== existingLink.contractStatus) {
+          updates.contractStatus = contractStatus;
+          updates.contractStatusReason = reason;
+          updates.contractStatusUpdatedAt = new Date();
+          updates.voalleStatusRaw = auth.Status != null ? String(auth.Status) : null;
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.update(links).set(updates).where(eq(links.id, existingLink.id));
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            entityId: existingLink.id,
+            entityName: existingLink.name,
+            clientId: existingLink.clientId,
+            previous: { voalleConnectionId: existingLink.voalleConnectionId, contractStatus: existingLink.contractStatus },
+            current: updates,
+            metadata: { source: "voalle_webhook", actionType: 0, enrichment: true },
+            request: req,
+          });
+          console.log(`[Webhook/Voalle] Enriched existing link ${existingLink.id} with ${Object.keys(updates).join(", ")}`);
+        }
+        return;
+      }
+
+      let clientId: number | null = null;
+      if (auth.PersonId || auth.CustomerId) {
+        const voalleId = auth.PersonId || auth.CustomerId;
+        const existingClients = await db.select().from(clientsTable)
+          .where(eq(clientsTable.voalleCustomerId, Number(voalleId)))
+          .limit(1);
+        if (existingClients.length > 0) {
+          clientId = existingClients[0].id;
+        }
+      }
+
+      if (!clientId) {
+        const allClients = await db.select().from(clientsTable).where(eq(clientsTable.isActive, true)).limit(1);
+        if (allClients.length > 0) {
+          clientId = allClients[0].id;
+        } else {
+          console.log(`[Webhook/Voalle] No active client found, cannot create link`);
+          return;
+        }
+      }
+
+      const loginStr = auth.Login ? String(auth.Login) : `voalle_${auth.ServiceId || Date.now()}`;
+      const identifier = `VL-${auth.ServiceId || auth.ContractID || Date.now()}`;
+
+      const [newLink] = await db.insert(links).values({
+        clientId,
+        identifier,
+        name: loginStr,
+        location: "Pendente",
+        address: "Pendente",
+        ipBlock: "0.0.0.0/0",
+        totalIps: 1,
+        usableIps: 1,
+        bandwidth: 0,
+        status: "unknown",
+        monitoringEnabled: false,
+        pppoeUser: auth.Login ? String(auth.Login) : null,
+        voalleConnectionId: auth.ServiceId ? Number(auth.ServiceId) : null,
+        voalleContractNumber: auth.ContractID ? String(auth.ContractID) : null,
+        voalleAccessPointId: auth.AccessPoint ? Number(auth.AccessPoint) : null,
+        slotOlt: auth.OltSlot != null ? Number(auth.OltSlot) : null,
+        portOlt: auth.OltPort != null ? Number(auth.OltPort) : null,
+        contractStatus,
+        contractStatusReason: reason || null,
+        contractStatusUpdatedAt: new Date(),
+        voalleStatusRaw: auth.Status != null ? String(auth.Status) : null,
+      }).returning();
+
+      await logAuditEvent({
+        action: "create",
+        entity: "link",
+        entityId: newLink.id,
+        entityName: newLink.name,
+        clientId,
+        current: { identifier, pppoeUser: loginStr, voalleConnectionId: auth.ServiceId, contractStatus },
+        metadata: { source: "voalle_webhook", actionType: 0 },
+        request: req,
+      });
+
+      console.log(`[Webhook/Voalle] Created new link id=${newLink.id} name="${newLink.name}" contractStatus=${contractStatus}`);
+
+    } else if (actionType === 1) {
+      const existingLink = await findLinkByVoalleData(auth);
+      if (!existingLink) {
+        console.log(`[Webhook/Voalle] ActionType=1 (Alteração): link not found for Login=${auth.Login}, ServiceId=${auth.ServiceId}`);
+        return;
+      }
+
+      const updates: Record<string, any> = {};
+      const previous: Record<string, any> = {};
+
+      if (auth.Login && auth.Login !== existingLink.pppoeUser) {
+        previous.pppoeUser = existingLink.pppoeUser;
+        updates.pppoeUser = String(auth.Login);
+      }
+      if (auth.ServiceId && Number(auth.ServiceId) !== existingLink.voalleConnectionId) {
+        previous.voalleConnectionId = existingLink.voalleConnectionId;
+        updates.voalleConnectionId = Number(auth.ServiceId);
+      }
+      if (auth.ContractID && String(auth.ContractID) !== existingLink.voalleContractNumber) {
+        previous.voalleContractNumber = existingLink.voalleContractNumber;
+        updates.voalleContractNumber = String(auth.ContractID);
+      }
+      if (auth.AccessPoint && Number(auth.AccessPoint) !== existingLink.voalleAccessPointId) {
+        previous.voalleAccessPointId = existingLink.voalleAccessPointId;
+        updates.voalleAccessPointId = Number(auth.AccessPoint);
+      }
+      if (auth.OltSlot != null && Number(auth.OltSlot) !== existingLink.slotOlt) {
+        previous.slotOlt = existingLink.slotOlt;
+        updates.slotOlt = Number(auth.OltSlot);
+      }
+      if (auth.OltPort != null && Number(auth.OltPort) !== existingLink.portOlt) {
+        previous.portOlt = existingLink.portOlt;
+        updates.portOlt = Number(auth.OltPort);
+      }
+
+      if (auth.Status !== undefined && auth.Status !== null) {
+        const newVoalleStatus = String(auth.Status);
+        if (newVoalleStatus !== existingLink.voalleStatusRaw || contractStatus !== existingLink.contractStatus) {
+          previous.contractStatus = existingLink.contractStatus;
+          previous.voalleStatusRaw = existingLink.voalleStatusRaw;
+          updates.contractStatus = contractStatus;
+          updates.contractStatusReason = reason;
+          updates.contractStatusUpdatedAt = new Date();
+          updates.voalleStatusRaw = newVoalleStatus;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        console.log(`[Webhook/Voalle] ActionType=1: no changes detected for link id=${existingLink.id}`);
+        return;
+      }
+
+      await db.update(links).set(updates).where(eq(links.id, existingLink.id));
+
+      await logAuditEvent({
+        action: "update",
+        entity: "link",
+        entityId: existingLink.id,
+        entityName: existingLink.name,
+        clientId: existingLink.clientId,
+        previous,
+        current: updates,
+        metadata: { source: "voalle_webhook", actionType: 1, changedFields: Object.keys(updates) },
+        request: req,
+      });
+
+      console.log(`[Webhook/Voalle] Updated link id=${existingLink.id}: ${Object.keys(updates).join(", ")}`);
+
+    } else if (actionType === 2) {
+      const existingLink = await findLinkByVoalleData(auth);
+      if (!existingLink) {
+        console.log(`[Webhook/Voalle] ActionType=2 (Exclusão): link not found for Login=${auth.Login}, ServiceId=${auth.ServiceId}`);
+        return;
+      }
+
+      if (existingLink.deletedAt) {
+        console.log(`[Webhook/Voalle] Link id=${existingLink.id} already soft-deleted, skipping`);
+        return;
+      }
+
+      await db.update(links).set({
+        deletedAt: new Date(),
+        deletedReason: "voalle_webhook",
+        monitoringEnabled: false,
+        contractStatus: "cancelled",
+        contractStatusReason: "Excluído via webhook Voalle",
+        contractStatusUpdatedAt: new Date(),
+        voalleStatusRaw: auth.Status != null ? String(auth.Status) : existingLink.voalleStatusRaw,
+      }).where(eq(links.id, existingLink.id));
+
+      await logAuditEvent({
+        action: "delete",
+        entity: "link",
+        entityId: existingLink.id,
+        entityName: existingLink.name,
+        clientId: existingLink.clientId,
+        previous: { monitoringEnabled: existingLink.monitoringEnabled, contractStatus: existingLink.contractStatus },
+        current: { deletedAt: new Date(), deletedReason: "voalle_webhook", monitoringEnabled: false },
+        metadata: { source: "voalle_webhook", actionType: 2 },
+        request: req,
+      });
+
+      console.log(`[Webhook/Voalle] Soft-deleted link id=${existingLink.id} name="${existingLink.name}"`);
+    }
+  }
+
+  // ==========================================
   // Voalle Webhook Receiver (Capture Mode)
   // ==========================================
   
@@ -10137,6 +10409,19 @@ export async function registerRoutes(
         const auth = payload.Authentication;
         console.log(`[Webhook/Voalle] Conexão do Contrato - Login: ${auth.Login}, ContractID: ${auth.ContractID}, AccessPoint: ${auth.AccessPoint}, Action: ${actionLabel}`);
         console.log(`[Webhook/Voalle] OltSlot: ${auth.OltSlot}, OltPort: ${auth.OltPort}, ServiceId: ${auth.ServiceId}, Status: ${auth.Status}`);
+
+        try {
+          await processVoalleConnectionWebhook(actionType, auth, req);
+        } catch (procError: any) {
+          console.error(`[Webhook/Voalle] Error processing connection webhook:`, procError);
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            metadata: { source: "voalle_webhook", error: procError.message, actionType, auth },
+            status: "failure",
+            errorMessage: procError.message,
+          });
+        }
 
         await db.update(webhookLogs)
           .set({ processed: true })
@@ -10228,7 +10513,8 @@ export async function registerRoutes(
 
   app.get("/api/admin/links/diagnostics", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      const allLinks = await db.select().from(links);
+      const allLinksIncludingDeleted = await db.select().from(links);
+      const allLinks = allLinksIncludingDeleted.filter(l => !l.deletedAt);
 
       const allClients = await db.select().from(clientsTable);
       const clientMap = new Map(allClients.map(c => [c.id, c]));
@@ -10279,10 +10565,19 @@ export async function registerRoutes(
 
       const criticalIssues = new Set([...missingIp, ...missingInterface, ...missingConcentrator].map(l => l.id));
 
+      const contractStatusSummary = {
+        active: allLinks.filter(l => l.contractStatus === "active" || !l.contractStatus).length,
+        blocked: allLinks.filter(l => l.contractStatus === "blocked").length,
+        cancelled: allLinks.filter(l => l.contractStatus === "cancelled").length,
+        unknown: allLinks.filter(l => l.contractStatus === "unknown").length,
+        deleted: allLinksIncludingDeleted.filter(l => l.deletedAt).length,
+      };
+
       res.json({
         totalLinks: allLinks.length,
         healthyLinks: allLinks.length - criticalIssues.size,
         categories,
+        contractStatusSummary,
       });
     } catch (error: any) {
       console.error("[Diagnostics] Error:", error);

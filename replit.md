@@ -45,7 +45,19 @@ Provides per-link optical signal monitoring with OLT vendor-specific OID configu
 Offers pre-configured command templates for CPE devices, categorized by manufacturer/model. It includes `cpeCommandTemplates`, `cpeCommandHistory`, and `diagnosticTargets` tables. Templates support placeholders for dynamic substitution and are copied to the clipboard for analyst review.
 
 ### SLA Monitoring
-Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours).
+Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours). Links with `contractStatus="blocked"` or `"cancelled"` are excluded from SLA calculations.
+
+### Voalle Webhook Processing
+Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP:
+- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `voalleConnectionId` → `voalleContractTagServiceTag` → `pppoeUser`. New links created with `monitoringEnabled=false`.
+- **ActionType 1 (Alteração)**: Updates existing link fields (pppoeUser, contractStatus, etc.). Logs diff in audit_logs.
+- **ActionType 2 (Exclusão)**: Soft-delete via `deletedAt` timestamp + `deletedReason="voalle_webhook"`. Sets `monitoringEnabled=false`.
+- **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values.
+- **Monitoring Behavior**: 
+  - `deletedAt` set → excluded from monitoring entirely
+  - `contractStatus="blocked"` → metrics collected but NO events/incidents/SLA impact
+  - `contractStatus="active"` → normal monitoring
+- **Files**: `server/routes.ts` (webhook handler + `processVoalleConnectionWebhook`), `server/monitoring.ts` (filtering), `server/storage.ts` (getLinks filter)
 
 ### Link Groups
 Supports grouping links with different profiles for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
