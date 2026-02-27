@@ -10095,11 +10095,20 @@ export async function registerRoutes(
     const deletedFilter = includeDeleted ? undefined : isNull(links.deletedAt);
     const buildWhere = (condition: any) => deletedFilter ? and(condition, deletedFilter) : condition;
 
-    if (auth.ServiceId) {
-      const byConnectionId = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
+    if (auth.ServiceId && auth.ContractID) {
+      const byBoth = await db.select().from(links)
+        .where(buildWhere(and(
+          eq(links.voalleConnectionId, Number(auth.ServiceId)),
+          eq(links.voalleContractNumber, String(auth.ContractID))
+        )))
         .limit(1);
-      if (byConnectionId.length > 0) return byConnectionId[0];
+      if (byBoth.length > 0) return byBoth[0];
+    }
+    if (auth.ContractID) {
+      const byContract = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleContractNumber, String(auth.ContractID))))
+        .limit(1);
+      if (byContract.length > 0) return byContract[0];
     }
     if (auth.ContractServiceTag || auth.ServiceTag) {
       const tag = auth.ContractServiceTag || auth.ServiceTag;
@@ -10108,17 +10117,22 @@ export async function registerRoutes(
         .limit(1);
       if (byTag.length > 0) return byTag[0];
     }
-    if (auth.ContractID) {
-      const byContract = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleContractNumber, String(auth.ContractID))))
-        .limit(1);
-      if (byContract.length > 0) return byContract[0];
-    }
     if (auth.Login) {
       const byPppoe = await db.select().from(links)
         .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
         .limit(1);
       if (byPppoe.length > 0) return byPppoe[0];
+    }
+    if (auth.ServiceId) {
+      const byServiceId = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
+        .limit(1);
+      if (byServiceId.length > 0) {
+        if (byServiceId.length === 1) {
+          console.log(`[Webhook/Voalle] WARNING: Matched by ServiceId=${auth.ServiceId} alone (last resort) → link id=${byServiceId[0].id}`);
+          return byServiceId[0];
+        }
+      }
     }
     return null;
   }
