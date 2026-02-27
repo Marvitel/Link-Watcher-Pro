@@ -217,6 +217,7 @@ export const links = pgTable("links", {
   wifiPassword: text("wifi_password"), // Senha do WiFi
   // Complemento de endereço
   addressComplement: text("address_complement"), // Complemento do endereço
+  voalleServiceDescription: varchar("voalle_service_description", { length: 255 }),
   // Status do contrato no ERP (Voalle)
   contractStatus: varchar("contract_status", { length: 20 }).notNull().default("active"), // active, blocked, cancelled, unknown
   contractStatusReason: text("contract_status_reason"), // Motivo do bloqueio/cancelamento

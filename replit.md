@@ -65,6 +65,7 @@ Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP
   5. If no client determined → **skip creation**, log to audit_logs
 - **Field Normalization**: `normalizeAuthFields()` handles case differences (e.g., Voalle sends `ContractId` lowercase, code uses `ContractID`)
 - **AccessPoint Handling**: Only stored as `voalleAccessPointId` if numeric; text values are logged but not stored
+- **ServiceDescription Processing**: `parseBandwidthFromDescription()` extracts bandwidth from Voalle service descriptions (e.g., "MARVITEL-FIBRA-700Mbps - SCM" → 700, "50 MEGA" → 50, "1Gbps" → 1000). Updates `voalleServiceDescription` field and `bandwidth` on both Connection and Contract webhooks. Contract webhook uses last entry in `Services[]` array as the active/current service.
 - **Monitoring Behavior**: 
   - `deletedAt` set → excluded from monitoring entirely
   - `contractStatus="blocked"` → metrics collected but NO events/incidents/SLA impact

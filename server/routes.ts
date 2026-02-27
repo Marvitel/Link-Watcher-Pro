@@ -10131,6 +10131,18 @@ export async function registerRoutes(
     return normalized;
   }
 
+  function parseBandwidthFromDescription(description: string): number | null {
+    if (!description) return null;
+    const upper = description.toUpperCase();
+    const gbpsMatch = upper.match(/(\d+(?:[.,]\d+)?)\s*G(?:BPS|B)?/);
+    if (gbpsMatch) return Math.round(parseFloat(gbpsMatch[1].replace(",", ".")) * 1000);
+    const mbpsMatch = upper.match(/(\d+(?:[.,]\d+)?)\s*(?:MBPS|MB|MEGA)/);
+    if (mbpsMatch) return Math.round(parseFloat(mbpsMatch[1].replace(",", ".")));
+    const numMatch = upper.match(/(\d+)\s*M\b/);
+    if (numMatch) return parseInt(numMatch[1]);
+    return null;
+  }
+
   async function processVoalleConnectionWebhook(actionType: number, rawAuth: any, req: Request): Promise<void> {
     const auth = normalizeAuthFields(rawAuth);
     const { contractStatus, reason } = mapVoalleStatus(auth.Status);
@@ -10171,6 +10183,17 @@ export async function registerRoutes(
         if (auth.AccessPoint && !existingLink.voalleAccessPointId && !isNaN(Number(auth.AccessPoint))) updates.voalleAccessPointId = Number(auth.AccessPoint);
         if (auth.OltSlot !== undefined && auth.OltSlot !== null && !existingLink.slotOlt) updates.slotOlt = Number(auth.OltSlot);
         if (auth.OltPort !== undefined && auth.OltPort !== null && !existingLink.portOlt) updates.portOlt = Number(auth.OltPort);
+        if (auth.ServiceDescription) {
+          const newDesc = String(auth.ServiceDescription);
+          if (newDesc !== existingLink.voalleServiceDescription) {
+            updates.voalleServiceDescription = newDesc;
+            const parsedBw = parseBandwidthFromDescription(newDesc);
+            if (parsedBw && parsedBw !== existingLink.bandwidth) {
+              updates.bandwidth = parsedBw;
+              console.log(`[Webhook/Voalle] Bandwidth enrichment: ${existingLink.bandwidth}M → ${parsedBw}M (from "${newDesc}")`);
+            }
+          }
+        }
         if (contractStatus !== existingLink.contractStatus) {
           updates.contractStatus = contractStatus;
           updates.contractStatusReason = reason;
@@ -10261,17 +10284,19 @@ export async function registerRoutes(
 
       const loginStr = auth.Login ? String(auth.Login) : `voalle_${auth.ServiceId || Date.now()}`;
       const identifier = `VL-${auth.ServiceId || auth.ContractID || Date.now()}`;
+      const serviceDesc = auth.ServiceDescription ? String(auth.ServiceDescription) : null;
+      const parsedBandwidth = serviceDesc ? parseBandwidthFromDescription(serviceDesc) : null;
 
       const [newLink] = await db.insert(links).values({
         clientId,
         identifier,
-        name: loginStr,
+        name: serviceDesc || loginStr,
         location: "Pendente",
         address: "Pendente",
         ipBlock: "0.0.0.0/0",
         totalIps: 1,
         usableIps: 1,
-        bandwidth: 0,
+        bandwidth: parsedBandwidth || 0,
         status: "unknown",
         monitoringEnabled: false,
         pppoeUser: auth.Login ? String(auth.Login) : null,
@@ -10280,6 +10305,7 @@ export async function registerRoutes(
         voalleAccessPointId: accessPointId,
         slotOlt: auth.OltSlot != null ? Number(auth.OltSlot) : null,
         portOlt: auth.OltPort != null ? Number(auth.OltPort) : null,
+        voalleServiceDescription: serviceDesc,
         contractStatus,
         contractStatusReason: reason || null,
         contractStatusUpdatedAt: new Date(),
@@ -10332,6 +10358,24 @@ export async function registerRoutes(
       if (auth.OltPort != null && Number(auth.OltPort) !== existingLink.portOlt) {
         previous.portOlt = existingLink.portOlt;
         updates.portOlt = Number(auth.OltPort);
+      }
+
+      if (auth.ServiceDescription) {
+        const newDesc = String(auth.ServiceDescription);
+        if (newDesc !== existingLink.voalleServiceDescription) {
+          previous.voalleServiceDescription = existingLink.voalleServiceDescription;
+          updates.voalleServiceDescription = newDesc;
+          const parsedBw = parseBandwidthFromDescription(newDesc);
+          if (parsedBw && parsedBw !== existingLink.bandwidth) {
+            previous.bandwidth = existingLink.bandwidth;
+            updates.bandwidth = parsedBw;
+            console.log(`[Webhook/Voalle] Bandwidth change detected: ${existingLink.bandwidth}M → ${parsedBw}M (from "${newDesc}")`);
+          }
+          if (existingLink.voalleServiceDescription && existingLink.name === existingLink.voalleServiceDescription) {
+            previous.name = existingLink.name;
+            updates.name = newDesc;
+          }
+        }
       }
 
       if (auth.Status !== undefined && auth.Status !== null) {
@@ -10521,6 +10565,17 @@ export async function registerRoutes(
         }
       }
 
+      let activeServiceDesc: string | null = null;
+      let activeServiceBandwidth: number | null = null;
+      if (contract.Services && Array.isArray(contract.Services) && contract.Services.length > 0) {
+        const lastService = contract.Services[contract.Services.length - 1];
+        if (lastService.Description) {
+          activeServiceDesc = String(lastService.Description);
+          activeServiceBandwidth = parseBandwidthFromDescription(activeServiceDesc);
+          console.log(`[Webhook/Voalle] Contract #${contractNumber} active service: "${activeServiceDesc}" → ${activeServiceBandwidth}M`);
+        }
+      }
+
       if (contractNumber) {
         const linkedLinks = await db.select().from(links)
           .where(eq(links.voalleContractNumber, contractNumber));
@@ -10540,6 +10595,15 @@ export async function registerRoutes(
               linkUpdates.contractStatusReason = reason || statusData?.Description || null;
               linkUpdates.contractStatusUpdatedAt = new Date();
               linkUpdates.voalleStatusRaw = statusCode != null ? String(statusCode) : null;
+            }
+            if (activeServiceDesc && activeServiceDesc !== link.voalleServiceDescription) {
+              linkPrevious.voalleServiceDescription = link.voalleServiceDescription;
+              linkUpdates.voalleServiceDescription = activeServiceDesc;
+              if (activeServiceBandwidth && activeServiceBandwidth !== link.bandwidth) {
+                linkPrevious.bandwidth = link.bandwidth;
+                linkUpdates.bandwidth = activeServiceBandwidth;
+                console.log(`[Webhook/Voalle] Contract webhook: link id=${link.id} bandwidth ${link.bandwidth}M → ${activeServiceBandwidth}M`);
+              }
             }
 
             if (Object.keys(linkUpdates).length > 0) {
