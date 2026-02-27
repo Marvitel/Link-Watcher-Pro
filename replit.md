@@ -49,15 +49,27 @@ Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤
 
 ### Voalle Webhook Processing
 Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP:
-- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `voalleConnectionId` → `voalleContractTagServiceTag` → `pppoeUser`. New links created with `monitoringEnabled=false`.
+- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `voalleConnectionId` → `voalleContractTagServiceTag` → `voalleContractNumber` → `pppoeUser`. New links created with `monitoringEnabled=false`.
 - **ActionType 1 (Alteração)**: Updates existing link fields (pppoeUser, contractStatus, etc.). Logs diff in audit_logs.
 - **ActionType 2 (Exclusão)**: Soft-delete via `deletedAt` timestamp + `deletedReason="voalle_webhook"`. Sets `monitoringEnabled=false`.
-- **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values.
+- **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values including Voalle codes (1=Normal, 2=Demo, 5=Suspenso, 6=Bloqueio Financeiro, 7=Bloqueio Administrativo, 4=Cancelado, 8=Encerrado).
+- **Contract Webhooks**: `processVoalleContractWebhook()` handles Contract events (payload.Contract):
+  - ActionType 0: Creates/updates client from `Contract.Client` (ID, Name, TxId), stores contract→client mapping in `voalle_contract_clients` table
+  - ActionType 1: Updates client data and contract status on linked links
+  - ActionType 2: Soft-deletes all links associated with the contract
+- **Client Resolution Chain** (Connection ActionType 0, creation):
+  1. `PersonId`/`CustomerId` → `clients.voalleCustomerId` (Connection webhooks usually don't have this)
+  2. `ContractID` → `voalle_contract_clients.contractNumber` → `clientId` (populated by Contract webhooks)
+  3. `ContractID` → `links.voalleContractNumber` → `clientId` (existing links)
+  4. Single active client fallback (only if exactly 1 client exists)
+  5. If no client determined → **skip creation**, log to audit_logs
+- **Field Normalization**: `normalizeAuthFields()` handles case differences (e.g., Voalle sends `ContractId` lowercase, code uses `ContractID`)
+- **AccessPoint Handling**: Only stored as `voalleAccessPointId` if numeric; text values are logged but not stored
 - **Monitoring Behavior**: 
   - `deletedAt` set → excluded from monitoring entirely
   - `contractStatus="blocked"` → metrics collected but NO events/incidents/SLA impact
   - `contractStatus="active"` → normal monitoring
-- **Files**: `server/routes.ts` (webhook handler + `processVoalleConnectionWebhook`), `server/monitoring.ts` (filtering), `server/storage.ts` (getLinks filter)
+- **Files**: `server/routes.ts` (webhook handler + `processVoalleConnectionWebhook` + `processVoalleContractWebhook`), `server/monitoring.ts` (filtering), `server/storage.ts` (getLinks filter), `shared/schema.ts` (`voalleContractClients` table)
 
 ### Link Groups
 Supports grouping links with different profiles for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.

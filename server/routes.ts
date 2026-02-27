@@ -48,6 +48,7 @@ import {
   switches,
   cpes,
   linkCpes,
+  voalleContractClients,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -10208,12 +10209,22 @@ export async function registerRoutes(
       }
 
       if (!clientId && auth.ContractID) {
-        const linksByContract = await db.select().from(links)
-          .where(eq(links.voalleContractNumber, String(auth.ContractID)))
+        const contractMapping = await db.select().from(voalleContractClients)
+          .where(eq(voalleContractClients.contractNumber, String(auth.ContractID)))
           .limit(1);
-        if (linksByContract.length > 0) {
-          clientId = linksByContract[0].clientId;
-          console.log(`[Webhook/Voalle] Client found by ContractID=${auth.ContractID} via existing link id=${linksByContract[0].id} → clientId=${clientId}`);
+        if (contractMapping.length > 0) {
+          clientId = contractMapping[0].clientId;
+          console.log(`[Webhook/Voalle] Client found by ContractID=${auth.ContractID} via contract→client mapping → clientId=${clientId}`);
+        }
+
+        if (!clientId) {
+          const linksByContract = await db.select().from(links)
+            .where(eq(links.voalleContractNumber, String(auth.ContractID)))
+            .limit(1);
+          if (linksByContract.length > 0) {
+            clientId = linksByContract[0].clientId;
+            console.log(`[Webhook/Voalle] Client found by ContractID=${auth.ContractID} via existing link id=${linksByContract[0].id} → clientId=${clientId}`);
+          }
         }
       }
 
@@ -10395,6 +10406,203 @@ export async function registerRoutes(
   }
 
   // ==========================================
+  // Voalle Webhook - Contract Processing
+  // ==========================================
+
+  async function processVoalleContractWebhook(actionType: number, contractData: any, req: Request): Promise<void> {
+    const contract = Array.isArray(contractData) ? contractData[0] : contractData;
+    if (!contract) {
+      console.log(`[Webhook/Voalle] Contract webhook received but no contract data`);
+      return;
+    }
+
+    const contractNumber = contract.Number ? String(contract.Number) : null;
+    const clientData = contract.Client;
+    const statusData = contract.Status;
+    const addressData = contract.Address;
+
+    const statusCode = statusData?.Code;
+    const { contractStatus, reason } = mapVoalleStatus(statusCode);
+
+    console.log(`[Webhook/Voalle] Contract #${contractNumber} - Client: ${clientData?.Name || 'N/A'} (ID: ${clientData?.ID || 'N/A'}) - Status: ${statusData?.Description || statusCode} → ${contractStatus}`);
+
+    if (actionType === 0 || actionType === 1) {
+      let clientId: number | null = null;
+
+      if (clientData?.ID) {
+        const existing = await db.select().from(clientsTable)
+          .where(eq(clientsTable.voalleCustomerId, Number(clientData.ID)))
+          .limit(1);
+
+        if (existing.length > 0) {
+          clientId = existing[0].id;
+          const clientUpdates: Record<string, any> = {};
+          if (clientData.Name && clientData.Name !== existing[0].name) clientUpdates.name = String(clientData.Name);
+          if (clientData.TxId && clientData.TxId !== existing[0].cnpj) clientUpdates.cnpj = String(clientData.TxId);
+          if (addressData) {
+            const fullAddress = [addressData.Street, addressData.Number, addressData.Neigborhood, addressData.City, addressData.State].filter(Boolean).join(', ');
+            if (fullAddress && fullAddress !== existing[0].address) clientUpdates.address = fullAddress;
+          }
+          if (Object.keys(clientUpdates).length > 0) {
+            clientUpdates.updatedAt = new Date();
+            await db.update(clientsTable).set(clientUpdates).where(eq(clientsTable.id, clientId));
+            console.log(`[Webhook/Voalle] Updated client id=${clientId}: ${Object.keys(clientUpdates).join(', ')}`);
+            await logAuditEvent({
+              action: "update",
+              entity: "client",
+              entityId: clientId,
+              entityName: existing[0].name,
+              clientId,
+              previous: { name: existing[0].name, cnpj: existing[0].cnpj },
+              current: clientUpdates,
+              metadata: { source: "voalle_webhook", actionType, contractNumber },
+              request: req,
+            });
+          }
+        } else if (actionType === 0 && clientData.Name) {
+          const slug = String(clientData.Name).toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+            .substring(0, 90);
+
+          const uniqueSlug = `${slug}-${Date.now()}`;
+          const fullAddress = addressData
+            ? [addressData.Street, addressData.Number, addressData.Neigborhood, addressData.City, addressData.State].filter(Boolean).join(', ')
+            : null;
+
+          try {
+            const [newClient] = await db.insert(clientsTable).values({
+              name: String(clientData.Name),
+              slug: uniqueSlug,
+              cnpj: clientData.TxId ? String(clientData.TxId) : null,
+              address: fullAddress,
+              voalleCustomerId: Number(clientData.ID),
+              isActive: true,
+            }).returning();
+            clientId = newClient.id;
+            console.log(`[Webhook/Voalle] Created new client id=${clientId} name="${clientData.Name}" voalleCustomerId=${clientData.ID}`);
+            await logAuditEvent({
+              action: "create",
+              entity: "client",
+              entityId: clientId,
+              entityName: String(clientData.Name),
+              clientId,
+              current: { name: clientData.Name, voalleCustomerId: clientData.ID, cnpj: clientData.TxId },
+              metadata: { source: "voalle_webhook", actionType: 0, contractNumber },
+              request: req,
+            });
+          } catch (insertErr: any) {
+            console.error(`[Webhook/Voalle] Error creating client:`, insertErr.message);
+          }
+        }
+      }
+
+      if (contractNumber && clientId) {
+        const existingMapping = await db.select().from(voalleContractClients)
+          .where(eq(voalleContractClients.contractNumber, contractNumber))
+          .limit(1);
+
+        if (existingMapping.length > 0) {
+          if (existingMapping[0].clientId !== clientId) {
+            await db.update(voalleContractClients)
+              .set({ clientId, clientName: clientData?.Name || null, updatedAt: new Date() })
+              .where(eq(voalleContractClients.id, existingMapping[0].id));
+            console.log(`[Webhook/Voalle] Updated contract→client mapping: #${contractNumber} → clientId=${clientId}`);
+          }
+        } else {
+          await db.insert(voalleContractClients).values({
+            contractNumber,
+            clientId,
+            voalleCustomerId: clientData?.ID ? Number(clientData.ID) : null,
+            clientName: clientData?.Name || null,
+            contractDescription: contract.Description || null,
+          });
+          console.log(`[Webhook/Voalle] Stored contract→client mapping: #${contractNumber} → clientId=${clientId}`);
+        }
+      }
+
+      if (contractNumber) {
+        const linkedLinks = await db.select().from(links)
+          .where(eq(links.voalleContractNumber, contractNumber));
+
+        if (linkedLinks.length > 0) {
+          for (const link of linkedLinks) {
+            const linkUpdates: Record<string, any> = {};
+            const linkPrevious: Record<string, any> = {};
+
+            if (clientId && link.clientId !== clientId) {
+              linkPrevious.clientId = link.clientId;
+              linkUpdates.clientId = clientId;
+            }
+            if (contractStatus !== link.contractStatus) {
+              linkPrevious.contractStatus = link.contractStatus;
+              linkUpdates.contractStatus = contractStatus;
+              linkUpdates.contractStatusReason = reason || statusData?.Description || null;
+              linkUpdates.contractStatusUpdatedAt = new Date();
+              linkUpdates.voalleStatusRaw = statusCode != null ? String(statusCode) : null;
+            }
+
+            if (Object.keys(linkUpdates).length > 0) {
+              await db.update(links).set(linkUpdates).where(eq(links.id, link.id));
+              await logAuditEvent({
+                action: "update",
+                entity: "link",
+                entityId: link.id,
+                entityName: link.name,
+                clientId: clientId || link.clientId,
+                previous: linkPrevious,
+                current: linkUpdates,
+                metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true },
+                request: req,
+              });
+              console.log(`[Webhook/Voalle] Contract webhook updated link id=${link.id}: ${Object.keys(linkUpdates).join(', ')}`);
+            }
+          }
+        } else {
+          console.log(`[Webhook/Voalle] Contract #${contractNumber}: no linked links found (will be matched when Connection webhook arrives)`);
+        }
+      }
+
+    } else if (actionType === 2) {
+      if (!contractNumber) {
+        console.log(`[Webhook/Voalle] Contract exclusion webhook without contract number, skipping`);
+        return;
+      }
+
+      const linkedLinks = await db.select().from(links)
+        .where(and(eq(links.voalleContractNumber, contractNumber), isNull(links.deletedAt)));
+
+      for (const link of linkedLinks) {
+        await db.update(links).set({
+          deletedAt: new Date(),
+          deletedReason: "voalle_webhook_contract",
+          monitoringEnabled: false,
+          contractStatus: "cancelled",
+          contractStatusReason: "Contrato excluído via webhook Voalle",
+          contractStatusUpdatedAt: new Date(),
+        }).where(eq(links.id, link.id));
+
+        await logAuditEvent({
+          action: "delete",
+          entity: "link",
+          entityId: link.id,
+          entityName: link.name,
+          clientId: link.clientId,
+          previous: { contractStatus: link.contractStatus, monitoringEnabled: link.monitoringEnabled },
+          current: { deletedAt: new Date(), deletedReason: "voalle_webhook_contract", contractStatus: "cancelled" },
+          metadata: { source: "voalle_webhook", actionType: 2, contractNumber, contractEvent: true },
+          request: req,
+        });
+        console.log(`[Webhook/Voalle] Contract exclusion: soft-deleted link id=${link.id} name="${link.name}"`);
+      }
+
+      if (linkedLinks.length === 0) {
+        console.log(`[Webhook/Voalle] Contract #${contractNumber} exclusion: no active links found`);
+      }
+    }
+  }
+
+  // ==========================================
   // Voalle Webhook Receiver (Capture Mode)
   // ==========================================
   
@@ -10463,7 +10671,7 @@ export async function registerRoutes(
 
       if (eventType === 'connection' && payload?.Authentication) {
         const auth = payload.Authentication;
-        console.log(`[Webhook/Voalle] Conexão do Contrato - Login: ${auth.Login}, ContractID: ${auth.ContractID}, AccessPoint: ${auth.AccessPoint}, Action: ${actionLabel}`);
+        console.log(`[Webhook/Voalle] Conexão do Contrato - Login: ${auth.Login}, ContractID: ${auth.ContractID || auth.ContractId}, AccessPoint: ${auth.AccessPoint}, Action: ${actionLabel}`);
         console.log(`[Webhook/Voalle] OltSlot: ${auth.OltSlot}, OltPort: ${auth.OltPort}, ServiceId: ${auth.ServiceId}, Status: ${auth.Status}`);
 
         try {
@@ -10474,6 +10682,27 @@ export async function registerRoutes(
             action: "update",
             entity: "link",
             metadata: { source: "voalle_webhook", error: procError.message, actionType, auth },
+            status: "failure",
+            errorMessage: procError.message,
+          });
+        }
+
+        await db.update(webhookLogs)
+          .set({ processed: true })
+          .where(eq(webhookLogs.id, (await db.select({ id: webhookLogs.id }).from(webhookLogs).orderBy(sql`${webhookLogs.id} DESC`).limit(1))[0]?.id));
+      }
+
+      if (eventType === 'contract' && payload?.Contract) {
+        console.log(`[Webhook/Voalle] Contrato - Action: ${actionLabel}`);
+
+        try {
+          await processVoalleContractWebhook(actionType, payload.Contract, req);
+        } catch (procError: any) {
+          console.error(`[Webhook/Voalle] Error processing contract webhook:`, procError);
+          await logAuditEvent({
+            action: "update",
+            entity: "client",
+            metadata: { source: "voalle_webhook", error: procError.message, actionType, contractEvent: true },
             status: "failure",
             errorMessage: procError.message,
           });

@@ -1339,6 +1339,17 @@ export const webhookLogs = pgTable("webhook_logs", {
 
 export type WebhookLog = typeof webhookLogs.$inferSelect;
 
+export const voalleContractClients = pgTable("voalle_contract_clients", {
+  id: serial("id").primaryKey(),
+  contractNumber: varchar("contract_number", { length: 50 }).notNull(),
+  clientId: integer("client_id").notNull(),
+  voalleCustomerId: integer("voalle_customer_id"),
+  clientName: text("client_name"),
+  contractDescription: text("contract_description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;
