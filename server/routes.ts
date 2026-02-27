@@ -10073,9 +10073,16 @@ export async function registerRoutes(
   function mapVoalleStatus(voalleStatus: string | number | null | undefined): { contractStatus: string; reason: string } {
     if (voalleStatus === null || voalleStatus === undefined) return { contractStatus: "unknown", reason: "Status não informado" };
     const statusStr = String(voalleStatus).toLowerCase().trim();
-    const activeStatuses = ["ativo", "active", "habilitado", "enabled", "1", "a"];
-    const blockedStatuses = ["bloqueado", "blocked", "suspenso", "suspended", "desabilitado", "disabled", "2", "b", "s"];
-    const cancelledStatuses = ["cancelado", "cancelled", "canceled", "desativado", "deactivated", "3", "c", "d"];
+    const activeStatuses = ["ativo", "active", "habilitado", "enabled", "normal", "1", "a"];
+    const blockedStatuses = [
+      "bloqueado", "blocked", "suspenso", "suspended", "desabilitado", "disabled",
+      "bloqueio financeiro", "bloqueio administrativo",
+      "2", "5", "6", "7", "b", "s",
+    ];
+    const cancelledStatuses = [
+      "cancelado", "cancelled", "canceled", "desativado", "deactivated", "encerrado",
+      "3", "4", "8", "c", "d",
+    ];
     if (activeStatuses.includes(statusStr)) return { contractStatus: "active", reason: "" };
     if (blockedStatuses.includes(statusStr)) return { contractStatus: "blocked", reason: `Status Voalle: ${voalleStatus}` };
     if (cancelledStatuses.includes(statusStr)) return { contractStatus: "cancelled", reason: `Status Voalle: ${voalleStatus}` };
@@ -10098,6 +10105,12 @@ export async function registerRoutes(
         .where(buildWhere(eq(links.voalleContractTagServiceTag, String(tag))))
         .limit(1);
       if (byTag.length > 0) return byTag[0];
+    }
+    if (auth.ContractID) {
+      const byContract = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleContractNumber, String(auth.ContractID))))
+        .limit(1);
+      if (byContract.length > 0) return byContract[0];
     }
     if (auth.Login) {
       const byPppoe = await db.select().from(links)
@@ -10144,7 +10157,7 @@ export async function registerRoutes(
         const updates: Record<string, any> = {};
         if (auth.ServiceId && !existingLink.voalleConnectionId) updates.voalleConnectionId = Number(auth.ServiceId);
         if (auth.ContractID && !existingLink.voalleContractNumber) updates.voalleContractNumber = String(auth.ContractID);
-        if (auth.AccessPoint && !existingLink.voalleAccessPointId) updates.voalleAccessPointId = Number(auth.AccessPoint);
+        if (auth.AccessPoint && !existingLink.voalleAccessPointId && !isNaN(Number(auth.AccessPoint))) updates.voalleAccessPointId = Number(auth.AccessPoint);
         if (auth.OltSlot !== undefined && auth.OltSlot !== null && !existingLink.slotOlt) updates.slotOlt = Number(auth.OltSlot);
         if (auth.OltPort !== undefined && auth.OltPort !== null && !existingLink.portOlt) updates.portOlt = Number(auth.OltPort);
         if (contractStatus !== existingLink.contractStatus) {
@@ -10172,6 +10185,7 @@ export async function registerRoutes(
       }
 
       let clientId: number | null = null;
+
       if (auth.PersonId || auth.CustomerId) {
         const voalleId = auth.PersonId || auth.CustomerId;
         const existingClients = await db.select().from(clientsTable)
@@ -10179,17 +10193,49 @@ export async function registerRoutes(
           .limit(1);
         if (existingClients.length > 0) {
           clientId = existingClients[0].id;
+          console.log(`[Webhook/Voalle] Client found by PersonId/CustomerId=${voalleId} → clientId=${clientId}`);
+        }
+      }
+
+      if (!clientId && auth.ContractID) {
+        const linksByContract = await db.select().from(links)
+          .where(eq(links.voalleContractNumber, String(auth.ContractID)))
+          .limit(1);
+        if (linksByContract.length > 0) {
+          clientId = linksByContract[0].clientId;
+          console.log(`[Webhook/Voalle] Client found by ContractID=${auth.ContractID} via existing link id=${linksByContract[0].id} → clientId=${clientId}`);
         }
       }
 
       if (!clientId) {
-        const allClients = await db.select().from(clientsTable).where(eq(clientsTable.isActive, true)).limit(1);
-        if (allClients.length > 0) {
-          clientId = allClients[0].id;
+        const totalClients = await db.select({ count: sql<number>`count(*)` }).from(clientsTable).where(eq(clientsTable.isActive, true));
+        const clientCount = Number(totalClients[0]?.count || 0);
+        if (clientCount === 1) {
+          const singleClient = await db.select().from(clientsTable).where(eq(clientsTable.isActive, true)).limit(1);
+          clientId = singleClient[0].id;
+          console.log(`[Webhook/Voalle] Single active client found → clientId=${clientId}`);
         } else {
-          console.log(`[Webhook/Voalle] No active client found, cannot create link`);
+          console.log(`[Webhook/Voalle] Cannot determine client for new link (Login=${auth.Login}, ServiceId=${auth.ServiceId}, ContractID=${auth.ContractID}). ${clientCount} active clients found. Skipping creation.`);
+          await logAuditEvent({
+            action: "create",
+            entity: "link",
+            metadata: {
+              source: "voalle_webhook",
+              actionType: 0,
+              skipped: true,
+              reason: "Cannot determine client - no PersonId/CustomerId, no matching ContractID, multiple active clients",
+              webhookData: { Login: auth.Login, ServiceId: auth.ServiceId, ContractID: auth.ContractID, AccessPoint: auth.AccessPoint },
+            },
+            status: "failure",
+            errorMessage: `Cannot determine client for link Login=${auth.Login}`,
+          });
           return;
         }
+      }
+
+      const accessPointId = auth.AccessPoint && !isNaN(Number(auth.AccessPoint)) ? Number(auth.AccessPoint) : null;
+      if (auth.AccessPoint && accessPointId === null) {
+        console.log(`[Webhook/Voalle] AccessPoint "${auth.AccessPoint}" is not numeric, storing as description only`);
       }
 
       const loginStr = auth.Login ? String(auth.Login) : `voalle_${auth.ServiceId || Date.now()}`;
@@ -10210,7 +10256,7 @@ export async function registerRoutes(
         pppoeUser: auth.Login ? String(auth.Login) : null,
         voalleConnectionId: auth.ServiceId ? Number(auth.ServiceId) : null,
         voalleContractNumber: auth.ContractID ? String(auth.ContractID) : null,
-        voalleAccessPointId: auth.AccessPoint ? Number(auth.AccessPoint) : null,
+        voalleAccessPointId: accessPointId,
         slotOlt: auth.OltSlot != null ? Number(auth.OltSlot) : null,
         portOlt: auth.OltPort != null ? Number(auth.OltPort) : null,
         contractStatus,
@@ -10230,7 +10276,7 @@ export async function registerRoutes(
         request: req,
       });
 
-      console.log(`[Webhook/Voalle] Created new link id=${newLink.id} name="${newLink.name}" contractStatus=${contractStatus}`);
+      console.log(`[Webhook/Voalle] Created new link id=${newLink.id} name="${newLink.name}" clientId=${clientId} contractStatus=${contractStatus}`);
 
     } else if (actionType === 1) {
       const existingLink = await findLinkByVoalleData(auth);
@@ -10254,7 +10300,7 @@ export async function registerRoutes(
         previous.voalleContractNumber = existingLink.voalleContractNumber;
         updates.voalleContractNumber = String(auth.ContractID);
       }
-      if (auth.AccessPoint && Number(auth.AccessPoint) !== existingLink.voalleAccessPointId) {
+      if (auth.AccessPoint && !isNaN(Number(auth.AccessPoint)) && Number(auth.AccessPoint) !== existingLink.voalleAccessPointId) {
         previous.voalleAccessPointId = existingLink.voalleAccessPointId;
         updates.voalleAccessPointId = Number(auth.AccessPoint);
       }
