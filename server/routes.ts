@@ -10089,7 +10089,8 @@ export async function registerRoutes(
     return { contractStatus: "unknown", reason: `Status Voalle desconhecido: ${voalleStatus}` };
   }
 
-  async function findLinkByVoalleData(auth: any, includeDeleted = false): Promise<typeof links.$inferSelect | null> {
+  async function findLinkByVoalleData(rawAuth: any, includeDeleted = false): Promise<typeof links.$inferSelect | null> {
+    const auth = normalizeAuthFields(rawAuth);
     const deletedFilter = includeDeleted ? undefined : isNull(links.deletedAt);
     const buildWhere = (condition: any) => deletedFilter ? and(condition, deletedFilter) : condition;
 
@@ -10121,7 +10122,16 @@ export async function registerRoutes(
     return null;
   }
 
-  async function processVoalleConnectionWebhook(actionType: number, auth: any, req: Request): Promise<void> {
+  function normalizeAuthFields(auth: any): any {
+    const normalized = { ...auth };
+    if (normalized.ContractId !== undefined && normalized.ContractID === undefined) {
+      normalized.ContractID = normalized.ContractId;
+    }
+    return normalized;
+  }
+
+  async function processVoalleConnectionWebhook(actionType: number, rawAuth: any, req: Request): Promise<void> {
+    const auth = normalizeAuthFields(rawAuth);
     const { contractStatus, reason } = mapVoalleStatus(auth.Status);
 
     if (actionType === 0) {
