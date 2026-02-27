@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDateBR } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -478,7 +479,7 @@ export default function Settings() {
               )}
               {client.portalCredentialsLastCheck && (
                 <p className="text-xs text-muted-foreground">
-                  Última verificação: {new Date(client.portalCredentialsLastCheck).toLocaleString("pt-BR")}
+                  Última verificação: {formatDateBR(client.portalCredentialsLastCheck)}
                 </p>
               )}
             </div>

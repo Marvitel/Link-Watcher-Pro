@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { getAuthToken, useAuth } from "@/lib/auth";
+import { formatDateBR } from "@/lib/utils";
 import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1488,7 +1489,7 @@ export default function LinkDetail() {
                             </p>
                             {incident.slaDeadline && (
                               <p>
-                                Prazo SLA: {new Date(incident.slaDeadline).toLocaleString("pt-BR")}
+                                Prazo SLA: {formatDateBR(incident.slaDeadline)}
                               </p>
                             )}
                             {incident.erpTicketId && (

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth, getAuthToken } from "@/lib/auth";
+import { formatDateBR } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3559,7 +3560,7 @@ function HetrixToolsIntegration() {
           <div className="text-sm text-muted-foreground space-y-1">
             {hetrixIntegration.lastTestedAt && (
               <p>
-                Último teste: {new Date(hetrixIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                Último teste: {formatDateBR(hetrixIntegration.lastTestedAt)} - 
                 <Badge variant={hetrixIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
                   {hetrixIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
                 </Badge>
@@ -3788,7 +3789,7 @@ function OZmapIntegration() {
           <div className="text-sm text-muted-foreground space-y-1">
             {ozmapIntegration.lastTestedAt && (
               <p>
-                Último teste: {new Date(ozmapIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                Último teste: {formatDateBR(ozmapIntegration.lastTestedAt)} - 
                 <Badge variant={ozmapIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
                   {ozmapIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
                 </Badge>
@@ -4032,7 +4033,7 @@ function RadiusDbIntegration() {
           <div className="text-sm text-muted-foreground space-y-1">
             {radiusDbIntegration.lastTestedAt && (
               <p>
-                Último teste: {new Date(radiusDbIntegration.lastTestedAt).toLocaleString("pt-BR")} - 
+                Último teste: {formatDateBR(radiusDbIntegration.lastTestedAt)} - 
                 <Badge variant={radiusDbIntegration.lastTestStatus === "success" ? "default" : "destructive"} className="ml-2">
                   {radiusDbIntegration.lastTestStatus === "success" ? "Sucesso" : "Falha"}
                 </Badge>
@@ -4518,7 +4519,7 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
                             ) : (
                               <XCircle className="w-3 h-3 text-red-500" />
                             )}
-                            Último teste: {new Date(integration.lastTestedAt).toLocaleString("pt-BR")}
+                            Último teste: {formatDateBR(integration.lastTestedAt)}
                           </span>
                         </>
                       )}
@@ -5673,7 +5674,7 @@ export default function Admin() {
                               <TooltipContent>
                                 <p>IP listado em {listedOnCount} blacklist(s)</p>
                                 {blacklistCheck?.lastCheckedAt && (
-                                  <p className="text-xs opacity-70">Verificado em {new Date(blacklistCheck.lastCheckedAt).toLocaleString("pt-BR")}</p>
+                                  <p className="text-xs opacity-70">Verificado em {formatDateBR(blacklistCheck.lastCheckedAt)}</p>
                                 )}
                               </TooltipContent>
                             </Tooltip>
@@ -5689,7 +5690,7 @@ export default function Admin() {
                               <TooltipContent>
                                 <p>IP não está em nenhuma blacklist</p>
                                 {blacklistCheck?.lastCheckedAt && (
-                                  <p className="text-xs opacity-70">Verificado em {new Date(blacklistCheck.lastCheckedAt).toLocaleString("pt-BR")}</p>
+                                  <p className="text-xs opacity-70">Verificado em {formatDateBR(blacklistCheck.lastCheckedAt)}</p>
                                 )}
                               </TooltipContent>
                             </Tooltip>
@@ -7610,16 +7611,6 @@ function SystemInfoCard() {
     }
   };
   
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "N/A";
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleString("pt-BR");
-    } catch {
-      return dateStr;
-    }
-  };
-  
   if (isLoading) {
     return (
       <Card>
@@ -7663,7 +7654,7 @@ function SystemInfoCard() {
           </div>
           <div className="col-span-2 flex justify-between">
             <span className="text-muted-foreground">Última Atualização</span>
-            <span className="font-mono text-xs">{formatDate(systemInfo?.lastUpdate || "")}</span>
+            <span className="font-mono text-xs">{formatDateBR(systemInfo?.lastUpdate || "")}</span>
           </div>
         </div>
         
@@ -7757,15 +7748,6 @@ function BackupsCard() {
     }
   };
   
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleString("pt-BR");
-    } catch {
-      return dateStr;
-    }
-  };
-  
   const backups = Array.isArray(backupsData?.backups) ? backupsData.backups : [];
   
   return (
@@ -7804,7 +7786,7 @@ function BackupsCard() {
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{backup.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {backup.sizeFormatted} • {formatDate(backup.createdAt)}
+                      {backup.sizeFormatted} • {formatDateBR(backup.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -8146,7 +8128,7 @@ function RadiusSettingsCard() {
 
         {radiusSettings?.lastHealthCheck && (
           <div className="text-xs text-muted-foreground">
-            Ultima verificacao: {new Date(radiusSettings.lastHealthCheck).toLocaleString("pt-BR")}
+            Ultima verificacao: {formatDateBR(radiusSettings.lastHealthCheck)}
           </div>
         )}
       </CardContent>
@@ -10771,21 +10753,6 @@ function AuditLogsTab() {
     return <Badge variant="destructive">Falha</Badge>;
   };
   
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-  
   const getClientName = (clientId: number | null) => {
     if (!clientId) return "Sistema";
     const client = clients?.find(c => c.id === clientId);
@@ -10954,7 +10921,7 @@ function AuditLogsTab() {
                     {auditData?.logs.map((log) => (
                       <tr key={log.id} className="border-t hover-elevate">
                         <td className="p-3 whitespace-nowrap font-mono text-xs">
-                          {formatDate(log.createdAt)}
+                          {formatDateBR(log.createdAt)}
                         </td>
                         <td className="p-3">
                           <div className="flex flex-col">
@@ -11040,7 +11007,7 @@ function AuditLogsTab() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Data/Hora</Label>
-                  <p className="font-mono">{formatDate(selectedLog.createdAt)}</p>
+                  <p className="font-mono">{formatDateBR(selectedLog.createdAt)}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Status</Label>
@@ -11849,7 +11816,7 @@ function DiagnosticsTab() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            {diagnostics.timestamp ? new Date(diagnostics.timestamp).toLocaleString("pt-BR") : "N/A"}
+            {diagnostics.timestamp ? formatDateBR(diagnostics.timestamp) : "N/A"}
           </p>
         </CardContent>
       </Card>
