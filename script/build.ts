@@ -1,6 +1,20 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import pg from "pg";
+
+async function cleanupLegacyTables() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await pool.query("DROP TABLE IF EXISTS _timezone_migration");
+    console.log("[pre-build] Dropped legacy _timezone_migration table if it existed");
+  } catch (err: any) {
+    console.error("[pre-build] Warning: could not clean legacy tables:", err.message);
+  } finally {
+    await pool.end();
+  }
+}
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -53,6 +67,7 @@ const nodeBuiltins = [
 ];
 
 async function buildAll() {
+  await cleanupLegacyTables();
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
