@@ -21,64 +21,21 @@ export const db = drizzle(pool, { schema });
 export async function ensureTimezoneCorrection(): Promise<void> {
   const client = await pool.connect();
   try {
-    const check = await client.query(`
-      SELECT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'audit_logs' AND column_name = 'created_at'
-        AND data_type = 'timestamp without time zone'
-      ) as needs_fix
-    `);
-    if (!check.rows[0]?.needs_fix) return;
-
-    const tzCheck = await client.query("SHOW timezone");
-    const currentTz = tzCheck.rows[0]?.TimeZone;
-    if (currentTz === 'UTC' || currentTz === 'GMT') {
-      console.log(`[DB] Session timezone already UTC, checking if BRT correction marker exists`);
-    }
-
     const markerCheck = await client.query(`
       SELECT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.tables 
         WHERE table_name = '_timezone_migration' 
       ) as exists
     `);
     
-    if (!markerCheck.rows[0]?.exists) {
-      const serverTzCheck = await client.query(`
-        SELECT current_setting('timezone') as server_tz,
-               (SELECT setting FROM pg_settings WHERE name = 'timezone') as pg_tz
-      `);
-      const pgTz = serverTzCheck.rows[0]?.pg_tz;
-      console.log(`[DB] PostgreSQL server timezone: ${pgTz}`);
-      
-      if (pgTz && pgTz !== 'UTC' && pgTz !== 'GMT') {
-        console.log(`[DB] Production database has timezone ${pgTz} — correcting existing timestamps to UTC`);
-        
-        const tables = [
-          { table: 'audit_logs', columns: ['created_at'] },
-        ];
-        
-        for (const { table, columns } of tables) {
-          for (const col of columns) {
-            try {
-              const result = await client.query(`
-                UPDATE ${table} SET ${col} = ${col} + interval '3 hours'
-                WHERE ${col} IS NOT NULL
-              `);
-              console.log(`[DB] Corrected ${result.rowCount} rows in ${table}.${col}`);
-            } catch (err: any) {
-              console.error(`[DB] Failed to correct ${table}.${col}: ${err.message}`);
-            }
-          }
-        }
-      }
-      
-      await client.query(`CREATE TABLE IF NOT EXISTS _timezone_migration (applied_at timestamp DEFAULT now())`);
-      await client.query(`INSERT INTO _timezone_migration VALUES (now())`);
-      console.log(`[DB] Timezone correction completed and marked`);
+    if (markerCheck.rows[0]?.exists) {
+      await client.query(`DROP TABLE IF EXISTS _timezone_migration`);
+      console.log(`[DB] Dropped legacy _timezone_migration marker table (correction already applied)`);
     }
+
+    console.log(`[DB] Timezone correction already applied, UTC enforced via pool.on('connect')`);
   } catch (err: any) {
-    console.error(`[DB] Timezone correction error: ${err.message}`);
+    console.error(`[DB] Timezone check error: ${err.message}`);
   } finally {
     client.release();
   }
