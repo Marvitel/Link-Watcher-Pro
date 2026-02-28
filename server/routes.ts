@@ -10156,6 +10156,21 @@ export async function registerRoutes(
     const auth = normalizeAuthFields(rawAuth);
     const { contractStatus, reason } = mapVoalleStatus(auth.Status);
 
+    if (!auth.Login) {
+      console.log(`[Webhook/Voalle] Connection webhook without Login field — skipping (ServiceId=${auth.ServiceId}, ContractID=${auth.ContractID})`);
+      await logAuditEvent({
+        action: "update",
+        entity: "link",
+        entityId: null,
+        entityName: "N/A",
+        metadata: { source: "voalle_webhook", actionType, skippedReason: "missing_login", serviceId: auth.ServiceId, contractId: auth.ContractID, serviceDescription: auth.ServiceDescription },
+        status: "failure",
+        errorMessage: "Webhook de conexão sem campo Login — ignorado",
+        request: req,
+      });
+      return;
+    }
+
     if (actionType === 0) {
       let existingLink = await findLinkByVoalleData(auth);
       if (!existingLink) {
@@ -10584,15 +10599,9 @@ export async function registerRoutes(
         }
       }
 
-      let activeServiceDesc: string | null = null;
-      let activeServiceBandwidth: number | null = null;
-      if (contract.Services && Array.isArray(contract.Services) && contract.Services.length > 0) {
-        const lastService = contract.Services[contract.Services.length - 1];
-        if (lastService.Description) {
-          activeServiceDesc = String(lastService.Description);
-          activeServiceBandwidth = parseBandwidthFromDescription(activeServiceDesc);
-          console.log(`[Webhook/Voalle] Contract #${contractNumber} active service: "${activeServiceDesc}" → ${activeServiceBandwidth}M`);
-        }
+      const allServices = (contract.Services && Array.isArray(contract.Services)) ? contract.Services : [];
+      if (allServices.length > 0) {
+        console.log(`[Webhook/Voalle] Contract #${contractNumber} has ${allServices.length} services: ${allServices.map((s: any) => `${s.ServiceCode || s.Id}="${s.Description}"`).join(', ')}`);
       }
 
       if (contractNumber) {
@@ -10628,13 +10637,45 @@ export async function registerRoutes(
               linkUpdates.contractStatusUpdatedAt = new Date();
               linkUpdates.voalleStatusRaw = statusCode != null ? String(statusCode) : null;
             }
-            if (activeServiceDesc && activeServiceDesc !== link.voalleServiceDescription) {
+
+            let matchedServiceDesc: string | null = null;
+            let matchedServiceBandwidth: number | null = null;
+
+            if (allServices.length === 1) {
+              const svc = allServices[0];
+              if (svc.Description) {
+                matchedServiceDesc = String(svc.Description);
+                matchedServiceBandwidth = parseBandwidthFromDescription(matchedServiceDesc);
+              }
+            } else if (allServices.length > 1 && link.voalleServiceId) {
+              const matchByServiceId = allServices.find((s: any) => Number(s.Id) === link.voalleServiceId || String(s.ServiceCode) === String(link.voalleServiceId));
+              if (matchByServiceId?.Description) {
+                matchedServiceDesc = String(matchByServiceId.Description);
+                matchedServiceBandwidth = parseBandwidthFromDescription(matchedServiceDesc);
+                console.log(`[Webhook/Voalle] Contract #${contractNumber}: link id=${link.id} matched service by voalleServiceId=${link.voalleServiceId} → "${matchedServiceDesc}"`);
+              }
+            }
+
+            if (!matchedServiceDesc && allServices.length > 1 && link.voalleServiceDescription) {
+              const matchByDesc = allServices.find((s: any) => s.Description && String(s.Description) === link.voalleServiceDescription);
+              if (matchByDesc?.Description) {
+                matchedServiceDesc = String(matchByDesc.Description);
+                matchedServiceBandwidth = parseBandwidthFromDescription(matchedServiceDesc);
+                console.log(`[Webhook/Voalle] Contract #${contractNumber}: link id=${link.id} matched service by description "${matchedServiceDesc}"`);
+              }
+            }
+
+            if (!matchedServiceDesc && allServices.length > 1) {
+              console.log(`[Webhook/Voalle] Contract #${contractNumber}: link id=${link.id} has ${allServices.length} services but no match found — skipping service/bandwidth update to avoid applying wrong service`);
+            }
+
+            if (matchedServiceDesc && matchedServiceDesc !== link.voalleServiceDescription) {
               linkPrevious.voalleServiceDescription = link.voalleServiceDescription;
-              linkUpdates.voalleServiceDescription = activeServiceDesc;
-              if (activeServiceBandwidth && activeServiceBandwidth !== link.bandwidth) {
+              linkUpdates.voalleServiceDescription = matchedServiceDesc;
+              if (matchedServiceBandwidth && matchedServiceBandwidth !== link.bandwidth) {
                 linkPrevious.bandwidth = link.bandwidth;
-                linkUpdates.bandwidth = activeServiceBandwidth;
-                console.log(`[Webhook/Voalle] Contract webhook: link id=${link.id} bandwidth ${link.bandwidth}M → ${activeServiceBandwidth}M`);
+                linkUpdates.bandwidth = matchedServiceBandwidth;
+                console.log(`[Webhook/Voalle] Contract webhook: link id=${link.id} bandwidth ${link.bandwidth}M → ${matchedServiceBandwidth}M`);
               }
             }
 
