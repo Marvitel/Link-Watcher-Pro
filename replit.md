@@ -66,7 +66,10 @@ Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP
   5. If no client determined → **skip creation**, log to audit_logs
 - **Field Normalization**: `normalizeAuthFields()` handles case differences (e.g., Voalle sends `ContractId` lowercase, code uses `ContractID`)
 - **AccessPoint Handling**: Only stored as `voalleAccessPointId` if numeric; text values are logged but not stored
-- **ServiceDescription Processing**: `parseBandwidthFromDescription()` extracts bandwidth from Voalle service descriptions (e.g., "MARVITEL-FIBRA-700Mbps - SCM" → 700, "50 MEGA" → 50, "1Gbps" → 1000). Updates `voalleServiceDescription` field and `bandwidth` on both Connection and Contract webhooks. Contract webhook uses last entry in `Services[]` array as the active/current service.
+- **Connection Webhook without Login**: If no `Login` field, tries to infer from ContractID: if exactly 1 link exists for that contract → processes normally; if multiple links → skips (cannot identify which); if no links or no ContractID → skips. All cases logged to audit_logs.
+- **ServiceDescription Processing**: `parseBandwidthFromDescription()` extracts bandwidth from Voalle service descriptions (e.g., "MARVITEL-FIBRA-700Mbps - SCM" → 700, "50 MEGA" → 50, "1Gbps" → 1000). Updates `voalleServiceDescription` field and `bandwidth` on both Connection and Contract webhooks.
+- **Contract Webhook Service Matching**: When contract has multiple `Services[]`, does NOT blindly take the last one. Instead: if 1 service → uses it; if multiple → matches by `link.voalleServiceId` against `Services[].Id`/`ServiceCode`, then by `link.voalleServiceDescription` against `Services[].Description`; if no match → skips service/bandwidth update to avoid applying wrong service to wrong link.
+- **Contract Webhook Client Validation**: Three-tier client resolution for mismatch protection: 1) `Client.ID` → `clients.voalleCustomerId`; 2) `contractNumber` → `voalle_contract_clients` mapping table; 3) `Client.Name` → case-insensitive name match. If client cannot be resolved at all → skips ALL link updates (safety). If resolved but doesn't match link's clientId → clears incorrect `voalleContractNumber` from link.
 - **Monitoring Behavior**: 
   - `deletedAt` set → excluded from monitoring entirely
   - `contractStatus="blocked"` → metrics collected but NO events/incidents/SLA impact

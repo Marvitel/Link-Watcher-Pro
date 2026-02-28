@@ -10638,6 +10638,30 @@ export async function registerRoutes(
         }
       }
 
+      if (!clientId && contractNumber) {
+        const mappedContract = await db.select().from(voalleContractClients)
+          .where(eq(voalleContractClients.contractNumber, contractNumber))
+          .limit(1);
+        if (mappedContract.length > 0) {
+          clientId = mappedContract[0].clientId;
+          console.log(`[Webhook/Voalle] Contract #${contractNumber}: clientId=${clientId} resolved from voalle_contract_clients mapping (Client.ID not found in clients table)`);
+        }
+      }
+
+      if (!clientId && contractNumber && clientData?.Name) {
+        const byName = await db.select().from(clientsTable)
+          .where(sql`LOWER(${clientsTable.name}) = LOWER(${String(clientData.Name)})`)
+          .limit(1);
+        if (byName.length > 0) {
+          clientId = byName[0].id;
+          console.log(`[Webhook/Voalle] Contract #${contractNumber}: clientId=${clientId} resolved by client name "${clientData.Name}"`);
+          if (clientData.ID) {
+            await db.update(clientsTable).set({ voalleCustomerId: Number(clientData.ID) }).where(eq(clientsTable.id, clientId));
+            console.log(`[Webhook/Voalle] Updated client id=${clientId} with voalleCustomerId=${clientData.ID}`);
+          }
+        }
+      }
+
       const allServices = (contract.Services && Array.isArray(contract.Services)) ? contract.Services : [];
       if (allServices.length > 0) {
         console.log(`[Webhook/Voalle] Contract #${contractNumber} has ${allServices.length} services: ${allServices.map((s: any) => `${s.ServiceCode || s.Id}="${s.Description}"`).join(', ')}`);
@@ -10649,7 +10673,23 @@ export async function registerRoutes(
 
         if (linkedLinks.length > 0) {
           for (const link of linkedLinks) {
-            if (clientId && link.clientId !== clientId) {
+            if (!clientId) {
+              console.log(`[Webhook/Voalle] Contract #${contractNumber}: cannot resolve contract owner — skipping link id=${link.id} updates (safety: no client validation possible)`);
+              await logAuditEvent({
+                action: "update",
+                entity: "link",
+                entityId: link.id,
+                entityName: link.name,
+                clientId: link.clientId,
+                metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true, skippedReason: "unresolved_contract_owner", webhookClientId: clientData?.ID, webhookClientName: clientData?.Name },
+                status: "failure",
+                errorMessage: `Contrato #${contractNumber}: dono não identificado — atualização de link ignorada por segurança`,
+                request: req,
+              });
+              continue;
+            }
+
+            if (link.clientId !== clientId) {
               console.log(`[Webhook/Voalle] Contract #${contractNumber}: link id=${link.id} belongs to clientId=${link.clientId} but contract belongs to clientId=${clientId} — clearing incorrect voalleContractNumber`);
               await db.update(links).set({ voalleContractNumber: null }).where(eq(links.id, link.id));
               await logAuditEvent({
@@ -10660,7 +10700,7 @@ export async function registerRoutes(
                 clientId: link.clientId,
                 previous: { voalleContractNumber: contractNumber },
                 current: { voalleContractNumber: null },
-                metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true, reason: "client_mismatch_cleanup" },
+                metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true, reason: "client_mismatch_cleanup", contractClientId: clientId, contractClientName: clientData?.Name },
                 request: req,
               });
               continue;
