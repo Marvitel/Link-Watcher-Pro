@@ -10095,40 +10095,38 @@ export async function registerRoutes(
     const deletedFilter = includeDeleted ? undefined : isNull(links.deletedAt);
     const buildWhere = (condition: any) => deletedFilter ? and(condition, deletedFilter) : condition;
 
-    if (auth.ServiceId && auth.ContractID) {
-      const byBoth = await db.select().from(links)
-        .where(buildWhere(and(
-          eq(links.voalleServiceId, Number(auth.ServiceId)),
-          eq(links.voalleContractNumber, String(auth.ContractID))
-        )))
+    if (auth.Login) {
+      const byPppoe = await db.select().from(links)
+        .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
         .limit(1);
-      if (byBoth.length > 0) return byBoth[0];
+      if (byPppoe.length > 0) {
+        console.log(`[Webhook/Voalle] findLinkByVoalleData: matched by Login="${auth.Login}" → link id=${byPppoe[0].id}`);
+        return byPppoe[0];
+      }
     }
-    if (auth.ContractID) {
-      const byContract = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleContractNumber, String(auth.ContractID))))
-        .limit(1);
-      if (byContract.length > 0) return byContract[0];
-    }
+
     if (auth.ContractServiceTag || auth.ServiceTag) {
       const tag = auth.ContractServiceTag || auth.ServiceTag;
       const byTag = await db.select().from(links)
         .where(buildWhere(eq(links.voalleContractTagServiceTag, String(tag))))
         .limit(1);
-      if (byTag.length > 0) return byTag[0];
+      if (byTag.length > 0) {
+        console.log(`[Webhook/Voalle] findLinkByVoalleData: matched by ServiceTag="${tag}" → link id=${byTag[0].id}`);
+        return byTag[0];
+      }
     }
-    if (auth.ServiceId) {
-      const byServiceId = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleServiceId, Number(auth.ServiceId))))
-        .limit(1);
-      if (byServiceId.length > 0) return byServiceId[0];
+
+    if (auth.ContractID) {
+      const byContract = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleContractNumber, String(auth.ContractID))));
+      if (byContract.length === 1) {
+        console.log(`[Webhook/Voalle] findLinkByVoalleData: matched by ContractID="${auth.ContractID}" (unique link) → link id=${byContract[0].id}`);
+        return byContract[0];
+      } else if (byContract.length > 1) {
+        console.log(`[Webhook/Voalle] findLinkByVoalleData: ContractID="${auth.ContractID}" has ${byContract.length} links — skipping ambiguous match`);
+      }
     }
-    if (auth.Login) {
-      const byPppoe = await db.select().from(links)
-        .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
-        .limit(1);
-      if (byPppoe.length > 0) return byPppoe[0];
-    }
+
     return null;
   }
 
