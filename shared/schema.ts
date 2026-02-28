@@ -132,7 +132,8 @@ export const links = pgTable("links", {
   voalleContractTagServiceTag: varchar("voalle_contract_tag_service_tag", { length: 100 }),
   voalleContractTagDescription: text("voalle_contract_tag_description"),
   // Voalle integration - Connection data from API Portal
-  voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle (Código da Conexão)
+  voalleConnectionId: integer("voalle_connection_id"), // ID da conexão/autenticação no Voalle (Código da Conexão) - vem da API Portal
+  voalleServiceId: integer("voalle_service_id"), // ID do serviço/produto no Voalle (ServiceId do webhook) - ex: 3267 = "Internet Marvitel Fibra 2Giga"
   voalleContractNumber: varchar("voalle_contract_number", { length: 50 }), // Número do contrato
   voalleAccessPointId: integer("voalle_access_point_id"), // ID do ponto de acesso no Voalle (authenticationAccessPointId)
   voalleSplitterId: integer("voalle_splitter_id"), // ID do splitter no Voalle (authenticationSplitterId)

@@ -49,7 +49,8 @@ Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤
 
 ### Voalle Webhook Processing
 Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP:
-- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `(voalleConnectionId+voalleContractNumber)` → `voalleContractNumber` → `voalleContractTagServiceTag` → `voalleConnectionId` → `pppoeUser` (only if voalleConnectionId matches or link has none). New links created with `monitoringEnabled=false`.
+- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `(voalleServiceId+voalleContractNumber)` → `voalleContractNumber` → `voalleContractTagServiceTag` → `voalleServiceId` → `pppoeUser`. New links created with `monitoringEnabled=false`.
+- **IMPORTANTE - ServiceId vs ConnectionId**: O campo `ServiceId` do webhook Voalle é o **código do serviço/produto** (ex: 3267 = "Internet Marvitel Fibra 2Giga - MAIKAI"), NÃO o código da conexão. O código da conexão (ex: 2846) NÃO vem no payload do webhook. Campos separados no schema: `voalleServiceId` (código do serviço, do webhook) vs `voalleConnectionId` (código da conexão, da API Portal).
 - **ActionType 1 (Alteração)**: Updates existing link fields (pppoeUser, contractStatus, etc.). Logs diff in audit_logs.
 - **ActionType 2 (Exclusão)**: Soft-delete via `deletedAt` timestamp + `deletedReason="voalle_webhook"`. Sets `monitoringEnabled=false`.
 - **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values including Voalle codes (1=Normal, 2=Demo, 5=Suspenso, 6=Bloqueio Financeiro, 7=Bloqueio Administrativo, 4=Cancelado, 8=Encerrado).

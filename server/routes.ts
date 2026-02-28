@@ -1102,7 +1102,7 @@ export async function registerRoutes(
         'pppoeUser', 'pppoePassword', 'vlanInterface',
         'switchPort', 'switchPortNumber',
         'snmpRouterIp', 'equipmentVendorId', 'equipmentModel', 'customCpuOid', 'customMemoryOid',
-        'voalleContractTagId', 'voalleContractTagServiceTag', 'voalleConnectionId', 'voalleContractNumber',
+        'voalleContractTagId', 'voalleContractTagServiceTag', 'voalleConnectionId', 'voalleServiceId', 'voalleContractNumber',
         'accessPointId', 'accessPointInterfaceIndex', 'accessPointInterfaceName',
         'latitude', 'longitude', 'invertBandwidth', 'sfpType',
         'isL2Link', 'icmpBlocked', 'tcpCheckPort',
@@ -10098,7 +10098,7 @@ export async function registerRoutes(
     if (auth.ServiceId && auth.ContractID) {
       const byBoth = await db.select().from(links)
         .where(buildWhere(and(
-          eq(links.voalleConnectionId, Number(auth.ServiceId)),
+          eq(links.voalleServiceId, Number(auth.ServiceId)),
           eq(links.voalleContractNumber, String(auth.ContractID))
         )))
         .limit(1);
@@ -10118,23 +10118,16 @@ export async function registerRoutes(
       if (byTag.length > 0) return byTag[0];
     }
     if (auth.ServiceId) {
-      const byConnectionId = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
+      const byServiceId = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleServiceId, Number(auth.ServiceId))))
         .limit(1);
-      if (byConnectionId.length > 0) return byConnectionId[0];
+      if (byServiceId.length > 0) return byServiceId[0];
     }
     if (auth.Login) {
       const byPppoe = await db.select().from(links)
         .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
         .limit(1);
-      if (byPppoe.length > 0) {
-        const match = byPppoe[0];
-        if (auth.ServiceId && match.voalleConnectionId && match.voalleConnectionId !== Number(auth.ServiceId)) {
-          console.log(`[Webhook/Voalle] Login="${auth.Login}" matched link id=${match.id} but voalleConnectionId mismatch (link=${match.voalleConnectionId}, webhook=${auth.ServiceId}) — different connection, skipping`);
-          return null;
-        }
-        return match;
-      }
+      if (byPppoe.length > 0) return byPppoe[0];
     }
     return null;
   }
@@ -10194,7 +10187,7 @@ export async function registerRoutes(
       if (existingLink) {
         console.log(`[Webhook/Voalle] Link already exists (id=${existingLink.id}), enriching`);
         const updates: Record<string, any> = {};
-        if (auth.ServiceId && !existingLink.voalleConnectionId) updates.voalleConnectionId = Number(auth.ServiceId);
+        if (auth.ServiceId && !existingLink.voalleServiceId) updates.voalleServiceId = Number(auth.ServiceId);
         if (auth.ContractID && !existingLink.voalleContractNumber) updates.voalleContractNumber = String(auth.ContractID);
         if (auth.AccessPoint && !existingLink.voalleAccessPointId && !isNaN(Number(auth.AccessPoint))) updates.voalleAccessPointId = Number(auth.AccessPoint);
         if (auth.OltSlot !== undefined && auth.OltSlot !== null && !existingLink.slotOlt) updates.slotOlt = Number(auth.OltSlot);
@@ -10224,7 +10217,7 @@ export async function registerRoutes(
             entityId: existingLink.id,
             entityName: existingLink.name,
             clientId: existingLink.clientId,
-            previous: { voalleConnectionId: existingLink.voalleConnectionId, contractStatus: existingLink.contractStatus },
+            previous: { voalleServiceId: existingLink.voalleServiceId, contractStatus: existingLink.contractStatus },
             current: updates,
             metadata: { source: "voalle_webhook", actionType: 0, enrichment: true },
             request: req,
@@ -10316,7 +10309,7 @@ export async function registerRoutes(
         status: "unknown",
         monitoringEnabled: false,
         pppoeUser: auth.Login ? String(auth.Login) : null,
-        voalleConnectionId: auth.ServiceId ? Number(auth.ServiceId) : null,
+        voalleServiceId: auth.ServiceId ? Number(auth.ServiceId) : null,
         voalleContractNumber: auth.ContractID ? String(auth.ContractID) : null,
         voalleAccessPointId: accessPointId,
         slotOlt: auth.OltSlot != null ? Number(auth.OltSlot) : null,
@@ -10334,7 +10327,7 @@ export async function registerRoutes(
         entityId: newLink.id,
         entityName: newLink.name,
         clientId,
-        current: { identifier, pppoeUser: loginStr, voalleConnectionId: auth.ServiceId, contractStatus },
+        current: { identifier, pppoeUser: loginStr, voalleServiceId: auth.ServiceId, contractStatus },
         metadata: { source: "voalle_webhook", actionType: 0 },
         request: req,
       });
@@ -10355,13 +10348,9 @@ export async function registerRoutes(
         previous.pppoeUser = existingLink.pppoeUser;
         updates.pppoeUser = String(auth.Login);
       }
-      if (auth.ServiceId && Number(auth.ServiceId) !== existingLink.voalleConnectionId) {
-        if (!existingLink.voalleConnectionId) {
-          previous.voalleConnectionId = existingLink.voalleConnectionId;
-          updates.voalleConnectionId = Number(auth.ServiceId);
-        } else {
-          console.log(`[Webhook/Voalle] ActionType=1: link id=${existingLink.id} already has voalleConnectionId=${existingLink.voalleConnectionId}, webhook has ServiceId=${auth.ServiceId} — not overwriting (different connection)`);
-        }
+      if (auth.ServiceId && Number(auth.ServiceId) !== existingLink.voalleServiceId) {
+        previous.voalleServiceId = existingLink.voalleServiceId;
+        updates.voalleServiceId = Number(auth.ServiceId);
       }
       if (auth.ContractID && String(auth.ContractID) !== existingLink.voalleContractNumber) {
         let contractBelongsToSameClient = true;
