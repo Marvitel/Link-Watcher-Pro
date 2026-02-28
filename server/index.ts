@@ -6,7 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { setupTerminalWebSocket } from "./terminal";
 import { initializeFirewall, createFirewallMiddleware } from "./firewall";
-import { ensurePerformanceIndexes } from "./db";
+import { ensurePerformanceIndexes, ensureTimezoneCorrection } from "./db";
 
 process.on('uncaughtException', (err) => {
   console.error(`[Process] Uncaught exception (handled, not crashing): ${err.message}`);
@@ -176,7 +176,10 @@ app.use((req, res, next) => {
   const adminPort = parseInt(process.env.ADMIN_PORT || "5001", 10);
   const isSinglePortMode = adminPort === port;
   
-  // Criar índices de performance no banco (idempotente)
+  ensureTimezoneCorrection().catch(err => {
+    console.error(`[DB] Timezone correction failed: ${err.message}`);
+  });
+
   ensurePerformanceIndexes().catch(err => {
     console.error(`[DB] Failed to create performance indexes: ${err.message}`);
   });
