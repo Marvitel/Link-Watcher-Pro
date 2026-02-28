@@ -1180,7 +1180,7 @@ export default function LinkDetail() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
-                        Última coleta: {new Date(equipmentCpe.lastMonitoredAt).toLocaleString('pt-BR')}
+                        Última coleta: {formatDateBR(equipmentCpe.lastMonitoredAt)}
                       </div>
                     </>
                   ) : (

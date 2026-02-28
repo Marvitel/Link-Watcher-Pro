@@ -5989,7 +5989,7 @@ export default function Admin() {
                         </div>
                         {editingClient.portalCredentialsLastCheck && (
                           <p className="text-[10px] mt-1 opacity-70">
-                            Última verificação: {new Date(editingClient.portalCredentialsLastCheck).toLocaleString('pt-BR')}
+                            Última verificação: {formatDateBR(editingClient.portalCredentialsLastCheck)}
                           </p>
                         )}
                         {editingClient.portalCredentialsError && editingClient.portalCredentialsStatus !== 'valid' && (
