@@ -10358,8 +10358,18 @@ export async function registerRoutes(
         updates.voalleConnectionId = Number(auth.ServiceId);
       }
       if (auth.ContractID && String(auth.ContractID) !== existingLink.voalleContractNumber) {
-        previous.voalleContractNumber = existingLink.voalleContractNumber;
-        updates.voalleContractNumber = String(auth.ContractID);
+        let contractBelongsToSameClient = true;
+        const contractMapping = await db.select().from(voalleContractClients)
+          .where(eq(voalleContractClients.contractNumber, String(auth.ContractID)))
+          .limit(1);
+        if (contractMapping.length > 0 && contractMapping[0].clientId !== existingLink.clientId) {
+          contractBelongsToSameClient = false;
+          console.log(`[Webhook/Voalle] ActionType=1: ContractID=${auth.ContractID} belongs to clientId=${contractMapping[0].clientId} but link id=${existingLink.id} belongs to clientId=${existingLink.clientId} — skipping contract assignment`);
+        }
+        if (contractBelongsToSameClient) {
+          previous.voalleContractNumber = existingLink.voalleContractNumber;
+          updates.voalleContractNumber = String(auth.ContractID);
+        }
       }
       if (auth.AccessPoint && !isNaN(Number(auth.AccessPoint)) && Number(auth.AccessPoint) !== existingLink.voalleAccessPointId) {
         previous.voalleAccessPointId = existingLink.voalleAccessPointId;
@@ -10596,13 +10606,26 @@ export async function registerRoutes(
 
         if (linkedLinks.length > 0) {
           for (const link of linkedLinks) {
+            if (clientId && link.clientId !== clientId) {
+              console.log(`[Webhook/Voalle] Contract #${contractNumber}: link id=${link.id} belongs to clientId=${link.clientId} but contract belongs to clientId=${clientId} — clearing incorrect voalleContractNumber`);
+              await db.update(links).set({ voalleContractNumber: null }).where(eq(links.id, link.id));
+              await logAuditEvent({
+                action: "update",
+                entity: "link",
+                entityId: link.id,
+                entityName: link.name,
+                clientId: link.clientId,
+                previous: { voalleContractNumber: contractNumber },
+                current: { voalleContractNumber: null },
+                metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true, reason: "client_mismatch_cleanup" },
+                request: req,
+              });
+              continue;
+            }
+
             const linkUpdates: Record<string, any> = {};
             const linkPrevious: Record<string, any> = {};
 
-            if (clientId && link.clientId !== clientId) {
-              linkPrevious.clientId = link.clientId;
-              linkUpdates.clientId = clientId;
-            }
             if (contractStatus !== link.contractStatus) {
               linkPrevious.contractStatus = link.contractStatus;
               linkUpdates.contractStatus = contractStatus;
@@ -10627,7 +10650,7 @@ export async function registerRoutes(
                 entity: "link",
                 entityId: link.id,
                 entityName: link.name,
-                clientId: clientId || link.clientId,
+                clientId: link.clientId,
                 previous: linkPrevious,
                 current: linkUpdates,
                 metadata: { source: "voalle_webhook", actionType, contractNumber, contractEvent: true },
