@@ -10117,21 +10117,23 @@ export async function registerRoutes(
         .limit(1);
       if (byTag.length > 0) return byTag[0];
     }
+    if (auth.ServiceId) {
+      const byConnectionId = await db.select().from(links)
+        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
+        .limit(1);
+      if (byConnectionId.length > 0) return byConnectionId[0];
+    }
     if (auth.Login) {
       const byPppoe = await db.select().from(links)
         .where(buildWhere(eq(links.pppoeUser, String(auth.Login))))
         .limit(1);
-      if (byPppoe.length > 0) return byPppoe[0];
-    }
-    if (auth.ServiceId) {
-      const byServiceId = await db.select().from(links)
-        .where(buildWhere(eq(links.voalleConnectionId, Number(auth.ServiceId))))
-        .limit(1);
-      if (byServiceId.length > 0) {
-        if (byServiceId.length === 1) {
-          console.log(`[Webhook/Voalle] WARNING: Matched by ServiceId=${auth.ServiceId} alone (last resort) → link id=${byServiceId[0].id}`);
-          return byServiceId[0];
+      if (byPppoe.length > 0) {
+        const match = byPppoe[0];
+        if (auth.ServiceId && match.voalleConnectionId && match.voalleConnectionId !== Number(auth.ServiceId)) {
+          console.log(`[Webhook/Voalle] Login="${auth.Login}" matched link id=${match.id} but voalleConnectionId mismatch (link=${match.voalleConnectionId}, webhook=${auth.ServiceId}) — different connection, skipping`);
+          return null;
         }
+        return match;
       }
     }
     return null;
@@ -10354,8 +10356,12 @@ export async function registerRoutes(
         updates.pppoeUser = String(auth.Login);
       }
       if (auth.ServiceId && Number(auth.ServiceId) !== existingLink.voalleConnectionId) {
-        previous.voalleConnectionId = existingLink.voalleConnectionId;
-        updates.voalleConnectionId = Number(auth.ServiceId);
+        if (!existingLink.voalleConnectionId) {
+          previous.voalleConnectionId = existingLink.voalleConnectionId;
+          updates.voalleConnectionId = Number(auth.ServiceId);
+        } else {
+          console.log(`[Webhook/Voalle] ActionType=1: link id=${existingLink.id} already has voalleConnectionId=${existingLink.voalleConnectionId}, webhook has ServiceId=${auth.ServiceId} — not overwriting (different connection)`);
+        }
       }
       if (auth.ContractID && String(auth.ContractID) !== existingLink.voalleContractNumber) {
         let contractBelongsToSameClient = true;
