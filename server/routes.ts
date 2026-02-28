@@ -10157,18 +10157,57 @@ export async function registerRoutes(
     const { contractStatus, reason } = mapVoalleStatus(auth.Status);
 
     if (!auth.Login) {
-      console.log(`[Webhook/Voalle] Connection webhook without Login field — skipping (ServiceId=${auth.ServiceId}, ContractID=${auth.ContractID})`);
-      await logAuditEvent({
-        action: "update",
-        entity: "link",
-        entityId: null,
-        entityName: "N/A",
-        metadata: { source: "voalle_webhook", actionType, skippedReason: "missing_login", serviceId: auth.ServiceId, contractId: auth.ContractID, serviceDescription: auth.ServiceDescription },
-        status: "failure",
-        errorMessage: "Webhook de conexão sem campo Login — ignorado",
-        request: req,
-      });
-      return;
+      const contractId = auth.ContractID ? String(auth.ContractID) : null;
+      if (contractId) {
+        const contractLinks = await db.select().from(links)
+          .where(and(eq(links.voalleContractNumber, contractId), isNull(links.deletedAt)));
+
+        if (contractLinks.length === 1) {
+          console.log(`[Webhook/Voalle] Connection webhook without Login but contract #${contractId} has exactly 1 link (id=${contractLinks[0].id}) — processing with inferred match`);
+          auth.Login = contractLinks[0].pppoeUser || null;
+          auth._inferredFromContract = true;
+          auth._inferredLinkId = contractLinks[0].id;
+        } else if (contractLinks.length > 1) {
+          console.log(`[Webhook/Voalle] Connection webhook without Login — contract #${contractId} has ${contractLinks.length} links, cannot identify which one — skipping`);
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            entityId: null,
+            entityName: "N/A",
+            metadata: { source: "voalle_webhook", actionType, skippedReason: "missing_login_multiple_links", serviceId: auth.ServiceId, contractId, serviceDescription: auth.ServiceDescription, linkedLinksCount: contractLinks.length },
+            status: "failure",
+            errorMessage: `Webhook de conexão sem Login — contrato #${contractId} possui ${contractLinks.length} links, impossível identificar`,
+            request: req,
+          });
+          return;
+        } else {
+          console.log(`[Webhook/Voalle] Connection webhook without Login — contract #${contractId} has no linked links — skipping`);
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            entityId: null,
+            entityName: "N/A",
+            metadata: { source: "voalle_webhook", actionType, skippedReason: "missing_login_no_links", serviceId: auth.ServiceId, contractId, serviceDescription: auth.ServiceDescription },
+            status: "failure",
+            errorMessage: `Webhook de conexão sem Login — contrato #${contractId} sem links vinculados`,
+            request: req,
+          });
+          return;
+        }
+      } else {
+        console.log(`[Webhook/Voalle] Connection webhook without Login and without ContractID — skipping`);
+        await logAuditEvent({
+          action: "update",
+          entity: "link",
+          entityId: null,
+          entityName: "N/A",
+          metadata: { source: "voalle_webhook", actionType, skippedReason: "missing_login_and_contract", serviceId: auth.ServiceId, serviceDescription: auth.ServiceDescription },
+          status: "failure",
+          errorMessage: "Webhook de conexão sem Login e sem ContractID — ignorado",
+          request: req,
+        });
+        return;
+      }
     }
 
     if (actionType === 0) {
