@@ -1,0 +1,95 @@
+{
+    "CompanyId": 1,
+    "CompanyTxId": "16.499.665/0001-21",
+    "ActionType": 1,
+    "Contract": {
+        "Number": "1506",
+        "Description": "Contrato 1506 - PAPELARIA ARCO IRIS EIRELI ",
+        "BeginContractVigency": "2021-10-07",
+        "EndContractVigency": "2026-10-07",
+        "BillingBeginningDate": "2021-12-01",
+        "BillingFinalDate": "2026-10-07",
+        "MonthDuration": 61,
+        "CollectionDay": 15,
+        "Amount": 490,
+        "NextAdjust": "2026-10-07",
+        "Status": {
+            "Code": 1,
+            "Description": "Normal"
+        },
+        "Stage": {
+            "Code": 3,
+            "Description": "Aprovado"
+        },
+        "Client": {
+            "Id": 2858,
+            "Name": "PAPELARIA ARCO IRIS EIRELI",
+            "TxId": "07648813000131"
+        },
+        "Address": {
+            "Street": "Rua Padre Nestor Sampaio",
+            "Number": "80",
+            "Neighborhood": "Ponto Novo",
+            "PostalCode": "49045-000",
+            "City": "Aracaju",
+            "CityCode": 2800308,
+            "State": "SE"
+        },
+        "CompanyPlace": {
+            "Id": 1,
+            "TxId": "16.499.665/0001-21",
+            "Code": "001",
+            "Description": "Marvitel Telecomunicações Ltda"
+        },
+        "ContractType": {
+            "Id": 2,
+            "Code": "2.01",
+            "Description": ""
+        },
+        "PaymentForm": {
+            "Id": 2,
+            "Code": "2.01",
+            "Description": "Dia Especifico 1"
+        },
+        "FinancialCollectionType": {
+            "Id": 33,
+            "Code": "33",
+            "Description": "Banco do Brasil - Boleto/Finee (Preferencial)"
+        },
+        "Seller": {
+            "Id": 2085,
+            "Name": "ALCIDES NUNES DE OLIVEIRA TORRES"
+        },
+        "Activations": [
+            {
+                "Id": 34463
+            }
+        ],
+        "Services": [
+            {
+                "Id": 2546,
+                "ServiceCode": "01816",
+                "Description": "Link Dedicado IP Marvitel - 50Mb - 2021-24M",
+                "Units": 1,
+                "UnitAmount": 700,
+                "TotalAmount": 700
+            },
+            {
+                "Id": 3027,
+                "ServiceCode": "01816",
+                "Description": "Link Dedicado IP Marvitel - 50Mb - 2021-24M",
+                "Units": 1,
+                "UnitAmount": 490,
+                "TotalAmount": 490
+            },
+            {
+                "Id": 4292,
+                "ServiceCode": "125",
+                "Description": "Serviço Internet Dedicado 50 MEGA - SCM",
+                "Units": 1,
+                "UnitAmount": 490,
+                "TotalAmount": 490
+            }
+        ]
+    }
+}
