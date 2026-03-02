@@ -10546,6 +10546,9 @@ export async function registerRoutes(
 
     const contractNumber = contract.Number ? String(contract.Number) : null;
     const clientData = contract.Client;
+    if (clientData && clientData.Id !== undefined && clientData.ID === undefined) {
+      clientData.ID = clientData.Id;
+    }
     const statusData = contract.Status;
     const addressData = contract.Address;
 
