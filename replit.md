@@ -62,8 +62,9 @@ Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP
   1. `PersonId`/`CustomerId` → `clients.voalleCustomerId` (Connection webhooks usually don't have this)
   2. `ContractID` → `voalle_contract_clients.contractNumber` → `clientId` (populated by Contract webhooks)
   3. `ContractID` → `links.voalleContractNumber` → `clientId` (existing links)
-  4. Single active client fallback (only if exactly 1 client exists)
-  5. If no client determined → **skip creation**, log to audit_logs
+  4. **Retry with 3s delay** if ContractID present but no match (race condition: contract webhook may still be processing)
+  5. Single active client fallback (only if exactly 1 client exists)
+  6. If no client determined → **skip creation**, log to audit_logs
 - **Field Normalization**: `normalizeAuthFields()` handles case differences (e.g., Voalle sends `ContractId` lowercase, code uses `ContractID`)
 - **AccessPoint Handling**: Only stored as `voalleAccessPointId` if numeric; text values are logged but not stored
 - **Connection Webhook without Login**: If no `Login` field, tries to infer from ContractID: if exactly 1 link exists for that contract → processes normally; if multiple links → skips (cannot identify which); if no links or no ContractID → skips. All cases logged to audit_logs.

@@ -10312,6 +10312,19 @@ export async function registerRoutes(
         }
       }
 
+      if (!clientId && auth.ContractID) {
+        console.log(`[Webhook/Voalle] Client not found on first attempt for ContractID=${auth.ContractID}, waiting 3s for contract webhook to finish...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const retryMapping = await db.select().from(voalleContractClients)
+          .where(eq(voalleContractClients.contractNumber, String(auth.ContractID)))
+          .limit(1);
+        if (retryMapping.length > 0) {
+          clientId = retryMapping[0].clientId;
+          console.log(`[Webhook/Voalle] Client found on retry by ContractID=${auth.ContractID} → clientId=${clientId}`);
+        }
+      }
+
       if (!clientId) {
         const totalClients = await db.select({ count: sql<number>`count(*)` }).from(clientsTable).where(eq(clientsTable.isActive, true));
         const clientCount = Number(totalClients[0]?.count || 0);
