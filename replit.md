@@ -55,9 +55,18 @@ Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP
 - **ActionType 2 (Exclusão)**: Soft-delete via `deletedAt` timestamp + `deletedReason="voalle_webhook"`. Sets `monitoringEnabled=false`.
 - **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values including Voalle codes (1=Normal, 2=Demo, 5=Suspenso, 6=Bloqueio Financeiro, 7=Bloqueio Administrativo, 4=Cancelado, 8=Encerrado).
 - **Contract Webhooks**: `processVoalleContractWebhook()` handles Contract events (payload.Contract):
-  - ActionType 0: Creates/updates client from `Contract.Client` (ID, Name, TxId), stores contract→client mapping in `voalle_contract_clients` table
+  - ActionType 0: Creates/updates client from `Contract.Client` (ID, Name, TxId), stores contract→client mapping in `voalle_contract_clients` table, then auto-enriches via Portal API + OZmap
   - ActionType 1: Updates client data and contract status on linked links
   - ActionType 2: Soft-deletes all links associated with the contract
+- **Auto-Enrichment on New Client** (`enrichNewClientFromPortalAndOzmap`): When a contract webhook (ActionType 0) creates a new client with CPF/CNPJ (TxId):
+  1. Validates CPF/CNPJ as Portal credentials via `validatePortalCredentials(cnpj, cnpj)`
+  2. Saves `voallePortalUsername`/`voallePortalPassword` and real `voalleCustomerId` on client
+  3. Fetches all active connections via `getContractTags()` (Portal API `/api/people/{id}/authentications`)
+  4. For each connection: creates a link with full data (pppoeUser, IP, slot, port, serial, address, bandwidth, serviceTag, etc.) or enriches existing link
+  5. For each link with serviceTag: queries OZmap potency API for fiber route data (splitter, distance, arriving potency, OLT)
+  6. When connection webhook arrives later, it only complements existing data (no duplicate creation)
+  - Non-blocking: errors in enrichment don't affect webhook response
+  - **Files**: `server/routes.ts` (`enrichNewClientFromPortalAndOzmap`, `enrichLinkWithOzmapData`)
 - **Client Resolution Chain** (Connection ActionType 0, creation):
   1. `PersonId`/`CustomerId` → `clients.voalleCustomerId` (Connection webhooks usually don't have this)
   2. `ContractID` → `voalle_contract_clients.contractNumber` → `clientId` (populated by Contract webhooks)

@@ -49,6 +49,7 @@ import {
   cpes,
   linkCpes,
   voalleContractClients,
+  externalIntegrations,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
@@ -10534,6 +10535,382 @@ export async function registerRoutes(
   }
 
   // ==========================================
+  // Voalle Webhook - Auto-Enrichment on New Client
+  // ==========================================
+
+  async function enrichNewClientFromPortalAndOzmap(
+    clientId: number,
+    clientData: any,
+    contractNumber: string,
+    contract: any,
+    req: Request
+  ): Promise<void> {
+    const cnpj = clientData.TxId ? String(clientData.TxId).replace(/\D/g, '') : null;
+    if (!cnpj) {
+      console.log(`[Webhook/Enrichment] Client id=${clientId}: no CPF/CNPJ available, skipping enrichment`);
+      return;
+    }
+
+    console.log(`[Webhook/Enrichment] Starting auto-enrichment for client id=${clientId} name="${clientData.Name}" CPF/CNPJ=${cnpj}`);
+
+    const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+    if (!voalleIntegration || !voalleIntegration.isActive) {
+      console.log(`[Webhook/Enrichment] Voalle ERP integration not configured or inactive, skipping`);
+      return;
+    }
+
+    const adapter = configureErpAdapter(voalleIntegration) as any;
+    if (!adapter || !adapter.validatePortalCredentials) {
+      console.log(`[Webhook/Enrichment] Voalle adapter not available, skipping`);
+      return;
+    }
+
+    const validation = await adapter.validatePortalCredentials(cnpj, cnpj);
+    if (!validation.success) {
+      console.log(`[Webhook/Enrichment] Portal credentials invalid for CPF/CNPJ ${cnpj}: ${validation.message}`);
+      await logAuditEvent({
+        action: "update",
+        entity: "client",
+        entityId: clientId,
+        entityName: String(clientData.Name),
+        clientId,
+        metadata: { source: "voalle_webhook_enrichment", step: "validate_credentials", cnpj, result: "invalid" },
+        request: req,
+      });
+      return;
+    }
+
+    console.log(`[Webhook/Enrichment] Portal credentials valid for ${cnpj}, personId=${validation.person?.id}`);
+
+    const clientUpdates: Record<string, any> = {
+      voallePortalUsername: cnpj,
+      voallePortalPassword: encrypt(cnpj),
+    };
+    if (validation.person?.id) {
+      clientUpdates.voalleCustomerId = validation.person.id;
+    }
+    await db.update(clientsTable).set(clientUpdates).where(eq(clientsTable.id, clientId));
+
+    await logAuditEvent({
+      action: "update",
+      entity: "client",
+      entityId: clientId,
+      entityName: String(clientData.Name),
+      clientId,
+      current: { voallePortalUsername: cnpj, voalleCustomerId: validation.person?.id },
+      metadata: { source: "voalle_webhook_enrichment", step: "credentials_saved" },
+      request: req,
+    });
+
+    let tags: any[] = [];
+    try {
+      tags = await adapter.getContractTags({
+        voalleCustomerId: String(validation.person?.id || clientData.ID),
+        cnpj,
+        portalUsername: cnpj,
+        portalPassword: cnpj,
+      });
+    } catch (tagErr: any) {
+      console.error(`[Webhook/Enrichment] Error fetching contract tags:`, tagErr.message);
+      return;
+    }
+
+    if (!tags || tags.length === 0) {
+      console.log(`[Webhook/Enrichment] No active connections found for client id=${clientId}`);
+      return;
+    }
+
+    console.log(`[Webhook/Enrichment] Found ${tags.length} active connection(s) for client id=${clientId}`);
+
+    const contractTags = tags.filter(t => t.contractNumber === contractNumber);
+    const tagsToProcess = contractTags.length > 0 ? contractTags : tags;
+
+    if (contractTags.length === 0) {
+      console.log(`[Webhook/Enrichment] No connections match contract #${contractNumber}, processing all ${tags.length} connections`);
+    } else {
+      console.log(`[Webhook/Enrichment] ${contractTags.length} connection(s) match contract #${contractNumber}`);
+    }
+
+    let createdCount = 0;
+    let enrichedCount = 0;
+
+    for (const tag of tagsToProcess) {
+      const existingByTag = tag.serviceTag ? await db.select().from(links)
+        .where(eq(links.voalleContractTagServiceTag, String(tag.serviceTag)))
+        .limit(1) : [];
+
+      const existingByPppoe = tag.pppoeUser && existingByTag.length === 0 ? await db.select().from(links)
+        .where(eq(links.pppoeUser, String(tag.pppoeUser)))
+        .limit(1) : [];
+
+      const existingLink = existingByTag[0] || existingByPppoe[0];
+
+      if (existingLink) {
+        const enrichUpdates: Record<string, any> = {};
+        const enrichPrevious: Record<string, any> = {};
+
+        if (tag.serviceTag && !existingLink.voalleContractTagServiceTag) {
+          enrichPrevious.voalleContractTagServiceTag = existingLink.voalleContractTagServiceTag;
+          enrichUpdates.voalleContractTagServiceTag = String(tag.serviceTag);
+        }
+        if (tag.ip && !existingLink.monitoredIp) {
+          enrichPrevious.monitoredIp = existingLink.monitoredIp;
+          enrichUpdates.monitoredIp = tag.ip;
+        }
+        if (tag.pppoeUser && !existingLink.pppoeUser) {
+          enrichPrevious.pppoeUser = existingLink.pppoeUser;
+          enrichUpdates.pppoeUser = tag.pppoeUser;
+        }
+        if (tag.pppoePassword && !existingLink.pppoePassword) {
+          enrichUpdates.pppoePassword = tag.pppoePassword;
+        }
+        if (tag.bandwidth && (!existingLink.bandwidth || existingLink.bandwidth === 0)) {
+          enrichPrevious.bandwidth = existingLink.bandwidth;
+          enrichUpdates.bandwidth = tag.bandwidth;
+        }
+        if (tag.slotOlt != null && existingLink.slotOlt == null) {
+          enrichUpdates.slotOlt = tag.slotOlt;
+        }
+        if (tag.portOlt != null && existingLink.portOlt == null) {
+          enrichUpdates.portOlt = tag.portOlt;
+        }
+        if (tag.equipmentSerialNumber && !existingLink.equipmentSerialNumber) {
+          enrichUpdates.equipmentSerialNumber = tag.equipmentSerialNumber;
+        }
+        if (tag.address && (existingLink.address === "Pendente" || !existingLink.address)) {
+          enrichPrevious.address = existingLink.address;
+          enrichUpdates.address = tag.address;
+        }
+        if (tag.location && (existingLink.location === "Pendente" || !existingLink.location)) {
+          enrichPrevious.location = existingLink.location;
+          enrichUpdates.location = tag.location;
+        }
+        if (tag.contractNumber && !existingLink.voalleContractNumber) {
+          enrichUpdates.voalleContractNumber = String(tag.contractNumber);
+        }
+        if (tag.wifiName && !existingLink.wifiName) {
+          enrichUpdates.wifiName = tag.wifiName;
+        }
+        if (tag.wifiPassword && !existingLink.wifiPassword) {
+          enrichUpdates.wifiPassword = tag.wifiPassword;
+        }
+        if (tag.ipBlock && !existingLink.ipBlock) {
+          enrichUpdates.ipBlock = tag.ipBlock;
+        }
+        if (tag.connectionId && !existingLink.voalleConnectionId) {
+          enrichUpdates.voalleConnectionId = tag.connectionId;
+        }
+
+        if (Object.keys(enrichUpdates).length > 0) {
+          await db.update(links).set(enrichUpdates).where(eq(links.id, existingLink.id));
+          await logAuditEvent({
+            action: "update",
+            entity: "link",
+            entityId: existingLink.id,
+            entityName: existingLink.name,
+            clientId,
+            previous: enrichPrevious,
+            current: enrichUpdates,
+            metadata: { source: "voalle_webhook_enrichment", step: "enrich_existing_link", serviceTag: tag.serviceTag },
+            request: req,
+          });
+          enrichedCount++;
+          console.log(`[Webhook/Enrichment] Enriched existing link id=${existingLink.id}: ${Object.keys(enrichUpdates).join(', ')}`);
+        }
+        continue;
+      }
+
+      const linkName = tag.description || tag.pppoeUser || `${clientData.Name} - ${tag.serviceTag || contractNumber}`;
+      const identifier = tag.serviceTag ? `VL-${tag.serviceTag}` : `VL-${contractNumber}-${tag.id || Date.now()}`;
+      const serviceDesc = tag.description || null;
+      const parsedBandwidth = serviceDesc ? parseBandwidthFromDescription(serviceDesc) : (tag.bandwidth || null);
+
+      try {
+        const [newLink] = await db.insert(links).values({
+          clientId,
+          identifier,
+          name: linkName,
+          location: tag.location || "Pendente",
+          address: tag.address || "Pendente",
+          ipBlock: tag.ipBlock || "0.0.0.0/0",
+          totalIps: 1,
+          usableIps: 1,
+          bandwidth: parsedBandwidth || tag.bandwidth || 0,
+          status: "unknown",
+          monitoringEnabled: false,
+          pppoeUser: tag.pppoeUser || null,
+          monitoredIp: tag.ip || null,
+          voalleContractNumber: tag.contractNumber ? String(tag.contractNumber) : contractNumber,
+          voalleContractTagServiceTag: tag.serviceTag ? String(tag.serviceTag) : null,
+          voalleContractTagId: tag.id || null,
+          voalleConnectionId: tag.connectionId || null,
+          voalleAccessPointId: tag.oltId || null,
+          slotOlt: tag.slotOlt != null ? tag.slotOlt : null,
+          portOlt: tag.portOlt != null ? tag.portOlt : null,
+          equipmentSerialNumber: tag.equipmentSerialNumber || null,
+          voalleServiceDescription: serviceDesc,
+          pppoePassword: tag.pppoePassword || null,
+          wifiName: tag.wifiName || null,
+          wifiPassword: tag.wifiPassword || null,
+          contractStatus: "active",
+          contractStatusUpdatedAt: new Date(),
+        }).returning();
+
+        createdCount++;
+        console.log(`[Webhook/Enrichment] Created link id=${newLink.id} name="${newLink.name}" serviceTag=${tag.serviceTag} pppoe=${tag.pppoeUser} ip=${tag.ip}`);
+
+        await logAuditEvent({
+          action: "create",
+          entity: "link",
+          entityId: newLink.id,
+          entityName: newLink.name,
+          clientId,
+          current: {
+            identifier, pppoeUser: tag.pppoeUser, monitoredIp: tag.ip,
+            serviceTag: tag.serviceTag, bandwidth: parsedBandwidth || tag.bandwidth,
+            slotOlt: tag.slotOlt, portOlt: tag.portOlt,
+          },
+          metadata: { source: "voalle_webhook_enrichment", step: "create_link_from_portal", contractNumber },
+          request: req,
+        });
+
+        if (tag.serviceTag) {
+          try {
+            await enrichLinkWithOzmapData(newLink.id, String(tag.serviceTag), newLink.name);
+          } catch (ozmapErr: any) {
+            console.log(`[Webhook/Enrichment] OZmap enrichment failed for link id=${newLink.id}: ${ozmapErr.message}`);
+          }
+        }
+      } catch (linkErr: any) {
+        console.error(`[Webhook/Enrichment] Error creating link for tag ${tag.serviceTag}:`, linkErr.message);
+      }
+    }
+
+    console.log(`[Webhook/Enrichment] Completed for client id=${clientId}: ${createdCount} links created, ${enrichedCount} links enriched`);
+  }
+
+  async function enrichLinkWithOzmapData(linkId: number, serviceTag: string, linkName: string): Promise<void> {
+    const ozmapIntegrations = await db
+      .select()
+      .from(externalIntegrations)
+      .where(eq(externalIntegrations.provider, "ozmap"))
+      .limit(1);
+
+    if (ozmapIntegrations.length === 0 || !ozmapIntegrations[0].apiKey || !ozmapIntegrations[0].apiUrl || !ozmapIntegrations[0].isActive) {
+      console.log(`[Webhook/Enrichment/OZmap] Integration not configured, skipping`);
+      return;
+    }
+
+    const ozmapConfig = ozmapIntegrations[0];
+    let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    if (baseUrl.endsWith("/api/v2")) {
+      baseUrl = baseUrl.slice(0, -7);
+    }
+
+    const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(serviceTag)}/potency?locale=pt_BR`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "Authorization": ozmapConfig.apiKey!,
+      },
+    });
+
+    if (!response.ok) {
+      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" not found (HTTP ${response.status})`);
+      return;
+    }
+
+    const data = await response.json() as any[];
+    if (!Array.isArray(data) || data.length === 0) {
+      console.log(`[Webhook/Enrichment/OZmap] No potency data for tag "${serviceTag}"`);
+      return;
+    }
+
+    const potencyItem = data[0];
+    let splitterName: string | null = null;
+    let splitterPort: string | null = null;
+    let oltName: string | null = null;
+    let oltSlot: number | null = null;
+    let oltPort: number | null = null;
+
+    if (potencyItem.elements && Array.isArray(potencyItem.elements)) {
+      for (const elem of potencyItem.elements) {
+        if (elem.element?.kind === 'Splitter') {
+          splitterName = elem.parent?.name || elem.element?.name || null;
+          const portData = elem.element?.port;
+          if (portData !== undefined && portData !== null) {
+            if (typeof portData === 'object' && portData.number !== undefined) {
+              splitterPort = String(portData.number);
+            } else if (typeof portData === 'object' && portData.label) {
+              splitterPort = String(portData.label);
+            } else if (typeof portData !== 'object') {
+              splitterPort = String(portData);
+            }
+          } else if (elem.element?.label) {
+            splitterPort = String(elem.element.label);
+          }
+        }
+        if (elem.element?.kind === 'OLT' || elem.parent?.name?.toLowerCase()?.includes('olt')) {
+          oltName = elem.parent?.name || elem.element?.name || null;
+          const slotData = elem.element?.slot;
+          if (slotData !== undefined) {
+            if (typeof slotData === 'object' && slotData.number !== undefined) {
+              oltSlot = parseInt(String(slotData.number), 10);
+            } else if (typeof slotData !== 'object') {
+              oltSlot = parseInt(String(slotData), 10);
+            }
+          }
+          const portData = elem.element?.port;
+          if (portData !== undefined) {
+            if (typeof portData === 'object' && portData.number !== undefined) {
+              oltPort = parseInt(String(portData.number), 10);
+            } else if (typeof portData !== 'object') {
+              oltPort = parseInt(String(portData), 10);
+            }
+          }
+        }
+      }
+    }
+
+    if (potencyItem.olt_name) oltName = potencyItem.olt_name;
+    if (potencyItem.slot !== undefined) {
+      if (typeof potencyItem.slot === 'object' && potencyItem.slot?.number !== undefined) {
+        oltSlot = parseInt(String(potencyItem.slot.number), 10);
+      } else if (typeof potencyItem.slot !== 'object') {
+        oltSlot = parseInt(String(potencyItem.slot), 10);
+      }
+    }
+    if (potencyItem.port !== undefined) {
+      if (typeof potencyItem.port === 'object' && potencyItem.port?.number !== undefined) {
+        oltPort = parseInt(String(potencyItem.port.number), 10);
+      } else if (typeof potencyItem.port !== 'object') {
+        oltPort = parseInt(String(potencyItem.port), 10);
+      }
+    }
+
+    const ozmapUpdate: Record<string, any> = {
+      ozmapDistance: potencyItem.distance || null,
+      ozmapArrivingPotency: potencyItem.arriving_potency || null,
+      ozmapAttenuation: potencyItem.attenuation || null,
+      ozmapPonReached: potencyItem.pon_reached || false,
+      ozmapLastSync: new Date(),
+    };
+
+    if (splitterName) ozmapUpdate.ozmapSplitterName = splitterName;
+    if (splitterPort) ozmapUpdate.ozmapSplitterPort = splitterPort;
+    if (oltName) ozmapUpdate.ozmapOltName = oltName;
+    if (oltSlot !== null) ozmapUpdate.ozmapSlot = oltSlot;
+    if (oltPort !== null) ozmapUpdate.ozmapPort = oltPort;
+    if (potencyItem.arriving_potency !== undefined && potencyItem.arriving_potency !== null) {
+      ozmapUpdate.opticalRxBaseline = potencyItem.arriving_potency;
+    }
+
+    await db.update(links).set(ozmapUpdate).where(eq(links.id, linkId));
+    console.log(`[Webhook/Enrichment/OZmap] Link id=${linkId} "${linkName}": potency=${potencyItem.arriving_potency}, distance=${potencyItem.distance}, splitter=${splitterName}, OLT=${oltName}`);
+  }
+
+  // ==========================================
   // Voalle Webhook - Contract Processing
   // ==========================================
 
@@ -10679,6 +11056,14 @@ export async function registerRoutes(
       const allServices = (contract.Services && Array.isArray(contract.Services)) ? contract.Services : [];
       if (allServices.length > 0) {
         console.log(`[Webhook/Voalle] Contract #${contractNumber} has ${allServices.length} services: ${allServices.map((s: any) => `${s.ServiceCode || s.Id}="${s.Description}"`).join(', ')}`);
+      }
+
+      if (actionType === 0 && clientId && clientData?.TxId && contractNumber) {
+        try {
+          await enrichNewClientFromPortalAndOzmap(clientId, clientData, contractNumber, contract, req);
+        } catch (enrichErr: any) {
+          console.error(`[Webhook/Voalle] Enrichment error (non-blocking):`, enrichErr.message);
+        }
       }
 
       if (contractNumber) {
