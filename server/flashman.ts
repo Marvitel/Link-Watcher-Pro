@@ -1348,3 +1348,52 @@ export function formatFlashmanDeviceInfo(device: FlashmanDeviceInfo) {
     } : null,
   };
 }
+
+export async function queryFlashmanOpticalMetrics(
+  serialNumber: string,
+  pppoeUser?: string | null,
+): Promise<{ rxPower: number | null; txPower: number | null } | null> {
+  const config = await getFlashmanGlobalConfig();
+  if (!config) return null;
+
+  let device: any = null;
+
+  if (serialNumber && serialNumber.trim()) {
+    const normalizedSerial = serialNumber.toUpperCase().trim();
+    device = await getDeviceBySerialPon(config, normalizedSerial);
+    if (!device) {
+      const mac = await getDeviceBySerial(config, normalizedSerial);
+      if (mac) {
+        device = await getDeviceByMac(config, mac);
+      }
+    }
+  }
+
+  if (!device && pppoeUser) {
+    const normalizedPppoe = pppoeUser.trim();
+    try {
+      const result = await flashmanFetch(config, `/api/v3/device/pppoe-username/${encodeURIComponent(normalizedPppoe)}/`);
+      if (result?.success !== false && result?.device) {
+        device = result.device;
+      }
+    } catch (e: any) {
+      console.log(`[Flashman] Optical lookup by PPPoE "${normalizedPppoe}" failed: ${e?.message || "unknown error"}`);
+    }
+  }
+
+  if (!device) return null;
+
+  const parseOpticalValue = (val: any): number | null => {
+    if (val === undefined || val === null || val === "" || val === "N/A") return null;
+    const num = parseFloat(String(val));
+    if (isNaN(num)) return null;
+    return num;
+  };
+
+  const rxPower = parseOpticalValue(device.pon_rxpower);
+  const txPower = parseOpticalValue(device.pon_txpower);
+
+  if (rxPower === null && txPower === null) return null;
+
+  return { rxPower, txPower };
+}

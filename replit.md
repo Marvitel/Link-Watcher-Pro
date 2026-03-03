@@ -1,7 +1,7 @@
-# Link Monitor - Sistema de Monitoramento de Links de Internet
+# Link Monitor
 
 ## Overview
-The Link Monitor is a multi-tenant SaaS application by Marvitel Telecomunicações for real-time monitoring of dedicated fiber optic internet links. It tracks SLA/ANS compliance, detects DDoS attacks, and manages incidents for Marvitel's clients. This full-stack TypeScript application uses React, Express, and PostgreSQL, providing a robust and scalable solution for network performance and security monitoring with a focus on business vision, market potential, and project ambitions.
+The Link Monitor is a multi-tenant SaaS application developed by Marvitel Telecomunicações for real-time monitoring of dedicated fiber optic internet links. Its primary purpose is to ensure SLA/ANS compliance, detect DDoS attacks, and manage incidents for Marvitel's clients. This full-stack TypeScript application aims to provide a robust and scalable solution for network performance and security monitoring, focusing on Marvitel's business vision, market potential, and project ambitions within the telecommunications sector.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Portuguese).
@@ -18,121 +18,72 @@ Preferred communication style: Simple, everyday language (Portuguese).
 ## System Architecture
 
 ### Multi-Tenant & Security
-The system features a multi-tenant architecture with data isolation per `clientId`, RBAC for access control, and a Super Admin role. Critical data tables include `clientId` for partitioning. Authentication is localStorage-based using a React context and Express sessions. A dual-port architecture allows separate public and restricted admin portals, with optional IP whitelisting for the admin port. An application firewall (`firewallSettings`, `firewallWhitelist`) provides whitelist-based access control for administrative areas and SSH.
+The system is built on a multi-tenant architecture ensuring data isolation per client (`clientId`), with role-based access control (RBAC) and a Super Admin role. Authentication is handled via localStorage and Express sessions. A dual-port design separates public and restricted admin portals, with optional IP whitelisting and an application firewall for enhanced security.
 
 ### Frontend
-Built with React 18 and TypeScript, the frontend uses Wouter for routing, TanStack Query for real-time data polling, and shadcn/ui (Radix UI-based) for components. Styling is managed with Tailwind CSS, supporting light/dark modes and custom theming. Recharts is used for data visualization (bandwidth, latency), inspired by Material Design 3 and Grafana. Kiosk mode (`?kiosk=true`) supports 24/7 display screens with silent auto-reload and session persistence.
+Developed with React 18 and TypeScript, the frontend uses Wouter for routing, TanStack Query for real-time data polling, and shadcn/ui (Radix UI-based) for components. Styling is managed with Tailwind CSS, supporting light/dark modes and custom theming. Recharts is used for data visualization (bandwidth, latency), inspired by Material Design 3 and Grafana. A kiosk mode is available for 24/7 displays with auto-reload and session persistence.
 
 ### Backend
-The backend leverages Node.js with Express and TypeScript (ESM modules), exposing RESTful API endpoints under `/api/*`. `esbuild` handles production bundling.
+The backend utilizes Node.js with Express and TypeScript (ESM modules), providing RESTful API endpoints. `esbuild` is used for production bundling.
 
 ### Data Layer
-PostgreSQL serves as the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. The shared schema defines core tables for clients, users, links, hosts, metrics, events, DDoS events, incidents, client settings, and RBAC. Data retention is set to 6 months with automatic cleanup. An `audit_logs` table tracks all system events, masking sensitive data.
+PostgreSQL serves as the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. Core tables define clients, users, links, hosts, metrics, events, DDoS events, incidents, client settings, and RBAC. Data retention is 6 months with automatic cleanup, and an `audit_logs` table tracks system events while masking sensitive data.
 
 ### Monorepo Structure & Design Patterns
-The project is organized as a monorepo (`client/`, `server/`, `shared/`) using path aliases. It includes features like bandwidth direction inversion, versioning with auto-reload for frontend updates, and a system for simulating real-time network metrics every 5 seconds.
+The project employs a monorepo structure (`client/`, `server/`, `shared/`) with path aliases. Key features include bandwidth direction inversion, versioning with auto-reload for frontend updates, and a system for simulating real-time network metrics.
 
 ### SNMP Traffic Collection
-Supports three traffic data sources (`trafficSourceType`): Manual (IP), Concentrator, and Access Point (Switch/PE). Metrics are collected from additional interfaces (`linkTrafficInterfaces`) in parallel with main link metrics, with per-minute timestamp alignment.
+The system supports multiple traffic data sources (Manual IP, Concentrator, Access Point) and collects metrics from additional interfaces parallel to main link metrics, ensuring per-minute timestamp alignment.
 
 ### Concentrator Integration
-Integrates with Cisco ASR/ISR routers for PPPoE concentrator functions, including interface discovery via `ipCidrRouteIfIndex` and PPPoE username retrieval via `ifAlias`. It handles MAC address limitations on Cisco concentrators and collects ONU ID via OLT when configured. For corporate links (`authType='corporate'`), it uses VLAN interface detection and ARP table IP discovery via SNMP, supporting backup concentrator failover and vendor auto-detection.
+Integration with Cisco ASR/ISR routers supports PPPoE concentrator functions, including interface discovery and PPPoE username retrieval. It handles MAC address limitations, collects ONU ID via OLT, and supports vendor auto-detection for corporate links with backup concentrator failover.
 
 ### Optical Signal Monitoring
-Provides per-link optical signal monitoring with OLT vendor-specific OID configurations (Huawei, ZTE, Fiberhome, Nokia, Datacom), including fallback to Zabbix MySQL for OLT RX data. It defines thresholds for normal, warning, and critical signal levels and detects optical signal deltas. For Cisco Nexus, it automatically discovers SFP optical sensors via SNMP.
+Per-link optical signal monitoring is provided through a cascading fallback mechanism:
+1.  **OLT via SNMP** (primary)
+2.  **Zabbix MySQL** (fallback)
+3.  **Flashman ACS** (fallback for neutral networks)
+This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) and defines thresholds for signal levels, detecting optical signal deltas. Cisco Nexus SFP optical sensors are automatically discovered.
 
 ### CPE Command Library
-Offers pre-configured command templates for CPE devices, categorized by manufacturer/model. It includes `cpeCommandTemplates`, `cpeCommandHistory`, and `diagnosticTargets` tables. Templates support placeholders for dynamic substitution and are copied to the clipboard for analyst review.
+A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
 
 ### SLA Monitoring
-Monitors for SLA compliance against targets: Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours). Links with `contractStatus="blocked"` or `"cancelled"` are excluded from SLA calculations.
+The system monitors SLA compliance for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours), excluding links with `contractStatus="blocked"` or `"cancelled"`.
 
 ### Voalle Webhook Processing
-Endpoint `POST /api/webhooks/voalle` processes connection events from Voalle ERP:
-- **ActionType 0 (Inclusão)**: Creates new link or enriches existing one. Matching chain: `(voalleServiceId+voalleContractNumber)` → `voalleContractNumber` → `voalleContractTagServiceTag` → `voalleServiceId` → `pppoeUser`. New links created with `monitoringEnabled=false`.
-- **IMPORTANTE - ServiceId vs ConnectionId**: O campo `ServiceId` do webhook Voalle é o **código do serviço/produto** (ex: 3267 = "Internet Marvitel Fibra 2Giga - MAIKAI"), NÃO o código da conexão. O código da conexão (ex: 2846) NÃO vem no payload do webhook. Campos separados no schema: `voalleServiceId` (código do serviço, do webhook) vs `voalleConnectionId` (código da conexão, da API Portal).
-- **ActionType 1 (Alteração)**: Updates existing link fields (pppoeUser, contractStatus, etc.). Logs diff in audit_logs.
-- **ActionType 2 (Exclusão)**: Soft-delete via `deletedAt` timestamp + `deletedReason="voalle_webhook"`. Sets `monitoringEnabled=false`.
-- **Contract Status**: `contractStatus` field (active/blocked/cancelled/unknown) mapped from Voalle status. `mapVoalleStatus()` handles Portuguese/English/numeric status values including Voalle codes (1=Normal, 2=Demo, 5=Suspenso, 6=Bloqueio Financeiro, 7=Bloqueio Administrativo, 4=Cancelado, 8=Encerrado).
-- **Contract Webhooks**: `processVoalleContractWebhook()` handles Contract events (payload.Contract):
-  - ActionType 0: Creates/updates client from `Contract.Client` (ID, Name, TxId), stores contract→client mapping in `voalle_contract_clients` table, then auto-enriches via Portal API + OZmap
-  - ActionType 1: Updates client data and contract status on linked links
-  - ActionType 2: Soft-deletes all links associated with the contract
-- **Auto-Enrichment on New Client** (`enrichNewClientFromPortalAndOzmap`): When a contract webhook (ActionType 0) creates a new client with CPF/CNPJ (TxId):
-  1. Validates CPF/CNPJ as Portal credentials via `validatePortalCredentials(cnpj, cnpj)`
-  2. Saves `voallePortalUsername`/`voallePortalPassword` and real `voalleCustomerId` on client
-  3. Fetches all active connections via `getContractTags()` (Portal API `/api/people/{id}/authentications`)
-  4. For each connection: creates a link with full data (pppoeUser, IP, slot, port, serial, address, bandwidth, serviceTag, etc.) or enriches existing link
-  5. For each link with serviceTag: queries OZmap potency API for fiber route data (splitter, distance, arriving potency, OLT)
-  6. When connection webhook arrives later, it only complements existing data (no duplicate creation)
-  - Non-blocking: errors in enrichment don't affect webhook response
-  - **Files**: `server/routes.ts` (`enrichNewClientFromPortalAndOzmap`, `enrichLinkWithOzmapData`)
-- **Client Resolution Chain** (Connection ActionType 0, creation):
-  1. `PersonId`/`CustomerId` → `clients.voalleCustomerId` (Connection webhooks usually don't have this)
-  2. `ContractID` → `voalle_contract_clients.contractNumber` → `clientId` (populated by Contract webhooks)
-  3. `ContractID` → `links.voalleContractNumber` → `clientId` (existing links)
-  4. **Retry with 3s delay** if ContractID present but no match (race condition: contract webhook may still be processing)
-  5. Single active client fallback (only if exactly 1 client exists)
-  6. If no client determined → **skip creation**, log to audit_logs
-- **Field Normalization**: `normalizeAuthFields()` handles case differences (e.g., Voalle sends `ContractId` lowercase, code uses `ContractID`)
-- **AccessPoint Handling**: Only stored as `voalleAccessPointId` if numeric; text values are logged but not stored
-- **Connection Webhook without Login**: If no `Login` field, tries to infer from ContractID: if exactly 1 link exists for that contract → processes normally; if multiple links → skips (cannot identify which); if no links or no ContractID → skips. All cases logged to audit_logs.
-- **ServiceDescription Processing**: `parseBandwidthFromDescription()` extracts bandwidth from Voalle service descriptions (e.g., "MARVITEL-FIBRA-700Mbps - SCM" → 700, "50 MEGA" → 50, "1Gbps" → 1000). Updates `voalleServiceDescription` field and `bandwidth` on both Connection and Contract webhooks.
-- **Contract Webhook Service Matching**: When contract has multiple `Services[]`, does NOT blindly take the last one. Instead: if 1 service → uses it; if multiple → matches by `link.voalleServiceId` against `Services[].Id`/`ServiceCode`, then by `link.voalleServiceDescription` against `Services[].Description`; if no match → skips service/bandwidth update to avoid applying wrong service to wrong link.
-- **Contract Webhook Client Validation**: Three-tier client resolution for mismatch protection: 1) `Client.ID` → `clients.voalleCustomerId`; 2) `contractNumber` → `voalle_contract_clients` mapping table; 3) `Client.Name` → case-insensitive name match. If client cannot be resolved at all → skips ALL link updates (safety). If resolved but doesn't match link's clientId → clears incorrect `voalleContractNumber` from link.
-- **Monitoring Behavior**: 
-  - `deletedAt` set → excluded from monitoring entirely
-  - `contractStatus="blocked"` → metrics collected but NO events/incidents/SLA impact
-  - `contractStatus="active"` → normal monitoring
-- **Files**: `server/routes.ts` (webhook handler + `processVoalleConnectionWebhook` + `processVoalleContractWebhook`), `server/monitoring.ts` (filtering), `server/storage.ts` (getLinks filter), `shared/schema.ts` (`voalleContractClients` table)
+The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP. This includes creating/updating/soft-deleting links, mapping contract statuses, and enriching client and link data through integration with Portal and OZmap APIs. It handles client resolution, field normalization, and service description parsing to extract bandwidth information. Monitoring behavior is adjusted based on link status (deleted, blocked, active).
 
 ### Link Groups
-Supports grouping links with different profiles for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
+The system supports grouping links for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
 
 ### Batch Link Diagnostics & Enrichment
-Admin tab "Diagnóstico de Links" analyzes all links and provides batch enrichment tools:
-- **Categories**: missingVoalleLogin, missingIp, missingConcentrator, missingInterface, missingOptical, missingOnuId, missingOltAssignment, missingCpe, missingOzmapData, missingPppoeUser, missingSnmpProfile, missingVoalleTag, missingCoordinates
-- **Enrichment Actions**:
-  - `discover_voalle_login`: Validates Portal Voalle access using CPF/CNPJ as username/password, updates client `voallePortalUsername`/`voallePortalPassword`
-  - `discover_ips`: Searches RADIUS DB for framed IP address by PPPoE username
-  - `discover_mac`: Searches RADIUS DB for MAC (Calling-Station-Id) by PPPoE username
-  - `discover_voalle`: Fetches contract tags from Voalle Portal API, fills pppoeUser, monitoredIp, slotOlt, portOlt, serial, etc.
-  - `assign_concentrators`: Matches links to concentrators using Voalle concentrator IDs (`snmpConcentrators.voalleIds`)
-  - `assign_olts`: Matches links to OLTs/Switches using Voalle access point IDs (`olts.voalleIds`, `switches.voalleIds`)
-  - `discover_interfaces`: SNMP ifIndex discovery for links with IP but no interface
-  - `sync_ozmap`: Fetches OZmap potency/route data using service tags
-  - `discover_onu_ids`: Batch ONU ID discovery via OLT CLI (SSH/Telnet) using equipment serial number, groups by OLT with delays
-  - `create_cpes`: Auto-creates CPE entries and link associations for links with monitoring IP
-  - `discover_all`: Runs all actions in sequence
-- **Progress tracking**: `skipped` (no data available) vs `failed` (actual errors) vs `success`
-- **RADIUS connection test** before bulk operations to detect DB issues early
-- **Key fix**: `RadiusDbSession.framedIpAddress` (camelCase) - not `framedipaddress`
-- **Files**: `server/routes.ts` (endpoints), `client/src/components/admin/link-diagnostics-tab.tsx` (UI)
+An admin tool provides batch diagnostics and enrichment for links, categorizing missing data (e.g., `missingVoalleLogin`, `missingIp`, `missingOzmapData`) and offering actions like `discover_voalle_login`, `discover_ips`, `assign_concentrators`, and `sync_ozmap`. It includes progress tracking and a RADIUS connection test.
 
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary data store.
+-   **PostgreSQL**: Primary data store.
 
 ### Third-Party Integrations
-- **Wanguard (Andrisoft)**: DDoS detection and mitigation via REST API.
-- **HetrixTools**: IP/CIDR blacklist monitoring.
-- **Voalle ERP**: Dual API integration for ticket/incident management, contract tags, client authentication/auto-registration, and bulk CSV import of link data. CSV correlation chain: conexoes.csv "Código da conexão" → authentication_contracts.csv "id" → "service_tag_id" → contract_service_tags.csv "id". "Tipo de Conexão" column (1=PPPoE, 2=Corporate, 4=Corporate) is the priority rule for Golden Rule filter and authType.
-- **OZmap**: Fiber optic route tracking integration for potency/route data.
-- **FreeRADIUS PostgreSQL**: Used for MAC address lookup when SNMP/API methods fail, querying the `radacct` table.
-- **Mikrotik API**: Used for MAC discovery in PPPoE sessions via binary API (port 8728).
+-   **Wanguard (Andrisoft)**: DDoS detection and mitigation.
+-   **HetrixTools**: IP/CIDR blacklist monitoring.
+-   **Voalle ERP**: For ticket/incident management, contract tags, client authentication/auto-registration, and bulk data import.
+-   **OZmap**: Fiber optic route tracking and potency data.
+-   **FreeRADIUS PostgreSQL**: Used for MAC address lookup.
+-   **Mikrotik API**: For MAC discovery in PPPoE sessions.
 
 ### Third-Party Libraries
-- **Radix UI**: Accessible component primitives.
-- **Recharts**: Data visualization.
-- **date-fns**: Date formatting.
-- **Zod**: Runtime type validation.
-- **class-variance-authority**: Component variant styling.
+-   **Radix UI**: Accessible component primitives.
+-   **Recharts**: Data visualization.
+-   **date-fns**: Date formatting.
+-   **Zod**: Runtime type validation.
+-   **class-variance-authority**: Component variant styling.
 
 ### Development Tools
-- **Vite**: Frontend development server.
-- **Drizzle Kit**: Database migrations.
+-   **Vite**: Frontend development server.
+-   **Drizzle Kit**: Database migrations.
 
 ### Fonts
-- **Inter**: Primary UI font.
-- **JetBrains Mono**: Monospace font.
+-   **Inter**: Primary UI font.
+-   **JetBrains Mono**: Monospace font.

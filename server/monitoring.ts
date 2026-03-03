@@ -7,6 +7,7 @@ import { eq, and, not, like, gte, isNotNull, isNull, desc, or, sql } from "drizz
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, discoverInterfaces, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
 import { lookupMultiplePppoeSessions, lookupIfIndexByIp } from "./concentrator";
+import { queryFlashmanOpticalMetrics } from "./flashman";
 import { switchSensorCache } from "@shared/schema";
 import { wanguardService } from "./wanguard";
 
@@ -2588,6 +2589,26 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
     } catch (error) {
       console.log(`[Monitor] ${link.name} - Óptico PTP: erro ${error instanceof Error ? error.message : "desconhecido"}`);
+    }
+  }
+
+  if (link.opticalMonitoringEnabled && !opticalSignal && (link.equipmentSerialNumber || link.pppoeUser)) {
+    try {
+      const searchId = link.equipmentSerialNumber || link.pppoeUser;
+      console.log(`[Monitor] ${link.name} - Óptico: tentando fallback Flashman ACS (serial=${link.equipmentSerialNumber || 'N/A'}, pppoe=${link.pppoeUser || 'N/A'})...`);
+      const flashmanMetrics = await queryFlashmanOpticalMetrics(link.equipmentSerialNumber || '', link.pppoeUser);
+      if (flashmanMetrics) {
+        opticalSignal = {
+          rxPower: flashmanMetrics.rxPower,
+          txPower: flashmanMetrics.txPower,
+          oltRxPower: null,
+        };
+        console.log(`[Monitor] ${link.name} - Óptico Flashman OK: RX=${flashmanMetrics.rxPower}dBm TX=${flashmanMetrics.txPower}dBm`);
+      } else {
+        console.log(`[Monitor] ${link.name} - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos`);
+      }
+    } catch (flashErr) {
+      console.log(`[Monitor] ${link.name} - Óptico Flashman: erro ${flashErr instanceof Error ? flashErr.message : "desconhecido"}`);
     }
   }
 
