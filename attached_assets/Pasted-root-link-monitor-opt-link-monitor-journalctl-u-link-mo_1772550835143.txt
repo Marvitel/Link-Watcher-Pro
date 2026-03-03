@@ -1,0 +1,19 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f | grep ribeiropolis
+mar 03 12:07:39 link-monitor npm[474071]: [OZmap Auto-Sync] Link mpse.ribeiropolis: Tag "NWNAN81Z" não encontrada (HTTP 422)
+mar 03 12:07:39 link-monitor npm[474071]: [OZmap Auto-Sync] Link mpse.ribeiropolis: Tag "NWNAN81Z" não encontrada (HTTP 422)
+mar 03 12:08:52 link-monitor npm[474071]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link mpse.ribeiropolis (serviceTag: NWNAN81Z)
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (Cisco Vi=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 16207660, profileId: 7
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis: SNMP traffic collection returned null. IP=191.52.248.22, ifIndex=16207660, profileId=7
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis: ifIndex 16207660 verification skipped - SNMP timeout/unreachable on 191.52.248.22. Keeping current interface settings.
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=tjse.ribeiropolis)...
+mar 03 12:10:18 link-monitor npm[474071]: [Flashman/API] GET /api/v3/device/pppoe-username/tjse.ribeiropolis/ -> 404: {"success":false,"message":"Nenhum dispositivo encontrado","device":{}}
+mar 03 12:10:18 link-monitor npm[474071]: [Flashman] Optical lookup by PPPoE "tjse.ribeiropolis" failed: Flashman API error 404: {"success":false,"message":"Nenhum dispositivo encontrado","device":{}}
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+mar 03 12:10:18 link-monitor npm[474071]: [Monitor] tjse.ribeiropolis: lat=0.0ms, loss=100.0%, status=offline
+mar 03 12:11:17 link-monitor npm[474071]: [Monitor/CPE] CPE - mpse.ribeiropolis: IP=191.52.250.109 (fonte: cpe)
+mar 03 12:11:17 link-monitor npm[474071]: [Monitor/CPE] CPE - tjse.ribeiropolis: IP=191.52.252.104 (fonte: cpe)
+mar 03 12:11:20 link-monitor npm[474071]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link mpse.ribeiropolis (serviceTag: NWNAN81Z)
+mar 03 12:11:42 link-monitor npm[474071]: [OZmap Auto-Sync] Link tjse.ribeiropolis: Tag "36DE5EFQ" não encontrada (HTTP 422)
+mar 03 12:11:43 link-monitor npm[474071]: [OZmap Auto-Sync] Link tjse.ribeiropolis: Tag "36DE5EFQ" não encontrada (HTTP 422)
+mar 03 12:12:30 link-monitor npm[474071]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link mpse.ribeiropolis (serviceTag: NWNAN81Z)
+mar 03 12:12:36 link-monitor npm[474071]: [OZmap Auto-Sync] Link mpse.ribeiropolis: Tag "NWNAN81Z" não encontrada (HTTP 422)
