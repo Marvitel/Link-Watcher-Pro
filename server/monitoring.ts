@@ -2592,9 +2592,10 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     }
   }
 
-  if (link.opticalMonitoringEnabled && !opticalSignal && (link.equipmentSerialNumber || link.pppoeUser)) {
+  const canTryFlashman = !opticalSignal && (link.equipmentSerialNumber || link.pppoeUser);
+  const shouldTryFlashman = canTryFlashman && (link.opticalMonitoringEnabled || !link.oltId);
+  if (shouldTryFlashman) {
     try {
-      const searchId = link.equipmentSerialNumber || link.pppoeUser;
       console.log(`[Monitor] ${link.name} - Óptico: tentando fallback Flashman ACS (serial=${link.equipmentSerialNumber || 'N/A'}, pppoe=${link.pppoeUser || 'N/A'})...`);
       const flashmanMetrics = await queryFlashmanOpticalMetrics(link.equipmentSerialNumber || '', link.pppoeUser);
       if (flashmanMetrics) {

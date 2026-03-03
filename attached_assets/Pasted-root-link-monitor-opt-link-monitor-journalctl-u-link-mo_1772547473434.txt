@@ -1,0 +1,17 @@
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f | grep ribeiropolis
+mar 03 11:09:01 link-monitor npm[425409]: [OZmap Auto-Sync] Link tjse.ribeiropolis: Tag "36DE5EFQ" não encontrada (HTTP 422)
+mar 03 11:10:12 link-monitor npm[425409]: [OZmap Auto-Sync] Link mpse.ribeiropolis: Tag "NWNAN81Z" não encontrada (HTTP 422)
+mar 03 11:11:32 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (Cisco Vi=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 16209251, profileId: 7
+mar 03 11:11:32 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: ifIndex 16209251 verified OK - "<pppoe-mpse.ribeiropolis>" matches "<pppoe-mpse.ribeiropolis>"
+mar 03 11:11:32 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: lat=0.0ms, loss=100.0%, status=offline
+mar 03 11:12:50 link-monitor npm[425409]: [Monitor] tjse.ribeiropolis: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (Cisco Vi=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 16207660, profileId: 7
+mar 03 11:12:50 link-monitor npm[425409]: [Monitor] tjse.ribeiropolis: SNMP traffic collection returned null. IP=191.52.248.22, ifIndex=16207660, profileId=7
+mar 03 11:12:50 link-monitor npm[425409]: [Monitor] tjse.ribeiropolis: ifIndex 16207660 verification skipped - SNMP timeout/unreachable on 191.52.248.22. Keeping current interface settings.
+mar 03 11:12:51 link-monitor npm[425409]: [Monitor] tjse.ribeiropolis: lat=0.0ms, loss=100.0%, status=offline
+mar 03 11:13:07 link-monitor npm[425409]: [Monitor/CPE] CPE - mpse.ribeiropolis: IP=191.52.250.109 (fonte: cpe)
+mar 03 11:13:07 link-monitor npm[425409]: [Monitor/CPE] CPE - tjse.ribeiropolis: IP=191.52.252.104 (fonte: cpe)
+mar 03 11:14:10 link-monitor npm[425409]: [OZmap Auto-Sync] Link tjse.ribeiropolis: Tag "36DE5EFQ" não encontrada (HTTP 422)
+mar 03 11:15:11 link-monitor npm[425409]: [OZmap Auto-Sync] Link mpse.ribeiropolis: Tag "NWNAN81Z" não encontrada (HTTP 422)
+mar 03 11:17:33 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (Cisco Vi=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 16209251, profileId: 7
+mar 03 11:17:33 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: ifIndex 16209251 verified OK - "<pppoe-mpse.ribeiropolis>" matches "<pppoe-mpse.ribeiropolis>"
+mar 03 11:17:33 link-monitor npm[425409]: [Monitor] mpse.ribeiropolis: lat=0.0ms, loss=100.0%, status=offline
