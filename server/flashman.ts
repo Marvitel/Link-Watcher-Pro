@@ -344,9 +344,14 @@ export async function resolveDeviceMac(
   serialNumber?: string | null,
 ): Promise<string | null> {
   if (serialNumber) {
+    const normalizedSerial = serialNumber.toUpperCase().trim();
     try {
-      const mac = await getDeviceBySerial(config, serialNumber);
+      const mac = await getDeviceBySerial(config, normalizedSerial);
       if (mac) return mac;
+    } catch (e) {}
+    try {
+      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
+      if (ponDevice?._id) return ponDevice._id;
     } catch (e) {}
   }
   if (pppoeUser) {
