@@ -270,6 +270,34 @@ export async function getDeviceByMacForPolling(config: FlashmanConfig, mac: stri
   return null;
 }
 
+export async function findDeviceDirect(config: FlashmanConfig, pppoeUser?: string | null, serial?: string | null, mac?: string | null): Promise<any | null> {
+  if (serial) {
+    const normalizedSerial = serial.toUpperCase().trim();
+    try {
+      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
+      if (ponDevice) return ponDevice;
+    } catch (e) {}
+    try {
+      const result = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(normalizedSerial)}/`);
+      if (result?.success !== false && result?.device) return result.device;
+    } catch (e) {}
+  }
+  if (pppoeUser) {
+    try {
+      const result = await flashmanFetch(config, `/api/v3/device/pppoe-username/${encodeURIComponent(pppoeUser)}/`);
+      if (result?.success !== false && result?.device) return result.device;
+    } catch (e) {}
+  }
+  if (mac) {
+    const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+    try {
+      const result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
+      if (result && !result.error && result._id) return result;
+    } catch (e) {}
+  }
+  return null;
+}
+
 export async function getDeviceByPppoeUser(config: FlashmanConfig, pppoeUser: string): Promise<{ mac: string; device?: FlashmanDeviceInfo } | null> {
   try {
     const result = await flashmanFetch(config, `/api/v3/device/pppoe-username/${encodeURIComponent(pppoeUser)}/`);

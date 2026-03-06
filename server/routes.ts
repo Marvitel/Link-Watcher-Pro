@@ -61,6 +61,7 @@ import {
   getFlashmanConfigForClient,
   testFlashmanConnection,
   resolveDeviceMac,
+  findDeviceDirect,
   getDeviceByMac,
   getDeviceByMacForPolling,
   formatFlashmanDeviceInfo,
@@ -9413,13 +9414,16 @@ export async function registerRoutes(
       if (!config) return res.json({ enabled: false, message: "Flashman não configurado" });
 
       const ids = await getLinkFlashmanIdentifiers(linkId, link);
-      const mac = await resolveDeviceMac(config, link.pppoeUser, ids.mac, ids.serial);
-      if (!mac) return res.json({ enabled: true, found: false, message: "Dispositivo não encontrado no Flashman" });
+      console.log(`[Flashman/Info] Link ${link.name}: pppoe=${link.pppoeUser || 'N/A'}, serial=${ids.serial || 'N/A'}, mac=${ids.mac || 'N/A'}`);
 
-      const device = await getDeviceByMac(config, mac);
-      if (!device) return res.json({ enabled: true, found: false, message: "Dispositivo não encontrado no Flashman" });
+      const device = await findDeviceDirect(config, link.pppoeUser, ids.serial, ids.mac);
+      if (!device) {
+        console.log(`[Flashman/Info] Link ${link.name}: dispositivo não encontrado`);
+        return res.json({ enabled: true, found: false, message: "Dispositivo não encontrado no ACS" });
+      }
 
       const formatted = formatFlashmanDeviceInfo(device);
+      console.log(`[Flashman/Info] Link ${link.name}: dispositivo encontrado - ${device._id || device.serial_tr069 || 'unknown'}`);
       res.json({ enabled: true, found: true, device: formatted });
     } catch (error: any) {
       console.error("[Flashman] Error fetching device info:", error.message);
