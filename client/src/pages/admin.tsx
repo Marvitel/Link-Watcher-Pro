@@ -2661,6 +2661,7 @@ interface FlashmanSettings {
   flashmanApiUrl?: string | null;
   flashmanUsername?: string | null;
   flashmanPassword?: string | null;
+  flashmanApiKey?: string | null;
   flashmanEnabled?: boolean;
 }
 
@@ -2677,6 +2678,7 @@ function FlashmanIntegration() {
     flashmanApiUrl: "",
     flashmanUsername: "",
     flashmanPassword: "",
+    flashmanApiKey: "",
     flashmanEnabled: false,
   });
 
@@ -2686,6 +2688,7 @@ function FlashmanIntegration() {
         flashmanApiUrl: settings.flashmanApiUrl || "",
         flashmanUsername: settings.flashmanUsername || "",
         flashmanPassword: settings.flashmanPassword || "",
+        flashmanApiKey: settings.flashmanApiKey || "",
         flashmanEnabled: settings.flashmanEnabled || false,
       });
     }
@@ -2713,6 +2716,7 @@ function FlashmanIntegration() {
         apiUrl: formData.flashmanApiUrl,
         username: formData.flashmanUsername,
         password: formData.flashmanPassword,
+        apiKey: formData.flashmanApiKey,
       });
       const result = await response.json();
       setTestResult(result);
@@ -2739,10 +2743,10 @@ function FlashmanIntegration() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Router className="w-5 h-5" />
-          Flashman ACS (Anlix)
+          ACS / TR-069 (NetControl / Flashman)
         </CardTitle>
         <CardDescription>
-          Configure a integração global com o Flashman ACS para gerenciamento remoto de CPEs via TR-069. Funciona para qualquer link GPON.
+          Configure a integração com o sistema ACS (NetControl ou Flashman) para gerenciamento remoto de CPEs via TR-069. Suporta autenticação por API Key ou usuário/senha.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -2752,7 +2756,7 @@ function FlashmanIntegration() {
           <>
             <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-md">
               <div>
-                <p className="font-medium">Habilitar Flashman</p>
+                <p className="font-medium">Habilitar ACS</p>
                 <p className="text-sm text-muted-foreground">
                   Ative para habilitar o gerenciamento remoto de CPEs via TR-069 em todos os links
                 </p>
@@ -2766,7 +2770,7 @@ function FlashmanIntegration() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="flashmanApiUrl">URL do Flashman</Label>
+                <Label htmlFor="flashmanApiUrl">URL do ACS</Label>
                 <Input
                   id="flashmanApiUrl"
                   value={formData.flashmanApiUrl || ""}
@@ -2776,25 +2780,42 @@ function FlashmanIntegration() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="flashmanApiKey">API Key (NetControl)</Label>
+                <Input
+                  id="flashmanApiKey"
+                  type="password"
+                  value={formData.flashmanApiKey || ""}
+                  onChange={(e) => setFormData({ ...formData, flashmanApiKey: e.target.value })}
+                  placeholder="nc_..."
+                  data-testid="input-flashman-api-key"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se preenchido, usa autenticação por API Key (header x-api-key). Caso contrário, usa usuário/senha (Basic Auth).
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="flashmanUsername">Usuário API</Label>
+                  <Label htmlFor="flashmanUsername">Usuário API (Basic Auth)</Label>
                   <Input
                     id="flashmanUsername"
                     value={formData.flashmanUsername || ""}
                     onChange={(e) => setFormData({ ...formData, flashmanUsername: e.target.value })}
                     placeholder="api_user"
+                    disabled={!!formData.flashmanApiKey}
                     data-testid="input-flashman-username"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="flashmanPassword">Senha API</Label>
+                  <Label htmlFor="flashmanPassword">Senha API (Basic Auth)</Label>
                   <Input
                     id="flashmanPassword"
                     type="password"
                     value={formData.flashmanPassword || ""}
                     onChange={(e) => setFormData({ ...formData, flashmanPassword: e.target.value })}
                     placeholder="••••••••"
+                    disabled={!!formData.flashmanApiKey}
                     data-testid="input-flashman-password"
                   />
                 </div>

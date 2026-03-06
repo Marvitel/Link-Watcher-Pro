@@ -4,6 +4,7 @@ export interface FlashmanConfig {
   apiUrl: string;
   username: string;
   password: string;
+  apiKey?: string;
 }
 
 export interface FlashmanDeviceInfo {
@@ -101,6 +102,13 @@ export interface FlashmanConnectedDevice {
 }
 
 function getAuthHeaders(config: FlashmanConfig): HeadersInit {
+  if (config.apiKey) {
+    return {
+      "x-api-key": config.apiKey,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+  }
   const token = Buffer.from(`${config.username}:${config.password}`).toString("base64");
   return {
     "Authorization": `Basic ${token}`,
@@ -305,6 +313,12 @@ export async function getDeviceBySerialPon(config: FlashmanConfig, serialPon: st
     }
     return null;
   } catch (error: any) {
+    try {
+      const fallback = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(serialPon)}/`);
+      if (fallback?.success !== false && fallback?.device) {
+        return fallback.device;
+      }
+    } catch (e2) {}
     console.error(`[Flashman] Error getting device by PON serial ${serialPon}:`, error.message);
     return null;
   }

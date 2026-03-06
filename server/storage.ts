@@ -1433,19 +1433,23 @@ export class DatabaseStorage {
     return settings || undefined;
   }
 
-  async getFlashmanGlobalConfig(): Promise<{ apiUrl: string; username: string; password: string } | null> {
+  async getFlashmanGlobalConfig(): Promise<{ apiUrl: string; username: string; password: string; apiKey?: string } | null> {
     const settings = await this.getFlashmanGlobalSettings();
-    if (!settings?.flashmanEnabled || !settings.flashmanApiUrl || !settings.flashmanUsername || !settings.flashmanPassword) {
+    if (!settings?.flashmanEnabled || !settings.flashmanApiUrl) {
+      return null;
+    }
+    if (!settings.flashmanApiKey && (!settings.flashmanUsername || !settings.flashmanPassword)) {
       return null;
     }
     return {
       apiUrl: settings.flashmanApiUrl,
       username: settings.flashmanUsername,
       password: settings.flashmanPassword,
+      apiKey: settings.flashmanApiKey || undefined,
     };
   }
 
-  async getFlashmanGlobalSettings(): Promise<{ flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanEnabled: boolean }> {
+  async getFlashmanGlobalSettings(): Promise<{ flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanApiKey: string; flashmanEnabled: boolean }> {
     const rows = await db.select().from(integrationSettings)
       .where(sql`${integrationSettings.key} LIKE 'flashman_%'`);
     const map: Record<string, string> = {};
@@ -1456,15 +1460,17 @@ export class DatabaseStorage {
       flashmanApiUrl: map["flashman_api_url"] || "",
       flashmanUsername: map["flashman_username"] || "",
       flashmanPassword: map["flashman_password"] || "",
+      flashmanApiKey: map["flashman_api_key"] || "",
       flashmanEnabled: map["flashman_enabled"] === "true",
     };
   }
 
-  async saveFlashmanGlobalSettings(data: { flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanEnabled: boolean }): Promise<void> {
+  async saveFlashmanGlobalSettings(data: { flashmanApiUrl: string; flashmanUsername: string; flashmanPassword: string; flashmanApiKey?: string; flashmanEnabled: boolean }): Promise<void> {
     const entries: [string, string][] = [
       ["flashman_api_url", data.flashmanApiUrl || ""],
       ["flashman_username", data.flashmanUsername || ""],
       ["flashman_password", data.flashmanPassword || ""],
+      ["flashman_api_key", data.flashmanApiKey || ""],
       ["flashman_enabled", data.flashmanEnabled ? "true" : "false"],
     ];
     for (const [key, value] of entries) {

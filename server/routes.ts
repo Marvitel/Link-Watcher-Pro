@@ -9357,7 +9357,7 @@ export async function registerRoutes(
   app.get("/api/flashman/settings", requireSuperAdmin, async (req, res) => {
     try {
       const settings = await storage.getFlashmanGlobalSettings();
-      res.json(settings || { flashmanApiUrl: "", flashmanUsername: "", flashmanPassword: "", flashmanEnabled: false });
+      res.json(settings || { flashmanApiUrl: "", flashmanUsername: "", flashmanPassword: "", flashmanApiKey: "", flashmanEnabled: false });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -9365,11 +9365,12 @@ export async function registerRoutes(
 
   app.patch("/api/flashman/settings", requireSuperAdmin, async (req, res) => {
     try {
-      const { flashmanApiUrl, flashmanUsername, flashmanPassword, flashmanEnabled } = req.body;
+      const { flashmanApiUrl, flashmanUsername, flashmanPassword, flashmanApiKey, flashmanEnabled } = req.body;
       await storage.saveFlashmanGlobalSettings({
         flashmanApiUrl: flashmanApiUrl || "",
         flashmanUsername: flashmanUsername || "",
         flashmanPassword: flashmanPassword || "",
+        flashmanApiKey: flashmanApiKey || "",
         flashmanEnabled: !!flashmanEnabled,
       });
       res.json({ success: true });
@@ -9380,11 +9381,14 @@ export async function registerRoutes(
 
   app.post("/api/flashman/test-connection", requireSuperAdmin, async (req, res) => {
     try {
-      const { apiUrl, username, password } = req.body;
-      if (!apiUrl || !username || !password) {
-        return res.status(400).json({ error: "URL, usuário e senha são obrigatórios" });
+      const { apiUrl, username, password, apiKey } = req.body;
+      if (!apiUrl) {
+        return res.status(400).json({ error: "URL é obrigatória" });
       }
-      const result = await testFlashmanConnection({ apiUrl, username, password });
+      if (!apiKey && (!username || !password)) {
+        return res.status(400).json({ error: "API Key ou usuário/senha são obrigatórios" });
+      }
+      const result = await testFlashmanConnection({ apiUrl, username: username || "", password: password || "", apiKey: apiKey || undefined });
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
