@@ -274,12 +274,12 @@ export async function findDeviceDirect(config: FlashmanConfig, pppoeUser?: strin
   if (serial) {
     const normalizedSerial = serial.toUpperCase().trim();
     try {
-      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
-      if (ponDevice) return ponDevice;
-    } catch (e) {}
-    try {
       const result = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(normalizedSerial)}/`);
       if (result?.success !== false && result?.device) return result.device;
+    } catch (e) {}
+    try {
+      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
+      if (ponDevice) return ponDevice;
     } catch (e) {}
   }
   if (pppoeUser) {
