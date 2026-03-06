@@ -175,6 +175,7 @@ export async function getFlashmanGlobalConfig(): Promise<FlashmanConfig | null> 
     apiUrl: config.apiUrl,
     username: config.username,
     password: config.password,
+    apiKey: config.apiKey,
   };
 }
 
