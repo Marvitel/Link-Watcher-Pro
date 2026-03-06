@@ -1,0 +1,84 @@
+Pronto. O novo endpoint está criado. Aqui está a documentação para passar ao projeto do Link Monitor:
+
+Endpoint: /api/v3/device/full/:identifier/
+
+Busca por serial, MAC ou PPPoE. Retorna TODOS os dados do dispositivo em tempo real.
+
+Autenticação: Header X-Api-Key: nc_sua_chave ou Basic Auth
+
+Exemplo: GET https://flashman.marvitel.com.br/api/v3/device/full/DACM917482E2/
+
+Resposta JSON:
+
+{
+  "success": true,
+  "device": {
+    "_id": "DACM917482E2",
+    "serial_tr069": "DACM917482E2",
+    "acs_id": "70CD91-DM986-414-DACM917482E2",
+    "status": "online",
+    "info": {
+      "manufacturer": "DATACOM",
+      "model": "DM986-414",
+      "serial": "DACM917482E2",
+      "mac_address": "70:CD:91:74:82:E2",
+      "firmware": "V6.6.0-240626",
+      "hardware": "825.8017.00",
+      "uptime": "1d 9h",
+      "last_inform": "2026-03-06T18:56:23.621Z",
+      "last_boot": "2026-03-05T09:39:00.000Z",
+      "product_class": "DM986-414",
+      "oui": "70CD91"
+    },
+    "signal": {
+      "rx_power": -21.5,
+      "tx_power": 2.0,
+      "temperature": 35.0,
+      "voltage": 3.3
+    },
+    "wan": {
+      "connections": [{ "name": "WAN1", "type": "PPPoE", "ipAddress": "100.80.7.120", "status": "Connected", "username": "user@isp", "vlanId": "100" }],
+      "pppoe_user": "user@isp",
+      "wan_ip": "100.80.7.120",
+      "connection_type": "pppoe"
+    },
+    "lan": {
+      "ip": "192.168.1.1",
+      "subnet": "255.255.255.0",
+      "dhcp_enabled": true,
+      "dhcp_start": "192.168.1.100",
+      "dhcp_end": "192.168.1.254",
+      "ethernet_ports": [{ "index": 1, "status": "Up", "speed": "1000" }]
+    },
+    "wifi": {
+      "enabled_2g": true,
+      "ssid_2g": "MinhaRede",
+      "password_2g": "senha123",
+      "channel_2g": "6",
+      "enabled_5g": true,
+      "ssid_5g": "MinhaRede-5G",
+      "password_5g": "senha123",
+      "channel_5g": "36"
+    },
+    "hosts": {
+      "connected": [{ "macAddress": "AA:BB:CC:DD:EE:FF", "ipAddress": "192.168.1.101", "hostName": "iPhone" }],
+      "count": 5
+    },
+    "voip": {
+      "lines": [{ "index": 1, "enabled": true, "directoryNumber": "7932221234", "status": "Up" }]
+    },
+    "resources": {
+      "memory_free": 64000,
+      "cpu_usage": 15
+    },
+    "backup": {
+      "has_backup": true,
+      "last_backup": "2026-03-06T15:59:54.000Z"
+    }
+  }
+}
+Você pode compartilhar esta documentação e os seguintes arquivos do NetControl com o projeto do Link Monitor como referência visual:
+
+client/src/pages/device-detail.tsx — página completa de detalhes do dispositivo
+A documentação do endpoint acima
+O Link Monitor só precisa chamar este endpoint único para ter todos os dados que a tela do NetControl mostra.

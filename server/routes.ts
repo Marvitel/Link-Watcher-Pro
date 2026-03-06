@@ -75,6 +75,7 @@ import {
   triggerBestChannel,
   sendCommand,
   getFlashmanGlobalConfig,
+  getDeviceFull,
   syncDevice,
   getFlashboardReport,
   getDeviceWifi,
@@ -9416,6 +9417,15 @@ export async function registerRoutes(
       const ids = await getLinkFlashmanIdentifiers(linkId, link);
       console.log(`[Flashman/Info] Link ${link.name}: pppoe=${link.pppoeUser || 'N/A'}, serial=${ids.serial || 'N/A'}, mac=${ids.mac || 'N/A'}`);
 
+      const identifier = ids.serial || link.pppoeUser || ids.mac;
+      if (identifier) {
+        const fullDevice = await getDeviceFull(config, identifier);
+        if (fullDevice) {
+          console.log(`[Flashman/Info] Link ${link.name}: full device data from /full/ endpoint - ${fullDevice._id || identifier}`);
+          return res.json({ enabled: true, found: true, device: fullDevice, source: "full" });
+        }
+      }
+
       const device = await findDeviceDirect(config, link.pppoeUser, ids.serial, ids.mac);
       if (!device) {
         console.log(`[Flashman/Info] Link ${link.name}: dispositivo não encontrado`);
@@ -9423,8 +9433,8 @@ export async function registerRoutes(
       }
 
       const formatted = formatFlashmanDeviceInfo(device);
-      console.log(`[Flashman/Info] Link ${link.name}: dispositivo encontrado - ${device._id || device.serial_tr069 || 'unknown'}`);
-      res.json({ enabled: true, found: true, device: formatted });
+      console.log(`[Flashman/Info] Link ${link.name}: dispositivo encontrado (legacy) - ${device._id || device.serial_tr069 || 'unknown'}`);
+      res.json({ enabled: true, found: true, device: formatted, source: "legacy" });
     } catch (error: any) {
       console.error("[Flashman] Error fetching device info:", error.message);
       res.status(500).json({ error: "Erro ao consultar Flashman" });

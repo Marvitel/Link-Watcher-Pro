@@ -271,6 +271,16 @@ export async function getDeviceByMacForPolling(config: FlashmanConfig, mac: stri
   return null;
 }
 
+export async function getDeviceFull(config: FlashmanConfig, identifier: string): Promise<any | null> {
+  try {
+    const result = await flashmanFetch(config, `/api/v3/device/full/${encodeURIComponent(identifier)}/`);
+    if (result?.success !== false && result?.device) return result.device;
+  } catch (e: any) {
+    console.log(`[Flashman/Full] Endpoint /full/ not available for ${identifier}: ${e.message?.substring(0, 100)}`);
+  }
+  return null;
+}
+
 export async function findDeviceDirect(config: FlashmanConfig, pppoeUser?: string | null, serial?: string | null, mac?: string | null): Promise<any | null> {
   if (serial) {
     const normalizedSerial = serial.toUpperCase().trim();
