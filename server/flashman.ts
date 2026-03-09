@@ -204,19 +204,8 @@ export async function getDeviceByMac(config: FlashmanConfig, mac: string): Promi
     if (result?.success && result.device) {
       return result.device as FlashmanDeviceInfo;
     }
-    const v2Result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
-    if (v2Result && !v2Result.error) {
-      return v2Result as FlashmanDeviceInfo;
-    }
     return null;
   } catch (error: any) {
-    try {
-      const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
-      const v2Result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
-      if (v2Result && !v2Result.error) {
-        return v2Result as FlashmanDeviceInfo;
-      }
-    } catch (e) {}
     console.error(`[Flashman] Error getting device by MAC ${mac}:`, error.message);
     return null;
   }
@@ -224,31 +213,24 @@ export async function getDeviceByMac(config: FlashmanConfig, mac: string): Promi
 
 export async function getDeviceByMacForPolling(config: FlashmanConfig, mac: string): Promise<FlashmanDeviceInfo | null> {
   const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
+
   let v3Device: any = null;
   try {
     const result = await flashmanFetch(config, `/api/v3/device/mac/${encodeURIComponent(normalizedMac)}/?caseInsensitive=true`);
     if (result?.success && result.device) {
       v3Device = result.device;
     }
-  } catch (e) {}
+  } catch (e: any) {
+    console.error(`[Flashman/Poll] V3 MAC error for ${normalizedMac}:`, e.message);
+  }
 
   let v2Device: any = null;
   try {
-    console.log(`[Flashman/Poll] Fetching V2: /api/v2/device/update/${normalizedMac}`);
     const v2Result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
     if (v2Result && !v2Result.error) {
       v2Device = v2Result;
-      const hasPing = Array.isArray(v2Result.pingtest_results) && v2Result.pingtest_results.length > 0;
-      const hasTrace = Array.isArray(v2Result.traceroute_results) && v2Result.traceroute_results.length > 0;
-      const hasSpeed = Array.isArray(v2Result.speedtest_results) && v2Result.speedtest_results.length > 0;
-      const diag = v2Result.current_diagnostic;
-      console.log(`[Flashman/Poll] V2 data - ping: ${hasPing ? v2Result.pingtest_results.length + ' items' : 'empty'}, trace: ${hasTrace ? v2Result.traceroute_results.length + ' items' : 'empty'}, speed: ${hasSpeed ? v2Result.speedtest_results.length + ' items' : 'empty'}, diag: ${diag ? JSON.stringify(diag) : 'null'}`);
-      if (hasPing) console.log(`[Flashman/Poll] Ping sample:`, JSON.stringify(v2Result.pingtest_results[0]));
-      if (hasTrace) console.log(`[Flashman/Poll] Trace sample:`, JSON.stringify(v2Result.traceroute_results[0]));
     }
-  } catch (e: any) {
-    console.error(`[Flashman/Poll] V2 error:`, e.message);
-  }
+  } catch (e) {}
 
   if (v3Device && v2Device) {
     const merged = { ...v3Device };
@@ -259,8 +241,6 @@ export async function getDeviceByMacForPolling(config: FlashmanConfig, mac: stri
     if (Array.isArray(v2Device.lan_devices)) merged.lan_devices = v2Device.lan_devices;
     if (Array.isArray(v2Device.online_devices)) merged.online_devices = v2Device.online_devices;
     if (v2Device.sitesurvey_result) merged.sitesurvey_result = v2Device.sitesurvey_result;
-    if (v2Device.ping_result) merged.ping_result = v2Device.ping_result;
-    if (v2Device.traceroute_result) merged.traceroute_result = v2Device.traceroute_result;
     return merged as FlashmanDeviceInfo;
   }
 
@@ -288,10 +268,6 @@ export async function findDeviceDirect(config: FlashmanConfig, pppoeUser?: strin
       const result = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(normalizedSerial)}/`);
       if (result?.success !== false && result?.device) return result.device;
     } catch (e) {}
-    try {
-      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
-      if (ponDevice) return ponDevice;
-    } catch (e) {}
   }
   if (pppoeUser) {
     try {
@@ -302,8 +278,8 @@ export async function findDeviceDirect(config: FlashmanConfig, pppoeUser?: strin
   if (mac) {
     const normalizedMac = mac.toUpperCase().replace(/-/g, ":");
     try {
-      const result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
-      if (result && !result.error && result._id) return result;
+      const result = await flashmanFetch(config, `/api/v3/device/mac/${encodeURIComponent(normalizedMac)}/?caseInsensitive=true`);
+      if (result?.success !== false && result?.device) return result.device;
     } catch (e) {}
   }
   return null;
@@ -332,13 +308,6 @@ export async function getDeviceBySerial(config: FlashmanConfig, serial: string):
     }
     return null;
   } catch (error: any) {
-    try {
-      const normalizedSerial = serial.toUpperCase().trim();
-      const v2Result = await flashmanFetch(config, `/api/v2/device/update/${encodeURIComponent(normalizedSerial)}`);
-      if (v2Result && !v2Result.error && v2Result._id) {
-        return v2Result._id;
-      }
-    } catch (e) {}
     console.error(`[Flashman] Error getting device by serial ${serial}:`, error.message);
     return null;
   }
@@ -346,19 +315,13 @@ export async function getDeviceBySerial(config: FlashmanConfig, serial: string):
 
 export async function getDeviceBySerialPon(config: FlashmanConfig, serialPon: string): Promise<any | null> {
   try {
-    const result = await flashmanFetch(config, `/api/v3/device/serial-pon/${encodeURIComponent(serialPon)}/`);
+    const result = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(serialPon)}/`);
     if (result?.success !== false && result?.device) {
       return result.device;
     }
     return null;
   } catch (error: any) {
-    try {
-      const fallback = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(serialPon)}/`);
-      if (fallback?.success !== false && fallback?.device) {
-        return fallback.device;
-      }
-    } catch (e2) {}
-    console.error(`[Flashman] Error getting device by PON serial ${serialPon}:`, error.message);
+    console.error(`[Flashman] Error getting device by serial ${serialPon}:`, error.message);
     return null;
   }
 }
@@ -402,10 +365,6 @@ export async function resolveDeviceMac(
       const mac = await getDeviceBySerial(config, normalizedSerial);
       if (mac) return mac;
     } catch (e) {}
-    try {
-      const ponDevice = await getDeviceBySerialPon(config, normalizedSerial);
-      if (ponDevice?._id) return ponDevice._id;
-    } catch (e) {}
   }
   if (pppoeUser) {
     try {
@@ -421,12 +380,6 @@ export async function resolveDeviceMac(
       const result = await flashmanFetch(config, `/api/v3/device/mac/${encodeURIComponent(normalizedMac)}/?caseInsensitive=true&fields=_id`);
       if (result?.success !== false && result?.device?._id) {
         return result.device._id;
-      }
-    } catch (e) {}
-    try {
-      const result = await flashmanFetch(config, `/api/v2/device/update/${normalizedMac}`);
-      if (result && !result.error) {
-        return normalizedMac;
       }
     } catch (e) {}
   }
@@ -1414,33 +1367,6 @@ export async function queryFlashmanOpticalMetrics(
   const config = await getFlashmanGlobalConfig();
   if (!config) return null;
 
-  let device: any = null;
-
-  if (serialNumber && serialNumber.trim()) {
-    const normalizedSerial = serialNumber.toUpperCase().trim();
-    device = await getDeviceBySerialPon(config, normalizedSerial);
-    if (!device) {
-      const mac = await getDeviceBySerial(config, normalizedSerial);
-      if (mac) {
-        device = await getDeviceByMac(config, mac);
-      }
-    }
-  }
-
-  if (!device && pppoeUser) {
-    const normalizedPppoe = pppoeUser.trim();
-    try {
-      const result = await flashmanFetch(config, `/api/v3/device/pppoe-username/${encodeURIComponent(normalizedPppoe)}/`);
-      if (result?.success !== false && result?.device) {
-        device = result.device;
-      }
-    } catch (e: any) {
-      console.log(`[Flashman] Optical lookup by PPPoE "${normalizedPppoe}" failed: ${e?.message || "unknown error"}`);
-    }
-  }
-
-  if (!device) return null;
-
   const parseOpticalValue = (val: any): number | null => {
     if (val === undefined || val === null || val === "" || val === "N/A") return null;
     const num = parseFloat(String(val));
@@ -1448,8 +1374,43 @@ export async function queryFlashmanOpticalMetrics(
     return num;
   };
 
-  const rxPower = parseOpticalValue(device.pon_rxpower);
-  const txPower = parseOpticalValue(device.pon_txpower);
+  const identifier = (serialNumber && serialNumber.trim()) || (pppoeUser && pppoeUser.trim());
+  if (!identifier) return null;
+
+  const fullDevice = await getDeviceFull(config, identifier);
+  if (fullDevice) {
+    const rxPower = parseOpticalValue(fullDevice.signal?.rx_power);
+    const txPower = parseOpticalValue(fullDevice.signal?.tx_power);
+    if (rxPower !== null || txPower !== null) return { rxPower, txPower };
+  }
+
+  let device: any = null;
+  if (serialNumber && serialNumber.trim()) {
+    const normalizedSerial = serialNumber.toUpperCase().trim();
+    try {
+      const result = await flashmanFetch(config, `/api/v3/device/serial-tr069/${encodeURIComponent(normalizedSerial)}/`);
+      if (result?.success !== false && result?.device) device = result.device;
+    } catch (e) {}
+    if (!device) {
+      const mac = await getDeviceBySerial(config, normalizedSerial);
+      if (mac) device = await getDeviceByMac(config, mac);
+    }
+  }
+
+  if (!device && pppoeUser) {
+    const normalizedPppoe = pppoeUser.trim();
+    try {
+      const result = await flashmanFetch(config, `/api/v3/device/pppoe-username/${encodeURIComponent(normalizedPppoe)}/`);
+      if (result?.success !== false && result?.device) device = result.device;
+    } catch (e: any) {
+      console.log(`[Flashman] Optical lookup by PPPoE "${normalizedPppoe}" failed: ${e?.message || "unknown error"}`);
+    }
+  }
+
+  if (!device) return null;
+
+  const rxPower = parseOpticalValue(device.signal?.rx_power ?? device.pon_rxpower);
+  const txPower = parseOpticalValue(device.signal?.tx_power ?? device.pon_txpower);
 
   if (rxPower === null && txPower === null) return null;
 
