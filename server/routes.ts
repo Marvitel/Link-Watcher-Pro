@@ -9033,6 +9033,250 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/diagnostics/link/:linkId/optical-test", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      if (isNaN(linkId)) {
+        return res.status(400).json({ error: "ID de link inválido" });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado" });
+      }
+
+      const results: any = {
+        timestamp: new Date().toISOString(),
+        linkId: link.id,
+        linkName: link.name,
+        linkType: link.linkType,
+        switchId: link.switchId,
+        switchPort: link.switchPort,
+        switchPortNumber: link.switchPortNumber,
+        opticalMonitoringEnabled: link.opticalMonitoringEnabled,
+        tests: [],
+      };
+
+      if (link.linkType !== "ptp" || !link.switchId) {
+        results.error = "Link não é PTP ou não tem switch configurado";
+        return res.json(results);
+      }
+
+      const switchData = await db.select().from(switches).where(eq(switches.id, link.switchId)).limit(1);
+      if (switchData.length === 0) {
+        results.error = "Switch não encontrado no banco";
+        return res.json(results);
+      }
+
+      const sw = switchData[0];
+      results.switchName = sw.name;
+      results.switchIp = sw.ipAddress;
+      results.switchVendor = sw.vendor;
+      results.switchVendorId = sw.vendorId;
+
+      let opticalRxOid = sw.opticalRxOidTemplate;
+      let opticalTxOid = sw.opticalTxOidTemplate;
+      let opticalDivisor = 1000;
+      let vendorName = sw.vendor || "";
+      let vendorSlug = sw.vendor?.toLowerCase() || "";
+
+      if (sw.vendorId) {
+        const vendorData = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
+        if (vendorData.length > 0) {
+          const vendor = vendorData[0];
+          vendorName = vendor.name;
+          vendorSlug = vendor.slug?.toLowerCase() || "";
+          if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
+          if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
+          if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
+          results.vendorConfig = {
+            name: vendor.name,
+            slug: vendor.slug,
+            switchOpticalRxOid: vendor.switchOpticalRxOid,
+            switchOpticalTxOid: vendor.switchOpticalTxOid,
+            switchOpticalDivisor: vendor.switchOpticalDivisor,
+            snmpProfileId: vendor.snmpProfileId,
+          };
+        }
+      }
+
+      const isMikrotik = vendorSlug.includes("mikrotik") || vendorSlug.includes("routeros");
+      results.detectedVendor = isMikrotik ? "MikroTik" : vendorSlug;
+
+      if (isMikrotik && !opticalRxOid && !opticalTxOid) {
+        opticalRxOid = "1.3.6.1.4.1.14988.1.1.19.1.1.10.{ifIndex}";
+        opticalTxOid = "1.3.6.1.4.1.14988.1.1.19.1.1.9.{ifIndex}";
+        opticalDivisor = 1000;
+        results.usingDefaultMikrotikOids = true;
+      }
+
+      results.resolvedOids = { opticalRxOid, opticalTxOid, opticalDivisor };
+
+      const effectiveSnmpProfileId = sw.snmpProfileId || (results.vendorConfig?.snmpProfileId || null);
+      results.effectiveSnmpProfileId = effectiveSnmpProfileId;
+
+      if (!effectiveSnmpProfileId) {
+        results.error = "Sem perfil SNMP configurado (nem no switch nem no fabricante)";
+        return res.json(results);
+      }
+
+      const { getOpticalSignalFromSwitch, getInterfaceOperStatus } = await import("./snmp");
+
+      const profileData = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, effectiveSnmpProfileId)).limit(1);
+      if (profileData.length === 0) {
+        results.error = `Perfil SNMP ID ${effectiveSnmpProfileId} não encontrado`;
+        return res.json(results);
+      }
+      const p = profileData[0];
+      const swProfile = {
+        id: p.id,
+        version: p.version,
+        port: p.port || 161,
+        community: p.community,
+        securityLevel: p.securityLevel,
+        authProtocol: p.authProtocol,
+        authPassword: p.authPassword,
+        privProtocol: p.privProtocol,
+        privPassword: p.privPassword,
+        username: p.username,
+        timeout: p.timeout || 5000,
+        retries: p.retries || 1,
+      };
+      results.snmpProfile = { id: p.id, name: p.name, version: p.version, community: p.community ? "***" : null };
+
+      const switchPortNum = link.switchPortNumber ? parseInt(link.switchPortNumber.toString(), 10) : null;
+      const linkIfIndex = switchPortNum || (link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null);
+      results.resolvedIfIndex = linkIfIndex;
+      results.switchPortNumber = switchPortNum;
+      results.snmpInterfaceIndex = link.snmpInterfaceIndex;
+
+      if (opticalRxOid) {
+        const resolvedRxOid = opticalRxOid.replace(/\{ifIndex\}/gi, (linkIfIndex || 0).toString());
+        results.tests.push({ name: "OID RX Resolvido", oid: resolvedRxOid });
+      }
+      if (opticalTxOid) {
+        const resolvedTxOid = opticalTxOid.replace(/\{ifIndex\}/gi, (linkIfIndex || 0).toString());
+        results.tests.push({ name: "OID TX Resolvido", oid: resolvedTxOid });
+      }
+
+      try {
+        const portStatus = await getInterfaceOperStatus(sw.ipAddress, swProfile, linkIfIndex || 0);
+        results.portStatusTest = {
+          success: true,
+          operStatus: portStatus.operStatus,
+          adminStatus: portStatus.adminStatus,
+        };
+      } catch (e: any) {
+        results.portStatusTest = { success: false, error: e.message };
+      }
+
+      try {
+        const opticalResult = await getOpticalSignalFromSwitch(
+          sw.ipAddress,
+          swProfile,
+          link.switchPort || "",
+          opticalRxOid,
+          opticalTxOid,
+          sw.portIndexTemplate,
+          opticalDivisor,
+          linkIfIndex
+        );
+        results.opticalTest = {
+          success: opticalResult !== null,
+          rxPower: opticalResult?.rxPower ?? null,
+          txPower: opticalResult?.txPower ?? null,
+          oltRxPower: opticalResult?.oltRxPower ?? null,
+          rawResult: opticalResult,
+        };
+      } catch (e: any) {
+        results.opticalTest = { success: false, error: e.message };
+      }
+
+      const snmpLib = await import("net-snmp");
+      const testIfIndices = linkIfIndex ? [linkIfIndex] : [1, 2, 3, 4, 5, 6, 7, 8];
+      const walkResults: any[] = [];
+
+      for (const idx of testIfIndices.slice(0, 16)) {
+        const rxOid = `1.3.6.1.4.1.14988.1.1.19.1.1.10.${idx}`;
+        const txOid = `1.3.6.1.4.1.14988.1.1.19.1.1.9.${idx}`;
+        try {
+          const rawResult = await new Promise<any>((resolve) => {
+            const timeout = setTimeout(() => resolve({ timeout: true }), 6000);
+            const version = swProfile.version.replace("v", "").toLowerCase();
+            const snmpVersion = version === "1" ? 0 : 1;
+            const session = snmpLib.default.createSession(sw.ipAddress, swProfile.community || "public", {
+              port: swProfile.port,
+              timeout: 4000,
+              retries: 0,
+              version: snmpVersion,
+            });
+            session.get([rxOid, txOid], (error: any, varbinds: any[]) => {
+              clearTimeout(timeout);
+              try { session.close(); } catch {}
+              if (error) {
+                resolve({ error: error.message || String(error) });
+                return;
+              }
+              const result: any = {};
+              for (const vb of (varbinds || [])) {
+                const oid = vb.oid;
+                const typeCode = vb.type;
+                const typeNames: Record<number, string> = {
+                  2: "Integer", 4: "OctetString", 5: "Null", 6: "OID",
+                  64: "IpAddress", 65: "Counter", 66: "Gauge32", 67: "TimeTicks",
+                  68: "Opaque", 70: "Counter64", 128: "NoSuchObject", 129: "NoSuchInstance", 130: "EndOfMibView"
+                };
+                result[oid] = {
+                  type: typeNames[typeCode] || `Unknown(${typeCode})`,
+                  typeCode,
+                  value: typeCode === 128 ? "noSuchObject" : typeCode === 129 ? "noSuchInstance" : typeCode === 130 ? "endOfMibView" : vb.value?.toString(),
+                  rawValue: typeCode === 2 ? Number(vb.value) : undefined,
+                  dBm: typeCode === 2 ? (Number(vb.value) / opticalDivisor).toFixed(3) : undefined,
+                };
+              }
+              resolve(result);
+            });
+          });
+          walkResults.push({ ifIndex: idx, rxOid, txOid, result: rawResult });
+        } catch (e: any) {
+          walkResults.push({ ifIndex: idx, error: e.message });
+        }
+      }
+      results.mtxrOpticalWalk = walkResults;
+
+      const ifNameOid = `1.3.6.1.2.1.2.2.1.2.${linkIfIndex || 5}`;
+      try {
+        const ifNameResult = await new Promise<string>((resolve) => {
+          const timeout = setTimeout(() => resolve("timeout"), 5000);
+          const version = swProfile.version.replace("v", "").toLowerCase();
+          const snmpVersion = version === "1" ? 0 : 1;
+          const session = snmpLib.default.createSession(sw.ipAddress, swProfile.community || "public", {
+            port: swProfile.port, timeout: 4000, retries: 0, version: snmpVersion,
+          });
+          session.get([ifNameOid], (error: any, varbinds: any[]) => {
+            clearTimeout(timeout);
+            try { session.close(); } catch {}
+            if (error) { resolve(`error: ${error.message}`); return; }
+            if (varbinds && varbinds.length > 0 && varbinds[0].type !== 128 && varbinds[0].type !== 129) {
+              resolve(varbinds[0].value?.toString() || "empty");
+            } else {
+              resolve("noSuchInstance");
+            }
+          });
+        });
+        results.ifDescrForIndex = { ifIndex: linkIfIndex || 5, ifDescr: ifNameResult };
+      } catch {}
+
+      return res.json(results);
+    } catch (error) {
+      console.error("[Diagnostics] Optical test error:", error);
+      res.status(500).json({
+        error: "Erro no teste óptico",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
   app.post("/api/admin/diagnostics/reset-metrics", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { resetMetrics } = await import("./metrics");
