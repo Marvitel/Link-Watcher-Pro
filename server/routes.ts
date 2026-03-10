@@ -50,6 +50,8 @@ import {
   linkCpes,
   voalleContractClients,
   externalIntegrations,
+  equipmentVendors,
+  snmpProfiles,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
