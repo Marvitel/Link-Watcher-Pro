@@ -13,10 +13,13 @@ import {
   Area,
   ComposedChart,
 } from "recharts";
-import { Radio, TrendingDown, TrendingUp, AlertTriangle, CheckCircle, Info, Network, MapPin, Ruler, Clock, Plug, PlugZap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Radio, TrendingDown, TrendingUp, AlertTriangle, CheckCircle, Info, Network, MapPin, Ruler, Clock, Plug, PlugZap, Search, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiRequest } from "@/lib/queryClient";
 import type { Link, Metric } from "@shared/schema";
 
 interface PortStatusResponse {
@@ -235,6 +238,167 @@ function SignalMeter({ value, thresholds }: {
         <span className="text-amber-600">Alerta</span>
         <span className="text-red-600">Crítico</span>
       </div>
+    </div>
+  );
+}
+
+function OpticalSnmpDiagnostic({ linkId }: { linkId: number }) {
+  const [results, setResults] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const runTest = async () => {
+    setLoading(true);
+    setError(null);
+    setResults(null);
+    try {
+      const res = await fetch(`/api/admin/diagnostics/link/${linkId}/optical-test`, { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setResults(data);
+    } catch (e: any) {
+      setError(e.message || "Erro desconhecido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-4" data-testid="optical-snmp-diagnostic">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={runTest}
+        disabled={loading}
+        data-testid="button-run-optical-test"
+      >
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+        {loading ? "Testando SNMP..." : "Diagnosticar SNMP Óptico"}
+      </Button>
+
+      {error && (
+        <div className="mt-3 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-sm text-left">
+          <p className="font-medium text-destructive">Erro no diagnóstico</p>
+          <p className="text-muted-foreground mt-1">{error}</p>
+        </div>
+      )}
+
+      {results && (
+        <div className="mt-3 text-left space-y-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Resultado do Diagnóstico SNMP</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              {results.error && (
+                <div className="p-2 rounded bg-destructive/10 border border-destructive/20">
+                  <span className="font-medium text-destructive">Erro: </span>
+                  <span className="text-muted-foreground">{results.error}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-muted-foreground">Switch:</span>
+                  <span className="ml-1 font-mono">{results.switchName || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">IP:</span>
+                  <span className="ml-1 font-mono">{results.switchIp || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Fabricante:</span>
+                  <span className="ml-1">{results.detectedVendor || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Perfil SNMP:</span>
+                  <span className="ml-1">{results.snmpProfile?.name || `ID ${results.effectiveSnmpProfileId}`}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">ifIndex usado:</span>
+                  <span className="ml-1 font-mono font-bold">{results.resolvedIfIndex ?? "NULL"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">switchPortNumber:</span>
+                  <span className="ml-1 font-mono">{results.switchPortNumber ?? "NULL"}</span>
+                </div>
+              </div>
+
+              {results.ifDescrForIndex && (
+                <div className="p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">ifDescr para ifIndex {results.ifDescrForIndex.ifIndex}:</span>
+                  <span className="ml-1 font-mono font-bold">{results.ifDescrForIndex.ifDescr}</span>
+                </div>
+              )}
+
+              {results.resolvedOids && (
+                <div className="space-y-1">
+                  <p className="font-medium">OIDs Configurados:</p>
+                  <p className="font-mono text-[10px] break-all">RX: {results.resolvedOids.opticalRxOid || "N/A"}</p>
+                  <p className="font-mono text-[10px] break-all">TX: {results.resolvedOids.opticalTxOid || "N/A"}</p>
+                  <p className="text-muted-foreground">Divisor: {results.resolvedOids.opticalDivisor}</p>
+                </div>
+              )}
+
+              {results.portStatusTest && (
+                <div className={`p-2 rounded ${results.portStatusTest.success ? "bg-green-500/10 border border-green-500/20" : "bg-destructive/10 border border-destructive/20"}`}>
+                  <p className="font-medium">{results.portStatusTest.success ? "✓ Teste Status Porta" : "✗ Teste Status Porta"}</p>
+                  {results.portStatusTest.success ? (
+                    <p className="text-muted-foreground">Oper: {results.portStatusTest.operStatus} | Admin: {results.portStatusTest.adminStatus}</p>
+                  ) : (
+                    <p className="text-muted-foreground">{results.portStatusTest.error}</p>
+                  )}
+                </div>
+              )}
+
+              {results.opticalTest && (
+                <div className={`p-2 rounded ${results.opticalTest.success ? "bg-green-500/10 border border-green-500/20" : "bg-amber-500/10 border border-amber-500/20"}`}>
+                  <p className="font-medium">{results.opticalTest.success ? "✓ Coleta Óptica" : "✗ Coleta Óptica Falhou"}</p>
+                  {results.opticalTest.success ? (
+                    <p className="text-muted-foreground">RX: {results.opticalTest.rxPower}dBm | TX: {results.opticalTest.txPower}dBm</p>
+                  ) : (
+                    <p className="text-muted-foreground">{results.opticalTest.error || "SNMP respondeu sem valores ópticos"}</p>
+                  )}
+                </div>
+              )}
+
+              {results.mtxrOpticalWalk && results.mtxrOpticalWalk.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-medium">Walk mtxrOptical (OIDs MikroTik):</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {results.mtxrOpticalWalk.map((entry: any, i: number) => (
+                      <div key={i} className="p-1.5 rounded bg-muted/30 font-mono text-[10px]">
+                        <span className="font-bold">ifIndex {entry.ifIndex}:</span>
+                        {entry.timeout || entry.error ? (
+                          <span className="text-destructive ml-1">{entry.timeout ? "Timeout" : entry.error}</span>
+                        ) : (
+                          <div className="ml-2 mt-0.5">
+                            {Object.entries(entry.result || {}).map(([oid, val]: [string, any]) => (
+                              <div key={oid}>
+                                <span className="text-muted-foreground">{oid.split(".").slice(-2).join(".")}:</span>
+                                <span className={`ml-1 ${val.type === "NoSuchObject" || val.type === "NoSuchInstance" ? "text-amber-500" : val.type === "Integer" ? "text-green-500" : "text-muted-foreground"}`}>
+                                  {val.type === "Integer" ? `${val.rawValue} (${val.dBm} dBm)` : val.value} [{val.type}]
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {results.usingDefaultMikrotikOids && (
+                <p className="text-xs text-muted-foreground italic">Usando OIDs padrão MikroTik mtxrOptical (sem OIDs customizados no fabricante/switch)</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -654,8 +818,9 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
                       O monitoramento está configurado. Os dados aparecerão assim que a primeira coleta for realizada.
                     </p>
                     <p className="text-xs mt-1">
-                      Verifique se o switch possui OIDs ópticos e porta do link configurados.
+                      Verifique se o switch possui OIDs ópticos e a porta do link configurados.
                     </p>
+                    <OpticalSnmpDiagnostic linkId={link.id} />
                   </>
                 ) : (
                   <>
