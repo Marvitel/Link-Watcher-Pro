@@ -2558,9 +2558,10 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             }
           } else if (opticalRxOid || opticalTxOid) {
             // Outros fabricantes (Mikrotik, Datacom, etc) - método tradicional com templates
-            // Para ifIndex: usar switchPortNumber (ifIndex do switch) preferencialmente, não snmpInterfaceIndex (que é do concentrador)
+            // IMPORTANTE: usar SOMENTE switchPortNumber (ifIndex do switch PTP)
+            // NÃO usar snmpInterfaceIndex como fallback — esse é o ifIndex do concentrador (outro equipamento)
             const switchPortNum = (link as any).switchPortNumber ? parseInt((link as any).switchPortNumber.toString(), 10) : null;
-            const linkIfIndex = switchPortNum || (link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null);
+            const linkIfIndex = switchPortNum;
             opticalSignal = await getOpticalSignalFromSwitch(
               sw.ipAddress,
               swProfile,

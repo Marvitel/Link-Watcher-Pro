@@ -9147,10 +9147,13 @@ export async function registerRoutes(
       results.snmpProfile = { id: p.id, name: p.name, version: p.version, community: p.community ? "***" : null };
 
       const switchPortNum = link.switchPortNumber ? parseInt(link.switchPortNumber.toString(), 10) : null;
-      const linkIfIndex = switchPortNum || (link.snmpInterfaceIndex ? parseInt(link.snmpInterfaceIndex.toString(), 10) : null);
+      const linkIfIndex = switchPortNum;
       results.resolvedIfIndex = linkIfIndex;
       results.switchPortNumber = switchPortNum;
       results.snmpInterfaceIndex = link.snmpInterfaceIndex;
+      if (!switchPortNum && link.snmpInterfaceIndex) {
+        results.warning = `switchPortNumber não configurado. snmpInterfaceIndex=${link.snmpInterfaceIndex} NÃO será usado pois pertence ao concentrador, não ao switch.`;
+      }
 
       if (opticalRxOid) {
         const resolvedRxOid = opticalRxOid.replace(/\{ifIndex\}/gi, (linkIfIndex || 0).toString());

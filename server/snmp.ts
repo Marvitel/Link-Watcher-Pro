@@ -1125,13 +1125,34 @@ export function calculateSwitchPortIndex(portIndexTemplate: string | null, switc
   
   // Se não há template, tentar extrair número diretamente da porta
   if (!portIndexTemplate || portIndexTemplate.trim() === "") {
-    // Formato direto: "1" ou "GigabitEthernet0/1" -> extrair número final
-    const match = switchPort.match(/(\d+)$/);
-    return match ? parseInt(match[1], 10) : null;
+    // Tentar extrair número final da string: "GigabitEthernet0/1" -> 1
+    const matchEnd = switchPort.match(/(\d+)$/);
+    if (matchEnd) return parseInt(matchEnd[1], 10);
+    
+    // MikroTik: "sfp-sfpplus5-UNIMED" -> extrair número do nome base da porta
+    // Padrão: sfp-sfpplus{N}, sfpplus{N}, ether{N}, qsfpplus{N}, etc.
+    const mkMatch = switchPort.match(/(?:sfp-?sfpplus|sfpplus|qsfp-?plus|ether|combo)(\d+)/i);
+    if (mkMatch) {
+      console.log(`[Switch Port Index] Porta MikroTik '${switchPort}' -> extraído número ${mkMatch[1]}`);
+      return parseInt(mkMatch[1], 10);
+    }
+    
+    // Último recurso: qualquer número na string
+    const anyNum = switchPort.match(/(\d+)/);
+    if (anyNum) {
+      console.log(`[Switch Port Index] Porta '${switchPort}' -> extraído primeiro número ${anyNum[1]}`);
+      return parseInt(anyNum[1], 10);
+    }
+    
+    return null;
   }
   
   // Parse da porta: pode ser "1/1/1" (slot/module/port) ou "0/1" (slot/port) ou "1" (port)
-  const parts = switchPort.split("/").map(p => parseInt(p.replace(/\D/g, ""), 10)).filter(n => !isNaN(n));
+  // Para portas MikroTik com sufixo (sfp-sfpplus5-UNIMED), extrair todos os números
+  const parts = switchPort.split("/").map(p => {
+    const nums = p.match(/\d+/g);
+    return nums ? parseInt(nums[nums.length - 1], 10) : NaN;
+  }).filter(n => !isNaN(n));
   
   let slot = 0, port = 0, module = 0;
   if (parts.length === 1) {
