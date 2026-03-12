@@ -3532,8 +3532,14 @@ export async function registerRoutes(
           if (isCorporateOrPtp) {
             console.log(`[Voalle Sync] Link corporativo/PTP sem senha PPPoE. Sincronizando apenas endereço (campos API ignorados).`);
           } else {
-            console.log(`[Voalle Sync] Senha PPPoE não disponível (Portal API e RADIUS). Sync bloqueado.`);
-            return res.json({ success: false, message: "Senha PPPoE atual não encontrada. Impossível sincronizar sem alterar a senha do cliente." });
+            // Dados já foram salvos localmente (PATCH anterior). Apenas não é possível atualizar a API do Voalle
+            // sem a senha PPPoE atual (necessária para não zerá-la). Retorna sucesso parcial com aviso.
+            console.log(`[Voalle Sync] Senha PPPoE não disponível (Portal API e RADIUS). Dados locais salvos; Voalle não atualizado.`);
+            return res.json({
+              success: true,
+              synced: addressSynced ? 1 : 0,
+              warning: "Dados salvos localmente. Voalle não foi atualizado pois a senha PPPoE do cliente não foi encontrada.",
+            });
           }
         }
         if (currentPppoePassword) {

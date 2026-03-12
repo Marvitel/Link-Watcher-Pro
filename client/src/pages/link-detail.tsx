@@ -314,8 +314,14 @@ export default function LinkDetail() {
       try {
         const syncRes = await apiRequest("POST", `/api/links/${linkId}/voalle-sync`);
         const syncData = await syncRes.json();
-        if (syncData.success && syncData.synced > 0) {
+        if (syncData.success && syncData.synced > 0 && !syncData.warning) {
           toast({ title: `Sincronizado com Voalle: ${syncData.synced} campo(s)` });
+        } else if (syncData.success && syncData.warning) {
+          // Dados locais salvos com sucesso; apenas a sincronização Voalle foi parcial
+          toast({
+            title: "Dados salvos",
+            description: syncData.warning,
+          });
         } else if (!syncData.success) {
           toast({ 
             title: "Erro ao sincronizar com Voalle", 
@@ -325,10 +331,10 @@ export default function LinkDetail() {
         }
       } catch (syncError: any) {
         console.error("[Voalle Sync] Falha na sincronização:", syncError);
+        // Não exibir como erro destrutivo — o save local já foi feito
         toast({ 
-          title: "Erro ao sincronizar com Voalle", 
-          description: syncError?.message || "Erro de comunicação",
-          variant: "destructive",
+          title: "Dados salvos",
+          description: "Sincronização Voalle indisponível no momento.",
         });
       }
 

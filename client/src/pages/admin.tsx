@@ -5166,9 +5166,12 @@ export default function Admin() {
         try {
           const syncRes = await apiRequest("POST", `/api/links/${variables.id}/voalle-sync`);
           const syncResult = await syncRes.json();
-          if (syncResult.success) {
+          if (syncResult.success && !syncResult.warning && syncResult.synced > 0) {
             toast({ title: "Voalle sincronizado", description: syncResult.message || "Dados enviados com sucesso" });
-          } else {
+          } else if (syncResult.success && syncResult.warning) {
+            // Dados locais já salvos; Voalle sync parcial (sem senha PPPoE)
+            toast({ title: "Dados salvos", description: syncResult.warning });
+          } else if (!syncResult.success) {
             toast({ 
               title: "Erro ao sincronizar com Voalle", 
               description: syncResult.message || "Falha na sincronização",
@@ -5177,11 +5180,7 @@ export default function Admin() {
           }
         } catch (syncErr: any) {
           console.error("[Voalle Sync] Error:", syncErr);
-          toast({ 
-            title: "Erro ao sincronizar com Voalle", 
-            description: syncErr?.message || "Erro de comunicação",
-            variant: "destructive",
-          });
+          toast({ title: "Dados salvos", description: "Sincronização Voalle indisponível no momento." });
         }
       }
       queryClient.invalidateQueries({ queryKey: ["/api/links", editingLink?.id, "voalle-compare"] });
