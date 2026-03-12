@@ -2000,6 +2000,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       let trafficDataSuccess = false;
       
       if (trafficSourceIfIndex) {
+        if (link.trafficSourceType === 'accessPoint') {
+          console.log(`[Monitor/AP] ${link.name}: Coletando tráfego via accessPoint - IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}, profileId=${trafficSourceProfileId}`);
+        }
         const trafficData = await getInterfaceTraffic(
           trafficSourceIp,
           profile,
@@ -2015,6 +2018,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             const bandwidth = calculateBandwidth(trafficData, previousData);
             downloadMbps = bandwidth.downloadMbps;
             uploadMbps = bandwidth.uploadMbps;
+            if (link.trafficSourceType === 'accessPoint') {
+              console.log(`[Monitor/AP] ${link.name}: Banda calculada - DL=${downloadMbps.toFixed(2)} Mbps, UL=${uploadMbps.toFixed(2)} Mbps`);
+            }
           } else {
             console.log(`[Monitor] ${link.name}: First traffic reading stored (need 2 readings to calculate bandwidth). inOctets=${trafficData.inOctets}, outOctets=${trafficData.outOctets}`);
           }

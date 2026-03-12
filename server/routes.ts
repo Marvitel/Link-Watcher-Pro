@@ -9491,9 +9491,19 @@ export async function registerRoutes(
               try { sess.close(); } catch {}
               if (err) return resolve({ error: err.message });
               const out: any = {};
+              const bufToNum = (buf: Buffer): string => {
+                let result = BigInt(0);
+                for (let i = 0; i < buf.length; i++) result = result * BigInt(256) + BigInt(buf[i]);
+                return result.toString();
+              };
               for (const vb of vbs || []) {
                 const typeNames: Record<number, string> = { 70: "Counter64", 65: "Counter32", 128: "NoSuchObject", 129: "NoSuchInstance" };
-                out[vb.oid] = { type: typeNames[vb.type] || `type${vb.type}`, value: vb.value?.toString() };
+                const typeName = typeNames[vb.type] || `type${vb.type}`;
+                let numericValue: string | null = null;
+                if (Buffer.isBuffer(vb.value)) numericValue = bufToNum(vb.value);
+                else if (typeof vb.value === 'bigint') numericValue = vb.value.toString();
+                else if (typeof vb.value === 'number') numericValue = vb.value.toString();
+                out[vb.oid] = { type: typeName, rawBytes: vb.value?.toString(), numericValue };
               }
               resolve(out);
             });
