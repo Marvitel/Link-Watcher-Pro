@@ -1970,11 +1970,21 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     if (ptpSwitch.length > 0) {
       const sw = ptpSwitch[0];
       const switchIfIndex = link.switchPortNumber ? parseInt(link.switchPortNumber.toString(), 10) : null;
-      if (sw.ipAddress && sw.snmpProfileId && switchIfIndex) {
+      // Resolver perfil SNMP: do switch ou do fabricante
+      let effectiveSwitchProfileId = sw.snmpProfileId;
+      if (!effectiveSwitchProfileId && sw.vendorId) {
+        const vendorRows = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
+        if (vendorRows.length > 0 && vendorRows[0].snmpProfileId) {
+          effectiveSwitchProfileId = vendorRows[0].snmpProfileId;
+        }
+      }
+      if (sw.ipAddress && effectiveSwitchProfileId && switchIfIndex) {
         if (!trafficSourceIp) trafficSourceIp = sw.ipAddress;
-        if (!trafficSourceProfileId) trafficSourceProfileId = sw.snmpProfileId;
+        if (!trafficSourceProfileId) trafficSourceProfileId = effectiveSwitchProfileId;
         if (!trafficSourceIfIndex) trafficSourceIfIndex = switchIfIndex;
-        console.log(`[Monitor] ${link.name}: PTP link - using switch ${sw.name} for traffic collection. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}`);
+        console.log(`[Monitor] ${link.name}: PTP link - using switch ${sw.name} for traffic. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}, profileId=${trafficSourceProfileId}`);
+      } else {
+        console.log(`[Monitor] ${link.name}: PTP fallback skipped - sw.ipAddress=${sw.ipAddress}, profileId=${effectiveSwitchProfileId}, switchIfIndex=${switchIfIndex}`);
       }
     }
   }
