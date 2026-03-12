@@ -334,7 +334,68 @@ function OpticalSnmpDiagnostic({ linkId }: { linkId: number }) {
                 </div>
               )}
 
-              {results.resolvedOids && (
+              {results.detectedVendorType && (
+                <div className="p-2 rounded bg-muted/50">
+                  <span className="text-muted-foreground">Tipo detectado:</span>
+                  <span className="ml-1 font-mono font-bold uppercase">{results.detectedVendorType}</span>
+                  {results.detectedVendorType === "cisco" && (
+                    <span className="ml-2 text-blue-400 text-[10px]">(Entity MIB / Sensor Discovery)</span>
+                  )}
+                </div>
+              )}
+
+              {results.detectedVendorType === "cisco" && (
+                <div className="space-y-2">
+                  {results.ciscoNormalizedPort && (
+                    <div>
+                      <span className="text-muted-foreground">Porta normalizada:</span>
+                      <span className="ml-1 font-mono font-bold">{results.ciscoNormalizedPort}</span>
+                    </div>
+                  )}
+                  {results.ciscoSensorCache ? (
+                    <div className="p-2 rounded bg-green-500/10 border border-green-500/20">
+                      <p className="font-medium">✓ Sensores no Cache</p>
+                      <p className="font-mono text-[10px]">RX Sensor: {results.ciscoSensorCache.rxSensorIndex || "N/A"}</p>
+                      <p className="font-mono text-[10px]">TX Sensor: {results.ciscoSensorCache.txSensorIndex || "N/A"}</p>
+                      {results.ciscoSensorCache.tempSensorIndex && (
+                        <p className="font-mono text-[10px]">Temp Sensor: {results.ciscoSensorCache.tempSensorIndex}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-1">Atualizado: {results.ciscoSensorCache.updatedAt ? new Date(results.ciscoSensorCache.updatedAt).toLocaleString() : "N/A"}</p>
+                    </div>
+                  ) : results.ciscoSensorCache === null ? (
+                    <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                      <p className="font-medium">⚠ Cache de Sensores Vazio</p>
+                      <p className="text-muted-foreground text-[10px]">{results.ciscoSensorCacheMessage}</p>
+                      <p className="text-muted-foreground text-[10px] mt-1">O auto-discovery será executado automaticamente na próxima coleta do monitoramento.</p>
+                    </div>
+                  ) : null}
+                  {results.ciscoCachedPorts && results.ciscoCachedPorts.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="font-medium text-[10px]">Portas com sensores no cache ({results.ciscoCachedSensorsCount}):</p>
+                      <div className="max-h-32 overflow-y-auto space-y-0.5">
+                        {results.ciscoCachedPorts.map((p: any, i: number) => (
+                          <div key={i} className={`p-1 rounded font-mono text-[10px] ${p.portName === results.ciscoNormalizedPort ? "bg-blue-500/20 border border-blue-500/30" : "bg-muted/30"}`}>
+                            {p.portName} → RX={p.rxSensorIndex || "N/A"} TX={p.txSensorIndex || "N/A"}
+                            {p.portName === results.ciscoNormalizedPort && <span className="ml-1 text-blue-400">← esta porta</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {results.ciscoDiscoveryResult && (
+                    <div className={`p-2 rounded ${results.ciscoDiscoveryResult.success ? "bg-green-500/10 border border-green-500/20" : "bg-destructive/10 border border-destructive/20"}`}>
+                      <p className="font-medium">{results.ciscoDiscoveryResult.success ? "✓ Discovery Executado" : "✗ Discovery Falhou"}</p>
+                      {results.ciscoDiscoveryResult.success ? (
+                        <p className="text-muted-foreground text-[10px]">Descobertos {results.ciscoDiscoveryResult.sensorsFound} portas com sensores</p>
+                      ) : (
+                        <p className="text-muted-foreground text-[10px]">{results.ciscoDiscoveryResult.error}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {results.detectedVendorType !== "cisco" && results.resolvedOids && (
                 <div className="space-y-1">
                   <p className="font-medium">OIDs Configurados:</p>
                   <p className="font-mono text-[10px] break-all">RX: {results.resolvedOids.opticalRxOid || "N/A"}</p>

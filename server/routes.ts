@@ -9175,79 +9175,177 @@ export async function registerRoutes(
         results.portStatusTest = { success: false, error: e.message };
       }
 
-      try {
-        const opticalResult = await getOpticalSignalFromSwitch(
-          sw.ipAddress,
-          swProfile,
-          link.switchPort || "",
-          opticalRxOid,
-          opticalTxOid,
-          sw.portIndexTemplate,
-          opticalDivisor,
-          linkIfIndex
-        );
-        results.opticalTest = {
-          success: opticalResult !== null,
-          rxPower: opticalResult?.rxPower ?? null,
-          txPower: opticalResult?.txPower ?? null,
-          oltRxPower: opticalResult?.oltRxPower ?? null,
-          rawResult: opticalResult,
-        };
-      } catch (e: any) {
-        results.opticalTest = { success: false, error: e.message };
-      }
+      const isCisco = vendorSlug.includes("cisco");
+      results.detectedVendorType = isCisco ? "cisco" : isMikrotik ? "mikrotik" : vendorSlug;
 
-      const snmpLib = await import("net-snmp");
-      const testIfIndices = linkIfIndex ? [linkIfIndex] : [1, 2, 3, 4, 5, 6, 7, 8];
-      const walkResults: any[] = [];
+      if (isCisco) {
+        const normalizedPort = (link.switchPort || "").replace(/^Eth(\d)/i, "Ethernet$1");
+        results.ciscoNormalizedPort = normalizedPort;
 
-      for (const idx of testIfIndices.slice(0, 16)) {
-        const rxOid = `1.3.6.1.4.1.14988.1.1.19.1.1.10.${idx}`;
-        const txOid = `1.3.6.1.4.1.14988.1.1.19.1.1.9.${idx}`;
-        try {
-          const rawResult = await new Promise<any>((resolve) => {
-            const timeout = setTimeout(() => resolve({ timeout: true }), 6000);
-            const version = swProfile.version.replace("v", "").toLowerCase();
-            const snmpVersion = version === "1" ? 0 : 1;
-            const session = snmpLib.default.createSession(sw.ipAddress, swProfile.community || "public", {
-              port: swProfile.port,
-              timeout: 4000,
-              retries: 0,
-              version: snmpVersion,
-            });
-            session.get([rxOid, txOid], (error: any, varbinds: any[]) => {
-              clearTimeout(timeout);
-              try { session.close(); } catch {}
-              if (error) {
-                resolve({ error: error.message || String(error) });
-                return;
-              }
-              const result: any = {};
-              for (const vb of (varbinds || [])) {
-                const oid = vb.oid;
-                const typeCode = vb.type;
-                const typeNames: Record<number, string> = {
-                  2: "Integer", 4: "OctetString", 5: "Null", 6: "OID",
-                  64: "IpAddress", 65: "Counter", 66: "Gauge32", 67: "TimeTicks",
-                  68: "Opaque", 70: "Counter64", 128: "NoSuchObject", 129: "NoSuchInstance", 130: "EndOfMibView"
-                };
-                result[oid] = {
-                  type: typeNames[typeCode] || `Unknown(${typeCode})`,
-                  typeCode,
-                  value: typeCode === 128 ? "noSuchObject" : typeCode === 129 ? "noSuchInstance" : typeCode === 130 ? "endOfMibView" : vb.value?.toString(),
-                  rawValue: typeCode === 2 ? Number(vb.value) : undefined,
-                  dBm: typeCode === 2 ? (Number(vb.value) / opticalDivisor).toFixed(3) : undefined,
-                };
-              }
-              resolve(result);
-            });
-          });
-          walkResults.push({ ifIndex: idx, rxOid, txOid, result: rawResult });
-        } catch (e: any) {
-          walkResults.push({ ifIndex: idx, error: e.message });
+        let sensorData = await db.select().from(switchSensorCache)
+          .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, normalizedPort)))
+          .limit(1);
+
+        if (sensorData.length === 0) {
+          const breakoutMatch = normalizedPort.match(/^(Ethernet\d+\/\d+)\/\d+$/);
+          if (breakoutMatch) {
+            sensorData = await db.select().from(switchSensorCache)
+              .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, breakoutMatch[1])))
+              .limit(1);
+          }
         }
+
+        if (sensorData.length > 0) {
+          const sensor = sensorData[0];
+          results.ciscoSensorCache = {
+            portName: sensor.portName,
+            rxSensorIndex: sensor.rxSensorIndex,
+            txSensorIndex: sensor.txSensorIndex,
+            tempSensorIndex: sensor.tempSensorIndex,
+            updatedAt: sensor.updatedAt,
+          };
+
+          if (sensor.rxSensorIndex || sensor.txSensorIndex) {
+            try {
+              const { getCiscoOpticalSignal } = await import("./snmp");
+              const ciscoDivisor = opticalDivisor || 1000;
+              const opticalResult = await getCiscoOpticalSignal(sw.ipAddress, swProfile, sensor.rxSensorIndex, sensor.txSensorIndex, ciscoDivisor);
+              results.opticalTest = {
+                success: opticalResult !== null && (opticalResult?.rxPower !== null || opticalResult?.txPower !== null),
+                rxPower: opticalResult?.rxPower ?? null,
+                txPower: opticalResult?.txPower ?? null,
+                method: "cisco-entity-mib",
+                divisor: ciscoDivisor,
+              };
+            } catch (e: any) {
+              results.opticalTest = { success: false, error: e.message, method: "cisco-entity-mib" };
+            }
+          }
+        } else {
+          results.ciscoSensorCache = null;
+          results.ciscoSensorCacheMessage = `Nenhum sensor no cache para porta ${normalizedPort}. Execute discovery ou aguarde auto-discovery na próxima coleta.`;
+        }
+
+        const allSensorsForSwitch = await db.select().from(switchSensorCache)
+          .where(eq(switchSensorCache.switchId, sw.id));
+        results.ciscoCachedSensorsCount = allSensorsForSwitch.length;
+        if (allSensorsForSwitch.length > 0) {
+          results.ciscoCachedPorts = allSensorsForSwitch.map(s => ({
+            portName: s.portName,
+            rxSensorIndex: s.rxSensorIndex,
+            txSensorIndex: s.txSensorIndex,
+          }));
+        }
+
+        if (req.query.runDiscovery === "true") {
+          try {
+            const { discoverCiscoSensors } = await import("./snmp");
+            const sensors = await discoverCiscoSensors(sw.ipAddress, swProfile);
+            results.ciscoDiscoveryResult = {
+              success: true,
+              sensorsFound: sensors.length,
+              sensors: sensors.map(s => ({ portName: s.portName, rx: s.rxSensorIndex, tx: s.txSensorIndex })),
+            };
+            for (const s of sensors) {
+              try {
+                const existing = await db.select().from(switchSensorCache)
+                  .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, s.portName)))
+                  .limit(1);
+                if (existing.length > 0) {
+                  await db.update(switchSensorCache)
+                    .set({ rxSensorIndex: s.rxSensorIndex, txSensorIndex: s.txSensorIndex, tempSensorIndex: s.tempSensorIndex, updatedAt: new Date() })
+                    .where(eq(switchSensorCache.id, existing[0].id));
+                } else {
+                  await db.insert(switchSensorCache).values({
+                    switchId: sw.id,
+                    portName: s.portName,
+                    rxSensorIndex: s.rxSensorIndex,
+                    txSensorIndex: s.txSensorIndex,
+                    tempSensorIndex: s.tempSensorIndex,
+                  });
+                }
+              } catch {}
+            }
+          } catch (e: any) {
+            results.ciscoDiscoveryResult = { success: false, error: e.message };
+          }
+        }
+      } else {
+        try {
+          const opticalResult = await getOpticalSignalFromSwitch(
+            sw.ipAddress,
+            swProfile,
+            link.switchPort || "",
+            opticalRxOid,
+            opticalTxOid,
+            sw.portIndexTemplate,
+            opticalDivisor,
+            linkIfIndex
+          );
+          results.opticalTest = {
+            success: opticalResult !== null,
+            rxPower: opticalResult?.rxPower ?? null,
+            txPower: opticalResult?.txPower ?? null,
+            oltRxPower: opticalResult?.oltRxPower ?? null,
+            rawResult: opticalResult,
+            method: isMikrotik ? "mikrotik-mtxr" : "generic-oid",
+          };
+        } catch (e: any) {
+          results.opticalTest = { success: false, error: e.message };
+        }
+
+        const snmpLib = await import("net-snmp");
+        const testIfIndices = linkIfIndex ? [linkIfIndex] : [1, 2, 3, 4, 5, 6, 7, 8];
+        const walkResults: any[] = [];
+
+        for (const idx of testIfIndices.slice(0, 16)) {
+          const rxOid = `1.3.6.1.4.1.14988.1.1.19.1.1.10.${idx}`;
+          const txOid = `1.3.6.1.4.1.14988.1.1.19.1.1.9.${idx}`;
+          try {
+            const rawResult = await new Promise<any>((resolve) => {
+              const timeout = setTimeout(() => resolve({ timeout: true }), 6000);
+              const version = swProfile.version.replace("v", "").toLowerCase();
+              const snmpVersion = version === "1" ? 0 : 1;
+              const session = snmpLib.default.createSession(sw.ipAddress, swProfile.community || "public", {
+                port: swProfile.port,
+                timeout: 4000,
+                retries: 0,
+                version: snmpVersion,
+              });
+              session.get([rxOid, txOid], (error: any, varbinds: any[]) => {
+                clearTimeout(timeout);
+                try { session.close(); } catch {}
+                if (error) {
+                  resolve({ error: error.message || String(error) });
+                  return;
+                }
+                const result: any = {};
+                for (const vb of (varbinds || [])) {
+                  const oid = vb.oid;
+                  const typeCode = vb.type;
+                  const typeNames: Record<number, string> = {
+                    2: "Integer", 4: "OctetString", 5: "Null", 6: "OID",
+                    64: "IpAddress", 65: "Counter", 66: "Gauge32", 67: "TimeTicks",
+                    68: "Opaque", 70: "Counter64", 128: "NoSuchObject", 129: "NoSuchInstance", 130: "EndOfMibView"
+                  };
+                  result[oid] = {
+                    type: typeNames[typeCode] || `Unknown(${typeCode})`,
+                    typeCode,
+                    value: typeCode === 128 ? "noSuchObject" : typeCode === 129 ? "noSuchInstance" : typeCode === 130 ? "endOfMibView" : vb.value?.toString(),
+                    rawValue: typeCode === 2 ? Number(vb.value) : undefined,
+                    dBm: typeCode === 2 ? (Number(vb.value) / opticalDivisor).toFixed(3) : undefined,
+                  };
+                }
+                resolve(result);
+              });
+            });
+            walkResults.push({ ifIndex: idx, rxOid, txOid, result: rawResult });
+          } catch (e: any) {
+            walkResults.push({ ifIndex: idx, error: e.message });
+          }
+        }
+        results.mtxrOpticalWalk = walkResults;
       }
-      results.mtxrOpticalWalk = walkResults;
 
       const ifNameOid = `1.3.6.1.2.1.2.2.1.2.${linkIfIndex || 5}`;
       try {

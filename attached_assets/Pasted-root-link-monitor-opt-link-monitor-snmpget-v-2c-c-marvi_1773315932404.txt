@@ -1,0 +1,32 @@
+root@link-monitor:/opt/link-monitor# snmpget -v 2c -c marvitel 100.65.129.202 1.3.6.1.2.1.31.1.1.1.10.436232192
+iso.3.6.1.2.1.31.1.1.1.10.436232192 = Counter64: 562152615287557
+root@link-monitor:/opt/link-monitor# snmpwalk -v 2c -c marvitel 100.65.129.202 1.3.6.1.2.1.47.1.1.1.1.7 | grep "Ethernet1/7"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010563 = STRING: "Ethernet1/7 Lane 1 Transceiver Voltage Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010564 = STRING: "Ethernet1/7 Lane 1 Transceiver Bias Current Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010567 = STRING: "Ethernet1/7 Lane 1 Transceiver Temperature Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010573 = STRING: "Ethernet1/7 Lane 1 Transceiver Receive Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010574 = STRING: "Ethernet1/7 Lane 1 Transceiver Transmit Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010579 = STRING: "Ethernet1/7 Lane 2 Transceiver Voltage Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010580 = STRING: "Ethernet1/7 Lane 2 Transceiver Bias Current Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010583 = STRING: "Ethernet1/7 Lane 2 Transceiver Temperature Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010589 = STRING: "Ethernet1/7 Lane 2 Transceiver Receive Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010590 = STRING: "Ethernet1/7 Lane 2 Transceiver Transmit Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010595 = STRING: "Ethernet1/7 Lane 3 Transceiver Voltage Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010596 = STRING: "Ethernet1/7 Lane 3 Transceiver Bias Current Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010599 = STRING: "Ethernet1/7 Lane 3 Transceiver Temperature Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010605 = STRING: "Ethernet1/7 Lane 3 Transceiver Receive Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010606 = STRING: "Ethernet1/7 Lane 3 Transceiver Transmit Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010611 = STRING: "Ethernet1/7 Lane 4 Transceiver Voltage Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010612 = STRING: "Ethernet1/7 Lane 4 Transceiver Bias Current Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010615 = STRING: "Ethernet1/7 Lane 4 Transceiver Temperature Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010621 = STRING: "Ethernet1/7 Lane 4 Transceiver Receive Power Sensor"
+iso.3.6.1.2.1.47.1.1.1.1.7.300010622 = STRING: "Ethernet1/7 Lane 4 Transceiver Transmit Power Sensor"
+root@link-monitor:/opt/link-monitor# for i in 300010573 300010589 300010605 300010621; do 
+  echo -n "Lane $i: "
+  snmpget -v 2c -c marvitel -Oqv 100.65.129.202 1.3.6.1.4.1.9.9.91.1.1.1.1.4.$i
+done
+Lane 300010573: -6216
+Lane 300010589: -5654
+Lane 300010605: -5497
+Lane 300010621: -4685
+root@link-monitor:/opt/link-monitor# 

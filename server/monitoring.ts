@@ -1965,6 +1965,20 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     }
   }
 
+  if ((!trafficSourceProfileId || !trafficSourceIp || !trafficSourceIfIndex) && link.linkType === 'ptp' && link.switchId) {
+    const ptpSwitch = await db.select().from(switches).where(eq(switches.id, link.switchId)).limit(1);
+    if (ptpSwitch.length > 0) {
+      const sw = ptpSwitch[0];
+      const switchIfIndex = link.switchPortNumber ? parseInt(link.switchPortNumber.toString(), 10) : null;
+      if (sw.ipAddress && sw.snmpProfileId && switchIfIndex) {
+        if (!trafficSourceIp) trafficSourceIp = sw.ipAddress;
+        if (!trafficSourceProfileId) trafficSourceProfileId = sw.snmpProfileId;
+        if (!trafficSourceIfIndex) trafficSourceIfIndex = switchIfIndex;
+        console.log(`[Monitor] ${link.name}: PTP link - using switch ${sw.name} for traffic collection. IP=${trafficSourceIp}, ifIndex=${trafficSourceIfIndex}`);
+      }
+    }
+  }
+
   if (!trafficSourceProfileId || !trafficSourceIp) {
     console.log(`[Monitor] ${link.name}: Cannot collect traffic - missing trafficSourceIp=${trafficSourceIp}, profileId=${trafficSourceProfileId}, ifIndex=${trafficSourceIfIndex}, sourceType=${link.trafficSourceType}, concentratorId=${link.concentratorId}`);
   }
@@ -2529,6 +2543,58 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               }
             }
             
+            if (sensorData.length === 0) {
+              // Cache vazio — executar auto-discovery de sensores Cisco
+              console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: cache vazio para porta ${normalizedPort}. Executando auto-discovery...`);
+              try {
+                const { discoverCiscoSensors } = await import("./snmp");
+                const sensors = await discoverCiscoSensors(sw.ipAddress, swProfile);
+                if (sensors.length > 0) {
+                  console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: descobertos ${sensors.length} portas com sensores`);
+                  // Salvar no cache
+                  for (const s of sensors) {
+                    try {
+                      const existing = await db.select().from(switchSensorCache)
+                        .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, s.portName)))
+                        .limit(1);
+                      if (existing.length > 0) {
+                        await db.update(switchSensorCache)
+                          .set({ rxSensorIndex: s.rxSensorIndex, txSensorIndex: s.txSensorIndex, tempSensorIndex: s.tempSensorIndex, updatedAt: new Date() })
+                          .where(eq(switchSensorCache.id, existing[0].id));
+                      } else {
+                        await db.insert(switchSensorCache).values({
+                          switchId: sw.id,
+                          portName: s.portName,
+                          rxSensorIndex: s.rxSensorIndex,
+                          txSensorIndex: s.txSensorIndex,
+                          tempSensorIndex: s.tempSensorIndex,
+                        });
+                      }
+                    } catch (dbErr) {
+                      console.log(`[Monitor] Cisco auto-discovery: erro ao salvar sensor ${s.portName}: ${dbErr}`);
+                    }
+                  }
+                  // Re-buscar no cache após discovery
+                  sensorData = await db.select()
+                    .from(switchSensorCache)
+                    .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, normalizedPort)))
+                    .limit(1);
+                  if (sensorData.length === 0) {
+                    // Tentar porta base para breakout
+                    const breakoutMatch2 = normalizedPort.match(/^(Ethernet\d+\/\d+)\/\d+$/);
+                    if (breakoutMatch2) {
+                      sensorData = await db.select()
+                        .from(switchSensorCache)
+                        .where(and(eq(switchSensorCache.switchId, sw.id), eq(switchSensorCache.portName, breakoutMatch2[1])))
+                        .limit(1);
+                    }
+                  }
+                }
+              } catch (discoveryErr) {
+                console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: erro no auto-discovery: ${discoveryErr}`);
+              }
+            }
+
             if (sensorData.length > 0 && (sensorData[0].rxSensorIndex || sensorData[0].txSensorIndex)) {
               const sensor = sensorData[0];
               console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: usando sensores RX=${sensor.rxSensorIndex} TX=${sensor.txSensorIndex}`);
@@ -2554,7 +2620,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 }
               }
             } else {
-              console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: porta ${normalizedPort} não encontrada no cache. Execute discovery no switch.`);
+              console.log(`[Monitor] ${link.name} - Óptico PTP Cisco: porta ${normalizedPort} não encontrada no cache mesmo após discovery.`);
             }
           } else if (opticalRxOid || opticalTxOid) {
             // Outros fabricantes (Mikrotik, Datacom, etc) - método tradicional com templates
