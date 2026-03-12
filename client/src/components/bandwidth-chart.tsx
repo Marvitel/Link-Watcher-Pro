@@ -44,10 +44,13 @@ export function BandwidthChart({
       const filtered = data.filter((item) => item && item.timestamp);
       const result: Array<{
         time: string;
+        tsNum: number;
         download: number | null;
         upload: number | null;
         downloadDown: number | null;
         uploadDown: number | null;
+        isDown: boolean;
+        isDegraded: boolean;
       }> = [];
       
       for (let i = 0; i < filtered.length; i++) {
@@ -57,33 +60,30 @@ export function BandwidthChart({
         try {
           const pointStatus = item.status || "operational";
           const isDown = isDownStatus(pointStatus);
+          const isDegraded = pointStatus === "degraded";
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
           
-          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const d = new Date(item.timestamp);
+          const time = format(d, "HH:mm", { locale: ptBR });
+          const tsNum = d.getTime();
           const rawDl = item.download ?? 0;
           const rawUl = item.upload ?? 0;
-          // Inversão é o padrão (concentradores). invertBandwidth=true = manter original
           const shouldInvert = !invertBandwidth;
           const dl = shouldInvert ? rawUl : rawDl;
           const ul = shouldInvert ? rawDl : rawUl;
           
-          // Se mudou de status, adicionar ponto de transição
           if (prevItem && isDown !== wasDown) {
-            result.push({
-              time,
-              download: dl,
-              upload: ul,
-              downloadDown: dl,
-              uploadDown: ul,
-            });
+            result.push({ time, tsNum, download: dl, upload: ul, downloadDown: dl, uploadDown: ul, isDown, isDegraded });
           } else {
             result.push({
-              time,
+              time, tsNum,
               download: isDown ? null : dl,
               upload: isDown ? null : ul,
               downloadDown: isDown ? dl : null,
               uploadDown: isDown ? ul : null,
+              isDown,
+              isDegraded,
             });
           }
         } catch {
@@ -95,7 +95,7 @@ export function BandwidthChart({
     } catch {
       return [];
     }
-  }, [data]);
+  }, [data, invertBandwidth]);
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -108,9 +108,16 @@ export function BandwidthChart({
     );
   }
 
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
+  const availBarH = showAxes ? 8 : 0;
+  const chartH = height - availBarH - (showAxes ? 4 : 0);
+  // Para o modo showAxes, margens coincidem com o YAxis width + chart margin
+  // YAxis width=50, chart margin left=10, right=10 → bar: ml-[60px] mr-[10px]
+  const yAxisWidth = 60;
+  const chartMarginLR = 10;
+
+  const chart = (
+    <ResponsiveContainer width="100%" height={showAxes ? chartH : height}>
+      <AreaChart data={chartData} margin={{ top: 4, right: chartMarginLR, left: chartMarginLR, bottom: 4 }}>
         <defs>
           <linearGradient id="colorDownload" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(210, 85%, 50%)" stopOpacity={0.3} />
@@ -132,16 +139,24 @@ export function BandwidthChart({
         {showAxes && (
           <>
             <XAxis
-              dataKey="time"
+              dataKey="tsNum"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={(ts: number) => {
+                try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return ""; }
+              }}
+              tickCount={7}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
             />
             <YAxis
+              width={yAxisWidth}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              tickFormatter={(value) => `${value} Mbps`}
+              tickFormatter={(value) => `${value} M`}
             />
           </>
         )}
@@ -153,49 +168,56 @@ export function BandwidthChart({
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
+          labelFormatter={(ts: number) => {
+            try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return String(ts); }
+          }}
           formatter={(value, name: string) => {
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
             const label = name.includes("Down") 
-              ? (name.includes("download") ? "Download (Down)" : "Upload (Down)")
+              ? (name.includes("download") ? "Download (Offline)" : "Upload (Offline)")
               : (name === "download" ? "Download" : "Upload");
             return [`${numVal.toFixed(1)} Mbps`, label];
           }}
         />
-        <Area
-          type="monotone"
-          dataKey="download"
-          stroke="hsl(210, 85%, 50%)"
-          strokeWidth={2}
-          fill="url(#colorDownload)"
-          connectNulls={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="upload"
-          stroke="hsl(142, 76%, 45%)"
-          strokeWidth={2}
-          fill="url(#colorUpload)"
-          connectNulls={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="downloadDown"
-          stroke="hsl(0, 84%, 60%)"
-          strokeWidth={2}
-          fill="url(#colorDownloadRed)"
-          connectNulls={false}
-        />
-        <Area
-          type="monotone"
-          dataKey="uploadDown"
-          stroke="hsl(0, 70%, 50%)"
-          strokeWidth={2}
-          fill="url(#colorUploadRed)"
-          connectNulls={false}
-        />
+        <Area type="monotone" dataKey="download" stroke="hsl(210, 85%, 50%)" strokeWidth={2} fill="url(#colorDownload)" connectNulls={false} />
+        <Area type="monotone" dataKey="upload" stroke="hsl(142, 76%, 45%)" strokeWidth={2} fill="url(#colorUpload)" connectNulls={false} />
+        <Area type="monotone" dataKey="downloadDown" stroke="hsl(0, 84%, 60%)" strokeWidth={2} fill="url(#colorDownloadRed)" connectNulls={false} />
+        <Area type="monotone" dataKey="uploadDown" stroke="hsl(0, 70%, 50%)" strokeWidth={2} fill="url(#colorUploadRed)" connectNulls={false} />
       </AreaChart>
     </ResponsiveContainer>
+  );
+
+  if (!showAxes) return chart;
+
+  // Modo Separado: adiciona barra de disponibilidade proporcional ao tempo
+  const firstTs = chartData[0]?.tsNum ?? 0;
+  const lastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+  const totalMs = lastTs - firstTs || 1;
+  const avgGap = totalMs / Math.max(chartData.length - 1, 1);
+
+  return (
+    <div className="w-full flex flex-col">
+      <div style={{ height: chartH }}>{chart}</div>
+      <div
+        className="rounded overflow-hidden flex-shrink-0"
+        style={{ height: availBarH, minHeight: availBarH, marginLeft: yAxisWidth + chartMarginLR, marginRight: chartMarginLR }}>
+        <div className="flex h-full w-full">
+          {chartData.map((point, idx) => {
+            const nextTs = idx < chartData.length - 1 ? chartData[idx + 1].tsNum : point.tsNum + avgGap;
+            const segMs = Math.max(nextTs - point.tsNum, 0);
+            const pct = totalMs > 0 ? (segMs / totalMs * 100) : (100 / chartData.length);
+            let bgColor = "bg-green-500";
+            if (point.isDown) bgColor = "bg-red-500";
+            else if (point.isDegraded) bgColor = "bg-yellow-500";
+            return (
+              <div key={idx} className={`h-full ${bgColor}`} style={{ width: `${pct}%` }}
+                title={`${point.time} - ${point.isDown ? "Offline" : point.isDegraded ? "Degradado" : "Online"}`} />
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -541,12 +563,13 @@ export function UnifiedMetricsChart({
         const isDown = isDownStatus(pointStatus);
         const isDegraded = pointStatus === "degraded";
         
-        let timeLabel: string;
+        let tsNum = 0;
+        let timeLabel = "";
         try {
-          timeLabel = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
-        } catch {
-          timeLabel = "";
-        }
+          const d = new Date(item.timestamp);
+          tsNum = d.getTime();
+          timeLabel = format(d, "HH:mm", { locale: ptBR });
+        } catch {}
         
         const rawDl = item.download ?? 0;
         const rawUl = item.upload ?? 0;
@@ -556,12 +579,13 @@ export function UnifiedMetricsChart({
         
         return {
           time: timeLabel,
+          tsNum,
           timestamp: item.timestamp,
           download: dl,
           upload: ul,
           latency: item.latency ?? 0,
-          packetLoss: item.packetLoss ?? 0,
-          // Status para barras de disponibilidade (valor fixo para consistência)
+          // Fix: quando link offline (perda 100%), não plota linha — barra vermelha já indica
+          packetLoss: isDown ? null : (item.packetLoss ?? 0),
           availabilityOk: !isDown && !isDegraded ? 1 : 0,
           availabilityDegraded: isDegraded ? 1 : 0,
           availabilityDown: isDown ? 1 : 0,
@@ -628,11 +652,17 @@ export function UnifiedMetricsChart({
             </defs>
             
             <XAxis
-              dataKey="time"
+              dataKey="tsNum"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={(ts: number) => {
+                try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return ""; }
+              }}
+              tickCount={7}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              interval="preserveStartEnd"
             />
             
             {/* Eixo Y esquerdo: Banda */}
@@ -675,7 +705,9 @@ export function UnifiedMetricsChart({
                 if (name === "packetLoss") return [`${value.toFixed(2)}%`, "Perda"];
                 return [null, null];
               }}
-              labelFormatter={(label) => `Horário: ${label}`}
+              labelFormatter={(ts: number) => {
+                try { return `Horário: ${format(new Date(ts), "HH:mm", { locale: ptBR })}`; } catch { return `Horário: ${ts}`; }
+              }}
             />
             
             {/* Linha de referência para latência SLA */}
@@ -739,22 +771,31 @@ export function UnifiedMetricsChart({
         </ResponsiveContainer>
       </div>
       
-      {/* Barra de disponibilidade contínua na base (estilo Unifi) */}
-      <div style={{ height: availabilityBarHeight, minHeight: availabilityBarHeight }} className="mx-[55px] rounded overflow-hidden flex-shrink-0">
+      {/* Barra de disponibilidade contínua na base (estilo Unifi) — margem alinhada com a área de dados */}
+      <div style={{ height: availabilityBarHeight, minHeight: availabilityBarHeight }} className="ml-[55px] mr-[95px] rounded overflow-hidden flex-shrink-0">
         <div className="flex h-full w-full">
-          {chartData.map((point, idx) => {
-            let bgColor = "bg-green-500";
-            if (point.availabilityDown > 0) bgColor = "bg-red-500";
-            else if (point.availabilityDegraded > 0) bgColor = "bg-yellow-500";
-            
-            return (
-              <div
-                key={idx}
-                className={`flex-1 h-full ${bgColor}`}
-                title={`${point.time} - ${point.availabilityDown > 0 ? "Offline" : point.availabilityDegraded > 0 ? "Degradado" : "Online"}`}
-              />
-            );
-          })}
+          {(() => {
+            const firstTs = chartData[0]?.tsNum ?? 0;
+            const lastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+            const totalMs = lastTs - firstTs || 1;
+            const avgGap = totalMs / Math.max(chartData.length - 1, 1);
+            return chartData.map((point, idx) => {
+              const nextTs = idx < chartData.length - 1 ? chartData[idx + 1].tsNum : point.tsNum + avgGap;
+              const segMs = Math.max(nextTs - point.tsNum, 0);
+              const pct = totalMs > 0 ? (segMs / totalMs * 100) : (100 / chartData.length);
+              let bgColor = "bg-green-500";
+              if (point.availabilityDown > 0) bgColor = "bg-red-500";
+              else if (point.availabilityDegraded > 0) bgColor = "bg-yellow-500";
+              return (
+                <div
+                  key={idx}
+                  className={`h-full ${bgColor}`}
+                  style={{ width: `${pct}%` }}
+                  title={`${point.time} - ${point.availabilityDown > 0 ? "Offline" : point.availabilityDegraded > 0 ? "Degradado" : "Online"}`}
+                />
+              );
+            });
+          })()}
         </div>
       </div>
       
