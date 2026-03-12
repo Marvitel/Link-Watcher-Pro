@@ -501,6 +501,22 @@ const previousTrafficData = new Map<number, TrafficResult>();
 // Cache para interfaces de tráfego adicionais - chave: "linkId-interfaceId"
 const previousAdditionalTrafficData = new Map<string, TrafficResult>();
 
+// Links sendo ativamente visualizados por analistas — recebem coleta rápida (5s)
+const watchedLinks = new Map<number, number>(); // linkId → timestamp do último heartbeat
+const WATCH_EXPIRY_MS = 60_000; // expira se não receber heartbeat em 60s
+const FAST_POLL_INTERVAL_MS = 5_000; // intervalo de coleta rápida: 5s
+
+export function markLinkWatched(linkId: number): void {
+  watchedLinks.set(linkId, Date.now());
+}
+
+export function isLinkWatched(linkId: number): boolean {
+  const ts = watchedLinks.get(linkId);
+  return ts !== undefined && Date.now() - ts < WATCH_EXPIRY_MS;
+}
+
+let fastPollInterval: NodeJS.Timeout | null = null;
+
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
 
@@ -3451,6 +3467,27 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
   }
 }
 
+// Coleta rápida para links sendo visualizados ativamente
+const fastCollecting = new Set<number>(); // evita coletas concorrentes do mesmo link
+
+async function collectWatchedLinksFast(): Promise<void> {
+  const now = Date.now();
+  for (const [linkId, ts] of watchedLinks.entries()) {
+    if (now - ts >= WATCH_EXPIRY_MS) {
+      watchedLinks.delete(linkId);
+      continue;
+    }
+    if (fastCollecting.has(linkId)) continue; // já em coleta
+    fastCollecting.add(linkId);
+    db.select().from(links).where(eq(links.id, linkId)).limit(1).then(async (rows) => {
+      if (rows.length > 0 && rows[0].monitoringEnabled) {
+        try { await processLinkMetrics(rows[0]); } catch {}
+      }
+      fastCollecting.delete(linkId);
+    }).catch(() => fastCollecting.delete(linkId));
+  }
+}
+
 export async function collectAllLinksMetrics(): Promise<void> {
   if (isCollecting) {
     console.log(`[Monitor] Previous collection cycle still running, skipping this cycle`);
@@ -4036,6 +4073,13 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
     collectAllLinksMetrics();
   }, effectiveInterval * 1000);
 
+  // Loop rápido de coleta para links sendo visualizados ativamente (5s)
+  if (fastPollInterval) clearInterval(fastPollInterval);
+  fastPollInterval = setInterval(() => {
+    if (watchedLinks.size > 0) collectWatchedLinksFast();
+  }, FAST_POLL_INTERVAL_MS);
+  console.log(`[Monitor] Fast-poll loop iniciado (${FAST_POLL_INTERVAL_MS / 1000}s para links assistidos)`);
+
   // Sincronização do Wanguard a cada 120 segundos (reduzido de 60s para economizar CPU)
   wanguardSyncInterval = setInterval(() => {
     syncWanguardForAllClients();
@@ -4054,6 +4098,10 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
 }
 
 export function stopMonitoring(): void {
+  if (fastPollInterval) {
+    clearInterval(fastPollInterval);
+    fastPollInterval = null;
+  }
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
     monitoringInterval = null;

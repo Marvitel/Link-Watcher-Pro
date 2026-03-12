@@ -186,6 +186,15 @@ export default function LinkDetail() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Heartbeat de visualização ativa — ativa coleta rápida (5s) no servidor enquanto analista está na tela
+  useEffect(() => {
+    if (isNaN(linkId)) return;
+    const sendWatch = () => apiRequest("POST", `/api/links/${linkId}/watch`).catch(() => {});
+    sendWatch();
+    const interval = setInterval(sendWatch, 20_000);
+    return () => clearInterval(interval);
+  }, [linkId]);
+
   const oltDiagnosisMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/links/${linkId}/olt-diagnosis`);
@@ -201,13 +210,13 @@ export default function LinkDetail() {
   const { data: link, isLoading: linkLoading } = useQuery<Link>({
     queryKey: ["/api/links", linkId],
     enabled: !isNaN(linkId),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   const { data: statusDetail } = useQuery<LinkStatusDetail>({
     queryKey: ["/api/links", linkId, "status-detail"],
     enabled: !isNaN(linkId),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   interface MitigationStatus {
@@ -224,7 +233,7 @@ export default function LinkDetail() {
   const { data: mitigationStatus } = useQuery<MitigationStatus>({
     queryKey: ["/api/links", linkId, "mitigation-status"],
     enabled: !isNaN(linkId),
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   const { data: snmpProfiles } = useQuery<Array<{ id: number; name: string; clientId: number | null }>>({
@@ -356,7 +365,7 @@ export default function LinkDetail() {
       return res.json();
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 30000,
+    refetchInterval: isCustomRange ? false : 5000,
   });
 
   // Query para interfaces de tráfego adicionais
@@ -417,7 +426,7 @@ export default function LinkDetail() {
       }));
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 30000,
+    refetchInterval: isCustomRange ? false : 5000,
   });
 
   const additionalInterfaces = trafficInterfacesData || [];

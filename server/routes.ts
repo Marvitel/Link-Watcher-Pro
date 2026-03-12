@@ -1311,6 +1311,19 @@ export async function registerRoutes(
     }
   });
 
+  // Heartbeat de visualização ativa — acelera coleta para 5s enquanto analista está na tela
+  app.post("/api/links/:id/watch", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id, 10);
+      if (isNaN(linkId)) return res.status(400).json({ error: "linkId inválido" });
+      const { markLinkWatched } = await import("./monitoring");
+      markLinkWatched(linkId);
+      res.json({ ok: true, linkId, fastPollIntervalSeconds: 5 });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao registrar watch" });
+    }
+  });
+
   // Obter status da porta do switch para links PTP/L2
   app.get("/api/links/:id/port-status", requireAuth, async (req, res) => {
     try {
