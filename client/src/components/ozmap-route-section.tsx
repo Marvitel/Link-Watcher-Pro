@@ -189,6 +189,9 @@ function getKindLabel(kind: string): string {
   switch (kind.toLowerCase()) {
     case 'fiber': return 'Fibra';
     case 'cable': return 'Cabo';
+    case 'drop_cable': return 'Ramal do Cliente';
+    case 'drop_cable_unknown': return 'Ramal do Cliente';
+    case 'ont': return 'ONT / ONU';
     case 'splitter': return 'Splitter';
     case 'passing': return 'Caixa';
     case 'box': return 'Caixa';
@@ -211,6 +214,7 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
     ozmapTag: string; 
     potencyData: OzmapPotencyData[];
     routeData?: any;
+    propertyData?: any;
   }>({
     queryKey: ['/api/links', link.id, 'ozmap-potency'],
     enabled: !!ozmapTag,
@@ -301,6 +305,9 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
       </Card>
     );
   }
+
+  const propertyData = data?.propertyData;
+  const propertyCables: any[] = (propertyData?.cables && Array.isArray(propertyData.cables)) ? propertyData.cables : [];
 
   const totalDistance = potencyItem.distance;
   const totalAttenuation = potencyItem.attenuation;
@@ -406,6 +413,40 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
     }
     return acc;
   }, initialElements);
+
+  // Adicionar cables da propriedade (ramal do cliente) ao final da rota
+  if (propertyCables.length > 0) {
+    for (const cable of propertyCables) {
+      groupedElements.push({
+        type: 'drop_cable',
+        id: cable.id || `prop-cable-${Math.random()}`,
+        name: cable.name || cable.label || 'Ramal do Cliente',
+        length: typeof cable.length === 'number' ? cable.length / 1000 : null,
+        rawLength: cable.length,
+        kind: cable.kind || 'Cable',
+        box: cable.box?.name || null,
+        attenuation: 0,
+        distance: 0,
+      });
+    }
+    // Elemento final: ONT do cliente
+    groupedElements.push({
+      type: 'ont',
+      id: 'ont-client',
+      name: 'ONT / ONU (Cliente)',
+      attenuation: 0,
+      distance: totalDistance,
+    });
+  } else if (propertyData) {
+    // Propriedade encontrada mas sem cables documentados
+    groupedElements.push({
+      type: 'drop_cable_unknown',
+      id: 'drop-unknown',
+      name: 'Ramal do Cliente (não documentado no OZmap)',
+      attenuation: 0,
+      distance: 0,
+    });
+  }
 
   const cableCount = groupedElements.filter(e => e.type === 'cable').length;
   const boxCount = groupedElements.filter(e => e.type === 'passing').length;
@@ -558,6 +599,9 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
               <div className="space-y-1">
                 {groupedElements.map((item, index) => {
                   const Icon = item.type === 'cable' ? Cable : 
+                               item.type === 'drop_cable' ? Cable :
+                               item.type === 'drop_cable_unknown' ? Cable :
+                               item.type === 'ont' ? Radio :
                                item.type === 'passing' ? Box : 
                                item.type === 'splitter' ? Split :
                                item.type === 'fusion' ? Zap :
@@ -567,6 +611,9 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                                item.type === 'switch' ? Network : MapPin;
                   
                   const colorClass = item.type === 'cable' ? 'text-blue-500' : 
+                                     item.type === 'drop_cable' ? 'text-teal-500' :
+                                     item.type === 'drop_cable_unknown' ? 'text-gray-400' :
+                                     item.type === 'ont' ? 'text-green-600' :
                                      item.type === 'passing' ? 'text-green-500' : 
                                      item.type === 'splitter' ? 'text-purple-500' :
                                      item.type === 'fusion' ? 'text-orange-500' :
@@ -620,6 +667,26 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
                           {item.type === 'switch' && item.port && (
                             <Badge variant="outline" className="text-xs shrink-0">
                               Porta {typeof item.port === 'object' ? item.port.number : item.port}
+                            </Badge>
+                          )}
+                          {item.type === 'drop_cable' && item.length != null && (
+                            <Badge variant="outline" className="text-xs shrink-0 border-teal-400 text-teal-600">
+                              {formatDistance(item.length)}
+                            </Badge>
+                          )}
+                          {item.type === 'drop_cable' && item.box && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {item.box}
+                            </Badge>
+                          )}
+                          {item.type === 'drop_cable_unknown' && (
+                            <Badge variant="outline" className="text-xs shrink-0 text-muted-foreground">
+                              Não documentado
+                            </Badge>
+                          )}
+                          {item.type === 'ont' && (
+                            <Badge variant="default" className="text-xs shrink-0 bg-green-600">
+                              Destino Final
                             </Badge>
                           )}
                         </div>

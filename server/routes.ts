@@ -8482,6 +8482,29 @@ export async function registerRoutes(
       } catch (routeError) {
         console.log("[OZmap] Could not fetch route data:", routeError);
       }
+
+      // Buscar propriedade pelo código da etiqueta: OLT/slot/PON como fallback + cables (ramal do cliente)
+      let propertyData: any = null;
+      try {
+        const propFilter = JSON.stringify([{ property: "history.clients.code", value: ozmapTag, operator: "=" }]);
+        const propertyUrl = `${baseUrl}/api/v2/properties?filter=${encodeURIComponent(propFilter)}&populate=olt%20slot%20pon%20cables`;
+        console.log("[OZmap] Fetching property data:", propertyUrl);
+        const propertyResponse = await fetch(propertyUrl, {
+          method: "GET",
+          headers: { "Accept": "application/json", "Authorization": integration.apiKey },
+        });
+        if (propertyResponse.ok) {
+          const pData = await propertyResponse.json();
+          console.log("[OZmap] Property data:", JSON.stringify(pData).substring(0, 3000));
+          if (pData.rows && pData.rows.length > 0) {
+            propertyData = pData.rows[0];
+          }
+        } else {
+          console.log("[OZmap] Property endpoint returned:", propertyResponse.status);
+        }
+      } catch (propErr) {
+        console.log("[OZmap] Could not fetch property data:", propErr);
+      }
       
       // Extrair e salvar dados do OZmap no link (prioridade sobre Zabbix)
       if (Array.isArray(data) && data.length > 0) {
@@ -8565,6 +8588,36 @@ export async function registerRoutes(
           }
         }
         
+        // Fallback: usar propertyData para OLT/slot/PON se potência não os trouxe
+        if (propertyData) {
+          if (!oltName && propertyData.olt?.name) {
+            oltName = propertyData.olt.name;
+            console.log(`[OZmap] Link ${linkId}: OLT via property fallback: ${oltName}`);
+          }
+          if (oltSlot === null) {
+            const ps = propertyData.slot;
+            if (ps !== undefined && ps !== null) {
+              oltSlot = typeof ps === 'object' && ps.number !== undefined ? parseInt(String(ps.number), 10) : parseInt(String(ps), 10);
+              if (!isNaN(oltSlot)) console.log(`[OZmap] Link ${linkId}: Slot via property fallback: ${oltSlot}`);
+              else oltSlot = null;
+            }
+          }
+          if (oltPort === null) {
+            const pp = propertyData.pon;
+            if (pp !== undefined && pp !== null) {
+              oltPort = typeof pp === 'object' && pp.number !== undefined ? parseInt(String(pp.number), 10) : parseInt(String(pp), 10);
+              if (!isNaN(oltPort)) console.log(`[OZmap] Link ${linkId}: PON via property fallback: ${oltPort}`);
+              else oltPort = null;
+            }
+          }
+          // Log dos cables disponíveis na propriedade (ramal do cliente)
+          if (propertyData.cables && Array.isArray(propertyData.cables) && propertyData.cables.length > 0) {
+            console.log(`[OZmap] Link ${linkId}: ${propertyData.cables.length} cable(s) na propriedade:`, JSON.stringify(propertyData.cables).substring(0, 1000));
+          } else {
+            console.log(`[OZmap] Link ${linkId}: Nenhum cable encontrado na propriedade (ramal não documentado no OZmap)`);
+          }
+        }
+
         // Atualizar o link com os dados do OZmap
         const ozmapUpdate: any = {
           ozmapDistance: potencyItem.distance || null,
@@ -8598,7 +8651,8 @@ export async function registerRoutes(
         linkId,
         ozmapTag,
         potencyData: data,
-        routeData: routeData
+        routeData: routeData,
+        propertyData: propertyData,
       });
     } catch (error: any) {
       console.error("[OZmap] Error:", error);
