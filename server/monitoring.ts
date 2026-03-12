@@ -2029,7 +2029,9 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
       }
       
       {
-        if (trafficSourceIfIndex && link.snmpInterfaceName && trafficSourceIp) {
+        // Para links accessPoint, o ifIndex é fixo (accessPointInterfaceIndex) — não verificar nome de interface
+        const isAccessPointLink = link.trafficSourceType === 'accessPoint';
+        if (!isAccessPointLink && trafficSourceIfIndex && link.snmpInterfaceName && trafficSourceIp) {
           const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '') || /^Virtual-Access/i.test(link.snmpInterfaceDescr || '');
           const isConcentratorLink = link.trafficSourceType === 'concentrator' || link.concentratorId;
           const knownAlias = link.pppoeUser || link.snmpInterfaceAlias;
