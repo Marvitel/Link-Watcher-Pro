@@ -52,6 +52,7 @@ import {
   externalIntegrations,
   equipmentVendors,
   snmpProfiles,
+  switchSensorCache,
   type AuthUser,
   type UserRole,
 } from "@shared/schema";
