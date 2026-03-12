@@ -9381,6 +9381,134 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/diagnostics/link/:linkId/traffic-test", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      if (isNaN(linkId)) return res.status(400).json({ error: "ID inválido" });
+
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+
+      const r: any = {
+        linkId: link.id,
+        linkName: link.name,
+        linkType: link.linkType,
+        trafficSourceType: link.trafficSourceType,
+        concentratorId: link.concentratorId,
+        switchId: link.switchId,
+        switchPortNumber: link.switchPortNumber,
+        linkFields: {
+          snmpRouterIp: link.snmpRouterIp,
+          snmpInterfaceIndex: link.snmpInterfaceIndex,
+          snmpProfileId: link.snmpProfileId,
+          snmpInterfaceName: link.snmpInterfaceName,
+        },
+        resolution: {},
+        snmpTest: null,
+      };
+
+      let trafficSourceIp = link.snmpRouterIp;
+      let trafficSourceIfIndex = link.snmpInterfaceIndex;
+      let trafficSourceProfileId = link.snmpProfileId;
+      r.resolution.step1_initial = { ip: trafficSourceIp, ifIndex: trafficSourceIfIndex, profileId: trafficSourceProfileId };
+
+      if (link.trafficSourceType === "accessPoint" && (link as any).accessPointId) {
+        const apRows = await db.select().from(switches).where(eq(switches.id, (link as any).accessPointId)).limit(1);
+        if (apRows.length > 0) {
+          trafficSourceIp = apRows[0].ipAddress;
+          trafficSourceProfileId = apRows[0].snmpProfileId;
+          trafficSourceIfIndex = (link as any).accessPointInterfaceIndex || null;
+          r.resolution.step2_accessPoint = { switchName: apRows[0].name, ip: trafficSourceIp, profileId: trafficSourceProfileId, ifIndex: trafficSourceIfIndex };
+        }
+      } else if (link.concentratorId) {
+        const concRows = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId)).limit(1);
+        if (concRows.length > 0) {
+          const conc = concRows[0];
+          const isCiscoVi = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || "");
+          if (isCiscoVi || link.trafficSourceType === "concentrator") {
+            trafficSourceIp = conc.ipAddress;
+            if (conc.snmpProfileId) trafficSourceProfileId = conc.snmpProfileId;
+            r.resolution.step2_concentrator = { name: conc.name, ip: trafficSourceIp, profileId: trafficSourceProfileId, isCiscoVi };
+          }
+        }
+      }
+
+      if (!trafficSourceProfileId && link.concentratorId) {
+        const concRows = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, link.concentratorId)).limit(1);
+        if (concRows.length > 0 && concRows[0].snmpProfileId) {
+          trafficSourceProfileId = concRows[0].snmpProfileId;
+          if (!trafficSourceIp) trafficSourceIp = concRows[0].ipAddress;
+          r.resolution.step3_concentratorProfileFallback = { profileId: trafficSourceProfileId, ip: trafficSourceIp };
+        }
+      }
+
+      if ((!trafficSourceProfileId || !trafficSourceIp || !trafficSourceIfIndex) && link.linkType === "ptp" && link.switchId) {
+        const swRows = await db.select().from(switches).where(eq(switches.id, link.switchId)).limit(1);
+        if (swRows.length > 0) {
+          const sw = swRows[0];
+          const switchIfIndex = link.switchPortNumber ? parseInt(link.switchPortNumber.toString(), 10) : null;
+          let effectiveProfileId = sw.snmpProfileId;
+          if (!effectiveProfileId && sw.vendorId) {
+            const vendorRows = await db.select().from(equipmentVendors).where(eq(equipmentVendors.id, sw.vendorId)).limit(1);
+            if (vendorRows.length > 0) effectiveProfileId = vendorRows[0].snmpProfileId;
+          }
+          r.resolution.step4_ptpFallback = {
+            switchName: sw.name, switchIp: sw.ipAddress, switchSnmpProfileId: sw.snmpProfileId,
+            vendorId: sw.vendorId, effectiveProfileId, switchIfIndex,
+            wouldApply: !!(sw.ipAddress && effectiveProfileId && switchIfIndex),
+          };
+          if (sw.ipAddress && effectiveProfileId && switchIfIndex) {
+            if (!trafficSourceIp) trafficSourceIp = sw.ipAddress;
+            if (!trafficSourceProfileId) trafficSourceProfileId = effectiveProfileId;
+            if (!trafficSourceIfIndex) trafficSourceIfIndex = switchIfIndex;
+          }
+        }
+      }
+
+      r.resolution.final = { ip: trafficSourceIp, ifIndex: trafficSourceIfIndex, profileId: trafficSourceProfileId };
+      r.resolution.canCollect = !!(trafficSourceIp && trafficSourceProfileId && trafficSourceIfIndex);
+
+      if (r.resolution.canCollect) {
+        const profileRows = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, trafficSourceProfileId!)).limit(1);
+        if (profileRows.length === 0) {
+          r.snmpTest = { error: `Perfil SNMP ID ${trafficSourceProfileId} não encontrado no banco` };
+        } else {
+          const p = profileRows[0];
+          r.snmpProfile = { id: p.id, name: p.name, version: p.version };
+          const snmpLib = await import("net-snmp");
+          const version = p.version.replace("v", "").toLowerCase();
+          const snmpVersion = version === "1" ? 0 : 1;
+          const rxOid = `1.3.6.1.2.1.31.1.1.1.6.${trafficSourceIfIndex}`;
+          const txOid = `1.3.6.1.2.1.31.1.1.1.10.${trafficSourceIfIndex}`;
+
+          const snmpResult = await new Promise<any>((resolve) => {
+            const to = setTimeout(() => resolve({ error: "Timeout 8s" }), 8000);
+            const sess = snmpLib.default.createSession(trafficSourceIp!, p.community || "public", {
+              port: p.port || 161, timeout: 6000, retries: 1, version: snmpVersion,
+            });
+            sess.get([rxOid, txOid], (err: any, vbs: any[]) => {
+              clearTimeout(to);
+              try { sess.close(); } catch {}
+              if (err) return resolve({ error: err.message });
+              const out: any = {};
+              for (const vb of vbs || []) {
+                const typeNames: Record<number, string> = { 70: "Counter64", 65: "Counter32", 128: "NoSuchObject", 129: "NoSuchInstance" };
+                out[vb.oid] = { type: typeNames[vb.type] || `type${vb.type}`, value: vb.value?.toString() };
+              }
+              resolve(out);
+            });
+          });
+
+          r.snmpTest = { oids: { rx: rxOid, tx: txOid }, result: snmpResult };
+        }
+      }
+
+      return res.json(r);
+    } catch (error) {
+      res.status(500).json({ error: "Erro no diagnóstico de tráfego", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post("/api/admin/diagnostics/reset-metrics", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { resetMetrics } = await import("./metrics");
