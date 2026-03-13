@@ -9302,6 +9302,47 @@ export async function registerRoutes(
           results.opticalTest = { success: false, error: e.message, method: `gpon-snmp-${oltData.vendor}` };
         }
 
+        // ?walk=true → walk no OID base para mostrar índices reais presentes na OLT
+        if (req.query.walk === "true" && rxOid) {
+          try {
+            const snmpLib = await import("net-snmp");
+            const snmpVer = (oltProfile.version || "2c").replace("v", "").toLowerCase();
+            const snmpVersion = snmpVer === "1" ? 0 : 1;
+            const walkSession = snmpLib.default.createSession(oltData.ipAddress, oltProfile.community || "public", {
+              port: oltProfile.port || 161, timeout: 8000, retries: 1, version: snmpVersion,
+            });
+            const walkEntries: any[] = [];
+            await new Promise<void>((resolve) => {
+              const walkTimeout = setTimeout(() => { try { walkSession.close(); } catch {} resolve(); }, 15000);
+              walkSession.subtree(rxOid!, 20, (varbinds: any[]) => {
+                for (const vb of varbinds) {
+                  if (walkEntries.length >= 30) break;
+                  let rawVal: any = vb.value;
+                  let numVal: number | null = null;
+                  if (typeof rawVal === 'number') numVal = rawVal;
+                  else if (Buffer.isBuffer(rawVal)) numVal = parseInt(rawVal.toString(), 10);
+                  const dBm = numVal !== null && !isNaN(numVal) ? (Math.abs(numVal) > 100 ? numVal / 100 : numVal) : null;
+                  walkEntries.push({ oid: vb.oid, raw: numVal, dBm: dBm !== null ? Math.round(dBm * 10) / 10 : null });
+                }
+              }, (err: any) => {
+                clearTimeout(walkTimeout);
+                try { walkSession.close(); } catch {}
+                resolve();
+              });
+            });
+            results.walkResult = {
+              baseOid: rxOid,
+              entriesFound: walkEntries.length,
+              entries: walkEntries,
+              hint: walkEntries.length > 0
+                ? `Índices encontrados: ${walkEntries.slice(0, 5).map(e => e.oid.split('.').slice(-2).join('.')).join(', ')}...`
+                : "Nenhuma entrada encontrada — OID base inválido ou OLT sem ONUs nessa porta",
+            };
+          } catch (walkErr: any) {
+            results.walkResult = { error: walkErr.message };
+          }
+        }
+
         return res.json(results);
       }
       // ── FIM GPON path ───────────────────────────────────────────────────────
