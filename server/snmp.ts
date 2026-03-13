@@ -1008,6 +1008,11 @@ export async function getOpticalSignal(
                   if (rounded === 0) {
                     console.log(`[SNMP Optical] ${key} retornou 0 dBm - tratando como sem leitura (equipamento possivelmente desligado)`);
                     result[key] = null;
+                  } else if (rounded > 10 || rounded < -50) {
+                    // Faixa física impossível para potência óptica (-50 a +10 dBm)
+                    // Valores fora desse range são códigos de status ou placeholders do equipamento
+                    console.log(`[SNMP Optical] ${key} retornou ${rounded} dBm - fora da faixa físicamente válida (-50 a +10), descartando`);
+                    result[key] = null;
                   } else {
                     result[key] = rounded;
                   }
