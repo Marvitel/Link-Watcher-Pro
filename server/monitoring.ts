@@ -2301,26 +2301,17 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           
           let distanceOid: string | null = null;
           
-          // Fallback: se OIDs não configurados no fabricante, usar OIDs hardcoded do OPTICAL_OIDS
-          if (!rxOid && !txOid && !oltRxOid) {
+          // Fallback parcial: preencher OIDs faltantes com valores hardcoded do OPTICAL_OIDS
+          {
             const { OPTICAL_OIDS } = await import("./snmp");
             const normalizedSlug = oltVendorSlug.toLowerCase().trim();
             const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
             if (fallbackOids) {
-              rxOid = fallbackOids.onuRxPower || null;
-              txOid = fallbackOids.onuTxPower || null;
-              distanceOid = fallbackOids.onuDistance || null;
-              console.log(`[Monitor] ${link.name} - Óptico: usando OIDs padrão para '${oltVendorSlug}' (RX=${rxOid}, TX=${txOid}, Dist=${distanceOid})`);
-            } else {
+              if (!rxOid && fallbackOids.onuRxPower) { rxOid = fallbackOids.onuRxPower; console.log(`[Monitor] ${link.name} - Óptico: RX OID via fallback hardcoded (${rxOid})`); }
+              if (!txOid && fallbackOids.onuTxPower) { txOid = fallbackOids.onuTxPower; console.log(`[Monitor] ${link.name} - Óptico: TX OID via fallback hardcoded (${txOid})`); }
+              if (fallbackOids.onuDistance) distanceOid = fallbackOids.onuDistance;
+            } else if (!rxOid && !txOid && !oltRxOid) {
               console.log(`[Monitor] ${link.name} - Óptico: OIDs não configurados para fabricante '${oltVendorSlug}' (${vendorBySlug[0].name}). Configure em Admin → Fabricantes.`);
-            }
-          } else {
-            // Mesmo com OIDs do fabricante, buscar OID de distância do hardcoded se disponível
-            const { OPTICAL_OIDS } = await import("./snmp");
-            const normalizedSlug = oltVendorSlug.toLowerCase().trim();
-            const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
-            if (fallbackOids?.onuDistance) {
-              distanceOid = fallbackOids.onuDistance;
             }
           }
           

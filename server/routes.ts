@@ -9230,15 +9230,16 @@ export async function registerRoutes(
           if (rxOid || txOid || oltRxOid) oidSource = "vendor-db";
         }
 
-        if (!rxOid && !txOid && !oltRxOid) {
+        // Fallback parcial: preencher OIDs faltantes com hardcoded mesmo quando vendor tem algum OID
+        {
           const { OPTICAL_OIDS } = await import("./snmp");
           const normalizedSlug = oltData.vendor.toLowerCase().trim();
           const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
           if (fallbackOids) {
-            rxOid = fallbackOids.onuRxPower || null;
-            txOid = fallbackOids.onuTxPower || null;
-            distanceOid = fallbackOids.onuDistance || null;
-            oidSource = "hardcoded-fallback";
+            if (!rxOid && fallbackOids.onuRxPower) { rxOid = fallbackOids.onuRxPower; oidSource = oidSource === "none" ? "hardcoded-fallback" : oidSource + "+hardcoded-rx"; }
+            if (!txOid && fallbackOids.onuTxPower) { txOid = fallbackOids.onuTxPower; oidSource = oidSource === "none" ? "hardcoded-fallback" : oidSource + "+hardcoded-tx"; }
+            if (!oltRxOid && fallbackOids.oltRxPower) { oltRxOid = fallbackOids.oltRxPower; oidSource += "+hardcoded-oltrx"; }
+            if (fallbackOids.onuDistance) distanceOid = fallbackOids.onuDistance;
           }
         }
 
