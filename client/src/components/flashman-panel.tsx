@@ -142,6 +142,11 @@ interface NormalizedDevice {
   voip: { lines: any[] };
   resources: { memoryFree: number | null; cpuUsage: number | null };
   backup: { hasBackup: boolean; lastBackup: string | null };
+  mesh: {
+    mode: number;
+    master: string | null;
+    slaves: Array<{ serial: string; model: string; status: string; ip: string }>;
+  };
   rawLegacy?: any;
 }
 
@@ -207,6 +212,13 @@ function normalizeDevice(data: any, source: "full" | "legacy"): NormalizedDevice
       backup: {
         hasBackup: d.backup?.has_backup || false,
         lastBackup: d.backup?.last_backup || null,
+      },
+      mesh: {
+        mode: typeof d.mesh_mode === "number" ? d.mesh_mode : 0,
+        master: d.mesh_master || null,
+        slaves: Array.isArray(d.mesh_slaves)
+          ? d.mesh_slaves.map((s: any) => typeof s === "object" ? s : { serial: s, model: "", status: "", ip: "" })
+          : [],
       },
     };
   }
@@ -295,6 +307,13 @@ function normalizeDevice(data: any, source: "full" | "legacy"): NormalizedDevice
       cpuUsage: d.resourcesUsage?.cpuUsage ?? null,
     },
     backup: { hasBackup: false, lastBackup: null },
+    mesh: {
+      mode: d.mesh?.mode ?? 0,
+      master: d.mesh?.master || null,
+      slaves: Array.isArray(d.mesh?.slaves)
+        ? d.mesh.slaves.map((s: any) => typeof s === "object" ? s : { serial: s, model: "", status: "", ip: "" })
+        : [],
+    },
     rawLegacy: d,
   };
 }
@@ -689,6 +708,9 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
             <TabsTrigger value="hosts" data-testid="tab-hosts">Hosts</TabsTrigger>
             <TabsTrigger value="voip" data-testid="tab-voip">VoIP</TabsTrigger>
             <TabsTrigger value="diag" data-testid="tab-diag">Diag</TabsTrigger>
+            {device.mesh.mode !== 0 && (
+              <TabsTrigger value="mesh" data-testid="tab-mesh">Mesh</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="info" className="mt-4">
@@ -1320,6 +1342,70 @@ export function FlashmanPanel({ linkId }: { linkId: number }) {
               </div>
             )}
           </TabsContent>
+
+          {device.mesh.mode !== 0 && (
+            <TabsContent value="mesh" className="mt-4 space-y-4">
+              <div>
+                <div className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                  <Network className="w-4 h-4" /> Topologia Mesh
+                </div>
+
+                <div className="rounded-lg border border-border/50 p-4 space-y-0 mb-4">
+                  <InfoRow
+                    label="Modo"
+                    value={
+                      device.mesh.mode === 1
+                        ? "Master (possui satélites)"
+                        : device.mesh.mode === 2
+                        ? "Satélite (conectado a um master)"
+                        : "Standalone"
+                    }
+                  />
+                  {device.mesh.mode === 2 && device.mesh.master && (
+                    <InfoRow label="Master" value={device.mesh.master} mono />
+                  )}
+                  {device.mesh.mode === 1 && (
+                    <InfoRow label="Satélites" value={String(device.mesh.slaves.length)} />
+                  )}
+                </div>
+
+                {device.mesh.mode === 1 && device.mesh.slaves.length > 0 && (
+                  <div>
+                    <div className="text-sm font-medium mb-2">Satélites conectados</div>
+                    <div className="space-y-2">
+                      {device.mesh.slaves.map((slave, idx) => (
+                        <div
+                          key={slave.serial || idx}
+                          className="rounded-lg border border-border/50 p-3 flex items-center justify-between gap-3"
+                          data-testid={`mesh-slave-${slave.serial || idx}`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Radio className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-mono text-xs truncate">{slave.serial || "—"}</div>
+                              <div className="text-xs text-muted-foreground">{slave.model || "Modelo desconhecido"}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {slave.ip && (
+                              <span className="font-mono text-xs text-muted-foreground">{slave.ip}</span>
+                            )}
+                            <Badge
+                              variant={slave.status === "online" ? "default" : "secondary"}
+                              className={slave.status === "online" ? "bg-emerald-600 text-white" : ""}
+                              data-testid={`mesh-slave-status-${slave.serial || idx}`}
+                            >
+                              {slave.status === "online" ? "Online" : slave.status === "offline" ? "Offline" : slave.status || "—"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
 
