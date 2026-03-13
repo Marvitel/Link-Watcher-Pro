@@ -9133,8 +9133,180 @@ export async function registerRoutes(
         tests: [],
       };
 
-      if (link.linkType !== "ptp" || !link.switchId) {
-        results.error = "Link não é PTP ou não tem switch configurado";
+      // ── GPON path ──────────────────────────────────────────────────────────
+      const isGpon = link.linkType === "gpon" || (!link.switchId && link.oltId);
+      if (isGpon || link.oltId) {
+        results.mode = "gpon";
+        results.oltId = link.oltId;
+        results.slotOlt = link.slotOlt;
+        results.portOlt = link.portOlt;
+        results.onuId = link.onuId;
+        results.ozmap = {
+          oltName: link.ozmapOltName,
+          slot: link.ozmapSlot,
+          port: link.ozmapPort,
+          splitter: link.ozmapSplitterName,
+          splitterPort: link.ozmapSplitterPort,
+        };
+
+        // Verificar pré-condições
+        if (!link.oltId) {
+          results.error = "olt_id não configurado no link";
+          results.fix = "Vá em Editar Link → OLT e selecione a OLT correta";
+          return res.json(results);
+        }
+        if (!link.opticalMonitoringEnabled) {
+          results.warning = "optical_monitoring_enabled está desativado";
+          results.fix = "Ative 'Monitoramento Óptico' nas configurações do link";
+        }
+
+        const hasSlotPort = link.slotOlt !== null && link.slotOlt !== undefined &&
+                            link.portOlt !== null && link.portOlt !== undefined;
+        const hasOnuId = link.onuId !== null && link.onuId !== undefined && link.onuId !== '';
+
+        let parsedOnuId = NaN;
+        if (hasOnuId) {
+          const onuIdStr = link.onuId!.trim();
+          if (onuIdStr.includes('/')) {
+            const parts = onuIdStr.split('/').filter((p: string) => p.trim() !== '');
+            parsedOnuId = parseInt(parts[parts.length - 1], 10);
+          } else {
+            parsedOnuId = parseInt(onuIdStr, 10);
+          }
+        }
+
+        results.parsedOnuId = parsedOnuId;
+        results.hasSlotPort = hasSlotPort;
+        results.hasOnuId = hasOnuId;
+
+        if (!hasSlotPort) {
+          results.error = `slot_olt ou port_olt não configurado (slot=${link.slotOlt}, port=${link.portOlt})`;
+          results.fix = "Preencha Slot e Porta PON nas configurações do link (ou sincronize via OZmap)";
+          return res.json(results);
+        }
+        if (!hasOnuId || isNaN(parsedOnuId) || parsedOnuId < 0) {
+          results.error = `onu_id inválido (valor: "${link.onuId}", parsed: ${parsedOnuId})`;
+          results.fix = "Preencha o campo ONU ID corretamente (ex: '14' ou '0/1/8/14')";
+          return res.json(results);
+        }
+
+        // Buscar OLT
+        const olt = await db.select().from(olts).where(eq(olts.id, link.oltId)).limit(1);
+        if (olt.length === 0) {
+          results.error = `OLT id=${link.oltId} não encontrada no banco`;
+          return res.json(results);
+        }
+        const oltData = olt[0];
+        results.olt = { id: oltData.id, name: oltData.name, ip: oltData.ipAddress, vendor: oltData.vendor, snmpProfileId: oltData.snmpProfileId };
+
+        if (!oltData.snmpProfileId) {
+          results.error = "OLT não tem perfil SNMP configurado";
+          results.fix = `Configure o perfil SNMP na OLT '${oltData.name}'`;
+          return res.json(results);
+        }
+        if (!oltData.vendor) {
+          results.error = "OLT não tem fabricante configurado";
+          results.fix = `Configure o fabricante (vendor) na OLT '${oltData.name}'`;
+          return res.json(results);
+        }
+
+        // Buscar OIDs do fabricante
+        const vendorBySlug = await db.select().from(equipmentVendors)
+          .where(eq(equipmentVendors.slug, oltData.vendor))
+          .limit(1);
+
+        let rxOid: string | null = null;
+        let txOid: string | null = null;
+        let oltRxOid: string | null = null;
+        let distanceOid: string | null = null;
+        let oidSource = "none";
+
+        if (vendorBySlug.length > 0) {
+          const vend = vendorBySlug[0];
+          rxOid = vend.opticalRxOid || null;
+          txOid = vend.opticalTxOid || null;
+          oltRxOid = vend.opticalOltRxOid || null;
+          results.vendorConfig = { name: vend.name, slug: vend.slug, rxOid, txOid, oltRxOid };
+          if (rxOid || txOid || oltRxOid) oidSource = "vendor-db";
+        }
+
+        if (!rxOid && !txOid && !oltRxOid) {
+          const { OPTICAL_OIDS } = await import("./snmp");
+          const normalizedSlug = oltData.vendor.toLowerCase().trim();
+          const fallbackOids = (OPTICAL_OIDS as any)[normalizedSlug];
+          if (fallbackOids) {
+            rxOid = fallbackOids.onuRxPower || null;
+            txOid = fallbackOids.onuTxPower || null;
+            distanceOid = fallbackOids.onuDistance || null;
+            oidSource = "hardcoded-fallback";
+          }
+        }
+
+        results.resolvedOids = { rxOid, txOid, oltRxOid, distanceOid, source: oidSource };
+
+        if (!rxOid && !txOid && !oltRxOid) {
+          results.error = `Nenhum OID óptico disponível para fabricante '${oltData.vendor}'`;
+          results.fix = "Configure os OIDs ópticos em Admin → Fabricantes de Equipamentos";
+          return res.json(results);
+        }
+
+        // Buscar perfil SNMP
+        const { getOpticalSignal: getGponOpticalSignal } = await import("./snmp");
+        const profileRows = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, oltData.snmpProfileId)).limit(1);
+        if (profileRows.length === 0) {
+          results.error = `Perfil SNMP id=${oltData.snmpProfileId} não encontrado`;
+          return res.json(results);
+        }
+        const prof = profileRows[0];
+        const oltProfile = {
+          id: prof.id, version: prof.version, port: prof.port || 161,
+          community: prof.community, securityLevel: prof.securityLevel,
+          authProtocol: prof.authProtocol, authPassword: prof.authPassword,
+          privProtocol: prof.privProtocol, privPassword: prof.privPassword,
+          username: prof.username, timeout: prof.timeout || 5000, retries: prof.retries || 1,
+        };
+        results.snmpProfile = { id: prof.id, name: prof.name, version: prof.version, community: prof.community ? "***" : null };
+
+        const onuParams = { slot: link.slotOlt!, port: link.portOlt!, onuId: parsedOnuId };
+        results.onuParams = onuParams;
+
+        // Calcular índice SNMP
+        const { calculateOnuSnmpIndex } = await import("./snmp");
+        const onuIndex = calculateOnuSnmpIndex(oltData.vendor, onuParams);
+        results.calculatedOnuIndex = onuIndex;
+
+        if (!onuIndex) {
+          results.error = `Não foi possível calcular índice SNMP para fabricante '${oltData.vendor}' com slot=${link.slotOlt} port=${link.portOlt} onuId=${parsedOnuId}`;
+          return res.json(results);
+        }
+
+        // Executar coleta
+        try {
+          const opticalResult = await getGponOpticalSignal(
+            oltData.ipAddress, oltProfile, oltData.vendor, onuParams, rxOid, txOid, oltRxOid, distanceOid
+          );
+          results.opticalTest = {
+            success: opticalResult !== null && (opticalResult.rxPower !== null || opticalResult.txPower !== null || opticalResult.oltRxPower !== null),
+            rxPower: opticalResult?.rxPower ?? null,
+            txPower: opticalResult?.txPower ?? null,
+            oltRxPower: opticalResult?.oltRxPower ?? null,
+            onuDistance: opticalResult?.onuDistance ?? null,
+            method: `gpon-snmp-${oltData.vendor}`,
+            rawResult: opticalResult,
+          };
+          if (!results.opticalTest.success) {
+            results.opticalTest.diagnosis = "SNMP retornou resultado mas sem valores — verifique o índice calculado e se a ONU está online";
+          }
+        } catch (e: any) {
+          results.opticalTest = { success: false, error: e.message, method: `gpon-snmp-${oltData.vendor}` };
+        }
+
+        return res.json(results);
+      }
+      // ── FIM GPON path ───────────────────────────────────────────────────────
+
+      if (!link.switchId) {
+        results.error = "Link não é PTP/GPON ou não tem switch/OLT configurado";
         return res.json(results);
       }
 
