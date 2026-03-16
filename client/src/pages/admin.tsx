@@ -733,8 +733,8 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     voalleContractTagServiceTag: (link as any)?.voalleContractTagServiceTag || "",
     voalleConnectionId: (link as any)?.voalleConnectionId || null,
     voalleContractNumber: (link as any)?.voalleContractNumber || "",
-    slotOlt: (link as any)?.slotOlt || null,
-    portOlt: (link as any)?.portOlt || null,
+    slotOlt: (link as any)?.slotOlt ?? null,
+    portOlt: (link as any)?.portOlt ?? null,
     equipmentSerialNumber: (link as any)?.equipmentSerialNumber || "",
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
@@ -886,7 +886,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     if (matchedOltId) messages.push(`OLT encontrada`);
     if (matchedSwitchId) messages.push(`Switch PTP encontrado`);
     if (matchedConcentratorId) messages.push(`Concentrador encontrado`);
-    if (tag.slotOlt && tag.portOlt) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
+    if (tag.slotOlt != null && tag.portOlt != null) messages.push(`Slot/Porta: ${tag.slotOlt}/${tag.portOlt}`);
     if (tag.equipmentSerialNumber) messages.push(`Serial ONU: ${tag.equipmentSerialNumber}`);
     
     toast({
