@@ -1,0 +1,497 @@
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/ftth-clients?code=GWLZC8GX" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+{
+    "total": 1749,
+    "count": 25,
+    "rows": [
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL03}\nNome fantasia: \nRazao Social: \nSigla: HITECH INFORM\u00c1TICA\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "XPON22050989",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9df1"
+            },
+            "kind": "ftth",
+            "code": "BRN91TNT",
+            "createdAt": "2021-01-08T14:22:45.436Z",
+            "updatedAt": "2026-03-18T15:00:02.679Z",
+            "name": "ELEICAO 2022 LAERCIO JOSE DE OLIVEIRA SENADOR",
+            "id": "5ff86ab5b1cb1d0014545b81"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL02}\nNome fantasia: \nRazao Social: \nSigla: PLAMED (BAR\u00c3O)\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9df3"
+            },
+            "kind": "ftth",
+            "code": "Contrato N. M-542 - PLAMED PLANO DE ASSISTENCIA MEDICA LTDA - 00185-535-288",
+            "createdAt": "2021-01-08T14:22:45.478Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "PLAMED PLANO DE ASSISTENCIA MEDICA LTDA",
+            "id": "5ff86ab5b1cb1d0014545b8d"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL04}\nNome fantasia: \nRazao Social: \nSigla: CEMISE (CEMICLIN)\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9df5"
+            },
+            "kind": "ftth",
+            "code": "P9JW1VY6",
+            "createdAt": "2021-01-08T14:22:45.489Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "CEMISE\u00ad - RESSONANCIA MAGNETICA E TOMOGRAFIA COMPUTADORIZADA",
+            "id": "5ff86ab5b1cb1d0014545b8f"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL07}\nNome fantasia: \nRazao Social: \nSigla: POSTO PETROX\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9df7"
+            },
+            "kind": "ftth",
+            "code": "HWMWNS0R",
+            "createdAt": "2021-01-08T14:22:45.512Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "PETROX COMERCIAL LTDA",
+            "id": "5ff86ab5b1cb1d0014545b95"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL01}\nNome fantasia: \nRazao Social: \nSigla: DIAGNOSE BAR\u00c3O\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACM91F811A8",
+                "mac_address": "",
+                "id": "69a83707d1be3f09bf8f1802"
+            },
+            "kind": "ftth",
+            "code": "1V070IK6",
+            "createdAt": "2021-01-08T14:22:45.544Z",
+            "updatedAt": "2026-03-18T15:00:04.332Z",
+            "name": "REDE PRIMAVERA - ASSISTENCIA MEDICA HOSPITALAR LTDA",
+            "id": "5ff86ab5b1cb1d0014545b99"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL09}\nNome fantasia: \nRazao Social: \nSigla: SENAI\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACMED01E8CF",
+                "mac_address": "",
+                "id": "67b32ae3a0a88176208bc951"
+            },
+            "kind": "ftth",
+            "code": "BA4ZJRG8",
+            "createdAt": "2021-01-08T14:22:45.572Z",
+            "updatedAt": "2026-03-18T15:00:05.898Z",
+            "name": "SERVICO NACIONAL DE APRENDIZAGEM INDUSTRIAL SENAI",
+            "id": "5ff86ab5b1cb1d0014545ba7"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL11}\nNome fantasia: \nRazao Social: \nSigla: BOBS\nObs:",
+            "tags": [],
+            "implanted": false,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "FIOG08003ABE",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9dfb"
+            },
+            "kind": "ftth",
+            "code": "Contrato N. M-456 - CEMED COMERCIO DE ALIMENTOS E EMPREENDIMENTOS LTDA - EPP - 00293-449-330",
+            "createdAt": "2021-01-08T14:22:50.618Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "CEMED COMERCIO DE ALIMENTOS E EMPREENDIMENTOS LTDA - EPP",
+            "id": "5ff86abab1cb1d0014545bb9"
+        },
+        {
+            "certified": true,
+            "status": 0,
+            "observation": "codigo:{CL14}\nNome fantasia: \nRazao Social: \nSigla: SABE ALIMENTOS\nObs: CLINTE LOCALIZDO NO PREDIO COMERCIAL NEO OFFICE",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACM916CF5AD",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9dfd"
+            },
+            "kind": "ftth",
+            "code": "MT2ABVNX",
+            "createdAt": "2021-01-08T14:22:50.665Z",
+            "updatedAt": "2026-03-18T15:00:07.409Z",
+            "name": "AT CONSULTORIA LTDA",
+            "id": "5ff86abab1cb1d0014545bcb"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL15}\nNome fantasia: \nRazao Social: \nSigla: EMSURB\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9dff"
+            },
+            "kind": "ftth",
+            "code": "CL15",
+            "createdAt": "2021-01-08T14:22:50.684Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "EMSURB",
+            "id": "5ff86abab1cb1d0014545bce"
+        },
+        {
+            "certified": true,
+            "status": 0,
+            "observation": "codigo:{CL18}\nNome fantasia: \nRazao Social: \nSigla: HTL AQUARIUS\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e01"
+            },
+            "kind": "ftth",
+            "code": "HQ59KAYE",
+            "createdAt": "2021-01-08T14:22:50.688Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "HTL AQUARIUS",
+            "id": "5ff86abab1cb1d0014545bcf"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL17}\nNome fantasia: \nRazao Social: \nSigla: HOTEL RADISSON\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACM9121F423",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e03"
+            },
+            "kind": "ftth",
+            "code": "00251-386-376",
+            "createdAt": "2021-01-08T14:22:50.710Z",
+            "updatedAt": "2026-03-18T15:00:08.998Z",
+            "name": "VIDAM HOTEL ARACAJU LTDA",
+            "id": "5ff86abab1cb1d0014545bd2"
+        },
+        {
+            "certified": true,
+            "status": 0,
+            "observation": "codigo:{CL19}\nNome fantasia: \nRazao Social: \nSigla: CONFORT HOTEL\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACM916CF5C8",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e05"
+            },
+            "kind": "ftth",
+            "code": "YTK8DAHI",
+            "createdAt": "2021-01-08T14:22:50.718Z",
+            "updatedAt": "2026-03-18T15:00:10.649Z",
+            "name": "SFJ EMPREENDIMENTOS E INCORPORA\u00c7\u00c3O LTDA",
+            "id": "5ff86abab1cb1d0014545bd4"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL13}\nNome fantasia: \nRazao Social: \nSigla: NB HOTEL\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "DACM91FAA4D8",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e07"
+            },
+            "kind": "ftth",
+            "code": "M-324-00250-317-325",
+            "createdAt": "2021-01-08T14:22:50.741Z",
+            "updatedAt": "2026-03-18T15:00:12.303Z",
+            "name": "NB HOTEIS E EMPREENDIMENTOS LTDA",
+            "id": "5ff86abab1cb1d0014545bd7"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL16}\nNome fantasia: \nRazao Social: \nSigla: PETROX - GETIMANA\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e09"
+            },
+            "kind": "ftth",
+            "code": "1SKZPTN8",
+            "createdAt": "2021-01-08T14:22:50.757Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "PETROX COMERCIAL LTDA",
+            "id": "5ff86abab1cb1d0014545bd8"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL21}\nNome fantasia: \nRazao Social: \nSigla: MARACAR\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "FIOG080020EA",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e0b"
+            },
+            "kind": "ftth",
+            "code": "Contrato N. M-465 - MARACAR VEICULOS LTDA - 00296-458-320",
+            "createdAt": "2021-01-08T14:22:50.768Z",
+            "updatedAt": "2026-03-18T15:00:13.878Z",
+            "name": "MARACAR VEICULOS LTDA",
+            "id": "5ff86abab1cb1d0014545bdb"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL28}\nNome fantasia: \nRazao Social: \nSigla: SEBRAE- SEDE\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e0d"
+            },
+            "kind": "ftth",
+            "code": "M-428-00232-421-426",
+            "createdAt": "2021-01-08T14:22:51.011Z",
+            "updatedAt": "2023-05-09T20:31:58.583Z",
+            "name": "SERVICO DE APOIO AS MICRO E PEQUENAS EMPRESAS DE SE",
+            "id": "5ff86abbb1cb1d0014545c08"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL23}\nNome fantasia: \nRazao Social: \nSigla: HOSPITAL S\u00c3O LUCAS \nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e0f"
+            },
+            "kind": "ftth",
+            "code": "Contrato N. M-539 - S\u00c3O LUCAS M\u00c9DICO HOSPITALAR LTDA - 00248-532-352",
+            "createdAt": "2021-01-08T14:22:51.024Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "S\u00c3O LUCAS M\u00c9DICO HOSPITALAR LTDA",
+            "id": "5ff86abbb1cb1d0014545c0b"
+        },
+        {
+            "certified": true,
+            "status": 0,
+            "observation": "codigo:{CL27}\nNome fantasia: \nRazao Social: \nSigla: POSTO PETROX  RODOVIARIA\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e11"
+            },
+            "kind": "ftth",
+            "code": "JI4Q4Q17",
+            "createdAt": "2021-01-08T14:22:51.057Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "POSTO PETROX  RODOVIARIA",
+            "id": "5ff86abbb1cb1d0014545c0f"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL110}\nNome fantasia: \nRazao Social: \nSigla: ILOGNET\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e13"
+            },
+            "kind": "ftth",
+            "code": "CL110",
+            "createdAt": "2021-01-08T14:22:51.081Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "ILOGNET",
+            "id": "5ff86abbb1cb1d0014545c10"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL111}\nNome fantasia: \nRazao Social: \nSigla: ALPHA F.PORTO\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "FIOG080026EB",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e15"
+            },
+            "kind": "ftth",
+            "code": "4ICI0W3Z-AlphaFranciscoPorto",
+            "createdAt": "2021-01-08T14:22:51.107Z",
+            "updatedAt": "2026-03-18T15:00:15.380Z",
+            "name": "ALPHA COMERCIAL DE COMBUSTIVEIS LTDA",
+            "id": "5ff86abbb1cb1d0014545c15"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL12}\nNome fantasia: \nRazao Social: \nSigla: KIA MOTORS\nObs:",
+            "tags": [],
+            "implanted": false,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e17"
+            },
+            "kind": "ftth",
+            "code": "CL12",
+            "createdAt": "2021-01-08T14:22:51.121Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "KIA MOTORS",
+            "id": "5ff86abbb1cb1d0014545c18"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL22}\nNome fantasia: \nRazao Social: \nSigla: UNIMED SEDE\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e19"
+            },
+            "kind": "ftth",
+            "code": "CL22",
+            "createdAt": "2021-01-08T14:22:51.129Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "UNIMED SEDE",
+            "id": "5ff86abbb1cb1d0014545c1b"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL24}\nNome fantasia: \nRazao Social: \nSigla: SESC\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e1b"
+            },
+            "kind": "ftth",
+            "code": "CL24",
+            "createdAt": "2021-01-08T14:22:51.150Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "SESC",
+            "id": "5ff86abbb1cb1d0014545c1d"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL29}\nNome fantasia: \nRazao Social: \nSigla: EMURB\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e1d"
+            },
+            "kind": "ftth",
+            "code": "PI2X474I",
+            "createdAt": "2021-01-08T14:22:51.199Z",
+            "updatedAt": "2022-07-14T04:12:06.567Z",
+            "name": "EMURB",
+            "id": "5ff86abbb1cb1d0014545c3d"
+        },
+        {
+            "certified": false,
+            "status": 0,
+            "observation": "codigo:{CL30}\nNome fantasia: \nRazao Social: \nSigla: POSTO PETROX - CSTL BRANCO\nObs:",
+            "tags": [],
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "",
+                "serial_number": "FIOG540030D2",
+                "mac_address": "",
+                "id": "69bac14e96656b4df3ed9e1f"
+            },
+            "kind": "ftth",
+            "code": "KVMX1IH9",
+            "createdAt": "2021-01-08T14:22:51.205Z",
+            "updatedAt": "2026-03-18T15:00:16.975Z",
+            "name": "PETROX COMERCIAL LTDA",
+            "id": "5ff86abbb1cb1d0014545c41"
+        }
+    ],
+    "start": 0,
+    "limit": 25,
+    "hasNextPage": true,
+    "nextUrl": "/api/v2/ftth-clients?code=GWLZC8GX&lastSeenId=5ff86abbb1cb1d0014545c41"
+}
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/properties/client/GWLZC8GX/potency?locale=pt_BR" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+Expecting value: line 1 column 1 (char 0)
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/ftth-clients?filter=%5B%7B%22property%22%3A%22name%22%2C%22value%22%3A%22GWLZC8GX%22%2C%22operator%22%3A%22contains%22%7D%5D" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+Expecting value: line 1 column 1 (char 0)
+root@link-monitor:/opt/link-monitor# 

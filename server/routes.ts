@@ -8482,7 +8482,9 @@ export async function registerRoutes(
       let routeData = null;
       try {
         // Buscar dados do cliente FTTH para obter a rota completa
-        const clientUrl = `${baseUrl}/api/v2/ftth-clients?code=${encodeURIComponent(resolvedTag!)}&populate=property,connectorType&select=implanted,certified,onu,tags,potpiData`;
+        // IMPORTANTE: ?code= é ignorado pelo OZmap — usar filtro JSON
+        const codeFilter = encodeURIComponent(JSON.stringify([{ property: "code", value: resolvedTag!, operator: "=" }]));
+        const clientUrl = `${baseUrl}/api/v2/ftth-clients?filter=${codeFilter}&limit=1`;
         console.log("[OZmap] Fetching client data:", clientUrl);
         
         const clientResponse = await fetch(clientUrl, {
@@ -8497,8 +8499,12 @@ export async function registerRoutes(
           const clientData = await clientResponse.json();
           console.log("[OZmap] Client data:", JSON.stringify(clientData).substring(0, 1000));
           
-          if (clientData.rows && clientData.rows.length > 0) {
-            const client = clientData.rows[0];
+          // Encontrar o cliente cujo code bate exatamente com a tag (garantia extra)
+          const rows: any[] = clientData.rows || [];
+          const matchingClient = rows.find((r: any) => r.code === resolvedTag) || rows[0];
+          
+          if (matchingClient) {
+            const client = matchingClient;
             
             // Buscar detalhes da rota se disponível
             if (client.id) {

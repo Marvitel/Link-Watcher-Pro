@@ -1,0 +1,46 @@
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/properties/client/GWLZC8GX/potency?locale=pt_BR" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+Expecting value: line 1 column 1 (char 0)
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/ftth-clients?filter=%5B%7B%22property%22%3A%22name%22%2C%22value%22%3A%22GWLZC8GX%22%2C%22operator%22%3A%22contains%22%7D%5D" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+Expecting value: line 1 column 1 (char 0)
+root@link-monitor:/opt/link-monitor# curl -sk "https://marvitel.ozmap.com.br:9994/api/v2/ftth-clients?filter=%5B%7B%22property%22%3A%22code%22%2C%22value%22%3A%22GWLZC8GX%22%2C%22operator%22%3A%22%3D%22%7D%5D" \
+  -H "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtb2R1bGUiOiJhcGkiLCJ1c2VyIjoiNWQ5ZjNmYjgyMDAxNDEwMDA2NDdmNzY4IiwiY3JlYXRpb25EYXRlIjoiMjAyMC0xMi0xMFQxOToyMTo1Ny42MjFaIiwiaWF0IjoxNjA3NjI4MTE3fQ.y7TwbDE-2cdyL6k_xFML0FPkIyHqons_9iSy4wYBBvE" \
+  -H "Accept: application/json" | python3 -m json.tool
+{
+    "total": 1,
+    "count": 1,
+    "rows": [
+        {
+            "tags": [],
+            "code": "GWLZC8GX",
+            "name": "REDE DE POSTOS PRESIDENTE LTDA",
+            "observation": null,
+            "implanted": true,
+            "onu": {
+                "user_PPPoE": "rp.rualaranjeiras",
+                "serial_number": "TPLG84925780",
+                "mac_address": "",
+                "id": "681cf07e3d3cdfcc9363f4f5"
+            },
+            "creatorData": {
+                "id": "5fd275597f722700131756ab",
+                "name": "integracao_voalle",
+                "username": "integracao_voalle"
+            },
+            "kind": "ftth",
+            "certified": false,
+            "status": 0,
+            "createdAt": "2025-04-28T17:21:17.437Z",
+            "updatedAt": "2026-03-18T15:11:42.198Z",
+            "id": "680fb90ded5c5d9fcc7dfd64"
+        }
+    ],
+    "start": 0,
+    "limit": 25,
+    "hasNextPage": false,
+    "nextUrl": "/api/v2/ftth-clients?filter=%5B%7B%22property%22%3A%22code%22%2C%22value%22%3A%22GWLZC8GX%22%2C%22operator%22%3A%22%3D%22%7D%5D&lastSeenId=680fb90ded5c5d9fcc7dfd64"
+}
+root@link-monitor:/opt/link-monitor# 
