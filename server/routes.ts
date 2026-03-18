@@ -8390,12 +8390,6 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Acesso negado" });
       }
 
-      // Usa a tag do contrato Voalle, identificador do link, ou campo separado para OZmap
-      const ozmapTag = link.voalleContractTagServiceTag || link.identifier || (link as any).ozmapTag;
-      if (!ozmapTag) {
-        return res.status(400).json({ error: "Link não possui identificador ou etiqueta do contrato Voalle configurada" });
-      }
-
       const integration = await storage.getExternalIntegrationByProvider("ozmap");
       if (!integration || !integration.apiKey || !integration.apiUrl) {
         return res.status(400).json({ error: "OZmap não configurado" });
@@ -8406,40 +8400,67 @@ export async function registerRoutes(
       }
 
       // Normalizar URL base - remover /api/v2 se existir para evitar duplicação
-      let baseUrl = integration.apiUrl.replace(/\/+$/, ""); // Remove trailing slashes
+      let baseUrl = integration.apiUrl.replace(/\/+$/, "");
       if (baseUrl.endsWith("/api/v2")) {
-        baseUrl = baseUrl.slice(0, -7); // Remove /api/v2
+        baseUrl = baseUrl.slice(0, -7);
       }
 
-      const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(ozmapTag)}/potency?locale=pt_BR`;
-      console.log("[OZmap] Fetching potency:", { linkId, ozmapTag, url });
-      
-      const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Accept": "application/json",
-            "Authorization": integration.apiKey,
-          },
+      const ozmapHeaders = { "Accept": "application/json", "Authorization": integration.apiKey };
+
+      // Usa a tag do contrato Voalle, identificador do link, ou campo separado para OZmap
+      let resolvedTag = link.voalleContractTagServiceTag || link.identifier || (link as any).ozmapTag || null;
+      let tagFoundViaFallback = false;
+      let data: any = null;
+
+      // Tentativa 1: tag principal (se existir)
+      if (resolvedTag) {
+        console.log("[OZmap] Fetching potency:", { linkId, resolvedTag });
+        const response = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
+        if (response.ok) {
+          const d = await response.json();
+          if (Array.isArray(d) && d.length > 0) {
+            data = d;
+          } else {
+            console.log(`[OZmap] Tag "${resolvedTag}" sem dados de potência — tentando fallbacks`);
+          }
+        } else {
+          console.log(`[OZmap] Tag "${resolvedTag}" não encontrada (HTTP ${response.status}) — tentando fallbacks`);
         }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[OZmap] Error fetching potency for link:", response.status, errorText);
-        return res.status(response.status).json({ 
-          error: `Erro ao consultar OZmap: HTTP ${response.status}`,
-          details: errorText.substring(0, 200)
-        });
+      } else {
+        console.log(`[OZmap] Link id=${linkId} sem tag configurada — tentando fallbacks`);
       }
 
-      const data = await response.json();
+      // Tentativa 2: fallbacks (serial, PPPoE, OLT, splitter)
+      if (!data) {
+        const fallback = await findOzmapTagByFallback(baseUrl, integration.apiKey, link);
+        if (fallback) {
+          resolvedTag = fallback.code;
+          tagFoundViaFallback = true;
+          console.log(`[OZmap] Tag encontrada via fallback (${fallback.method}): ${resolvedTag}`);
+          // Salvar a tag correta no link para futuras sincronizações
+          await storage.updateLink(linkId, { voalleContractTagServiceTag: resolvedTag } as any);
+          const potRes = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
+          if (potRes.ok) {
+            const d = await potRes.json();
+            if (Array.isArray(d) && d.length > 0) data = d;
+          }
+        }
+      }
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        const noTagMsg = !resolvedTag
+          ? "Link não possui tag OZmap, serial de ONU, login PPPoE ou dados de OLT configurados"
+          : `Nenhum dado encontrado no OZmap para este link (todos os critérios de busca esgotados)`;
+        return res.status(404).json({ error: noTagMsg, fallbackAttempted: !!(link.equipmentSerialNumber || link.voalleLogin) });
+      }
+
       console.log("[OZmap] Potency Response data:", JSON.stringify(data));
-      
+
       // Agora buscar dados completos da rota
       let routeData = null;
       try {
         // Buscar dados do cliente FTTH para obter a rota completa
-        const clientUrl = `${baseUrl}/api/v2/ftth-clients?code=${encodeURIComponent(ozmapTag)}&populate=property,connectorType&select=implanted,certified,onu,tags,potpiData`;
+        const clientUrl = `${baseUrl}/api/v2/ftth-clients?code=${encodeURIComponent(resolvedTag!)}&populate=property,connectorType&select=implanted,certified,onu,tags,potpiData`;
         console.log("[OZmap] Fetching client data:", clientUrl);
         
         const clientResponse = await fetch(clientUrl, {
@@ -8486,7 +8507,7 @@ export async function registerRoutes(
       // Buscar propriedade pelo código da etiqueta: OLT/slot/PON como fallback + cables (ramal do cliente)
       let propertyData: any = null;
       try {
-        const propFilter = JSON.stringify([{ property: "history.clients.code", value: ozmapTag, operator: "=" }]);
+        const propFilter = JSON.stringify([{ property: "history.clients.code", value: resolvedTag, operator: "=" }]);
         const propertyUrl = `${baseUrl}/api/v2/properties?filter=${encodeURIComponent(propFilter)}&populate=olt%20slot%20pon%20cables`;
         console.log("[OZmap] Fetching property data:", propertyUrl);
         const propertyResponse = await fetch(propertyUrl, {
@@ -8649,7 +8670,8 @@ export async function registerRoutes(
       
       res.json({
         linkId,
-        ozmapTag,
+        ozmapTag: resolvedTag,
+        tagFoundViaFallback,
         potencyData: data,
         routeData: routeData,
         propertyData: propertyData,
@@ -11590,6 +11612,153 @@ export async function registerRoutes(
     console.log(`[Webhook/Enrichment] Completed for client id=${clientId}: ${createdCount} links created, ${enrichedCount} links enriched`);
   }
 
+  // Helper: busca a tag/code OZmap por critérios alternativos quando a tag principal falha
+  async function findOzmapTagByFallback(
+    baseUrl: string,
+    apiKey: string,
+    link: any,
+  ): Promise<{ code: string; method: string } | null> {
+    const headers = { "Accept": "application/json", "Authorization": apiKey };
+
+    // --- Fallback 1: por serial da ONU ---
+    const serial = link.equipmentSerialNumber;
+    if (serial) {
+      try {
+        const filter = encodeURIComponent(JSON.stringify([
+          { property: "onu.serial_number", value: serial, operator: "=" }
+        ]));
+        const res = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${filter}&limit=5`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const rows: any[] = data.rows || (Array.isArray(data) ? data : []);
+          if (rows.length === 1 && rows[0].code) {
+            console.log(`[OZmap Fallback] Encontrado por serial (${serial}): ${rows[0].code}`);
+            return { code: rows[0].code, method: `serial:${serial}` };
+          }
+          if (rows.length > 1) {
+            console.log(`[OZmap Fallback] Serial ${serial} retornou ${rows.length} resultados — tentando PPPoE para refinar`);
+          }
+        }
+      } catch (e: any) {
+        console.error("[OZmap Fallback] Erro na busca por serial:", e.message);
+      }
+    }
+
+    // --- Fallback 2: por login PPPoE ---
+    const pppoe = link.voalleLogin;
+    if (pppoe) {
+      try {
+        const filter = encodeURIComponent(JSON.stringify([
+          { property: "onu.user_PPPoE", value: pppoe, operator: "=" }
+        ]));
+        const res = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${filter}&limit=5`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const rows: any[] = data.rows || (Array.isArray(data) ? data : []);
+          if (rows.length >= 1 && rows[0].code) {
+            console.log(`[OZmap Fallback] Encontrado por PPPoE (${pppoe}): ${rows[0].code}`);
+            return { code: rows[0].code, method: `pppoe:${pppoe}` };
+          }
+        }
+      } catch (e: any) {
+        console.error("[OZmap Fallback] Erro na busca por PPPoE:", e.message);
+      }
+    }
+
+    // --- Fallback 3: por OLT + slot + pon ---
+    const oltName = link.ozmapOltName;
+    if (oltName && link.slotOlt !== null && link.slotOlt !== undefined && link.portOlt !== null && link.portOlt !== undefined) {
+      try {
+        // Passo 1: encontrar o ID da OLT no OZmap
+        const oltFilter = encodeURIComponent(JSON.stringify([
+          { property: "name", value: oltName, operator: "=" }
+        ]));
+        const oltRes = await fetch(`${baseUrl}/api/v2/olts?filter=${oltFilter}&limit=1`, { headers });
+        if (oltRes.ok) {
+          const oltData = await oltRes.json();
+          const oltRows: any[] = oltData.rows || (Array.isArray(oltData) ? oltData : []);
+          if (oltRows.length > 0) {
+            const ozmapOltId = oltRows[0].id;
+            // Passo 2: encontrar o PON (slot + porta)
+            const ponFilter = encodeURIComponent(JSON.stringify([
+              { property: "olt", value: ozmapOltId, operator: "=" },
+              { property: "slot.number", value: link.slotOlt, operator: "=" },
+              { property: "number", value: link.portOlt, operator: "=" }
+            ]));
+            const ponRes = await fetch(`${baseUrl}/api/v2/pons?filter=${ponFilter}&limit=1`, { headers });
+            if (ponRes.ok) {
+              const ponData = await ponRes.json();
+              const ponRows: any[] = ponData.rows || (Array.isArray(ponData) ? ponData : []);
+              if (ponRows.length > 0) {
+                const ponId = ponRows[0].id;
+                // Passo 3: clientes FTTH nessa PON
+                const clientFilter = encodeURIComponent(JSON.stringify([
+                  { property: "pon", value: ponId, operator: "=" }
+                ]));
+                const clientRes = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${clientFilter}&limit=20`, { headers });
+                if (clientRes.ok) {
+                  const clientData = await clientRes.json();
+                  const clientRows: any[] = clientData.rows || (Array.isArray(clientData) ? clientData : []);
+                  if (clientRows.length === 1 && clientRows[0].code) {
+                    console.log(`[OZmap Fallback] Encontrado por OLT+slot+pon (${oltName}/${link.slotOlt}/${link.portOlt}): ${clientRows[0].code}`);
+                    return { code: clientRows[0].code, method: `olt:${oltName}/slot:${link.slotOlt}/pon:${link.portOlt}` };
+                  }
+                  // Múltiplos clientes na mesma PON — tentar pelo ONU ID
+                  if (clientRows.length > 1 && link.onuId !== null && link.onuId !== undefined) {
+                    const onuIdStr = String(link.onuId);
+                    const matched = clientRows.find((c: any) =>
+                      c.observation?.includes(onuIdStr) || c.name?.toLowerCase().includes(`onu ${onuIdStr}`)
+                    );
+                    if (matched?.code) {
+                      console.log(`[OZmap Fallback] Encontrado por OLT+slot+pon+ONU (${onuIdStr}): ${matched.code}`);
+                      return { code: matched.code, method: `olt+onu:${onuIdStr}` };
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[OZmap Fallback] Erro na busca por OLT/slot/pon:", e.message);
+      }
+    }
+
+    // --- Fallback 4: por nome do splitter ---
+    const splitterName = link.ozmapSplitterName || link.zabbixSplitterName;
+    if (splitterName) {
+      try {
+        const splFilter = encodeURIComponent(JSON.stringify([
+          { property: "name", value: splitterName, operator: "=" }
+        ]));
+        const splRes = await fetch(`${baseUrl}/api/v2/splitters?filter=${splFilter}&limit=1`, { headers });
+        if (splRes.ok) {
+          const splData = await splRes.json();
+          const splRows: any[] = splData.rows || (Array.isArray(splData) ? splData : []);
+          if (splRows.length > 0) {
+            const splitterId = splRows[0].id;
+            const clientFilter = encodeURIComponent(JSON.stringify([
+              { property: "splitter", value: splitterId, operator: "=" }
+            ]));
+            const clientRes = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${clientFilter}&limit=10`, { headers });
+            if (clientRes.ok) {
+              const clientData = await clientRes.json();
+              const clientRows: any[] = clientData.rows || (Array.isArray(clientData) ? clientData : []);
+              if (clientRows.length === 1 && clientRows[0].code) {
+                console.log(`[OZmap Fallback] Encontrado por splitter (${splitterName}): ${clientRows[0].code}`);
+                return { code: clientRows[0].code, method: `splitter:${splitterName}` };
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[OZmap Fallback] Erro na busca por splitter:", e.message);
+      }
+    }
+
+    return null;
+  }
+
   async function enrichLinkWithOzmapData(linkId: number, serviceTag: string, linkName: string): Promise<void> {
     const ozmapIntegrations = await db
       .select()
@@ -11608,23 +11777,41 @@ export async function registerRoutes(
       baseUrl = baseUrl.slice(0, -7);
     }
 
-    const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(serviceTag)}/potency?locale=pt_BR`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-        "Authorization": ozmapConfig.apiKey!,
-      },
-    });
+    const ozmapHeaders = { "Accept": "application/json", "Authorization": ozmapConfig.apiKey! };
 
-    if (!response.ok) {
-      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" not found (HTTP ${response.status})`);
-      return;
+    let resolvedTag = serviceTag;
+    let data: any[] | null = null;
+
+    // Tentativa 1: tag principal
+    const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`;
+    const response = await fetch(url, { method: "GET", headers: ozmapHeaders });
+    if (response.ok) {
+      const d = await response.json();
+      if (Array.isArray(d) && d.length > 0) data = d;
     }
 
-    const data = await response.json() as any[];
-    if (!Array.isArray(data) || data.length === 0) {
-      console.log(`[Webhook/Enrichment/OZmap] No potency data for tag "${serviceTag}"`);
+    if (!data) {
+      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" não encontrada (HTTP ${response.status}), tentando fallbacks...`);
+      // Buscar dados completos do link para usar nos fallbacks
+      const linkRows = await db.select().from(links).where(eq(links.id, linkId)).limit(1);
+      if (linkRows.length > 0) {
+        const fallback = await findOzmapTagByFallback(baseUrl, ozmapConfig.apiKey!, linkRows[0]);
+        if (fallback) {
+          resolvedTag = fallback.code;
+          console.log(`[Webhook/Enrichment/OZmap] Tag encontrada via fallback (${fallback.method}): ${resolvedTag}`);
+          // Atualizar a tag do link para futuras sincronizações
+          await db.update(links).set({ voalleContractTagServiceTag: resolvedTag }).where(eq(links.id, linkId));
+          const potRes = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
+          if (potRes.ok) {
+            const d = await potRes.json();
+            if (Array.isArray(d) && d.length > 0) data = d;
+          }
+        }
+      }
+    }
+
+    if (!data || data.length === 0) {
+      console.log(`[Webhook/Enrichment/OZmap] Nenhum dado encontrado no OZmap para link id=${linkId} "${linkName}" (todos os fallbacks esgotados)`);
       return;
     }
 
