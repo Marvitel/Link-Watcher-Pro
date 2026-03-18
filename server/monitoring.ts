@@ -3911,11 +3911,21 @@ async function syncOzmapForAllLinks(): Promise<void> {
         });
 
         if (!response.ok) {
-          console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" não encontrada (HTTP ${response.status})`);
-          continue; // Link não encontrado no OZmap, pular
+          if (response.status === 422) {
+            // HTTP 422 = cliente existe no OZmap mas sem rota de fibra configurada (não é erro)
+            console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" sem rota de fibra (HTTP 422)`);
+          } else {
+            console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" não encontrada (HTTP ${response.status})`);
+          }
+          continue;
         }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        if (!responseText || responseText.trim() === "" || responseText.trim() === "null") {
+          console.log(`[OZmap Auto-Sync] Link ${link.name}: Sem rota de fibra (body vazio)`);
+          continue;
+        }
+        const data = JSON.parse(responseText);
         
         if (!Array.isArray(data) || data.length === 0) {
           console.log(`[OZmap Auto-Sync] Link ${link.name}: Sem dados de potência`);

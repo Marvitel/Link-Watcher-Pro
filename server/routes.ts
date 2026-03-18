@@ -8419,36 +8419,22 @@ export async function registerRoutes(
       async function fetchPotency(tag: string): Promise<{ data: any[] | null; noRoute: boolean }> {
         const potencyUrl = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`;
         const r = await fetch(potencyUrl, { method: "GET", headers: ozmapHeaders });
-        console.log(`[OZmap] fetchPotency tag="${tag}" → status=${r.status} ok=${r.ok}`);
+        console.log(`[OZmap] fetchPotency tag="${tag}" → status=${r.status}`);
         if (!r.ok) {
-          // 404 do endpoint de potência = cliente não tem rota de fibra (não necessariamente não existe)
-          if (r.status === 404) {
-            console.log(`[OZmap] fetchPotency tag="${tag}" → 404, verificando se cliente existe...`);
-            // Checar se o cliente existe via filtro JSON
-            try {
-              const codeFilter = encodeURIComponent(JSON.stringify([{ property: "code", value: tag, operator: "=" }]));
-              const checkUrl = `${baseUrl}/api/v2/ftth-clients?filter=${codeFilter}&limit=1`;
-              const checkR = await fetch(checkUrl, { method: "GET", headers: ozmapHeaders });
-              const checkText = await checkR.text();
-              console.log(`[OZmap] fetchPotency client-check status=${checkR.status} body=${checkText.substring(0, 200)}`);
-              if (checkR.ok) {
-                const checkData = JSON.parse(checkText);
-                const rows = checkData.rows || [];
-                if (rows.length > 0) {
-                  console.log(`[OZmap] fetchPotency tag="${tag}" → cliente existe mas sem rota (404 no potency)`);
-                  return { data: null, noRoute: true };
-                }
-              }
-            } catch (e) {
-              console.warn(`[OZmap] fetchPotency client-check error:`, e);
-            }
+          // HTTP 422 = OZmap retorna quando o cliente existe mas não tem rota de fibra configurada
+          // (confirmado empiricamente: tags com 422 existem no OZmap via ftth-clients)
+          if (r.status === 422) {
+            console.log(`[OZmap] fetchPotency tag="${tag}" → 422 = cliente sem rota de fibra`);
+            return { data: null, noRoute: true };
           }
+          // HTTP 404 = cliente não encontrado no OZmap
+          console.log(`[OZmap] fetchPotency tag="${tag}" → ${r.status} = não encontrado`);
           return { data: null, noRoute: false };
         }
         const text = await r.text();
-        console.log(`[OZmap] fetchPotency tag="${tag}" → body length=${text.length} preview="${text.substring(0, 100)}"`);
+        console.log(`[OZmap] fetchPotency tag="${tag}" → body length=${text.length}`);
         if (!text || text.trim() === "" || text.trim() === "null") {
-          // Body vazio ou null — cliente existe no OZmap mas sem rota de fibra
+          // Body vazio — cliente existe mas sem rota de fibra
           return { data: null, noRoute: true };
         }
         try {
@@ -8457,7 +8443,7 @@ export async function registerRoutes(
           // Array vazio [] — cliente existe mas sem rota
           return { data: null, noRoute: true };
         } catch {
-          console.warn(`[OZmap] fetchPotency parse error para tag="${tag}", text="${text.substring(0, 200)}"`);
+          console.warn(`[OZmap] fetchPotency parse error para tag="${tag}", preview="${text.substring(0, 200)}"`);
           return { data: null, noRoute: false };
         }
       }
@@ -11851,10 +11837,17 @@ export async function registerRoutes(
     let resolvedTag = serviceTag;
     let data: any[] | null = null;
 
-    // Helper local: lê potência tratando body vazio (OZmap retorna 0 bytes quando cliente não tem rota)
+    // Helper local: lê potência
+    // Retorna: array com dados (rota existe), null (sem rota ou não encontrado)
+    // OZmap usa HTTP 422 quando cliente existe mas não tem rota; body vazio também indica sem rota
     async function readPotency(tag: string): Promise<any[] | null> {
       const r = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
-      if (!r.ok) return null;
+      if (!r.ok) {
+        if (r.status === 422) {
+          console.log(`[Webhook/Enrichment/OZmap] Tag "${tag}" → HTTP 422 (cliente sem rota de fibra, pulando)`);
+        }
+        return null;
+      }
       const text = await r.text();
       if (!text || text.trim() === "" || text.trim() === "null") return null;
       try {
