@@ -215,6 +215,8 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
     potencyData: OzmapPotencyData[];
     routeData?: any;
     propertyData?: any;
+    noRoute?: boolean;
+    message?: string;
   }>({
     queryKey: ['/api/links', link.id, 'ozmap-potency'],
     enabled: !!ozmapTag,
@@ -227,18 +229,29 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   }
 
   if (error) {
+    const errMsg = (error as any)?.message || "";
+    const isNotFound = errMsg.includes("404") || errMsg.includes("não encontrado") || errMsg.includes("esgotados");
     return (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <Network className="h-5 w-5" />
             Rota de Fibra (OZmap)
+            <Badge variant="outline" className="ml-2 text-xs">{ozmapTag}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <span className="text-sm">Erro ao carregar dados do OZmap</span>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            {isNotFound ? (
+              <Info className="h-4 w-4" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            )}
+            <span className="text-sm">
+              {isNotFound
+                ? `Etiqueta "${ozmapTag}" não encontrada no OZmap`
+                : "Erro ao carregar dados do OZmap"}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -265,6 +278,33 @@ export function OzmapRouteSection({ link }: OzmapRouteSectionProps) {
   }
 
   const rawPotencyData = data?.potencyData;
+
+  // Cliente cadastrado no OZmap mas sem rota de fibra configurada
+  if (data?.noRoute) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Network className="h-5 w-5" />
+            Rota de Fibra (OZmap)
+            <Badge variant="outline" className="ml-2 text-xs">{data.ozmapTag || ozmapTag}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-2 text-muted-foreground">
+            <Info className="h-4 w-4 mt-0.5 shrink-0 text-yellow-500" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Cliente sem rota de fibra no OZmap</p>
+              <p className="text-xs mt-0.5">
+                O cliente está cadastrado no OZmap mas ainda não possui rota de fibra configurada. 
+                Configure a rota no OZmap para visualizar os dados aqui.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!rawPotencyData || (Array.isArray(rawPotencyData) && rawPotencyData.length === 0)) {
     return (

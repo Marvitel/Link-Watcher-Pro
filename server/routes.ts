@@ -8411,6 +8411,8 @@ export async function registerRoutes(
       let resolvedTag = link.voalleContractTagServiceTag || link.identifier || (link as any).ozmapTag || null;
       let tagFoundViaFallback = false;
       let data: any = null;
+      // Indica que o cliente FOI encontrado no OZmap mas não tem rota de fibra configurada
+      let clientFoundButNoRoute = false;
 
       // Tentativa 1: tag principal (se existir)
       if (resolvedTag) {
@@ -8421,7 +8423,9 @@ export async function registerRoutes(
           if (Array.isArray(d) && d.length > 0) {
             data = d;
           } else {
-            console.log(`[OZmap] Tag "${resolvedTag}" sem dados de potência — tentando fallbacks`);
+            // Cliente existe no OZmap (tag válida, HTTP 200) mas sem rota configurada
+            clientFoundButNoRoute = true;
+            console.log(`[OZmap] Tag "${resolvedTag}" encontrada mas sem rota de fibra configurada (array vazio)`);
           }
         } else {
           console.log(`[OZmap] Tag "${resolvedTag}" não encontrada (HTTP ${response.status}) — tentando fallbacks`);
@@ -8431,7 +8435,8 @@ export async function registerRoutes(
       }
 
       // Tentativa 2: fallbacks (serial, PPPoE, OLT, splitter)
-      if (!data) {
+      // Só tenta se não temos dados E o cliente não foi encontrado (evita sobrescrever tag válida)
+      if (!data && !clientFoundButNoRoute) {
         const fallback = await findOzmapTagByFallback(baseUrl, integration.apiKey, link);
         if (fallback) {
           resolvedTag = fallback.code;
@@ -8442,9 +8447,26 @@ export async function registerRoutes(
           const potRes = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
           if (potRes.ok) {
             const d = await potRes.json();
-            if (Array.isArray(d) && d.length > 0) data = d;
+            if (Array.isArray(d) && d.length > 0) {
+              data = d;
+            } else {
+              clientFoundButNoRoute = true;
+              console.log(`[OZmap] Tag via fallback "${resolvedTag}" também sem rota configurada`);
+            }
           }
         }
+      }
+
+      // Cliente cadastrado no OZmap mas sem rota de fibra → retorna 200 com flag específico
+      if (clientFoundButNoRoute && (!data || data.length === 0)) {
+        console.log(`[OZmap] Link id=${linkId} tag="${resolvedTag}": cadastrado no OZmap sem rota de fibra`);
+        return res.json({
+          linkId,
+          ozmapTag: resolvedTag,
+          potencyData: [],
+          noRoute: true,
+          message: "Cliente cadastrado no OZmap mas sem rota de fibra configurada",
+        });
       }
 
       if (!data || !Array.isArray(data) || data.length === 0) {
