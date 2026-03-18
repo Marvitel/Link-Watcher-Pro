@@ -8417,9 +8417,36 @@ export async function registerRoutes(
       // Helper: busca potência e distingue "com rota" / "sem rota" / "não encontrado"
       // OZmap retorna body vazio (0 bytes) quando a etiqueta existe mas não tem rota configurada
       async function fetchPotency(tag: string): Promise<{ data: any[] | null; noRoute: boolean }> {
-        const r = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
-        if (!r.ok) return { data: null, noRoute: false };
+        const potencyUrl = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`;
+        const r = await fetch(potencyUrl, { method: "GET", headers: ozmapHeaders });
+        console.log(`[OZmap] fetchPotency tag="${tag}" → status=${r.status} ok=${r.ok}`);
+        if (!r.ok) {
+          // 404 do endpoint de potência = cliente não tem rota de fibra (não necessariamente não existe)
+          if (r.status === 404) {
+            console.log(`[OZmap] fetchPotency tag="${tag}" → 404, verificando se cliente existe...`);
+            // Checar se o cliente existe via filtro JSON
+            try {
+              const codeFilter = encodeURIComponent(JSON.stringify([{ property: "code", value: tag, operator: "=" }]));
+              const checkUrl = `${baseUrl}/api/v2/ftth-clients?filter=${codeFilter}&limit=1`;
+              const checkR = await fetch(checkUrl, { method: "GET", headers: ozmapHeaders });
+              const checkText = await checkR.text();
+              console.log(`[OZmap] fetchPotency client-check status=${checkR.status} body=${checkText.substring(0, 200)}`);
+              if (checkR.ok) {
+                const checkData = JSON.parse(checkText);
+                const rows = checkData.rows || [];
+                if (rows.length > 0) {
+                  console.log(`[OZmap] fetchPotency tag="${tag}" → cliente existe mas sem rota (404 no potency)`);
+                  return { data: null, noRoute: true };
+                }
+              }
+            } catch (e) {
+              console.warn(`[OZmap] fetchPotency client-check error:`, e);
+            }
+          }
+          return { data: null, noRoute: false };
+        }
         const text = await r.text();
+        console.log(`[OZmap] fetchPotency tag="${tag}" → body length=${text.length} preview="${text.substring(0, 100)}"`);
         if (!text || text.trim() === "" || text.trim() === "null") {
           // Body vazio ou null — cliente existe no OZmap mas sem rota de fibra
           return { data: null, noRoute: true };
@@ -8430,6 +8457,7 @@ export async function registerRoutes(
           // Array vazio [] — cliente existe mas sem rota
           return { data: null, noRoute: true };
         } catch {
+          console.warn(`[OZmap] fetchPotency parse error para tag="${tag}", text="${text.substring(0, 200)}"`);
           return { data: null, noRoute: false };
         }
       }
