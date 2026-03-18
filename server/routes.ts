@@ -8414,21 +8414,37 @@ export async function registerRoutes(
       // Indica que o cliente FOI encontrado no OZmap mas não tem rota de fibra configurada
       let clientFoundButNoRoute = false;
 
+      // Helper: busca potência e distingue "com rota" / "sem rota" / "não encontrado"
+      // OZmap retorna body vazio (0 bytes) quando a etiqueta existe mas não tem rota configurada
+      async function fetchPotency(tag: string): Promise<{ data: any[] | null; noRoute: boolean }> {
+        const r = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
+        if (!r.ok) return { data: null, noRoute: false };
+        const text = await r.text();
+        if (!text || text.trim() === "" || text.trim() === "null") {
+          // Body vazio ou null — cliente existe no OZmap mas sem rota de fibra
+          return { data: null, noRoute: true };
+        }
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed) && parsed.length > 0) return { data: parsed, noRoute: false };
+          // Array vazio [] — cliente existe mas sem rota
+          return { data: null, noRoute: true };
+        } catch {
+          return { data: null, noRoute: false };
+        }
+      }
+
       // Tentativa 1: tag principal (se existir)
       if (resolvedTag) {
         console.log("[OZmap] Fetching potency:", { linkId, resolvedTag });
-        const response = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
-        if (response.ok) {
-          const d = await response.json();
-          if (Array.isArray(d) && d.length > 0) {
-            data = d;
-          } else {
-            // Cliente existe no OZmap (tag válida, HTTP 200) mas sem rota configurada
-            clientFoundButNoRoute = true;
-            console.log(`[OZmap] Tag "${resolvedTag}" encontrada mas sem rota de fibra configurada (array vazio)`);
-          }
+        const result = await fetchPotency(resolvedTag);
+        if (result.data) {
+          data = result.data;
+        } else if (result.noRoute) {
+          clientFoundButNoRoute = true;
+          console.log(`[OZmap] Tag "${resolvedTag}" encontrada mas sem rota de fibra configurada`);
         } else {
-          console.log(`[OZmap] Tag "${resolvedTag}" não encontrada (HTTP ${response.status}) — tentando fallbacks`);
+          console.log(`[OZmap] Tag "${resolvedTag}" não encontrada — tentando fallbacks`);
         }
       } else {
         console.log(`[OZmap] Link id=${linkId} sem tag configurada — tentando fallbacks`);
@@ -8444,15 +8460,12 @@ export async function registerRoutes(
           console.log(`[OZmap] Tag encontrada via fallback (${fallback.method}): ${resolvedTag}`);
           // Salvar a tag correta no link para futuras sincronizações
           await storage.updateLink(linkId, { voalleContractTagServiceTag: resolvedTag } as any);
-          const potRes = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
-          if (potRes.ok) {
-            const d = await potRes.json();
-            if (Array.isArray(d) && d.length > 0) {
-              data = d;
-            } else {
-              clientFoundButNoRoute = true;
-              console.log(`[OZmap] Tag via fallback "${resolvedTag}" também sem rota configurada`);
-            }
+          const result = await fetchPotency(resolvedTag);
+          if (result.data) {
+            data = result.data;
+          } else if (result.noRoute) {
+            clientFoundButNoRoute = true;
+            console.log(`[OZmap] Tag via fallback "${resolvedTag}" também sem rota configurada`);
           }
         }
       }
@@ -11810,16 +11823,25 @@ export async function registerRoutes(
     let resolvedTag = serviceTag;
     let data: any[] | null = null;
 
-    // Tentativa 1: tag principal
-    const url = `${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`;
-    const response = await fetch(url, { method: "GET", headers: ozmapHeaders });
-    if (response.ok) {
-      const d = await response.json();
-      if (Array.isArray(d) && d.length > 0) data = d;
+    // Helper local: lê potência tratando body vazio (OZmap retorna 0 bytes quando cliente não tem rota)
+    async function readPotency(tag: string): Promise<any[] | null> {
+      const r = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
+      if (!r.ok) return null;
+      const text = await r.text();
+      if (!text || text.trim() === "" || text.trim() === "null") return null;
+      try {
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+      } catch {
+        return null;
+      }
     }
 
+    // Tentativa 1: tag principal
+    data = await readPotency(resolvedTag);
+
     if (!data) {
-      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" não encontrada (HTTP ${response.status}), tentando fallbacks...`);
+      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" sem dados de potência, tentando fallbacks...`);
       // Buscar dados completos do link para usar nos fallbacks
       const linkRows = await db.select().from(links).where(eq(links.id, linkId)).limit(1);
       if (linkRows.length > 0) {
@@ -11829,11 +11851,7 @@ export async function registerRoutes(
           console.log(`[Webhook/Enrichment/OZmap] Tag encontrada via fallback (${fallback.method}): ${resolvedTag}`);
           // Atualizar a tag do link para futuras sincronizações
           await db.update(links).set({ voalleContractTagServiceTag: resolvedTag }).where(eq(links.id, linkId));
-          const potRes = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(resolvedTag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
-          if (potRes.ok) {
-            const d = await potRes.json();
-            if (Array.isArray(d) && d.length > 0) data = d;
-          }
+          data = await readPotency(resolvedTag);
         }
       }
     }
