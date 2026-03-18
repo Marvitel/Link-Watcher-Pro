@@ -42,6 +42,7 @@ interface DiagnosticCategory {
   withoutTag?: number;
   withData?: number;
   noRoute?: number;
+  notFound?: number;
 }
 
 interface ContractStatusSummary {
@@ -109,6 +110,7 @@ export function LinkDiagnosticsTab() {
   const [downloadingMissing, setDownloadingMissing] = useState(false);
   const [downloadingNoTag, setDownloadingNoTag] = useState(false);
   const [downloadingNoRoute, setDownloadingNoRoute] = useState(false);
+  const [downloadingNotFound, setDownloadingNotFound] = useState(false);
 
   async function downloadOzmapDivergences() {
     setDownloadingCsv(true);
@@ -166,6 +168,11 @@ export function LinkDiagnosticsTab() {
   async function downloadOzmapNoRoute() {
     const now = new Date().toISOString().slice(0, 10);
     await downloadCsv("/api/admin/ozmap-no-route.csv", `links-sem-rota-fibra-${now}.csv`, setDownloadingNoRoute);
+  }
+
+  async function downloadOzmapNotFound() {
+    const now = new Date().toISOString().slice(0, 10);
+    await downloadCsv("/api/admin/ozmap-not-found.csv", `links-etiqueta-nao-encontrada-${now}.csv`, setDownloadingNotFound);
   }
 
   const { data: diagnostics, isLoading, refetch } = useQuery<DiagnosticsData>({
@@ -418,6 +425,9 @@ export function LinkDiagnosticsTab() {
                     {(cat.noRoute ?? 0) > 0 && (
                       <p className="text-yellow-600 dark:text-yellow-400">⚠ {cat.noRoute} sem rota de fibra</p>
                     )}
+                    {(cat.notFound ?? 0) > 0 && (
+                      <p className="text-red-600 dark:text-red-400">✗ {cat.notFound} etiqueta não encontrada</p>
+                    )}
                     {cat.withoutTag! > 0 && (
                       <p className="text-orange-600 dark:text-orange-400">○ {cat.withoutTag} sem etiqueta</p>
                     )}
@@ -469,6 +479,22 @@ export function LinkDiagnosticsTab() {
                       >
                         {downloadingNoRoute ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
                         {downloadingNoRoute ? "Gerando..." : "Sem rota de fibra (.csv)"}
+                      </Button>
+                    )}
+                    {(cat.notFound ?? 0) > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs h-7 text-red-600 dark:text-red-400 hover:text-red-700"
+                        disabled={downloadingNotFound}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadOzmapNotFound();
+                        }}
+                        data-testid="btn-ozmap-not-found-csv"
+                      >
+                        {downloadingNotFound ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
+                        {downloadingNotFound ? "Gerando..." : "Etiqueta não encontrada (.csv)"}
                       </Button>
                     )}
                     {(cat.withoutTag ?? 0) > 0 && (

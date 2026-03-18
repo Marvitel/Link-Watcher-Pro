@@ -12503,6 +12503,8 @@ export async function registerRoutes(
       const linksNoRoute = linksWithTag.filter(l => l.ozmapNoRoute === true);
       const linksWithData = linksWithTag.filter(l => l.ozmapArrivingPotency);
       const missingOzmapData = linksWithTag.filter(l => !l.ozmapArrivingPotency);
+      // Etiqueta não encontrada no OZmap: tem etiqueta, sem dados, sem flag de "sem rota" (HTTP 404 ou nunca sincronizado)
+      const linksNotFound = missingOzmapData.filter(l => !l.ozmapNoRoute);
 
       const clientsWithoutPortal = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
       const linksOfClientsWithoutPortal = allLinks.filter(l => {
@@ -12527,7 +12529,7 @@ export async function registerRoutes(
         missingOnuId: { count: missingOnuId.length, ids: missingOnuId.map(l => l.id), label: "Sem ID da ONU (tem serial e OLT)", enrichAction: "discover_onu_ids" },
         missingOltAssignment: { count: missingOltAssignment.length, ids: missingOltAssignment.map(l => l.id), label: "Sem OLT atribuída (tem AccessPoint Voalle)" },
         missingCpe: { count: missingCpe.length, ids: missingCpe.map(l => l.id), label: "Sem CPE cadastrado", enrichAction: "create_cpes" },
-        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap", enrichable: missingOzmapData.length, withTag: linksWithTag.length, withoutTag: linksWithoutTag.length, withData: linksWithData.length, noRoute: linksNoRoute.length, noRouteIds: linksNoRoute.map(l => l.id) },
+        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap", enrichable: missingOzmapData.length, withTag: linksWithTag.length, withoutTag: linksWithoutTag.length, withData: linksWithData.length, noRoute: linksNoRoute.length, notFound: linksNotFound.length },
         missingPppoeUser: { count: missingPppoeUser.length, ids: missingPppoeUser.map(l => l.id), label: "Sem usuário PPPoE" },
         missingSnmpProfile: { count: missingSnmpProfile.length, ids: missingSnmpProfile.map(l => l.id), label: "Sem perfil SNMP" },
         missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)", enrichAction: "discover_voalle" },
@@ -12784,6 +12786,56 @@ export async function registerRoutes(
     }
 
     console.log(`[OZmap No Route] Relatório gerado: ${allLinks.length} links sem rota de fibra`);
+    res.send(csv);
+  });
+
+  // Relatório CSV: links com etiqueta mas não encontrados no OZmap (sem dados e sem ozmapNoRoute)
+  app.get("/api/admin/ozmap-not-found.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    const allLinks = await db.select().from(links).where(
+      and(
+        isNull(links.deletedAt),
+        isNull(links.ozmapArrivingPotency),
+        or(
+          isNotNull(links.voalleContractTagServiceTag),
+          isNotNull(links.ozmapTag)
+        ),
+        or(
+          eq(links.ozmapNoRoute, false),
+          isNull(links.ozmapNoRoute)
+        )
+      )
+    );
+
+    const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
+    const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+    const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+    const now = new Date().toISOString().slice(0, 10);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="links-etiqueta-nao-encontrada-${now}.csv"`);
+
+    let csv = "\uFEFF";
+    csv += "ID;Nome do Link;Cliente;Endereço;Etiqueta OZmap;Status do Contrato;Última Sincronização OZmap;Serial ONU;Login PPPoE\r\n";
+
+    for (const link of allLinks) {
+      const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
+      const tag = link.voalleContractTagServiceTag || link.ozmapTag || "";
+      const lastSync = link.ozmapLastSync ? new Date(link.ozmapLastSync).toLocaleDateString("pt-BR") : "Nunca";
+      csv += [
+        link.id,
+        escape(link.name),
+        escape(clientName),
+        escape(link.address),
+        escape(tag),
+        escape(link.contractStatus),
+        escape(lastSync),
+        escape(link.equipmentSerialNumber),
+        escape(link.pppoeUser || link.voalleLogin),
+      ].join(";") + "\r\n";
+    }
+
+    console.log(`[OZmap Not Found] Relatório gerado: ${allLinks.length} links com etiqueta não encontrada no OZmap`);
     res.send(csv);
   });
 
