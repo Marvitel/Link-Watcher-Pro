@@ -12473,6 +12473,75 @@ export async function registerRoutes(
     }
   });
 
+  // Relatório CSV de divergências de etiqueta OZmap
+  app.get("/api/admin/ozmap-tag-divergences.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    try {
+      const ozmapIntegrations = await db.select().from(externalIntegrations).where(eq(externalIntegrations.provider, "ozmap")).limit(1);
+      if (ozmapIntegrations.length === 0 || !ozmapIntegrations[0].apiKey || !ozmapIntegrations[0].apiUrl || !ozmapIntegrations[0].isActive) {
+        return res.status(400).json({ error: "Integração OZmap não configurada ou inativa" });
+      }
+      const ozmapConfig = ozmapIntegrations[0];
+      let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+      if (baseUrl.endsWith("/api/v2")) baseUrl = baseUrl.slice(0, -7);
+
+      // Candidatos: links com etiqueta mas sem potência OZmap, OU sem etiqueta mas com serial/PPPoE
+      const allLinks = await db.select().from(links).where(
+        eq(links.contractStatus, "active")
+      );
+      const allClients = await db.select({ id: clients.id, name: clients.name }).from(clients);
+      const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+      const candidates = allLinks.filter(l =>
+        (l.voalleContractTagServiceTag && !l.ozmapArrivingPotency) ||
+        (!l.voalleContractTagServiceTag && (l.equipmentSerialNumber || l.voalleLogin))
+      ).slice(0, 500);
+
+      console.log(`[OZmap Divergences] Verificando ${candidates.length} links candidatos...`);
+
+      const rows: string[] = [];
+      const header = "ID;Nome do Link;Cliente;Tag no Sistema;Tag encontrada no OZmap;Tipo de divergência;Método de busca;Serial ONU;Login PPPoE";
+      rows.push(header);
+
+      for (const link of candidates) {
+        const tagSistema = link.voalleContractTagServiceTag || "";
+
+        // Tentar encontrar a tag no OZmap via fallbacks
+        const fallback = await findOzmapTagByFallback(baseUrl, ozmapConfig.apiKey!, link);
+        if (!fallback) continue; // OZmap também não encontrou — sem divergência relevante
+
+        const tagOzmap = fallback.code;
+        if (tagSistema === tagOzmap) continue; // Tags iguais — sem divergência
+
+        const tipoDivergencia = !tagSistema
+          ? "Etiqueta ausente (encontrada no OZmap)"
+          : `Etiqueta divergente (sistema: ${tagSistema} / OZmap: ${tagOzmap})`;
+
+        const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
+        const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+
+        rows.push([
+          link.id,
+          escape(link.name),
+          escape(clientName),
+          escape(tagSistema),
+          escape(tagOzmap),
+          escape(tipoDivergencia),
+          escape(fallback.method),
+          escape(link.equipmentSerialNumber),
+          escape(link.voalleLogin),
+        ].join(";"));
+      }
+
+      const now = new Date().toISOString().slice(0, 10);
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="divergencias-ozmap-${now}.csv"`);
+      res.send("\uFEFF" + rows.join("\r\n")); // BOM para Excel reconhecer UTF-8
+    } catch (error: any) {
+      console.error("[OZmap Divergences] Erro:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
     res.json(enrichmentProgress);
   });
