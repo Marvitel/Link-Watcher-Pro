@@ -104,6 +104,7 @@ const actionLabels: Record<string, string> = {
 export function LinkDiagnosticsTab() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
+  const [downloadingMissing, setDownloadingMissing] = useState(false);
 
   async function downloadOzmapDivergences() {
     setDownloadingCsv(true);
@@ -124,6 +125,28 @@ export function LinkDiagnosticsTab() {
       URL.revokeObjectURL(url);
     } finally {
       setDownloadingCsv(false);
+    }
+  }
+
+  async function downloadOzmapMissing() {
+    setDownloadingMissing(true);
+    try {
+      const res = await fetch("/api/admin/ozmap-missing.csv", { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
+        alert(err.error || "Erro ao gerar relatório");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const now = new Date().toISOString().slice(0, 10);
+      a.download = `etiquetas-sem-ozmap-${now}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingMissing(false);
     }
   }
 
@@ -393,24 +416,44 @@ export function LinkDiagnosticsTab() {
                   </Button>
                 )}
                 {key === "missingOzmapData" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-1 w-full text-xs h-7 text-muted-foreground hover:text-foreground"
-                    disabled={downloadingCsv}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadOzmapDivergences();
-                    }}
-                    data-testid="btn-ozmap-divergences-csv"
-                  >
-                    {downloadingCsv ? (
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    ) : (
-                      <FileDown className="h-3 w-3 mr-1" />
-                    )}
-                    {downloadingCsv ? "Verificando..." : "Divergências (.csv)"}
-                  </Button>
+                  <div className="mt-1 flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs h-7 text-muted-foreground hover:text-foreground"
+                      disabled={downloadingMissing}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadOzmapMissing();
+                      }}
+                      data-testid="btn-ozmap-missing-csv"
+                    >
+                      {downloadingMissing ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <FileDown className="h-3 w-3 mr-1" />
+                      )}
+                      {downloadingMissing ? "Gerando..." : "Sem dados OZmap (.csv)"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs h-7 text-muted-foreground hover:text-foreground"
+                      disabled={downloadingCsv}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadOzmapDivergences();
+                      }}
+                      data-testid="btn-ozmap-divergences-csv"
+                    >
+                      {downloadingCsv ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <FileDown className="h-3 w-3 mr-1" />
+                      )}
+                      {downloadingCsv ? "Verificando..." : "Divergências (.csv)"}
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

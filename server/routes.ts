@@ -58,7 +58,7 @@ import {
 } from "@shared/schema";
 import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
-import { eq, and, or, isNull, sql } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, sql } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 import {
   getFlashmanConfigForClient,
@@ -12474,73 +12474,155 @@ export async function registerRoutes(
     }
   });
 
-  // Relatório CSV de divergências de etiqueta OZmap
+  // Relatório CSV de divergências de etiqueta OZmap (streaming para evitar timeout)
   app.get("/api/admin/ozmap-tag-divergences.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
-    try {
-      const ozmapIntegrations = await db.select().from(externalIntegrations).where(eq(externalIntegrations.provider, "ozmap")).limit(1);
-      if (ozmapIntegrations.length === 0 || !ozmapIntegrations[0].apiKey || !ozmapIntegrations[0].apiUrl || !ozmapIntegrations[0].isActive) {
-        return res.status(400).json({ error: "Integração OZmap não configurada ou inativa" });
-      }
-      const ozmapConfig = ozmapIntegrations[0];
-      let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
-      if (baseUrl.endsWith("/api/v2")) baseUrl = baseUrl.slice(0, -7);
+    const ozmapIntegrations = await db.select().from(externalIntegrations).where(eq(externalIntegrations.provider, "ozmap")).limit(1);
+    if (ozmapIntegrations.length === 0 || !ozmapIntegrations[0].apiKey || !ozmapIntegrations[0].apiUrl || !ozmapIntegrations[0].isActive) {
+      return res.status(400).json({ error: "Integração OZmap não configurada ou inativa" });
+    }
+    const ozmapConfig = ozmapIntegrations[0];
+    let baseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    if (baseUrl.endsWith("/api/v2")) baseUrl = baseUrl.slice(0, -7);
+    const apiKey = ozmapConfig.apiKey!;
+    const headers = { "Accept": "application/json", "Authorization": apiKey };
 
-      // Candidatos: links com etiqueta mas sem potência OZmap, OU sem etiqueta mas com serial/PPPoE
-      const allLinks = await db.select().from(links).where(
-        eq(links.contractStatus, "active")
-      );
-      const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
-      const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+    const allLinks = await db.select().from(links).where(eq(links.contractStatus, "active"));
+    const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
+    const clientMap = new Map(allClients.map(c => [c.id, c.name]));
 
-      const candidates = allLinks.filter(l =>
-        (l.voalleContractTagServiceTag && !l.ozmapArrivingPotency) ||
-        (!l.voalleContractTagServiceTag && (l.equipmentSerialNumber || l.voalleLogin))
-      ).slice(0, 500);
+    // Candidatos para divergência: links com etiqueta Voalle E com serial ou PPPoE para validar cruzado
+    // Também inclui links SEM etiqueta mas com serial/PPPoE (etiqueta ausente)
+    const candidates = allLinks.filter(l =>
+      l.equipmentSerialNumber || l.voalleLogin
+    ).slice(0, 300);
 
-      console.log(`[OZmap Divergences] Verificando ${candidates.length} links candidatos...`);
+    console.log(`[OZmap Divergences] Verificando ${candidates.length} links candidatos (streaming)...`);
 
-      const rows: string[] = [];
-      const header = "ID;Nome do Link;Cliente;Tag no Sistema;Tag encontrada no OZmap;Tipo de divergência;Método de busca;Serial ONU;Login PPPoE";
-      rows.push(header);
+    const now = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="divergencias-ozmap-${now}.csv"`);
+    res.setHeader("X-Accel-Buffering", "no");
 
-      for (const link of candidates) {
+    // Escrever BOM + cabeçalho imediatamente (browser começa o download)
+    const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+    res.write("\uFEFF");
+    res.write("ID;Nome do Link;Cliente;Tag no Sistema;Tag encontrada no OZmap;Tipo de divergência;Método de busca;Serial ONU;Login PPPoE\r\n");
+
+    let rowCount = 0;
+
+    for (const link of candidates) {
+      try {
         const tagSistema = link.voalleContractTagServiceTag || "";
+        let tagOzmap: string | null = null;
+        let method = "";
 
-        // Tentar encontrar a tag no OZmap via fallbacks
-        const fallback = await findOzmapTagByFallback(baseUrl, ozmapConfig.apiKey!, link);
-        if (!fallback) continue; // OZmap também não encontrou — sem divergência relevante
+        // Busca 1: por serial de ONU (mais confiável)
+        if (link.equipmentSerialNumber) {
+          const filter = encodeURIComponent(JSON.stringify([
+            { property: "onu.serial_number", value: link.equipmentSerialNumber, operator: "=" }
+          ]));
+          const r = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${filter}&limit=3`, { headers });
+          if (r.ok) {
+            const d = await r.json();
+            const rows: any[] = d.rows || (Array.isArray(d) ? d : []);
+            if (rows.length === 1 && rows[0].code) {
+              tagOzmap = rows[0].code;
+              method = `serial:${link.equipmentSerialNumber}`;
+            }
+          }
+        }
 
-        const tagOzmap = fallback.code;
-        if (tagSistema === tagOzmap) continue; // Tags iguais — sem divergência
+        // Busca 2: por PPPoE (se serial não encontrou ou não existe)
+        if (!tagOzmap && link.voalleLogin) {
+          const filter = encodeURIComponent(JSON.stringify([
+            { property: "onu.user_PPPoE", value: link.voalleLogin, operator: "=" }
+          ]));
+          const r = await fetch(`${baseUrl}/api/v2/ftth-clients?filter=${filter}&limit=3`, { headers });
+          if (r.ok) {
+            const d = await r.json();
+            const rows: any[] = d.rows || (Array.isArray(d) ? d : []);
+            if (rows.length >= 1 && rows[0].code) {
+              tagOzmap = rows[0].code;
+              method = `pppoe:${link.voalleLogin}`;
+            }
+          }
+        }
+
+        // Sem match no OZmap → não é divergência conhecida
+        if (!tagOzmap) continue;
+
+        // Tags iguais → sem divergência
+        if (tagSistema === tagOzmap) continue;
 
         const tipoDivergencia = !tagSistema
-          ? "Etiqueta ausente (encontrada no OZmap)"
-          : `Etiqueta divergente (sistema: ${tagSistema} / OZmap: ${tagOzmap})`;
+          ? "Etiqueta ausente no sistema (encontrada no OZmap)"
+          : "Etiqueta divergente";
 
         const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
-        const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
 
-        rows.push([
+        res.write([
           link.id,
           escape(link.name),
           escape(clientName),
           escape(tagSistema),
           escape(tagOzmap),
           escape(tipoDivergencia),
-          escape(fallback.method),
+          escape(method),
           escape(link.equipmentSerialNumber),
           escape(link.voalleLogin),
-        ].join(";"));
-      }
+        ].join(";") + "\r\n");
 
-      const now = new Date().toISOString().slice(0, 10);
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="divergencias-ozmap-${now}.csv"`);
-      res.send("\uFEFF" + rows.join("\r\n")); // BOM para Excel reconhecer UTF-8
-    } catch (error: any) {
-      console.error("[OZmap Divergences] Erro:", error);
-      res.status(500).json({ error: error.message });
+        rowCount++;
+      } catch (e: any) {
+        console.error(`[OZmap Divergences] Erro no link ${link.id}:`, e.message);
+      }
     }
+
+    console.log(`[OZmap Divergences] Relatório concluído: ${rowCount} divergências encontradas em ${candidates.length} links`);
+    res.end();
+  });
+
+  // Relatório CSV: etiquetas com dado ausente no OZmap (simples, sem chamadas externas)
+  app.get("/api/admin/ozmap-missing.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    const allLinks = await db.select().from(links).where(
+      and(
+        eq(links.contractStatus, "active"),
+        isNotNull(links.voalleContractTagServiceTag),
+        isNull(links.ozmapArrivingPotency),
+        isNull(links.deletedAt)
+      )
+    );
+
+    const allClients = await db.select({
+      id: clientsTable.id,
+      name: clientsTable.name,
+    }).from(clientsTable);
+    const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+    const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+    const now = new Date().toISOString().slice(0, 10);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="etiquetas-sem-ozmap-${now}.csv"`);
+
+    let csv = "\uFEFF"; // BOM UTF-8
+    csv += "ID;Nome do Link;Cliente;Endereço;Complemento;Etiqueta OZmap;Status do Contrato\r\n";
+
+    for (const link of allLinks) {
+      const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
+      csv += [
+        link.id,
+        escape(link.name),
+        escape(clientName),
+        escape(link.address),
+        escape(link.addressComplement),
+        escape(link.voalleContractTagServiceTag),
+        escape(link.contractStatus),
+      ].join(";") + "\r\n";
+    }
+
+    console.log(`[OZmap Missing] Relatório gerado: ${allLinks.length} links sem dados OZmap`);
+    res.send(csv);
   });
 
   app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
