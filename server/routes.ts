@@ -11759,7 +11759,7 @@ export async function registerRoutes(
     return null;
   }
 
-  async function enrichLinkWithOzmapData(linkId: number, serviceTag: string, linkName: string): Promise<void> {
+  async function enrichLinkWithOzmapData(linkId: number, serviceTag: string, linkName: string): Promise<boolean> {
     const ozmapIntegrations = await db
       .select()
       .from(externalIntegrations)
@@ -11768,7 +11768,7 @@ export async function registerRoutes(
 
     if (ozmapIntegrations.length === 0 || !ozmapIntegrations[0].apiKey || !ozmapIntegrations[0].apiUrl || !ozmapIntegrations[0].isActive) {
       console.log(`[Webhook/Enrichment/OZmap] Integration not configured, skipping`);
-      return;
+      return false;
     }
 
     const ozmapConfig = ozmapIntegrations[0];
@@ -11812,7 +11812,7 @@ export async function registerRoutes(
 
     if (!data || data.length === 0) {
       console.log(`[Webhook/Enrichment/OZmap] Nenhum dado encontrado no OZmap para link id=${linkId} "${linkName}" (todos os fallbacks esgotados)`);
-      return;
+      return false;
     }
 
     const potencyItem = data[0];
@@ -11896,6 +11896,7 @@ export async function registerRoutes(
 
     await db.update(links).set(ozmapUpdate).where(eq(links.id, linkId));
     console.log(`[Webhook/Enrichment/OZmap] Link id=${linkId} "${linkName}": potency=${potencyItem.arriving_potency}, distance=${potencyItem.distance}, splitter=${splitterName}, OLT=${oltName}`);
+    return true;
   }
 
   // ==========================================
@@ -12488,7 +12489,7 @@ export async function registerRoutes(
       const allLinks = await db.select().from(links).where(
         eq(links.contractStatus, "active")
       );
-      const allClients = await db.select({ id: clients.id, name: clients.name }).from(clients);
+      const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
       const clientMap = new Map(allClients.map(c => [c.id, c.name]));
 
       const candidates = allLinks.filter(l =>
@@ -13061,88 +13062,38 @@ export async function registerRoutes(
 
         if (action === 'sync_ozmap' || action === 'discover_all') {
           enrichmentProgress.action = 'sync_ozmap';
-          const linksForOzmap = targetLinks.filter(l => (l.voalleContractTagServiceTag || l.ozmapTag) && !l.ozmapArrivingPotency);
+          // Inclui links COM etiqueta sem dados OZmap E links SEM etiqueta mas com serial/PPPoE
+          const linksForOzmap = targetLinks.filter(l =>
+            !l.ozmapArrivingPotency && (
+              l.voalleContractTagServiceTag || l.ozmapTag ||
+              l.equipmentSerialNumber || l.voalleLogin
+            )
+          );
           enrichmentProgress.total += linksForOzmap.length;
-          console.log(`[Enrich] Starting OZmap sync for ${linksForOzmap.length} links`);
+          console.log(`[Enrich] Starting OZmap sync for ${linksForOzmap.length} links (com fallbacks)`);
 
           try {
-            const ozmapIntegration = await storage.getExternalIntegrationByProvider?.('ozmap');
-            if (!ozmapIntegration || !ozmapIntegration.isActive || !ozmapIntegration.apiKey || !ozmapIntegration.apiUrl) {
-              enrichmentProgress.errors.push("Integração OZmap não configurada ou inativa. Configure em Configurações > Integrações Externas.");
-              for (const link of linksForOzmap) {
-                enrichmentProgress.failed++;
-                enrichmentProgress.processed++;
-              }
-            } else {
-              const apiUrl = ozmapIntegration.apiUrl;
-              const apiKey = ozmapIntegration.apiKey;
-
-              for (const link of linksForOzmap) {
-                try {
-                  const tag = link.ozmapTag || link.voalleContractTagServiceTag;
-                  if (!tag) {
-                    enrichmentProgress.skipped++;
-                    enrichmentProgress.processed++;
-                    continue;
-                  }
-
-                  const potencyUrl = `${apiUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`;
-                  const resp = await fetch(potencyUrl, {
-                    headers: { 'Authorization': apiKey || '', 'Accept': 'application/json' },
-                  });
-
-                  if (resp.ok) {
-                    const data = await resp.json() as any;
-                    const updateData: Record<string, any> = {
-                      ozmapLastSync: new Date(),
-                    };
-
-                    if (data.arriving_potency !== undefined) updateData.ozmapArrivingPotency = data.arriving_potency;
-                    if (data.attenuation !== undefined) updateData.ozmapAttenuation = data.attenuation;
-                    if (data.distance !== undefined) updateData.ozmapDistance = data.distance;
-                    if (data.pon_reached !== undefined) updateData.ozmapPonReached = data.pon_reached;
-
-                    if (data.elements && Array.isArray(data.elements)) {
-                      const splitter = [...data.elements].reverse().find((e: any) => e.type === 'splitter');
-                      const oltElement = data.elements.find((e: any) => e.type === 'olt');
-                      if (splitter) {
-                        updateData.ozmapSplitterName = splitter.name;
-                        updateData.ozmapSplitterPort = splitter.port ? String(splitter.port) : null;
-                      }
-                      if (oltElement) {
-                        updateData.ozmapOltName = oltElement.name;
-                        if (oltElement.slot !== undefined) updateData.ozmapSlot = oltElement.slot;
-                        if (oltElement.port !== undefined) updateData.ozmapPort = oltElement.port;
-                      }
-                    }
-
-                    if (!link.opticalRxBaseline && updateData.ozmapArrivingPotency) {
-                      updateData.opticalRxBaseline = updateData.ozmapArrivingPotency;
-                    }
-
-                    await db.update(links).set(updateData).where(eq(links.id, link.id));
-                    enrichmentProgress.success++;
-                  } else if (resp.status === 404) {
-                    enrichmentProgress.skipped++;
-                    if (enrichmentProgress.errors.length < 50) {
-                      enrichmentProgress.errors.push(`${link.name}: Etiqueta "${tag}" não encontrada no OZmap`);
-                    }
-                  } else {
-                    enrichmentProgress.failed++;
-                    if (enrichmentProgress.errors.length < 50) {
-                      enrichmentProgress.errors.push(`${link.name}: OZmap ${resp.status}`);
-                    }
-                  }
-                } catch (err: any) {
-                  enrichmentProgress.failed++;
+            for (const link of linksForOzmap) {
+              try {
+                const tag = link.ozmapTag || link.voalleContractTagServiceTag || "";
+                const synced = await enrichLinkWithOzmapData(link.id, tag, link.name);
+                if (synced) {
+                  enrichmentProgress.success++;
+                } else {
+                  enrichmentProgress.skipped++;
                   if (enrichmentProgress.errors.length < 50) {
-                    enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                    enrichmentProgress.errors.push(`${link.name}: Sem dados no OZmap (todos os critérios esgotados)`);
                   }
                 }
-                enrichmentProgress.processed++;
+              } catch (err: any) {
+                enrichmentProgress.failed++;
+                if (enrichmentProgress.errors.length < 50) {
+                  enrichmentProgress.errors.push(`${link.name}: ${err.message}`);
+                }
               }
+              enrichmentProgress.processed++;
             }
-            console.log(`[Enrich] OZmap sync done: ${enrichmentProgress.success} synced`);
+            console.log(`[Enrich] OZmap sync done: ${enrichmentProgress.success} synced, ${enrichmentProgress.skipped} sem dados`);
           } catch (err: any) {
             console.error("[Enrich] OZmap error:", err);
             enrichmentProgress.errors.push(`OZmap: ${err.message}`);
