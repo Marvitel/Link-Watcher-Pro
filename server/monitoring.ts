@@ -3914,6 +3914,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
           if (response.status === 422) {
             // HTTP 422 = cliente existe no OZmap mas sem rota de fibra configurada (não é erro)
             console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" sem rota de fibra (HTTP 422)`);
+            await db.update(links).set({ ozmapNoRoute: true }).where(eq(links.id, link.id));
           } else {
             console.log(`[OZmap Auto-Sync] Link ${link.name}: Tag "${ozmapTag}" não encontrada (HTTP ${response.status})`);
           }
@@ -3923,6 +3924,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
         const responseText = await response.text();
         if (!responseText || responseText.trim() === "" || responseText.trim() === "null") {
           console.log(`[OZmap Auto-Sync] Link ${link.name}: Sem rota de fibra (body vazio)`);
+          await db.update(links).set({ ozmapNoRoute: true }).where(eq(links.id, link.id));
           continue;
         }
         const data = JSON.parse(responseText);
@@ -4015,6 +4017,7 @@ async function syncOzmapForAllLinks(): Promise<void> {
           ozmapAttenuation: potencyItem.attenuation || null,
           ozmapPonReached: potencyItem.pon_reached || false,
           ozmapLastSync: new Date(),
+          ozmapNoRoute: false, // Dados encontrados — limpar flag de sem rota
         };
         
         if (splitterName) ozmapUpdate.ozmapSplitterName = splitterName;

@@ -199,6 +199,7 @@ export const links = pgTable("links", {
   ozmapPort: integer("ozmap_port"), // Porta da OLT
   ozmapPonReached: boolean("ozmap_pon_reached"), // Se a PON foi alcançada
   ozmapLastSync: timestamp("ozmap_last_sync"), // Última sincronização com OZmap
+  ozmapNoRoute: boolean("ozmap_no_route").default(false), // Cliente existe no OZmap mas sem rota de fibra (HTTP 422)
   // Modo do gráfico principal: 'primary' (coleta atual), 'single' (uma interface), 'aggregate' (soma de interfaces)
   mainGraphMode: varchar("main_graph_mode", { length: 20 }).notNull().default("primary"),
   // IDs das interfaces adicionais para agregação (usado quando mainGraphMode = 'aggregate' ou 'single')

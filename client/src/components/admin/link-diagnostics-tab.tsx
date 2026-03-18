@@ -40,6 +40,8 @@ interface DiagnosticCategory {
   clientCount?: number;
   withTag?: number;
   withoutTag?: number;
+  withData?: number;
+  noRoute?: number;
 }
 
 interface ContractStatusSummary {
@@ -105,6 +107,8 @@ export function LinkDiagnosticsTab() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [downloadingMissing, setDownloadingMissing] = useState(false);
+  const [downloadingNoTag, setDownloadingNoTag] = useState(false);
+  const [downloadingNoRoute, setDownloadingNoRoute] = useState(false);
 
   async function downloadOzmapDivergences() {
     setDownloadingCsv(true);
@@ -128,10 +132,10 @@ export function LinkDiagnosticsTab() {
     }
   }
 
-  async function downloadOzmapMissing() {
-    setDownloadingMissing(true);
+  async function downloadCsv(endpoint: string, filename: string, setLoading: (v: boolean) => void) {
+    setLoading(true);
     try {
-      const res = await fetch("/api/admin/ozmap-missing.csv", { credentials: "include" });
+      const res = await fetch(endpoint, { credentials: "include" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
         alert(err.error || "Erro ao gerar relatório");
@@ -141,13 +145,27 @@ export function LinkDiagnosticsTab() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const now = new Date().toISOString().slice(0, 10);
-      a.download = `etiquetas-sem-ozmap-${now}.csv`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
-      setDownloadingMissing(false);
+      setLoading(false);
     }
+  }
+
+  async function downloadOzmapMissing() {
+    const now = new Date().toISOString().slice(0, 10);
+    await downloadCsv("/api/admin/ozmap-missing.csv", `etiquetas-sem-ozmap-${now}.csv`, setDownloadingMissing);
+  }
+
+  async function downloadOzmapNoTag() {
+    const now = new Date().toISOString().slice(0, 10);
+    await downloadCsv("/api/admin/ozmap-no-tag.csv", `links-sem-etiqueta-${now}.csv`, setDownloadingNoTag);
+  }
+
+  async function downloadOzmapNoRoute() {
+    const now = new Date().toISOString().slice(0, 10);
+    await downloadCsv("/api/admin/ozmap-no-route.csv", `links-sem-rota-fibra-${now}.csv`, setDownloadingNoRoute);
   }
 
   const { data: diagnostics, isLoading, refetch } = useQuery<DiagnosticsData>({
@@ -396,8 +414,14 @@ export function LinkDiagnosticsTab() {
                 )}
                 {key === 'missingOzmapData' && cat.withTag !== undefined && (
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    <p>{cat.withTag} com etiqueta ({cat.withoutTag} sem)</p>
-                    {cat.count > 0 && <p>{cat.count} com etiqueta sem dados OZmap</p>}
+                    <p className="text-green-600 dark:text-green-400">✓ {cat.withData ?? 0} com dados sincronizados</p>
+                    {(cat.noRoute ?? 0) > 0 && (
+                      <p className="text-yellow-600 dark:text-yellow-400">⚠ {cat.noRoute} sem rota de fibra</p>
+                    )}
+                    {cat.withoutTag! > 0 && (
+                      <p className="text-orange-600 dark:text-orange-400">○ {cat.withoutTag} sem etiqueta</p>
+                    )}
+                    <p>{cat.count} sem dados OZmap (de {cat.withTag} com etiqueta)</p>
                   </div>
                 )}
                 {enrichAction && cat.count > 0 && (
@@ -428,13 +452,41 @@ export function LinkDiagnosticsTab() {
                       }}
                       data-testid="btn-ozmap-missing-csv"
                     >
-                      {downloadingMissing ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <FileDown className="h-3 w-3 mr-1" />
-                      )}
+                      {downloadingMissing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
                       {downloadingMissing ? "Gerando..." : "Sem dados OZmap (.csv)"}
                     </Button>
+                    {(cat.noRoute ?? 0) > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs h-7 text-yellow-600 dark:text-yellow-400 hover:text-yellow-700"
+                        disabled={downloadingNoRoute}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadOzmapNoRoute();
+                        }}
+                        data-testid="btn-ozmap-no-route-csv"
+                      >
+                        {downloadingNoRoute ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
+                        {downloadingNoRoute ? "Gerando..." : "Sem rota de fibra (.csv)"}
+                      </Button>
+                    )}
+                    {(cat.withoutTag ?? 0) > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs h-7 text-orange-600 dark:text-orange-400 hover:text-orange-700"
+                        disabled={downloadingNoTag}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadOzmapNoTag();
+                        }}
+                        data-testid="btn-ozmap-no-tag-csv"
+                      >
+                        {downloadingNoTag ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
+                        {downloadingNoTag ? "Gerando..." : "Sem etiqueta (.csv)"}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -446,11 +498,7 @@ export function LinkDiagnosticsTab() {
                       }}
                       data-testid="btn-ozmap-divergences-csv"
                     >
-                      {downloadingCsv ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <FileDown className="h-3 w-3 mr-1" />
-                      )}
+                      {downloadingCsv ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileDown className="h-3 w-3 mr-1" />}
                       {downloadingCsv ? "Verificando..." : "Divergências (.csv)"}
                     </Button>
                   </div>

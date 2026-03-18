@@ -11838,31 +11838,35 @@ export async function registerRoutes(
     let data: any[] | null = null;
 
     // Helper local: lê potência
-    // Retorna: array com dados (rota existe), null (sem rota ou não encontrado)
-    // OZmap usa HTTP 422 quando cliente existe mas não tem rota; body vazio também indica sem rota
-    async function readPotency(tag: string): Promise<any[] | null> {
+    // OZmap HTTP 422 = cliente existe mas sem rota de fibra configurada
+    // OZmap body vazio = mesma semântica do 422 em versões anteriores
+    async function readPotency(tag: string): Promise<{ data: any[] | null; noRoute: boolean }> {
       const r = await fetch(`${baseUrl}/api/v2/properties/client/${encodeURIComponent(tag)}/potency?locale=pt_BR`, { method: "GET", headers: ozmapHeaders });
       if (!r.ok) {
         if (r.status === 422) {
-          console.log(`[Webhook/Enrichment/OZmap] Tag "${tag}" → HTTP 422 (cliente sem rota de fibra, pulando)`);
+          console.log(`[Webhook/Enrichment/OZmap] Tag "${tag}" → HTTP 422 (cliente sem rota de fibra)`);
+          return { data: null, noRoute: true };
         }
-        return null;
+        return { data: null, noRoute: false };
       }
       const text = await r.text();
-      if (!text || text.trim() === "" || text.trim() === "null") return null;
+      if (!text || text.trim() === "" || text.trim() === "null") {
+        return { data: null, noRoute: true };
+      }
       try {
         const parsed = JSON.parse(text);
-        return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+        return { data: Array.isArray(parsed) && parsed.length > 0 ? parsed : null, noRoute: !parsed?.length };
       } catch {
-        return null;
+        return { data: null, noRoute: false };
       }
     }
 
     // Tentativa 1: tag principal
-    data = await readPotency(resolvedTag);
+    let potencyResult = await readPotency(resolvedTag);
+    data = potencyResult.data;
 
-    if (!data) {
-      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" sem dados de potência, tentando fallbacks...`);
+    if (!data && !potencyResult.noRoute) {
+      console.log(`[Webhook/Enrichment/OZmap] Tag "${serviceTag}" não encontrada, tentando fallbacks...`);
       // Buscar dados completos do link para usar nos fallbacks
       const linkRows = await db.select().from(links).where(eq(links.id, linkId)).limit(1);
       if (linkRows.length > 0) {
@@ -11870,17 +11874,26 @@ export async function registerRoutes(
         if (fallback) {
           resolvedTag = fallback.code;
           console.log(`[Webhook/Enrichment/OZmap] Tag encontrada via fallback (${fallback.method}): ${resolvedTag}`);
-          // Atualizar a tag do link para futuras sincronizações
           await db.update(links).set({ voalleContractTagServiceTag: resolvedTag }).where(eq(links.id, linkId));
-          data = await readPotency(resolvedTag);
+          potencyResult = await readPotency(resolvedTag);
+          data = potencyResult.data;
         }
       }
     }
 
     if (!data || data.length === 0) {
-      console.log(`[Webhook/Enrichment/OZmap] Nenhum dado encontrado no OZmap para link id=${linkId} "${linkName}" (todos os fallbacks esgotados)`);
+      if (potencyResult.noRoute) {
+        // Cliente existe no OZmap mas sem rota — gravar flag para diagnóstico
+        await db.update(links).set({ ozmapNoRoute: true }).where(eq(links.id, linkId));
+        console.log(`[Webhook/Enrichment/OZmap] Link id=${linkId} "${linkName}": sem rota de fibra (ozmapNoRoute=true)`);
+      } else {
+        console.log(`[Webhook/Enrichment/OZmap] Nenhum dado encontrado no OZmap para link id=${linkId} "${linkName}" (todos os fallbacks esgotados)`);
+      }
       return false;
     }
+
+    // Encontrou dados — garantir que ozmapNoRoute está false
+    await db.update(links).set({ ozmapNoRoute: false }).where(eq(links.id, linkId));
 
     const potencyItem = data[0];
     let splitterName: string | null = null;
@@ -12487,6 +12500,8 @@ export async function registerRoutes(
       const missingOnuId = allLinks.filter(l => l.oltId && l.equipmentSerialNumber && !l.onuId);
       const linksWithTag = allLinks.filter(l => l.voalleContractTagServiceTag || l.ozmapTag);
       const linksWithoutTag = allLinks.filter(l => !l.voalleContractTagServiceTag && !l.ozmapTag);
+      const linksNoRoute = linksWithTag.filter(l => l.ozmapNoRoute === true);
+      const linksWithData = linksWithTag.filter(l => l.ozmapArrivingPotency);
       const missingOzmapData = linksWithTag.filter(l => !l.ozmapArrivingPotency);
 
       const clientsWithoutPortal = allClients.filter(c => c.cnpj && (!c.voallePortalUsername || !c.voallePortalPassword));
@@ -12512,7 +12527,7 @@ export async function registerRoutes(
         missingOnuId: { count: missingOnuId.length, ids: missingOnuId.map(l => l.id), label: "Sem ID da ONU (tem serial e OLT)", enrichAction: "discover_onu_ids" },
         missingOltAssignment: { count: missingOltAssignment.length, ids: missingOltAssignment.map(l => l.id), label: "Sem OLT atribuída (tem AccessPoint Voalle)" },
         missingCpe: { count: missingCpe.length, ids: missingCpe.map(l => l.id), label: "Sem CPE cadastrado", enrichAction: "create_cpes" },
-        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap", enrichable: missingOzmapData.length, withTag: linksWithTag.length, withoutTag: linksWithoutTag.length },
+        missingOzmapData: { count: missingOzmapData.length, ids: missingOzmapData.map(l => l.id), label: "Sem documentação OZmap", enrichAction: "sync_ozmap", enrichable: missingOzmapData.length, withTag: linksWithTag.length, withoutTag: linksWithoutTag.length, withData: linksWithData.length, noRoute: linksNoRoute.length, noRouteIds: linksNoRoute.map(l => l.id) },
         missingPppoeUser: { count: missingPppoeUser.length, ids: missingPppoeUser.map(l => l.id), label: "Sem usuário PPPoE" },
         missingSnmpProfile: { count: missingSnmpProfile.length, ids: missingSnmpProfile.map(l => l.id), label: "Sem perfil SNMP" },
         missingVoalleTag: { count: missingVoalleTag.length, ids: missingVoalleTag.map(l => l.id), label: "Sem tag Voalle (contractTagId)", enrichAction: "discover_voalle" },
@@ -12689,6 +12704,86 @@ export async function registerRoutes(
     }
 
     console.log(`[OZmap Missing] Relatório gerado: ${allLinks.length} links sem dados OZmap`);
+    res.send(csv);
+  });
+
+  // Relatório CSV: links sem etiqueta OZmap
+  app.get("/api/admin/ozmap-no-tag.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    const allLinks = await db.select().from(links).where(
+      and(
+        eq(links.contractStatus, "active"),
+        isNull(links.voalleContractTagServiceTag),
+        isNull(links.ozmapTag),
+        isNull(links.deletedAt)
+      )
+    );
+
+    const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
+    const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+    const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+    const now = new Date().toISOString().slice(0, 10);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="links-sem-etiqueta-ozmap-${now}.csv"`);
+
+    let csv = "\uFEFF";
+    csv += "ID;Nome do Link;Cliente;Endereço;Tipo de Link;PPPoE;Serial\r\n";
+
+    for (const link of allLinks) {
+      const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
+      csv += [
+        link.id,
+        escape(link.name),
+        escape(clientName),
+        escape(link.address),
+        escape(link.linkType),
+        escape(link.pppoeUser || link.voalleLogin),
+        escape(link.equipmentSerialNumber),
+      ].join(";") + "\r\n";
+    }
+
+    console.log(`[OZmap No Tag] Relatório gerado: ${allLinks.length} links sem etiqueta OZmap`);
+    res.send(csv);
+  });
+
+  // Relatório CSV: links com etiqueta mas sem rota de fibra (HTTP 422 do OZmap)
+  app.get("/api/admin/ozmap-no-route.csv", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    const allLinks = await db.select().from(links).where(
+      and(
+        isNull(links.deletedAt),
+        eq(links.ozmapNoRoute, true)
+      )
+    );
+
+    const allClients = await db.select({ id: clientsTable.id, name: clientsTable.name }).from(clientsTable);
+    const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+
+    const escape = (v: string | null | undefined) => `"${(v || "").replace(/"/g, '""')}"`;
+    const now = new Date().toISOString().slice(0, 10);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="links-sem-rota-fibra-${now}.csv"`);
+
+    let csv = "\uFEFF";
+    csv += "ID;Nome do Link;Cliente;Endereço;Etiqueta OZmap;Status do Contrato;Última Sincronização\r\n";
+
+    for (const link of allLinks) {
+      const clientName = clientMap.get(link.clientId) || `Cliente #${link.clientId}`;
+      const tag = link.voalleContractTagServiceTag || link.ozmapTag || "";
+      const lastSync = link.ozmapLastSync ? new Date(link.ozmapLastSync).toLocaleDateString("pt-BR") : "Nunca";
+      csv += [
+        link.id,
+        escape(link.name),
+        escape(clientName),
+        escape(link.address),
+        escape(tag),
+        escape(link.contractStatus),
+        escape(lastSync),
+      ].join(";") + "\r\n";
+    }
+
+    console.log(`[OZmap No Route] Relatório gerado: ${allLinks.length} links sem rota de fibra`);
     res.send(csv);
   });
 
