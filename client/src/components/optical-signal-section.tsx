@@ -465,7 +465,19 @@ function OpticalSnmpDiagnostic({ linkId }: { linkId: number }) {
 }
 
 export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProps) {
-  const latestOpticalMetric = metrics.find(m => m.opticalRxPower !== null || m.opticalTxPower !== null);
+  // Se o metric mais recente foi coletado há menos de 3 minutos e tem óptica null,
+  // a ONU está sem sinal no momento — não exibir valor histórico como "atual"
+  const mostRecentMetric = metrics[0];
+  const mostRecentIsRecent = mostRecentMetric
+    ? (Date.now() - new Date(mostRecentMetric.timestamp).getTime()) < 3 * 60 * 1000
+    : false;
+  const currentOpticalIsNull = mostRecentIsRecent
+    && mostRecentMetric.opticalRxPower === null
+    && mostRecentMetric.opticalTxPower === null;
+
+  const latestOpticalMetric = currentOpticalIsNull
+    ? null
+    : metrics.find(m => m.opticalRxPower !== null || m.opticalTxPower !== null);
   const currentRxPower = latestOpticalMetric?.opticalRxPower;
   const currentTxPower = latestOpticalMetric?.opticalTxPower;
   const currentOltRxPower = latestOpticalMetric?.opticalOltRxPower;
@@ -512,6 +524,17 @@ export function OpticalSignalSection({ link, metrics }: OpticalSignalSectionProp
 
   return (
     <div className="space-y-4">
+      {/* Alerta de ONU sem sinal no ciclo atual */}
+      {currentOpticalIsNull && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 dark:text-yellow-400 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            <strong>ONU sem sinal óptico</strong> — SNMP retornou null no último ciclo.
+            Possível LOSI (rompimento de fibra) ou ONU offline.
+          </span>
+        </div>
+      )}
+
       {/* Badge de tecnologia */}
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs">

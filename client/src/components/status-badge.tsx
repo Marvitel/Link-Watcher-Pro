@@ -44,6 +44,14 @@ const reasonLabels: Record<string, string> = {
   sinal_degradado: "Sinal Degradado",
   onu_inativa: "ONU Inativa",
   olt_alarm: "Alarme OLT",
+  // Optical reasons
+  optical_no_signal: "Sem Sinal Óptico",
+  optical_low_signal: "Sinal Óptico Crítico",
+  optical_warning: "Sinal Óptico Baixo",
+  gpon_no_optical_signal: "LOSI / ONU sem sinal",
+  ping_failed_optical_ok: "Ping falhou (óptica OK)",
+  port_down: "Porta Down",
+  snmp_unreachable: "SNMP inacessível",
   // Network/ping reasons
   timeout: "Timeout",
   host_unreachable: "Host inacessível",
@@ -57,14 +65,14 @@ const reasonLabels: Record<string, string> = {
 
 export function StatusBadge({ status, reason }: StatusBadgeProps) {
   const config = statusConfig[status] || defaultConfig;
-  const isOffline = status === "offline" || status === "down";
+  const isOfflineOrDegraded = status === "offline" || status === "down" || status === "degraded";
   const reasonLabel = reason ? (reasonLabels[reason] || reason) : null;
   
   return (
     <Badge variant="outline" className={config.className} data-testid={`badge-status-${status}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current mr-1.5" />
       {config.label}
-      {isOffline && reasonLabel && (
+      {isOfflineOrDegraded && reasonLabel && (
         <span className="ml-1 opacity-80">({reasonLabel})</span>
       )}
     </Badge>

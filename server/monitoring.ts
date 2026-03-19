@@ -2705,6 +2705,17 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     }
   }
 
+  // GPON: Se monitoramento óptico habilitado e SNMP retornou null para todos os valores,
+  // mas o link tem baseline calibrado → possível LOSI / ONU offline, marcar como degradado
+  // Isso detecta rompimentos quando o ping ainda responde (cache ARP, rota alternativa, etc.)
+  if (!isL2Link && link.linkType === 'gpon' && link.opticalMonitoringEnabled &&
+      !opticalSignal && link.opticalRxBaseline !== null && link.opticalRxBaseline !== undefined &&
+      status === 'operational') {
+    status = 'degraded';
+    failureReason = 'gpon_no_optical_signal';
+    console.log(`[Monitor] ${link.name}: GPON sem resposta óptica via SNMP (ONU possivelmente em LOSI/offline) - baseline=${link.opticalRxBaseline}dBm → degraded`);
+  }
+
   // Fallback para links não-L2 que ping marcou como offline:
   // Se tem monitoramento óptico habilitado e sinal bom, ou tráfego SNMP ativo, considerar operacional
   if (!isL2Link && pingBasedOffline && !link.icmpBlocked) {
