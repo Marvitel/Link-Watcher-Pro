@@ -77,11 +77,12 @@ function normalizeDistance(val: string | null | undefined): string | null {
   return cleaned;
 }
 
-// Filtra valores de potência óptica vindos do Zabbix: retorna null para 0 dBm
-// (Zabbix retorna 0.00 quando a ONU está offline/LOSI — fisicamente impossível em GPON normal)
+// Filtra valores de potência óptica vindos do Zabbix: retorna null para valores próximos de 0
+// Zabbix armazena 0.00 (ou near-zero float) quando a ONU está offline/LOSI.
+// Potência óptica válida em GPON nunca é próxima de 0 dBm (RX fica em -8 a -30 dBm; TX em +1 a +7 dBm).
 function filterZabbixDbm(val: number | null | undefined): number | null {
   if (val === null || val === undefined) return null;
-  if (val === 0) return null;
+  if (Math.abs(val) < 0.5) return null;
   return val;
 }
 

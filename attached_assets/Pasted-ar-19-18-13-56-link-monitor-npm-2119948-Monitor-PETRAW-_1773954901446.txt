@@ -1,0 +1,60 @@
+ar 19 18:13:56 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:13:56 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:13:56 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:13:56 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] LINK IP DEDICADO GPON  200 MEGA - SCM: GPON sem resposta óptica via SNMP (ONU possivelmente em LOSI/offline) - baseline=-18.759739dBm → degraded
+mar 19 18:14:01 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.5ms, loss=0.0%, status=operational
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] ONU-ROUTER - Usuario: support: GPON sem resposta óptica via SNMP (ONU possivelmente em LOSI/offline) - baseline=-24.313084dBm → degraded
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:06 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.4ms, loss=0.0%, status=operational
+mar 19 18:14:11 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:11 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:11 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:11 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:11 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:16 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:16 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:16 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:16 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:16 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:21 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:21 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:21 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:21 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:21 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:26 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:26 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:26 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:26 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:26 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:29 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:29 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:29 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:29 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:29 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:31 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:31 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:31 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:31 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:31 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:14:33 link-monitor npm[2119948]: [Monitor] marcos.filho: GPON sem resposta óptica via SNMP (ONU possivelmente em LOSI/offline) - baseline=-9.730878dBm → degraded
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] MAUI CASA 33: GPON sem resposta óptica via SNMP (ONU possivelmente em LOSI/offline) - baseline=-9.730878dBm → degraded
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:36 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.5ms, loss=0.0%, status=operational
+mar 19 18:14:37 link-monitor npm[2119948]: [Monitor] Maikai-Q03E04-GISLAINE - Óptico Zabbix: todos valores 0 ou null (ONU offline/LOSI no Zabbix)
+mar 19 18:14:38 link-monitor npm[2119948]: [Monitor] FOCUS DISTRIBUIDORA LTDA - Óptico Zabbix: todos valores 0 ou null (ONU offline/LOSI no Zabbix)
+mar 19 18:14:41 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:14:41 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:14:41 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:14:41 link-monitor npm[2119948]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:14:41 link-monitor npm[2119948]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
