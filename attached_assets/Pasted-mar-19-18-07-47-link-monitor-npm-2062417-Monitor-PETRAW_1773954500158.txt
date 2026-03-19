@@ -1,0 +1,29 @@
+mar 19 18:07:47 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:07:47 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:07:47 link-monitor npm[2062417]: [Monitor] PETRAW-IND: lat=0.5ms, loss=0.0%, status=operational
+mar 19 18:07:52 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:07:52 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:07:52 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:07:52 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:07:52 link-monitor npm[2062417]: [Monitor] PETRAW-IND: lat=0.5ms, loss=0.0%, status=operational
+mar 19 18:07:57 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:07:57 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:07:57 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:07:57 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:07:57 link-monitor npm[2062417]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:08:02 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:08:02 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:08:02 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:08:02 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:08:02 link-monitor npm[2062417]: [Monitor] PETRAW-IND: lat=0.6ms, loss=0.0%, status=operational
+mar 19 18:08:03 link-monitor npm[2062417]:     "Login": "petraw.industrial",
+mar 19 18:08:03 link-monitor npm[2062417]: [Webhook/Voalle] Conexão do Contrato - Login: petraw.industrial, ContractID: 2425, AccessPoint: , Action: Alteração
+mar 19 18:08:03 link-monitor npm[2062417]: [Webhook/Voalle] findLinkByVoalleData: matched by Login="petraw.industrial" → link id=1466
+mar 19 18:08:04 link-monitor npm[2062417]:     "Description": "Contrato nº 2425 - Cortesia - PETRAW INDUSTRIA DE ALIMENTACAO PARA CAES LTDA",
+mar 19 18:08:04 link-monitor npm[2062417]:       "Name": "PETRAW INDUSTRIA DE ALIMENTACAO PARA CAES LTDA",
+mar 19 18:08:04 link-monitor npm[2062417]: [Webhook/Voalle] Contract #2425 - Client: PETRAW INDUSTRIA DE ALIMENTACAO PARA CAES LTDA (ID: 5803) - Status: Cortesia → cancelled
+mar 19 18:08:07 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=3 onu=25
+mar 19 18:08:07 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+mar 19 18:08:07 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico: tentando fallback completo Zabbix por serial TPLG891C2198...
+mar 19 18:08:07 link-monitor npm[2062417]: [Monitor] PETRAW-IND - Óptico Zabbix OK: RX=0.00dBm TX=0.00dBm OLT_RX=nulldBm
+mar 19 18:08:07 link-monitor npm[2062417]: [Monitor] PETRAW-IND: lat=0.7ms, loss=0.0%, status=operational

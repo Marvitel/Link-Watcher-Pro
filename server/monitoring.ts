@@ -77,6 +77,14 @@ function normalizeDistance(val: string | null | undefined): string | null {
   return cleaned;
 }
 
+// Filtra valores de potência óptica vindos do Zabbix: retorna null para 0 dBm
+// (Zabbix retorna 0.00 quando a ONU está offline/LOSI — fisicamente impossível em GPON normal)
+function filterZabbixDbm(val: number | null | undefined): number | null {
+  if (val === null || val === undefined) return null;
+  if (val === 0) return null;
+  return val;
+}
+
 // Função auxiliar para atualizar dados de splitter do Zabbix no link
 async function updateLinkZabbixSplitterData(
   linkId: number, 
@@ -2364,11 +2372,11 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                           opticalSignal.oltRxPower = zabbixMetrics.oltRxPower;
                           console.log(`[Monitor] ${link.name} - Óptico Zabbix: OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
                         }
-                        // Se SNMP não retornou RX/TX, usar os do Zabbix
-                        if (opticalSignal.rxPower === null && zabbixMetrics.rxPower !== null) {
+                        // Se SNMP não retornou RX/TX, usar os do Zabbix (filtrar 0 dBm = ONU offline no Zabbix)
+                        if (opticalSignal.rxPower === null && filterZabbixDbm(zabbixMetrics.rxPower) !== null) {
                           opticalSignal.rxPower = zabbixMetrics.rxPower;
                         }
-                        if (opticalSignal.txPower === null && zabbixMetrics.txPower !== null) {
+                        if (opticalSignal.txPower === null && filterZabbixDbm(zabbixMetrics.txPower) !== null) {
                           opticalSignal.txPower = zabbixMetrics.txPower;
                         }
                         // Atualizar dados de splitter do Zabbix no link
@@ -2390,16 +2398,21 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                     
                     if (zabbixOlt.length > 0) {
                       const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], onuSerialFallback);
-                      if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
+                      const zRx = filterZabbixDbm(zabbixMetrics?.rxPower);
+                      const zTx = filterZabbixDbm(zabbixMetrics?.txPower);
+                      const zOltRx = filterZabbixDbm(zabbixMetrics?.oltRxPower);
+                      if (zabbixMetrics && (zRx !== null || zTx !== null || zOltRx !== null)) {
                         opticalSignal = {
-                          rxPower: zabbixMetrics.rxPower,
-                          txPower: zabbixMetrics.txPower,
-                          oltRxPower: zabbixMetrics.oltRxPower,
+                          rxPower: zRx,
+                          txPower: zTx,
+                          oltRxPower: zOltRx,
                         };
-                        console.log(`[Monitor] ${link.name} - Óptico Zabbix OK: RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
-                        // Atualizar dados de splitter do Zabbix no link
+                        console.log(`[Monitor] ${link.name} - Óptico Zabbix OK: RX=${zRx}dBm TX=${zTx}dBm OLT_RX=${zOltRx}dBm`);
                         await updateLinkZabbixSplitterData(link.id, zabbixMetrics);
                       } else {
+                        if (zabbixMetrics) {
+                          console.log(`[Monitor] ${link.name} - Óptico Zabbix: todos valores 0 ou null (ONU offline/LOSI no Zabbix)`);
+                        }
                         opticalSignal = null;
                       }
                     } else {
@@ -2423,15 +2436,19 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                   
                   if (zabbixOlt.length > 0) {
                     const zabbixMetrics = await queryZabbixOpticalMetrics(zabbixOlt[0], onuSerialSnmpFail);
-                    if (zabbixMetrics && (zabbixMetrics.rxPower !== null || zabbixMetrics.txPower !== null || zabbixMetrics.oltRxPower !== null)) {
+                    const zRxF = filterZabbixDbm(zabbixMetrics?.rxPower);
+                    const zTxF = filterZabbixDbm(zabbixMetrics?.txPower);
+                    const zOltRxF = filterZabbixDbm(zabbixMetrics?.oltRxPower);
+                    if (zabbixMetrics && (zRxF !== null || zTxF !== null || zOltRxF !== null)) {
                       opticalSignal = {
-                        rxPower: zabbixMetrics.rxPower,
-                        txPower: zabbixMetrics.txPower,
-                        oltRxPower: zabbixMetrics.oltRxPower,
+                        rxPower: zRxF,
+                        txPower: zTxF,
+                        oltRxPower: zOltRxF,
                       };
-                      console.log(`[Monitor] ${link.name} - Óptico Zabbix OK (fallback): RX=${zabbixMetrics.rxPower}dBm TX=${zabbixMetrics.txPower}dBm OLT_RX=${zabbixMetrics.oltRxPower}dBm`);
-                      // Atualizar dados de splitter do Zabbix no link
+                      console.log(`[Monitor] ${link.name} - Óptico Zabbix OK (fallback): RX=${zRxF}dBm TX=${zTxF}dBm OLT_RX=${zOltRxF}dBm`);
                       await updateLinkZabbixSplitterData(link.id, zabbixMetrics);
+                    } else if (zabbixMetrics) {
+                      console.log(`[Monitor] ${link.name} - Óptico Zabbix (fallback): todos valores 0 ou null (ONU offline/LOSI)`);
                     }
                   }
                 }
