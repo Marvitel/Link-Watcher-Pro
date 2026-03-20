@@ -12493,7 +12493,7 @@ export async function registerRoutes(
     vinculate_failed: number;
     dry_run: number;
     error: number;
-    results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string }>;
+    results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; linkTag?: string; oldTag?: string; ozmapFoundCode?: string; ozmapClientId?: string }>;
     errorMessage: string;
     startedAt: number;
     finishedAt: number;
@@ -12988,7 +12988,7 @@ export async function registerRoutes(
 
     const results: Array<{
       linkId: number; linkName: string; status: string; detail: string;
-      voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string;
+      voalleConnectionId?: number; linkTag?: string; oldTag?: string; ozmapFoundCode?: string; ozmapClientId?: string;
     }> = [];
 
     const toProcess: LinkInfo[] = [];
@@ -13082,6 +13082,81 @@ export async function registerRoutes(
       console.log(`[OZmap Reconcile] Detectados ${bogusIntegrationCodeMaps.size} integrationCodeMap(s) falsos (≥${BOGUS_ICM_THRESHOLD} conexões): ${[...bogusIntegrationCodeMaps].join(", ")}`);
     }
 
+    // FASE 1.5 — Download em massa de TODOS os clientes OZmap (para evitar filtros por campo aninhado)
+    // O OZmap suporta filtragem apenas por campos de nível raiz; campos aninhados como
+    // onu.serial_number e onu.user_PPPoE NÃO funcionam na API de filtro — portanto baixamos tudo.
+    reconcileProgress.phase = "fetching_ozmap";
+    console.log(`[OZmap Reconcile] Baixando todos os clientes OZmap (FTTH) em massa...`);
+
+    // Indexes locais OZmap
+    const ozmapById             = new Map<string, any>();  // _id → cliente OZmap
+    const ozmapByCode           = new Map<string, any>();  // code.toUpperCase() → cliente OZmap (primeiro encontrado)
+    const ozmapBySerial         = new Map<string, any>();  // onu.serial_number.toUpperCase() → cliente OZmap
+    const ozmapByPppoe          = new Map<string, any>();  // onu.user_PPPoE.toLowerCase() → cliente OZmap
+    const ozmapByIntegrationCode = new Map<string, any>(); // integrationCode → cliente OZmap
+    const ozmapWithGeo: any[] = [];                        // clientes com coordenadas válidas
+
+    try {
+      const PAGE_SIZE = 500;
+      // Busca página 0 para saber o total
+      const firstUrl = `${ozmapBaseUrl}/api/v2/ftth-clients?limit=${PAGE_SIZE}&page=0`;
+      const firstResp = await fetchWithTimeout(firstUrl, { headers: ozmapHeaders }, 30000);
+      if (!firstResp.ok) throw new Error(`HTTP ${firstResp.status}`);
+      const firstData = await firstResp.json() as any;
+      const firstRows: any[] = firstData?.rows ?? (Array.isArray(firstData) ? firstData : []);
+      const totalOzmap: number = firstData?.total ?? firstData?.count ?? firstRows.length;
+      const totalPages = Math.ceil(totalOzmap / PAGE_SIZE);
+      console.log(`[OZmap Reconcile] OZmap: total=${totalOzmap}, páginas=${totalPages}`);
+
+      // Indexar primeira página
+      const indexOzmapClient = (row: any) => {
+        const id: string = row._id || row.id;
+        if (!id) return;
+        if (!ozmapById.has(id)) ozmapById.set(id, row);
+        const code = (row.code || "").toUpperCase().trim();
+        if (code) ozmapByCode.set(code, row);
+        const serial = (row.onu?.serial_number || row.serialNumber || "").toUpperCase().trim();
+        if (serial) ozmapBySerial.set(serial, row);
+        const pppoe = (row.onu?.user_PPPoE || "").toLowerCase().trim();
+        if (pppoe) ozmapByPppoe.set(pppoe, row);
+        const intCode = (row.integrationCode || "").trim();
+        if (intCode) ozmapByIntegrationCode.set(intCode, row);
+        const lat: number | null = row.geopoint?.coordinates?.[1] ?? row.latitude ?? null;
+        const lon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
+        if (lat && lon) ozmapWithGeo.push(row);
+      };
+      for (const row of firstRows) indexOzmapClient(row);
+
+      // Buscar páginas restantes em paralelo (máx 10 simultâneas)
+      if (totalPages > 1) {
+        const pageNums = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
+        const CONCURRENCY = 10;
+        for (let i = 0; i < pageNums.length; i += CONCURRENCY) {
+          const batch = pageNums.slice(i, i + CONCURRENCY);
+          await Promise.all(batch.map(async (page) => {
+            const url = `${ozmapBaseUrl}/api/v2/ftth-clients?limit=${PAGE_SIZE}&page=${page}`;
+            try {
+              const r = await fetchWithTimeout(url, { headers: ozmapHeaders }, 30000);
+              if (!r.ok) { console.warn(`[OZmap Reconcile] Página ${page} HTTP ${r.status}`); return; }
+              const d = await r.json() as any;
+              const rows: any[] = d?.rows ?? (Array.isArray(d) ? d : []);
+              for (const row of rows) indexOzmapClient(row);
+            } catch (e) {
+              console.warn(`[OZmap Reconcile] Erro ao baixar página OZmap ${page}: ${e}`);
+            }
+          }));
+        }
+      }
+      console.log(`[OZmap Reconcile] OZmap indexado: ${ozmapById.size} clientes (serial=${ozmapBySerial.size}, pppoe=${ozmapByPppoe.size}, code=${ozmapByCode.size}, geo=${ozmapWithGeo.length})`);
+    } catch (err) {
+      console.error("[OZmap Reconcile] Falha ao baixar clientes OZmap em massa:", err);
+      reconcileProgress.phase = "error";
+      reconcileProgress.errorMessage = `Falha ao baixar clientes OZmap: ${err instanceof Error ? err.message : String(err)}`;
+      reconcileProgress.running = false;
+      reconcileProgress.finishedAt = Date.now();
+      return;
+    }
+
     // FASE 2 — Processar cada link em paralelo (máx 5 simultâneos)
     reconcileProgress.phase = "processing";
     reconcileProgress.total = toProcess.length + results.length; // inclui os skip iniciais
@@ -13163,109 +13238,86 @@ export async function registerRoutes(
           .map((c: any) => c.serviceTag)
           .filter((t: any): t is string => !!t);
         const deletedServiceTag: string | null = deletedSibling?.serviceTag ?? null;
-        const deletedIntegrationCodeMap: string | null = (deletedSibling?.integrationCodeMap && !bogusIntegrationCodeMaps.has(deletedSibling.integrationCodeMap)) ? deletedSibling.integrationCodeMap : null;
-        // Todos os integrationCodeMaps válidos dos inativos para GET direto
+        // Todos os integrationCodeMaps válidos dos inativos para lookup direto no índice
         const allDeletedIcms: string[] = validDeletedCandidates
           .map((c: any) => c.integrationCodeMap)
           .filter((v: any): v is string => !!v && !bogusIntegrationCodeMaps.has(v));
 
-        // FASE 2a — Buscar candidatos OZmap (em paralelo por filtro, com timeout)
+        // FASE 2a — Buscar candidatos OZmap via índice local (sem chamadas API por filtro)
+        // O OZmap não suporta filtros por campos aninhados (onu.serial_number, onu.user_PPPoE).
+        // Índice completo baixado na fase anterior; aqui apenas consultas O(1) no Map.
         type OzmapCandidate = { _id: string; score: number; row: any };
         const candidateMap = new Map<string, OzmapCandidate>();
 
-        const ozmapFetch = async (filter: object[]) => {
-          const url = `${ozmapBaseUrl}/api/v2/ftth-clients?filter=${encodeURIComponent(JSON.stringify(filter))}&limit=10`;
-          try {
-            const r = await fetchWithTimeout(url, { headers: ozmapHeaders }, 10000);
-            if (!r.ok) {
-              console.warn(`[OZmap Reconcile] OZmap HTTP ${r.status} para filtro ${JSON.stringify(filter)}`);
-              return;
-            }
-            const data = await r.json() as any;
-            const rows: any[] = data?.rows || (Array.isArray(data) ? data : []);
-            for (const row of rows) {
-              const id: string = row._id || row.id;
-              if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
-            }
-          } catch (fetchErr) {
-            const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-            console.warn(`[OZmap Reconcile] Erro ao buscar OZmap (filtro=${JSON.stringify(filter)}): ${msg}`);
-          }
+        const addCandidate = (row: any | null | undefined) => {
+          if (!row) return;
+          const id: string = row._id || row.id;
+          if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
         };
 
-        const filters: object[][] = [];
-
-        // Busca por code OZmap: serviceTag do ativo + TODAS as etiquetas dos inativos do mesmo cliente
+        // Etiquetas a buscar (code OZmap)
         const codeSearchValues = [...new Set([
-          currentServiceTag,                        // serviceTag da conexão ativa Voalle (fonte primária)
-          ...deletedServiceTags,                    // etiquetas de contratos anteriores (clientId match) — etiqueta antiga no OZmap
-          link.ozmapTag,                            // code salvo no nosso DB
-          link.voalleContractTagServiceTag,         // tag do contrato salva no nosso DB
+          currentServiceTag,
+          ...deletedServiceTags,
+          link.ozmapTag,
+          link.voalleContractTagServiceTag,
         ].filter(Boolean) as string[])];
-        for (const code of codeSearchValues) {
-          filters.push([{ property: "code", value: code, operator: "=" }]);
-        }
 
-        // Busca por serial (Voalle e DB)
-        if (voalleSerial) filters.push([{ property: "onu.serial_number", value: voalleSerial, operator: "=" }]);
-        if (serial && serial.toUpperCase() !== voalleSerial) filters.push([{ property: "onu.serial_number", value: serial, operator: "=" }]);
-
-        // Busca por PPPoE: preferir voalleConn.user (vem do Voalle batch), depois link.pppoeUser/voalleLogin
+        // PPPoE values
         const pppoeSearchValues = [...new Set([
           voallePppoe,
           pppoe ? pppoe.toLowerCase() : null,
         ].filter(Boolean) as string[])];
-        for (const p of pppoeSearchValues) {
-          filters.push([{ property: "onu.user_PPPoE", value: p, operator: "=" }]);
-        }
 
-        // Busca por integrationCode (Voalle integrationCode aponta para OZmap integrationCode)
-        if (voalleIntegrationCode) filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
-
-        // Busca direta por _id OZmap: integrationCodeMap do ativo + todos os inativos do mesmo cliente
+        // 1. Por _id (integrationCodeMap do ativo + inativos)
         const icmDirectLookups = [...new Set([currentIntegrationCodeMap, ...allDeletedIcms].filter(Boolean) as string[])];
-        await Promise.all(icmDirectLookups.map(async (icmId) => {
-          try {
-            const r = await fetchWithTimeout(`${ozmapBaseUrl}/api/v2/ftth-clients/${icmId}`, { headers: ozmapHeaders }, 8000);
-            if (r.ok) {
-              const row = await r.json() as any;
-              const id: string = row._id || row.id || icmId;
-              if (id && !candidateMap.has(id)) {
-                candidateMap.set(id, { _id: id, score: 0, row });
-                console.log(`[OZmap Reconcile] "${link.name}": GET direto _id=${icmId} → encontrou OZmap client`);
+        for (const icmId of icmDirectLookups) addCandidate(ozmapById.get(icmId));
+
+        // 2. Por code (serviceTag ativo + inativos + DB)
+        for (const code of codeSearchValues) addCandidate(ozmapByCode.get(code.toUpperCase()));
+
+        // 3. Por serial ONU
+        if (voalleSerial) addCandidate(ozmapBySerial.get(voalleSerial));
+        if (serial && serial.toUpperCase() !== voalleSerial) addCandidate(ozmapBySerial.get(serial.toUpperCase()));
+
+        // 4. Por PPPoE
+        for (const p of pppoeSearchValues) addCandidate(ozmapByPppoe.get(p));
+
+        // 5. Por integrationCode (bidirecionalidade Voalle↔OZmap)
+        if (voalleIntegrationCode) addCandidate(ozmapByIntegrationCode.get(voalleIntegrationCode));
+
+        // 6. Endereço normalizado do Voalle — para match quando não há serial/PPPoE/code
+        //    Normaliza: sem acento, lowercase, remove pontuação — compara logradouro + número
+        const normalizeAddr = (s: string) =>
+          s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+        const voalleStreet = normalizeAddr(
+          [voalleConn.address?.address || voalleConn.address?.street || "", voalleConn.address?.number || ""].join(" ").trim()
+        );
+
+        // 7. Fallback geo: varrer clientes OZmap com coordenadas dentro de ~333m
+        const GEO_DELTA = 0.003;
+        if (candidateMap.size === 0 && (voalleLat || voalleStreet)) {
+          let geoHits = 0;
+          for (const row of ozmapWithGeo) {
+            const cLat: number | null = row.geopoint?.coordinates?.[1] ?? null;
+            const cLon: number | null = row.geopoint?.coordinates?.[0] ?? null;
+            if (voalleLat && voalleLon && cLat && cLon) {
+              if (Math.abs(cLat - voalleLat) <= GEO_DELTA && Math.abs(cLon - voalleLon) <= GEO_DELTA) {
+                addCandidate(row);
+                geoHits++;
               }
             }
-          } catch (e) {
-            console.warn(`[OZmap Reconcile] GET direto por _id ${icmId} falhou: ${e}`);
           }
-        }));
+          if (geoHits > 0) console.log(`[OZmap Reconcile] "${link.name}": geo fallback → ${geoHits} candidatos`);
+        }
 
-        if (filters.length === 0 && candidateMap.size === 0 && !(voalleLat && voalleLon)) {
+        if (candidateMap.size === 0 && !voalleLat && !voalleStreet && codeSearchValues.length === 0 && !voalleSerial && pppoeSearchValues.length === 0) {
           result.status = "skip";
-          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, code, integrationCode ou coordenadas)`;
+          result.detail = `Sem dados para busca (serial=null, PPPoE=null, etiqueta=null, endereço=null, geo=null)`;
           return result;
         }
 
-        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros + id=${currentIntegrationCodeMap||"-"} (codes=${codeSearchValues.join(",")||"-"}, serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, geo=${voalleLat ? `${voalleLat},${voalleLon}` : "-"})`);
-
-        // FASE primária: code (serviceTag), serial, PPPoE, integrationCode
-        await Promise.all(filters.map(f => ozmapFetch(f)));
-
-        // FASE geo: se nenhum candidato encontrado e temos coordenadas, tentar bounding box ≈300m
-        // DELTA = 0.003 graus ≈ 333m; pontuação geo: ≤50m=+2, ≤200m=+1, ≤400m=+1 (fallback)
-        const GEO_DELTA = 0.003;
-        if (candidateMap.size === 0 && voalleLat && voalleLon) {
-          const geoFilter = [
-            { property: "geopoint.coordinates.1", value: voalleLat - GEO_DELTA, operator: ">=" },
-            { property: "geopoint.coordinates.1", value: voalleLat + GEO_DELTA, operator: "<=" },
-            { property: "geopoint.coordinates.0", value: voalleLon - GEO_DELTA, operator: ">=" },
-            { property: "geopoint.coordinates.0", value: voalleLon + GEO_DELTA, operator: "<=" },
-          ];
-          console.log(`[OZmap Reconcile] Link "${link.name}": tentando geo fallback (lat=${voalleLat}, lon=${voalleLon}, delta=${GEO_DELTA})`);
-          await ozmapFetch(geoFilter);
-        }
-
-        // Scoring
+        // Scoring: pontua cada candidato com base nos dados disponíveis
         const scoreCandidate = (c: OzmapCandidate) => {
           const row = c.row;
           const codeVal  = (row.code || "").toUpperCase().trim();
@@ -13273,38 +13325,45 @@ export async function registerRoutes(
           const cPppoe   = (row.onu?.user_PPPoE || "").toLowerCase().trim();
           const cLat: number | null = row.geopoint?.coordinates?.[1] ?? row.latitude ?? null;
           const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
-          const cCode    = (row.integrationCode || "").trim();
+          const cIntCode = (row.integrationCode || "").trim();
+          const cStreet  = normalizeAddr([row.address || "", row.number || ""].join(" "));
 
-          // +4 code OZmap bate com serviceTag do ativo; +3 bate com serviceTag do inativo (contrato anterior)
-          if (codeVal && currentServiceTag && codeVal === currentServiceTag.toUpperCase()) c.score += 4;
-          else if (codeVal && deletedServiceTag && codeVal === deletedServiceTag.toUpperCase()) c.score += 3;
-          else if (codeVal && codeSearchValues.some(v => v.toUpperCase() === codeVal)) c.score += 2;
-          // +3 serial bate
-          if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
-          // +2 PPPoE bate (voalleConn.user tem precedência)
-          if (pppoeSearchValues.length > 0 && cPppoe && pppoeSearchValues.includes(cPppoe)) c.score += 2;
+          // +5 code bate com serviceTag do ativo (etiqueta atual)
+          if (codeVal && currentServiceTag && codeVal === currentServiceTag.toUpperCase()) c.score += 5;
+          // +4 code bate com serviceTag de contrato inativo do mesmo cliente
+          else if (codeVal && deletedServiceTags.some(t => codeVal === t.toUpperCase())) c.score += 4;
+          // +3 code bate com tag salva no DB
+          else if (codeVal && codeSearchValues.some(v => v.toUpperCase() === codeVal)) c.score += 3;
+          // +4 serial bate
+          if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 4;
+          // +3 PPPoE bate
+          if (pppoeSearchValues.length > 0 && cPppoe && pppoeSearchValues.includes(cPppoe)) c.score += 3;
+          // +2 integrationCode bate
+          if (voalleIntegrationCode && cIntCode && cIntCode === voalleIntegrationCode) c.score += 2;
           // Pontuação por distância haversine
           if (voalleLat && voalleLon && cLat && cLon) {
             const dist = haversineKm(voalleLat, voalleLon, cLat, cLon);
-            if (dist <= 0.05)  c.score += 2; // dentro de 50m: +2
-            else if (dist <= 0.2)  c.score += 1; // dentro de 200m: +1
-            else if (dist <= 0.4)  c.score += 1; // dentro de 400m: +1 (cobre diagonal da bounding box GEO_DELTA)
+            if (dist <= 0.05)  c.score += 3; // ≤50m: +3
+            else if (dist <= 0.15) c.score += 2; // ≤150m: +2
+            else if (dist <= 0.35) c.score += 1; // ≤350m: +1
           }
-          // +1 integrationCode bate
-          if (voalleIntegrationCode && cCode && cCode === voalleIntegrationCode) c.score += 1;
+          // +2 endereço (logradouro+número) normalizado bate
+          if (voalleStreet && cStreet && voalleStreet.length > 5 && cStreet.length > 5 && voalleStreet === cStreet) c.score += 2;
         };
 
-        for (const c of candidateMap.values()) {
-          scoreCandidate(c);
-        }
+        for (const c of candidateMap.values()) scoreCandidate(c);
 
         const candidates = [...candidateMap.values()].sort((a, b) => b.score - a.score);
         const best = candidates.length > 0 && candidates[0].score > 0 ? candidates[0] : null;
         const ozmapClientId = best?._id ?? null;
         const ozmapExistingIntegrationCode: string | null = best?.row?.integrationCode ?? null;
+        const ozmapFoundCode: string | null = best?.row?.code ?? null; // etiqueta (code) encontrada no OZmap
 
         result.voalleConnectionId = voalleConn.id;
-        result.newServiceTag = currentServiceTag ?? undefined;
+        // Etiquetas para relatório: etiqueta atual do link, etiqueta antiga (inativo), etiqueta encontrada no OZmap
+        result.linkTag    = currentServiceTag || link.ozmapTag || undefined;
+        result.oldTag     = deletedServiceTag || undefined;
+        result.ozmapFoundCode = ozmapFoundCode || undefined;
 
         // Sincronizar ozmapTag no nosso DB se a serviceTag mudou
         if (!dryRun && currentServiceTag && currentServiceTag !== oldTag) {
@@ -13319,13 +13378,14 @@ export async function registerRoutes(
             result.detail = `Voalle já vinculado (integrationCodeMap=${currentIntegrationCodeMap}), sem candidato OZmap para validar`;
           } else {
             result.status = "ozmap_not_found";
-            const filterSummary = [
-              voalleSerial ? `serial=${voalleSerial}` : `serial=null`,
-              pppoeSearchValues.length ? `pppoe=${pppoeSearchValues.join("|")}` : `pppoe=null`,
-              link.ozmapTag ? `code=${link.ozmapTag}` : null,
+            const tagSummary = [
+              result.linkTag   ? `etiqueta=${result.linkTag}`     : null,
+              result.oldTag    ? `etiqueta_antiga=${result.oldTag}` : null,
+              voalleSerial     ? `serial=${voalleSerial}`         : null,
+              pppoeSearchValues.length ? `pppoe=${pppoeSearchValues[0]}` : null,
               voalleIntegrationCode ? `intCode=${voalleIntegrationCode}` : null,
             ].filter(Boolean).join(", ");
-            result.detail = `Voalle id=${voalleConn.id} encontrado, sem cliente OZmap compatível (${candidates.length} candidatos) [${filterSummary}]`;
+            result.detail = `Voalle id=${voalleConn.id} encontrado, sem cliente OZmap compatível (${candidates.length} candidatos) [${tagSummary || "sem identificadores"}]`;
           }
           return result;
         }
@@ -13374,23 +13434,29 @@ export async function registerRoutes(
           } catch (e) { console.warn(`[OZmap Reconcile] PATCH OZmap integrationCode erro: ${e}`); }
         }
 
+        const tagNote = [
+          result.linkTag       ? `etiqueta_link=${result.linkTag}`      : null,
+          result.oldTag        ? `etiqueta_antiga=${result.oldTag}`      : null,
+          result.ozmapFoundCode ? `etiqueta_ozmap=${result.ozmapFoundCode}` : null,
+        ].filter(Boolean).join(", ");
+
         if (dryRun) {
           result.status = "dry_run";
           const bogusNote = isBogusIcm ? " [ICM FALSO → substituindo]" : "";
           result.detail = isUpdate
-            ? `[DRY RUN] Atualizaria vínculo Voalle: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode: "${ozmapExistingIntegrationCode || ""}" → "${targetIntegrationCode}"`
-            : `[DRY RUN] Vincularia voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; OZmap integrationCode: "${ozmapExistingIntegrationCode || ""}" → "${targetIntegrationCode}"`;
+            ? `[DRY RUN] Atualizaria vínculo Voalle: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; ${tagNote}`
+            : `[DRY RUN] Vincularia voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; ${tagNote}`;
         } else if (voalleOk) {
           result.status = "success";
           const bogusNote = isBogusIcm ? " [ICM falso substituído]" : "";
           result.detail = isUpdate
-            ? `Vínculo atualizado: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode atualizado: ${ozmapUpdated}`
-            : `Vinculado: voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; OZmap integrationCode atualizado: ${ozmapUpdated}`;
+            ? `Vínculo atualizado: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; ${tagNote}; OZmap integrationCode: ${ozmapUpdated ? "atualizado" : "sem alteração"}`
+            : `Vinculado: voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; ${tagNote}; OZmap integrationCode: ${ozmapUpdated ? "atualizado" : "sem alteração"}`;
         } else {
           result.status = "vinculate_failed";
           result.detail = isUpdate
-            ? `Falha ao atualizar vínculo: ${rawIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]`
-            : `Falha ao vincular voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]`;
+            ? `Falha ao atualizar vínculo: ${rawIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]; ${tagNote}`
+            : `Falha ao vincular voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; ${tagNote}`;
         }
 
         console.log(`[OZmap Reconcile] ${link.name} (${link.id}): ${result.detail}`);

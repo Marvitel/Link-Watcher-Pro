@@ -108,7 +108,7 @@ const actionLabels: Record<string, string> = {
 interface ReconcileProgress {
   running: boolean;
   dryRun: boolean;
-  phase: string; // "fetching_voalle" | "preflight_ozmap" | "processing" | "done" | "error"
+  phase: string; // "fetching_voalle" | "fetching_ozmap" | "processing" | "done" | "error"
   total: number;
   processed: number;
   success: number;
@@ -118,7 +118,7 @@ interface ReconcileProgress {
   vinculate_failed: number;
   dry_run: number;
   error: number;
-  results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string }>;
+  results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; linkTag?: string; oldTag?: string; ozmapFoundCode?: string; ozmapClientId?: string }>;
   errorMessage: string;
   startedAt: number;
   finishedAt: number;
@@ -628,6 +628,7 @@ export function LinkDiagnosticsTab() {
                 <span>
                   {reconcileStatus.phase === "preflight_ozmap" && "Verificando conectividade OZmap..."}
                   {reconcileStatus.phase === "fetching_voalle" && "Buscando conexões Voalle (ativas + excluídas)..."}
+                  {reconcileStatus.phase === "fetching_ozmap" && "Baixando clientes OZmap em massa..."}
                   {reconcileStatus.phase === "processing" && `Processando ${reconcileStatus.processed}/${reconcileStatus.total} links...`}
                 </span>
               </div>
@@ -663,20 +664,41 @@ export function LinkDiagnosticsTab() {
                 {reconcileStatus.error > 0 && <span className="text-red-600 dark:text-red-400">✗ {reconcileStatus.error} erros</span>}
               </div>
               {reconcileStatus.results.length > 0 && (
-                <div className="max-h-48 overflow-y-auto space-y-0.5 border rounded p-2">
-                  {reconcileStatus.results.filter(r => r.status !== "skip").map((r, i) => (
-                    <div key={i} className="flex gap-2 text-xs font-mono" data-testid={`reconcile-result-${r.linkId}`}>
-                      <span className={
-                        r.status === "success" ? "text-green-600 dark:text-green-400" :
-                        r.status === "already_linked" ? "text-blue-600 dark:text-blue-400" :
-                        r.status === "dry_run" ? "text-yellow-600 dark:text-yellow-400" :
-                        r.status === "ozmap_not_found" ? "text-orange-500" :
-                        "text-red-500"
-                      }>{r.status === "success" ? "✓" : r.status === "already_linked" ? "◉" : r.status === "dry_run" ? "~" : r.status === "ozmap_not_found" ? "⚠" : "✗"}</span>
-                      <span className="font-semibold text-foreground">{r.linkName}</span>
-                      <span className="text-muted-foreground truncate">{r.detail}</span>
-                    </div>
-                  ))}
+                <div className="max-h-64 overflow-y-auto border rounded">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                      <tr>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground w-4"></th>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground">Link</th>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground">Etiqueta link</th>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground">Etiqueta antiga</th>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground">Etiqueta OZmap</th>
+                        <th className="text-left px-2 py-1 font-medium text-muted-foreground">Detalhe</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reconcileStatus.results.filter(r => r.status !== "skip").map((r, i) => (
+                        <tr key={i} className="border-t border-border/40 hover:bg-muted/30" data-testid={`reconcile-result-${r.linkId}`}>
+                          <td className="px-2 py-1">
+                            <span className={
+                              r.status === "success" ? "text-green-600 dark:text-green-400" :
+                              r.status === "already_linked" ? "text-blue-600 dark:text-blue-400" :
+                              r.status === "dry_run" ? "text-yellow-600 dark:text-yellow-400" :
+                              r.status === "ozmap_not_found" ? "text-orange-500" :
+                              "text-red-500"
+                            }>
+                              {r.status === "success" ? "✓" : r.status === "already_linked" ? "◉" : r.status === "dry_run" ? "~" : r.status === "ozmap_not_found" ? "⚠" : "✗"}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1 font-semibold text-foreground max-w-[140px] truncate" title={r.linkName}>{r.linkName}</td>
+                          <td className="px-2 py-1 font-mono text-blue-600 dark:text-blue-400">{r.linkTag || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-2 py-1 font-mono text-purple-600 dark:text-purple-400">{r.oldTag || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-2 py-1 font-mono text-green-600 dark:text-green-400">{r.ozmapFoundCode || <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-2 py-1 text-muted-foreground max-w-[240px] truncate" title={r.detail}>{r.detail}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
