@@ -1457,6 +1457,27 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     return [];
   }
 
+  // Busca TODOS os registros deletados via endpoint paginado (garante completude mesmo com muitos registros)
+  async getAllDeletedConnectionsPaged(pageSize = 500): Promise<VoalleMapConnection[]> {
+    const all: VoalleMapConnection[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const result = await this.makeMapRequest<any>(
+        "GET", `/connection/all/deleted/paged?page=${page}&pageSize=${pageSize}`
+      );
+      const response = result?.response ?? result;
+      const data: any[] = response?.data ?? (Array.isArray(response) ? response : []);
+      if (data.length === 0) break;
+      all.push(...data);
+      if (page === 1) {
+        totalPages = response?.totalPages ?? Math.ceil((response?.totalRecords ?? data.length) / pageSize);
+      }
+      page++;
+    } while (page <= totalPages);
+    return all;
+  }
+
   async vinculateConnectionIntegrationCode(connectionId: number, integrationCode: string): Promise<boolean> {
     type Resp = { success: boolean };
     const result = await this.makeMapRequest<Resp>(
