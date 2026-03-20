@@ -12859,8 +12859,8 @@ export async function registerRoutes(
     }
 
     const voalleAdapter = configureErpAdapter(voalleIntegration) as any;
-    if (!voalleAdapter?.searchConnectionsByUserData) {
-      return res.status(500).json({ error: "Adapter Voalle não suporta busca de conexões Map API" });
+    if (!voalleAdapter?.getAllConnections) {
+      return res.status(500).json({ error: "Adapter Voalle não suporta listagem de conexões Map API" });
     }
 
     const ozmapConfig = ozmapIntegrations[0];
@@ -12951,44 +12951,49 @@ export async function registerRoutes(
       return res.json({ summary, results });
     }
 
-    // FASE 1 — Uma única chamada Voalle para todos os links (batch)
-    const allUsers = [...new Set(toProcess.map(li => li.pppoe).filter(Boolean) as string[])];
-    const allTags  = [...new Set(toProcess.flatMap(li => [li.oldTag].filter(Boolean) as string[]))];
-    console.log(`[OZmap Reconcile] Batch Voalle: ${toProcess.length} links, ${allUsers.length} users, ${allTags.length} tags`);
+    // FASE 1 — Buscar TODAS as conexões Voalle (ativas + excluídas) em paralelo
+    console.log(`[OZmap Reconcile] Buscando todas as conexões Voalle (ativas + excluídas)...`);
 
-    let voalleAllConns: any[] = [];
+    let voalleActive: any[] = [];
+    let voalleDeleted: any[] = [];
     try {
-      voalleAllConns = await voalleAdapter.searchConnectionsByUserData({
-        users: allUsers,
-        serviceTags: allTags,
-        contractIds: [],
-      });
+      [voalleActive, voalleDeleted] = await Promise.all([
+        voalleAdapter.getAllConnections(),
+        voalleAdapter.getAllDeletedConnections(),
+      ]);
     } catch (err) {
-      console.error("[OZmap Reconcile] Erro na chamada batch Voalle:", err);
+      console.error("[OZmap Reconcile] Erro ao buscar conexões Voalle:", err);
       return res.status(502).json({ error: `Falha ao consultar Voalle Map API: ${err instanceof Error ? err.message : String(err)}` });
     }
 
-    // Indexar conexões Voalle por user e serviceTag para lookup O(1)
-    const voalleByUser = new Map<string, any>();
-    const voalleByTag  = new Map<string, any>();
+    // Mesclagem: ativas têm prioridade sobre excluídas (ativas sobrescrevem pela mesma chave)
+    const voalleAllConns = [...voalleDeleted, ...voalleActive];
+    console.log(`[OZmap Reconcile] Voalle: ${voalleActive.length} ativas, ${voalleDeleted.length} excluídas → ${voalleAllConns.length} total`);
+
+    // Indexar conexões Voalle por user (PPPoE), serviceTag e serial para lookup O(1)
+    const voalleByUser   = new Map<string, any>();
+    const voalleByTag    = new Map<string, any>();
+    const voalleBySerial = new Map<string, any>();
     for (const conn of voalleAllConns) {
-      if (conn.user)       voalleByUser.set(conn.user.toLowerCase(), conn);
-      if (conn.serviceTag) voalleByTag.set(conn.serviceTag.toUpperCase(), conn);
+      if (conn.user)                    voalleByUser.set(conn.user.toLowerCase(), conn);
+      if (conn.serviceTag)              voalleByTag.set(conn.serviceTag.toUpperCase(), conn);
+      if (conn.equipmentSerialNumber)   voalleBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
     }
 
     // FASE 2 — Processar cada link em paralelo (máx 5 simultâneos)
     const tasks = toProcess.map(({ link, pppoe, oldTag, serial }) => async () => {
       const result: typeof results[0] = { linkId: link.id, linkName: link.name, status: "skip", detail: "" };
       try {
-        // Encontrar conexão Voalle no resultado batch
+        // Encontrar conexão Voalle no conjunto completo (por PPPoE, tag ou serial)
         const voalleConn =
-          (pppoe && voalleByUser.get(pppoe.toLowerCase())) ||
-          (oldTag && voalleByTag.get(oldTag.toUpperCase())) ||
+          (pppoe   && voalleByUser.get(pppoe.toLowerCase()))   ||
+          (oldTag  && voalleByTag.get(oldTag.toUpperCase()))   ||
+          (serial  && voalleBySerial.get(serial.toUpperCase())) ||
           null;
 
         if (!voalleConn) {
           result.status = "skip";
-          result.detail = `Conexão não encontrada no Voalle (pppoe=${pppoe}, tag=${oldTag})`;
+          result.detail = `Conexão não encontrada no Voalle (pppoe=${pppoe}, tag=${oldTag}, serial=${serial})`;
           return result;
         }
 

@@ -1443,6 +1443,20 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     return result.response.flat();
   }
 
+  async getAllConnections(): Promise<VoalleMapConnection[]> {
+    const result = await this.makeMapRequest<any>("GET", "/connection/all");
+    if (Array.isArray(result)) return result;
+    if (result?.response && Array.isArray(result.response)) return (result.response as any[]).flat();
+    return [];
+  }
+
+  async getAllDeletedConnections(): Promise<VoalleMapConnection[]> {
+    const result = await this.makeMapRequest<any>("GET", "/connection/all/deleted");
+    if (Array.isArray(result)) return result;
+    if (result?.response && Array.isArray(result.response)) return (result.response as any[]).flat();
+    return [];
+  }
+
   async vinculateConnectionIntegrationCode(connectionId: number, integrationCode: string): Promise<boolean> {
     type Resp = { success: boolean };
     const result = await this.makeMapRequest<Resp>(
