@@ -12480,6 +12480,32 @@ export async function registerRoutes(
     startedAt: 0,
   };
 
+  interface ReconcileProgress {
+    running: boolean;
+    dryRun: boolean;
+    phase: string; // "fetching_voalle" | "preflight_ozmap" | "processing" | "done" | "error"
+    total: number;
+    processed: number;
+    success: number;
+    already_linked: number;
+    ozmap_not_found: number;
+    skip: number;
+    vinculate_failed: number;
+    dry_run: number;
+    error: number;
+    results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string }>;
+    errorMessage: string;
+    startedAt: number;
+    finishedAt: number;
+  }
+
+  let reconcileProgress: ReconcileProgress = {
+    running: false, dryRun: false, phase: "done",
+    total: 0, processed: 0, success: 0, already_linked: 0,
+    ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, error: 0,
+    results: [], errorMessage: "", startedAt: 0, finishedAt: 0,
+  };
+
   app.get("/api/admin/links/diagnostics", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
     try {
       const allLinksIncludingDeleted = await db.select().from(links);
@@ -12840,8 +12866,15 @@ export async function registerRoutes(
   });
 
   // ========== Reconciliação Voalle ↔ OZmap ==========
-  // Reconecta links cujas conexões foram deletadas/recriadas no Voalle sem código de integração OZmap
+  app.get("/api/admin/voalle-ozmap-reconcile/status", requireAuth, requireSuperAdmin, (_req: Request, res: Response) => {
+    res.json(reconcileProgress);
+  });
+
   app.post("/api/admin/voalle-ozmap-reconcile", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    if (reconcileProgress.running) {
+      return res.status(409).json({ error: "Reconciliação já em andamento", progress: reconcileProgress });
+    }
+
     const { linkIds, dryRun = false } = req.body as { linkIds?: number[]; dryRun?: boolean };
 
     // Voalle usa tabela erp_integrations
@@ -12862,6 +12895,19 @@ export async function registerRoutes(
     if (!voalleAdapter?.getAllConnections) {
       return res.status(500).json({ error: "Adapter Voalle não suporta listagem de conexões Map API" });
     }
+
+    // Inicializar progresso e responder IMEDIATAMENTE (evita timeout nginx de 60s)
+    reconcileProgress = {
+      running: true, dryRun, phase: "preflight_ozmap",
+      total: 0, processed: 0, success: 0, already_linked: 0,
+      ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, error: 0,
+      results: [], errorMessage: "", startedAt: Date.now(), finishedAt: 0,
+    };
+    res.json({ started: true, dryRun });
+
+    // Todo o processamento acontece em background (IIFE async)
+    (async () => {
+    try {
 
     const ozmapConfig = ozmapIntegrations[0];
     let ozmapBaseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
@@ -12900,10 +12946,18 @@ export async function registerRoutes(
     try {
       const pingResp = await fetchWithTimeout(`${ozmapBaseUrl}/api/v2/box-types?page=1&limit=1`, { headers: ozmapHeaders }, 8000);
       if (!pingResp.ok) {
-        return res.status(502).json({ error: `OZmap retornou HTTP ${pingResp.status} — verifique se o token JWT está válido` });
+        reconcileProgress.phase = "error";
+        reconcileProgress.errorMessage = `OZmap retornou HTTP ${pingResp.status} — verifique se o token JWT está válido`;
+        reconcileProgress.running = false;
+        reconcileProgress.finishedAt = Date.now();
+        return;
       }
     } catch (e) {
-      return res.status(502).json({ error: `Não foi possível conectar ao OZmap: ${e instanceof Error ? e.message : String(e)}` });
+      reconcileProgress.phase = "error";
+      reconcileProgress.errorMessage = `Não foi possível conectar ao OZmap: ${e instanceof Error ? e.message : String(e)}`;
+      reconcileProgress.running = false;
+      reconcileProgress.finishedAt = Date.now();
+      return;
     }
 
     // Buscar links afetados: com tag mas sem dados OZmap (potência null e ozmapNoRoute != true)
@@ -12947,11 +13001,17 @@ export async function registerRoutes(
     }
 
     if (toProcess.length === 0) {
-      const summary = { total: results.length, dryRun, success: 0, already_linked: 0, ozmap_not_found: 0, skip: results.length, error: 0 };
-      return res.json({ summary, results });
+      reconcileProgress.phase = "done";
+      reconcileProgress.running = false;
+      reconcileProgress.finishedAt = Date.now();
+      reconcileProgress.total = results.length;
+      reconcileProgress.skip = results.length;
+      reconcileProgress.results = results;
+      return;
     }
 
     // FASE 1 — Buscar TODAS as conexões Voalle (ativas + excluídas) em paralelo
+    reconcileProgress.phase = "fetching_voalle";
     console.log(`[OZmap Reconcile] Buscando todas as conexões Voalle (ativas + excluídas)...`);
 
     let voalleActive: any[] = [];
@@ -12963,7 +13023,11 @@ export async function registerRoutes(
       ]);
     } catch (err) {
       console.error("[OZmap Reconcile] Erro ao buscar conexões Voalle:", err);
-      return res.status(502).json({ error: `Falha ao consultar Voalle Map API: ${err instanceof Error ? err.message : String(err)}` });
+      reconcileProgress.phase = "error";
+      reconcileProgress.errorMessage = `Falha ao consultar Voalle Map API: ${err instanceof Error ? err.message : String(err)}`;
+      reconcileProgress.running = false;
+      reconcileProgress.finishedAt = Date.now();
+      return;
     }
 
     // Mesclagem: ativas têm prioridade sobre excluídas (ativas sobrescrevem pela mesma chave)
@@ -12981,6 +13045,8 @@ export async function registerRoutes(
     }
 
     // FASE 2 — Processar cada link em paralelo (máx 5 simultâneos)
+    reconcileProgress.phase = "processing";
+    reconcileProgress.total = toProcess.length + results.length; // inclui os skip iniciais
     const tasks = toProcess.map(({ link, pppoe, oldTag, serial }) => async () => {
       const result: typeof results[0] = { linkId: link.id, linkName: link.name, status: "skip", detail: "" };
       try {
@@ -13209,25 +13275,40 @@ export async function registerRoutes(
         const errMsg = err instanceof Error ? err.message : String(err);
         console.error(`[OZmap Reconcile] ${link.name} (${link.id}): erro: ${errMsg}`);
         return { linkId: link.id, linkName: link.name, status: "error", detail: errMsg };
+      } finally {
+        reconcileProgress.processed++;
       }
     });
 
     const processed = await pLimit(tasks, 5);
     results.push(...processed);
 
-    const summary = {
-      total: results.length, dryRun,
-      success: results.filter(r => r.status === "success").length,
-      already_linked: results.filter(r => r.status === "already_linked").length,
-      ozmap_not_found: results.filter(r => r.status === "ozmap_not_found").length,
-      skip: results.filter(r => r.status === "skip").length,
-      vinculate_failed: results.filter(r => r.status === "vinculate_failed").length,
-      dry_run: results.filter(r => r.status === "dry_run").length,
-      error: results.filter(r => r.status === "error").length,
-    };
-    console.log(`[OZmap Reconcile] Concluído:`, summary);
-    res.json({ summary, results });
-  });
+    // Atualizar progresso com resultado final
+    reconcileProgress.phase = "done";
+    reconcileProgress.running = false;
+    reconcileProgress.finishedAt = Date.now();
+    reconcileProgress.total = results.length;
+    reconcileProgress.processed = results.length;
+    reconcileProgress.success = results.filter(r => r.status === "success").length;
+    reconcileProgress.already_linked = results.filter(r => r.status === "already_linked").length;
+    reconcileProgress.ozmap_not_found = results.filter(r => r.status === "ozmap_not_found").length;
+    reconcileProgress.skip = results.filter(r => r.status === "skip").length;
+    reconcileProgress.vinculate_failed = results.filter(r => r.status === "vinculate_failed").length;
+    reconcileProgress.dry_run = results.filter(r => r.status === "dry_run").length;
+    reconcileProgress.error = results.filter(r => r.status === "error").length;
+    reconcileProgress.results = results;
+    console.log(`[OZmap Reconcile] Concluído: total=${results.length} success=${reconcileProgress.success} already=${reconcileProgress.already_linked} notFound=${reconcileProgress.ozmap_not_found}`);
+
+    } catch (bgErr) {
+      const msg = bgErr instanceof Error ? bgErr.message : String(bgErr);
+      console.error("[OZmap Reconcile] Erro inesperado no background:", msg);
+      reconcileProgress.phase = "error";
+      reconcileProgress.errorMessage = msg;
+      reconcileProgress.running = false;
+      reconcileProgress.finishedAt = Date.now();
+    }
+    })(); // fim do IIFE async
+  }); // fim do app.post
 
   app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
     res.json(enrichmentProgress);

@@ -105,9 +105,23 @@ const actionLabels: Record<string, string> = {
   discover_all: "Enriquecimento completo",
 };
 
-interface ReconcileResult {
-  summary: { total: number; success: number; already_linked: number; ozmap_not_found: number; skip: number; error: number; dryRun: boolean };
+interface ReconcileProgress {
+  running: boolean;
+  dryRun: boolean;
+  phase: string; // "fetching_voalle" | "preflight_ozmap" | "processing" | "done" | "error"
+  total: number;
+  processed: number;
+  success: number;
+  already_linked: number;
+  ozmap_not_found: number;
+  skip: number;
+  vinculate_failed: number;
+  dry_run: number;
+  error: number;
   results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string }>;
+  errorMessage: string;
+  startedAt: number;
+  finishedAt: number;
 }
 
 export function LinkDiagnosticsTab() {
@@ -117,7 +131,6 @@ export function LinkDiagnosticsTab() {
   const [downloadingNoTag, setDownloadingNoTag] = useState(false);
   const [downloadingNoRoute, setDownloadingNoRoute] = useState(false);
   const [downloadingNotFound, setDownloadingNotFound] = useState(false);
-  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
 
   async function downloadOzmapDivergences() {
     setDownloadingCsv(true);
@@ -195,6 +208,14 @@ export function LinkDiagnosticsTab() {
     },
   });
 
+  const { data: reconcileStatus } = useQuery<ReconcileProgress>({
+    queryKey: ["/api/admin/voalle-ozmap-reconcile/status"],
+    refetchInterval: (query) => {
+      const data = query.state.data as ReconcileProgress | undefined;
+      return data?.running ? 2000 : 15000;
+    },
+  });
+
   const enrichMutation = useMutation({
     mutationFn: async (action: string) => {
       const res = await apiRequest("POST", "/api/admin/links/enrich", { action });
@@ -208,10 +229,10 @@ export function LinkDiagnosticsTab() {
   const reconcileMutation = useMutation({
     mutationFn: async ({ dryRun, linkIds }: { dryRun: boolean; linkIds?: number[] }) => {
       const res = await apiRequest("POST", "/api/admin/voalle-ozmap-reconcile", { dryRun, linkIds });
-      return res.json() as Promise<ReconcileResult>;
+      return res.json();
     },
-    onSuccess: (data) => {
-      setReconcileResult(data);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/voalle-ozmap-reconcile/status"] });
     },
   });
 
@@ -569,16 +590,16 @@ export function LinkDiagnosticsTab() {
             <Button
               size="sm"
               variant="outline"
-              disabled={reconcileMutation.isPending}
+              disabled={reconcileMutation.isPending || reconcileStatus?.running}
               onClick={() => reconcileMutation.mutate({ dryRun: true })}
               data-testid="btn-reconcile-dry-run"
             >
-              {reconcileMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              {(reconcileMutation.isPending || reconcileStatus?.running) ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
               Simular (dry run)
             </Button>
             <Button
               size="sm"
-              disabled={reconcileMutation.isPending}
+              disabled={reconcileMutation.isPending || reconcileStatus?.running}
               onClick={() => {
                 if (confirm("Isso vai vincular conexões Voalle → OZmap para todos os links afetados. Continuar?")) {
                   reconcileMutation.mutate({ dryRun: false });
@@ -586,7 +607,7 @@ export function LinkDiagnosticsTab() {
               }}
               data-testid="btn-reconcile-execute"
             >
-              {reconcileMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Link2 className="h-3 w-3 mr-1" />}
+              {(reconcileMutation.isPending || reconcileStatus?.running) ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Link2 className="h-3 w-3 mr-1" />}
               Executar reconciliação
             </Button>
           </div>
@@ -599,9 +620,34 @@ export function LinkDiagnosticsTab() {
             </Alert>
           )}
 
-          {reconcileResult && (
+          {/* Progresso em tempo real */}
+          {reconcileStatus?.running && (
+            <div className="space-y-2 mb-2" data-testid="reconcile-progress">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>
+                  {reconcileStatus.phase === "preflight_ozmap" && "Verificando conectividade OZmap..."}
+                  {reconcileStatus.phase === "fetching_voalle" && "Buscando conexões Voalle (ativas + excluídas)..."}
+                  {reconcileStatus.phase === "processing" && `Processando ${reconcileStatus.processed}/${reconcileStatus.total} links...`}
+                </span>
+              </div>
+              {reconcileStatus.total > 0 && (
+                <Progress value={Math.round((reconcileStatus.processed / reconcileStatus.total) * 100)} className="h-1.5" />
+              )}
+            </div>
+          )}
+
+          {/* Erro no background */}
+          {reconcileStatus?.phase === "error" && reconcileStatus.errorMessage && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertDescription className="text-xs">{reconcileStatus.errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Resultado quando concluído */}
+          {reconcileStatus && reconcileStatus.phase === "done" && reconcileStatus.finishedAt > 0 && (
             <div className="space-y-2">
-              {reconcileResult.summary.dryRun && (
+              {reconcileStatus.dryRun && (
                 <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
                   <AlertDescription className="text-xs text-yellow-700 dark:text-yellow-300">
                     Simulação — nenhuma alteração foi feita
@@ -609,27 +655,30 @@ export function LinkDiagnosticsTab() {
                 </Alert>
               )}
               <div className="flex gap-3 flex-wrap text-xs">
-                {reconcileResult.summary.success > 0 && <span className="text-green-600 dark:text-green-400">✓ {reconcileResult.summary.success} vinculados</span>}
-                {reconcileResult.summary.already_linked > 0 && <span className="text-blue-600 dark:text-blue-400">◉ {reconcileResult.summary.already_linked} já vinculados</span>}
-                {reconcileResult.summary.ozmap_not_found > 0 && <span className="text-orange-600 dark:text-orange-400">⚠ {reconcileResult.summary.ozmap_not_found} sem cliente OZmap</span>}
-                {reconcileResult.summary.skip > 0 && <span className="text-muted-foreground">○ {reconcileResult.summary.skip} ignorados</span>}
-                {reconcileResult.summary.error > 0 && <span className="text-red-600 dark:text-red-400">✗ {reconcileResult.summary.error} erros</span>}
+                {reconcileStatus.success > 0 && <span className="text-green-600 dark:text-green-400">✓ {reconcileStatus.success} vinculados</span>}
+                {reconcileStatus.already_linked > 0 && <span className="text-blue-600 dark:text-blue-400">◉ {reconcileStatus.already_linked} já vinculados</span>}
+                {reconcileStatus.ozmap_not_found > 0 && <span className="text-orange-600 dark:text-orange-400">⚠ {reconcileStatus.ozmap_not_found} sem cliente OZmap</span>}
+                {reconcileStatus.skip > 0 && <span className="text-muted-foreground">○ {reconcileStatus.skip} ignorados</span>}
+                {reconcileStatus.vinculate_failed > 0 && <span className="text-red-500">✗ {reconcileStatus.vinculate_failed} falhas</span>}
+                {reconcileStatus.error > 0 && <span className="text-red-600 dark:text-red-400">✗ {reconcileStatus.error} erros</span>}
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-0.5 border rounded p-2">
-                {reconcileResult.results.filter(r => r.status !== "skip").map((r, i) => (
-                  <div key={i} className="flex gap-2 text-xs font-mono" data-testid={`reconcile-result-${r.linkId}`}>
-                    <span className={
-                      r.status === "success" ? "text-green-600 dark:text-green-400" :
-                      r.status === "already_linked" ? "text-blue-600 dark:text-blue-400" :
-                      r.status === "dry_run" ? "text-yellow-600 dark:text-yellow-400" :
-                      r.status === "ozmap_not_found" ? "text-orange-500" :
-                      "text-red-500"
-                    }>{r.status === "success" ? "✓" : r.status === "already_linked" ? "◉" : r.status === "dry_run" ? "~" : r.status === "ozmap_not_found" ? "⚠" : "✗"}</span>
-                    <span className="font-semibold text-foreground">{r.linkName}</span>
-                    <span className="text-muted-foreground truncate">{r.detail}</span>
-                  </div>
-                ))}
-              </div>
+              {reconcileStatus.results.length > 0 && (
+                <div className="max-h-48 overflow-y-auto space-y-0.5 border rounded p-2">
+                  {reconcileStatus.results.filter(r => r.status !== "skip").map((r, i) => (
+                    <div key={i} className="flex gap-2 text-xs font-mono" data-testid={`reconcile-result-${r.linkId}`}>
+                      <span className={
+                        r.status === "success" ? "text-green-600 dark:text-green-400" :
+                        r.status === "already_linked" ? "text-blue-600 dark:text-blue-400" :
+                        r.status === "dry_run" ? "text-yellow-600 dark:text-yellow-400" :
+                        r.status === "ozmap_not_found" ? "text-orange-500" :
+                        "text-red-500"
+                      }>{r.status === "success" ? "✓" : r.status === "already_linked" ? "◉" : r.status === "dry_run" ? "~" : r.status === "ozmap_not_found" ? "⚠" : "✗"}</span>
+                      <span className="font-semibold text-foreground">{r.linkName}</span>
+                      <span className="text-muted-foreground truncate">{r.detail}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
