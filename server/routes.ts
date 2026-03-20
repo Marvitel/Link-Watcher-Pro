@@ -13034,15 +13034,28 @@ export async function registerRoutes(
     const voalleAllConns = [...voalleDeleted, ...voalleActive];
     console.log(`[OZmap Reconcile] Voalle: ${voalleActive.length} ativas, ${voalleDeleted.length} excluídas → ${voalleAllConns.length} total`);
 
-    // Indexar conexões Voalle por user (PPPoE), serviceTag e serial para lookup O(1)
-    const voalleByUser   = new Map<string, any>();
-    const voalleByTag    = new Map<string, any>();
-    const voalleBySerial = new Map<string, any>();
-    for (const conn of voalleAllConns) {
-      if (conn.user)                    voalleByUser.set(conn.user.toLowerCase(), conn);
-      if (conn.serviceTag)              voalleByTag.set(conn.serviceTag.toUpperCase(), conn);
-      if (conn.equipmentSerialNumber)   voalleBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
+    // Indexar conexões Voalle — ativos e inativos em maps separados para cruzamento posterior
+    // Estratégia: ativo SEM vínculo OZmap → buscar inativo do mesmo cliente para herdar serviceTag/integrationCodeMap
+    const activeByUser   = new Map<string, any>();
+    const activeByTag    = new Map<string, any>();
+    const activeBySerial = new Map<string, any>();
+    for (const conn of voalleActive) {
+      if (conn.user)                    activeByUser.set(conn.user.toLowerCase(), conn);
+      if (conn.serviceTag)              activeByTag.set(conn.serviceTag.toUpperCase(), conn);
+      if (conn.equipmentSerialNumber)   activeBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
     }
+    const deletedByUser   = new Map<string, any>();
+    const deletedByTag    = new Map<string, any>();
+    const deletedBySerial = new Map<string, any>();
+    for (const conn of voalleDeleted) {
+      if (conn.user)                    deletedByUser.set(conn.user.toLowerCase(), conn);
+      if (conn.serviceTag)              deletedByTag.set(conn.serviceTag.toUpperCase(), conn);
+      if (conn.equipmentSerialNumber)   deletedBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
+    }
+    // Index unificado (ativos têm prioridade sobre inativos) para lookup rápido
+    const voalleByUser   = new Map<string, any>([...deletedByUser,   ...activeByUser]);
+    const voalleByTag    = new Map<string, any>([...deletedByTag,    ...activeByTag]);
+    const voalleBySerial = new Map<string, any>([...deletedBySerial, ...activeBySerial]);
 
     // Detectar integrationCodeMap "falso" — mesmo valor repetido em N+ conexões indica atribuição em massa
     // (ex: Voalle atribui um ID padrão/placeholder para todas as conexões sem vínculo real)
@@ -13092,11 +13105,35 @@ export async function registerRoutes(
 
         // Dados do Voalle para scoring e busca
         const voalleSerial = (voalleConn.equipmentSerialNumber || serial || "").toUpperCase().trim();
-        // voalleConn.user é o PPPoE retornado pelo Voalle (pode não estar salvo no DB)
         const voallePppoe: string | null = voalleConn.user ? voalleConn.user.toLowerCase().trim() : null;
         const voalleLat = voalleConn.address?.latitude ? parseFloat(voalleConn.address.latitude) : (link.latitude ? parseFloat(String(link.latitude)) : null);
         const voalleLon = voalleConn.address?.longitude ? parseFloat(voalleConn.address.longitude) : (link.longitude ? parseFloat(String(link.longitude)) : null);
         const voalleIntegrationCode: string | null = voalleConn.integrationCode ?? null;
+
+        // Cruzar com inativo do mesmo cliente: quando o ativo não tem serviceTag/integrationCodeMap,
+        // buscar a conexão inativa (deletada) do mesmo usuário/serial para herdar esses dados.
+        // Caso: cliente cancelou contrato antigo (tinha vínculo OZmap) e abriu contrato novo.
+        let deletedSibling: any = null;
+        if (!currentServiceTag || !currentIntegrationCodeMap) {
+          deletedSibling =
+            (voallePppoe   && deletedByUser.get(voallePppoe))   ||
+            (voalleSerial  && deletedBySerial.get(voalleSerial)) ||
+            (pppoe         && deletedByUser.get(pppoe.toLowerCase())) ||
+            (serial        && deletedBySerial.get(serial.toUpperCase())) ||
+            null;
+          // Garantir que não é o mesmo objeto (mesmo id) nem tem ICM falso
+          if (deletedSibling && (
+            deletedSibling.id === voalleConn.id ||
+            (deletedSibling.integrationCodeMap && bogusIntegrationCodeMaps.has(deletedSibling.integrationCodeMap))
+          )) {
+            deletedSibling = null;
+          }
+          if (deletedSibling) {
+            console.log(`[OZmap Reconcile] "${link.name}": encontrou inativo Voalle id=${deletedSibling.id} (tag=${deletedSibling.serviceTag}, icm=${deletedSibling.integrationCodeMap}) para suplementar busca`);
+          }
+        }
+        const deletedServiceTag: string | null = deletedSibling?.serviceTag ?? null;
+        const deletedIntegrationCodeMap: string | null = (deletedSibling?.integrationCodeMap && !bogusIntegrationCodeMaps.has(deletedSibling.integrationCodeMap)) ? deletedSibling.integrationCodeMap : null;
 
         // FASE 2a — Buscar candidatos OZmap (em paralelo por filtro, com timeout)
         type OzmapCandidate = { _id: string; score: number; row: any };
@@ -13124,10 +13161,10 @@ export async function registerRoutes(
 
         const filters: object[][] = [];
 
-        // Busca por code OZmap: voalleConn.serviceTag É o code do cliente OZmap (etiqueta do contrato).
-        // Também buscar por link.ozmapTag (nosso DB) e link.voalleContractTagServiceTag como fallback.
+        // Busca por code OZmap: serviceTag do ativo E do inativo (etiqueta do contrato = code no OZmap)
         const codeSearchValues = [...new Set([
-          currentServiceTag,                        // serviceTag da conexão Voalle (fonte primária)
+          currentServiceTag,                        // serviceTag da conexão ativa Voalle (fonte primária)
+          deletedServiceTag,                        // serviceTag do inativo (contrato anterior vinculado ao OZmap)
           link.ozmapTag,                            // code salvo no nosso DB
           link.voalleContractTagServiceTag,         // tag do contrato salva no nosso DB
         ].filter(Boolean) as string[])];
@@ -13151,23 +13188,23 @@ export async function registerRoutes(
         // Busca por integrationCode (Voalle integrationCode aponta para OZmap integrationCode)
         if (voalleIntegrationCode) filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
 
-        // Busca direta por _id do OZmap (via integrationCodeMap do Voalle) — mais confiável que filtros
-        // Só faz quando não é bogus (caso bogus, o ID está errado e a busca retornaria cliente errado)
-        if (currentIntegrationCodeMap && !isBogusIcm) {
+        // Busca direta por _id OZmap: pelo integrationCodeMap do ativo e/ou do inativo (contrato anterior)
+        const icmDirectLookups = [...new Set([currentIntegrationCodeMap, deletedIntegrationCodeMap].filter(Boolean) as string[])];
+        await Promise.all(icmDirectLookups.map(async (icmId) => {
           try {
-            const r = await fetchWithTimeout(
-              `${ozmapBaseUrl}/api/v2/ftth-clients/${currentIntegrationCodeMap}`,
-              { headers: ozmapHeaders }, 8000
-            );
+            const r = await fetchWithTimeout(`${ozmapBaseUrl}/api/v2/ftth-clients/${icmId}`, { headers: ozmapHeaders }, 8000);
             if (r.ok) {
               const row = await r.json() as any;
-              const id: string = row._id || row.id || currentIntegrationCodeMap;
-              if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
+              const id: string = row._id || row.id || icmId;
+              if (id && !candidateMap.has(id)) {
+                candidateMap.set(id, { _id: id, score: 0, row });
+                console.log(`[OZmap Reconcile] "${link.name}": GET direto _id=${icmId} → encontrou OZmap client`);
+              }
             }
           } catch (e) {
-            console.warn(`[OZmap Reconcile] GET direto por _id ${currentIntegrationCodeMap} falhou: ${e}`);
+            console.warn(`[OZmap Reconcile] GET direto por _id ${icmId} falhou: ${e}`);
           }
-        }
+        }));
 
         if (filters.length === 0 && candidateMap.size === 0 && !(voalleLat && voalleLon)) {
           result.status = "skip";
@@ -13204,8 +13241,10 @@ export async function registerRoutes(
           const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
           const cCode    = (row.integrationCode || "").trim();
 
-          // +4 code OZmap bate com serviceTag Voalle, ozmapTag ou voalleContractTagServiceTag
-          if (codeVal && codeSearchValues.some(v => v.toUpperCase() === codeVal)) c.score += 4;
+          // +4 code OZmap bate com serviceTag do ativo; +3 bate com serviceTag do inativo (contrato anterior)
+          if (codeVal && currentServiceTag && codeVal === currentServiceTag.toUpperCase()) c.score += 4;
+          else if (codeVal && deletedServiceTag && codeVal === deletedServiceTag.toUpperCase()) c.score += 3;
+          else if (codeVal && codeSearchValues.some(v => v.toUpperCase() === codeVal)) c.score += 2;
           // +3 serial bate
           if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
           // +2 PPPoE bate (voalleConn.user tem precedência)
