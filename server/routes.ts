@@ -13233,11 +13233,14 @@ export async function registerRoutes(
         if (deletedSibling) {
           console.log(`[OZmap Reconcile] "${link.name}": inativo Voalle id=${deletedSibling.id} clientId=${deletedSibling.client?.id} tag=${deletedSibling.serviceTag} icm=${deletedSibling.integrationCodeMap}`);
         }
-        // Coletar TODAS as etiquetas dos contratos inativos do mesmo cliente para busca OZmap
+        // Etiqueta OZmap válida: não pode ser puramente numérica (IDs legados Voalle como "149", "312"...)
+        const isValidOzmapTag = (t: any): t is string => !!t && typeof t === "string" && !/^\d+$/.test(t.trim());
+
+        // Coletar TODAS as etiquetas válidas dos contratos inativos do mesmo cliente para busca OZmap
         const deletedServiceTags: string[] = validDeletedCandidates
           .map((c: any) => c.serviceTag)
-          .filter((t: any): t is string => !!t);
-        const deletedServiceTag: string | null = deletedSibling?.serviceTag ?? null;
+          .filter(isValidOzmapTag);
+        const deletedServiceTag: string | null = isValidOzmapTag(deletedSibling?.serviceTag) ? deletedSibling.serviceTag : null;
         // Todos os integrationCodeMaps válidos dos inativos para lookup direto no índice
         const allDeletedIcms: string[] = validDeletedCandidates
           .map((c: any) => c.integrationCodeMap)
@@ -13255,13 +13258,13 @@ export async function registerRoutes(
           if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
         };
 
-        // Etiquetas a buscar (code OZmap)
+        // Etiquetas a buscar (code OZmap) — excluir valores puramente numéricos (IDs legados Voalle)
         const codeSearchValues = [...new Set([
           currentServiceTag,
           ...deletedServiceTags,
           link.ozmapTag,
           link.voalleContractTagServiceTag,
-        ].filter(Boolean) as string[])];
+        ].filter(isValidOzmapTag))];
 
         // PPPoE values
         const pppoeSearchValues = [...new Set([
@@ -13360,9 +13363,9 @@ export async function registerRoutes(
         const ozmapFoundCode: string | null = best?.row?.code ?? null; // etiqueta (code) encontrada no OZmap
 
         result.voalleConnectionId = voalleConn.id;
-        // Etiquetas para relatório: etiqueta atual do link, etiqueta antiga (inativo), etiqueta encontrada no OZmap
-        result.linkTag    = currentServiceTag || link.ozmapTag || undefined;
-        result.oldTag     = deletedServiceTag || undefined;
+        // Etiquetas para relatório: excluir valores numéricos legados
+        result.linkTag = (isValidOzmapTag(currentServiceTag) ? currentServiceTag : null) || (isValidOzmapTag(link.ozmapTag) ? link.ozmapTag : null) || undefined;
+        result.oldTag  = deletedServiceTag || undefined; // já filtrado por isValidOzmapTag acima
         result.ozmapFoundCode = ozmapFoundCode || undefined;
 
         // Sincronizar ozmapTag no nosso DB se a serviceTag mudou
@@ -13378,10 +13381,11 @@ export async function registerRoutes(
             result.detail = `Voalle já vinculado (integrationCodeMap=${currentIntegrationCodeMap}), sem candidato OZmap para validar`;
           } else {
             result.status = "ozmap_not_found";
+            const rawTag = currentServiceTag || link.ozmapTag || null;
             const tagSummary = [
-              result.linkTag   ? `etiqueta=${result.linkTag}`     : null,
-              result.oldTag    ? `etiqueta_antiga=${result.oldTag}` : null,
-              voalleSerial     ? `serial=${voalleSerial}`         : null,
+              rawTag          ? `etiqueta=${rawTag}`              : null,
+              result.oldTag   ? `etiqueta_antiga=${result.oldTag}` : null,
+              voalleSerial    ? `serial=${voalleSerial}`          : null,
               pppoeSearchValues.length ? `pppoe=${pppoeSearchValues[0]}` : null,
               voalleIntegrationCode ? `intCode=${voalleIntegrationCode}` : null,
             ].filter(Boolean).join(", ");
