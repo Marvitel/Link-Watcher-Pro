@@ -13006,8 +13006,10 @@ export async function registerRoutes(
           return result;
         }
 
-        // Dados do Voalle para scoring
+        // Dados do Voalle para scoring e busca
         const voalleSerial = (voalleConn.equipmentSerialNumber || serial || "").toUpperCase().trim();
+        // voalleConn.user é o PPPoE retornado pelo Voalle (pode não estar salvo no DB)
+        const voallePppoe: string | null = voalleConn.user ? voalleConn.user.toLowerCase().trim() : null;
         const voalleLat = voalleConn.address?.latitude ? parseFloat(voalleConn.address.latitude) : (link.latitude ? parseFloat(String(link.latitude)) : null);
         const voalleLon = voalleConn.address?.longitude ? parseFloat(voalleConn.address.longitude) : (link.longitude ? parseFloat(String(link.longitude)) : null);
         const voalleIntegrationCode: string | null = voalleConn.integrationCode ?? null;
@@ -13036,13 +13038,36 @@ export async function registerRoutes(
           }
         };
 
+        // ATENÇÃO: link.ozmapTag É o código OZmap real.
+        // link.voalleContractTagServiceTag é a tag Voalle — NÃO usar como code OZmap.
         const filters: object[][] = [];
-        if (oldTag)                                               filters.push([{ property: "code", value: oldTag, operator: "=" }]);
-        if (currentServiceTag && currentServiceTag !== oldTag)    filters.push([{ property: "code", value: currentServiceTag, operator: "=" }]);
-        if (voalleSerial)                                         filters.push([{ property: "onu.serial_number", value: voalleSerial, operator: "=" }]);
-        if (serial && serial.toUpperCase() !== voalleSerial)      filters.push([{ property: "onu.serial_number", value: serial, operator: "=" }]);
-        if (pppoe)                                                filters.push([{ property: "onu.user_PPPoE", value: pppoe, operator: "=" }]);
-        if (voalleIntegrationCode)                                filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
+
+        // Busca por code OZmap: somente se link.ozmapTag estiver preenchido
+        if (link.ozmapTag) filters.push([{ property: "code", value: link.ozmapTag, operator: "=" }]);
+
+        // Busca por serial (Voalle e DB)
+        if (voalleSerial) filters.push([{ property: "onu.serial_number", value: voalleSerial, operator: "=" }]);
+        if (serial && serial.toUpperCase() !== voalleSerial) filters.push([{ property: "onu.serial_number", value: serial, operator: "=" }]);
+
+        // Busca por PPPoE: preferir voalleConn.user (vem do Voalle batch), depois link.pppoeUser/voalleLogin
+        const pppoeSearchValues = [...new Set([
+          voallePppoe,
+          pppoe ? pppoe.toLowerCase() : null,
+        ].filter(Boolean) as string[])];
+        for (const p of pppoeSearchValues) {
+          filters.push([{ property: "onu.user_PPPoE", value: p, operator: "=" }]);
+        }
+
+        // Busca por integrationCode (Voalle integrationCode aponta para OZmap integrationCode)
+        if (voalleIntegrationCode) filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
+
+        if (filters.length === 0) {
+          result.status = "skip";
+          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, ozmapTag ou integrationCode)`;
+          return result;
+        }
+
+        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros (serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, ozmapTag=${link.ozmapTag||"-"})`);
 
         await Promise.all(filters.map(f => ozmapFetch(f)));
 
@@ -13056,9 +13081,12 @@ export async function registerRoutes(
           const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
           const cCode    = (row.integrationCode || "").trim();
 
-          if (codeVal && (codeVal === (oldTag || "").toUpperCase() || codeVal === (currentServiceTag || "").toUpperCase())) c.score += 4;
+          // +4 code OZmap bate com ozmapTag do link (confirmação mais forte)
+          if (link.ozmapTag && codeVal && codeVal === link.ozmapTag.toUpperCase()) c.score += 4;
+          // +3 serial bate
           if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
-          if (pppoe && cPppoe && cPppoe === pppoe.toLowerCase()) c.score += 2;
+          // +2 PPPoE bate (voalleConn.user tem precedência)
+          if (pppoeSearchValues.length > 0 && cPppoe && pppoeSearchValues.includes(cPppoe)) c.score += 2;
           if (voalleLat && voalleLon && cLat && cLon) {
             const dist = haversineKm(voalleLat, voalleLon, cLat, cLon);
             if (dist <= 0.05) c.score += 2;
