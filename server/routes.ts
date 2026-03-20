@@ -13122,12 +13122,18 @@ export async function registerRoutes(
           }
         };
 
-        // ATENÇÃO: link.ozmapTag É o código OZmap real.
-        // link.voalleContractTagServiceTag é a tag Voalle — NÃO usar como code OZmap.
         const filters: object[][] = [];
 
-        // Busca por code OZmap: somente se link.ozmapTag estiver preenchido
-        if (link.ozmapTag) filters.push([{ property: "code", value: link.ozmapTag, operator: "=" }]);
+        // Busca por code OZmap: voalleConn.serviceTag É o code do cliente OZmap (etiqueta do contrato).
+        // Também buscar por link.ozmapTag (nosso DB) e link.voalleContractTagServiceTag como fallback.
+        const codeSearchValues = [...new Set([
+          currentServiceTag,                        // serviceTag da conexão Voalle (fonte primária)
+          link.ozmapTag,                            // code salvo no nosso DB
+          link.voalleContractTagServiceTag,         // tag do contrato salva no nosso DB
+        ].filter(Boolean) as string[])];
+        for (const code of codeSearchValues) {
+          filters.push([{ property: "code", value: code, operator: "=" }]);
+        }
 
         // Busca por serial (Voalle e DB)
         if (voalleSerial) filters.push([{ property: "onu.serial_number", value: voalleSerial, operator: "=" }]);
@@ -13145,15 +13151,33 @@ export async function registerRoutes(
         // Busca por integrationCode (Voalle integrationCode aponta para OZmap integrationCode)
         if (voalleIntegrationCode) filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
 
-        if (filters.length === 0 && !(voalleLat && voalleLon)) {
+        // Busca direta por _id do OZmap (via integrationCodeMap do Voalle) — mais confiável que filtros
+        // Só faz quando não é bogus (caso bogus, o ID está errado e a busca retornaria cliente errado)
+        if (currentIntegrationCodeMap && !isBogusIcm) {
+          try {
+            const r = await fetchWithTimeout(
+              `${ozmapBaseUrl}/api/v2/ftth-clients/${currentIntegrationCodeMap}`,
+              { headers: ozmapHeaders }, 8000
+            );
+            if (r.ok) {
+              const row = await r.json() as any;
+              const id: string = row._id || row.id || currentIntegrationCodeMap;
+              if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
+            }
+          } catch (e) {
+            console.warn(`[OZmap Reconcile] GET direto por _id ${currentIntegrationCodeMap} falhou: ${e}`);
+          }
+        }
+
+        if (filters.length === 0 && candidateMap.size === 0 && !(voalleLat && voalleLon)) {
           result.status = "skip";
-          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, ozmapTag, integrationCode ou coordenadas)`;
+          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, code, integrationCode ou coordenadas)`;
           return result;
         }
 
-        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros (serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, ozmapTag=${link.ozmapTag||"-"}, geo=${voalleLat ? `${voalleLat},${voalleLon}` : "-"})`);
+        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros + id=${currentIntegrationCodeMap||"-"} (codes=${codeSearchValues.join(",")||"-"}, serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, geo=${voalleLat ? `${voalleLat},${voalleLon}` : "-"})`);
 
-        // FASE primária: serial, PPPoE, code, integrationCode
+        // FASE primária: code (serviceTag), serial, PPPoE, integrationCode
         await Promise.all(filters.map(f => ozmapFetch(f)));
 
         // FASE geo: se nenhum candidato encontrado e temos coordenadas, tentar bounding box ≈300m
@@ -13180,8 +13204,8 @@ export async function registerRoutes(
           const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
           const cCode    = (row.integrationCode || "").trim();
 
-          // +4 code OZmap bate com ozmapTag do link
-          if (link.ozmapTag && codeVal && codeVal === link.ozmapTag.toUpperCase()) c.score += 4;
+          // +4 code OZmap bate com serviceTag Voalle, ozmapTag ou voalleContractTagServiceTag
+          if (codeVal && codeSearchValues.some(v => v.toUpperCase() === codeVal)) c.score += 4;
           // +3 serial bate
           if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
           // +2 PPPoE bate (voalleConn.user tem precedência)
