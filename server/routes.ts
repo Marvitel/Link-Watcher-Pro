@@ -12844,13 +12844,13 @@ export async function registerRoutes(
   app.post("/api/admin/voalle-ozmap-reconcile", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
     const { linkIds, dryRun = false } = req.body as { linkIds?: number[]; dryRun?: boolean };
 
-    const voalleIntegrations = await db.select().from(externalIntegrations)
-      .where(and(eq(externalIntegrations.provider, "voalle"), eq(externalIntegrations.isActive, true)))
-      .limit(1);
-    if (voalleIntegrations.length === 0) {
+    // Voalle usa tabela erp_integrations
+    const voalleIntegration = await storage.getErpIntegrationByProvider("voalle");
+    if (!voalleIntegration || !voalleIntegration.isActive) {
       return res.status(400).json({ error: "Integração Voalle não configurada ou inativa" });
     }
 
+    // OZmap usa tabela external_integrations
     const ozmapIntegrations = await db.select().from(externalIntegrations)
       .where(and(eq(externalIntegrations.provider, "ozmap"), eq(externalIntegrations.isActive, true)))
       .limit(1);
@@ -12858,7 +12858,7 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Integração OZmap não configurada ou inativa" });
     }
 
-    const voalleAdapter = configureErpAdapter(voalleIntegrations[0]) as any;
+    const voalleAdapter = configureErpAdapter(voalleIntegration) as any;
     if (!voalleAdapter?.searchConnectionsByUserData) {
       return res.status(500).json({ error: "Adapter Voalle não suporta busca de conexões Map API" });
     }
