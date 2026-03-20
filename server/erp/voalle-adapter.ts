@@ -1395,4 +1395,92 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       };
     }
   }
+
+  // ========== Map API (porta 45715/external/map) ==========
+
+  private async makeMapRequest<T>(
+    method: string,
+    path: string,
+    body?: unknown
+  ): Promise<T> {
+    if (!this.config || !this.config.apiUrl) {
+      throw new Error("Voalle não configurado");
+    }
+    const token = await this.authenticate();
+    const url = `${this.config.apiUrl}:45715/external/map${path}`;
+    const response = await fetch(url, {
+      method,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Voalle Map API error ${response.status} em ${path}: ${errorText}`);
+    }
+    return response.json() as Promise<T>;
+  }
+
+  async searchConnectionsByUserData(opts: {
+    users?: string[];
+    serviceTags?: string[];
+    contractIds?: number[];
+  }): Promise<VoalleMapConnection[]> {
+    type Resp = { success: boolean; response: VoalleMapConnection[][] };
+    const result = await this.makeMapRequest<Resp>(
+      "POST",
+      "/connection/by/userdata",
+      {
+        users: opts.users || [],
+        serviceTags: opts.serviceTags || [],
+        contractIds: opts.contractIds || [],
+      }
+    );
+    if (!result.success || !result.response) return [];
+    return result.response.flat();
+  }
+
+  async vinculateConnectionIntegrationCode(connectionId: number, integrationCode: string): Promise<boolean> {
+    type Resp = { success: boolean };
+    const result = await this.makeMapRequest<Resp>(
+      "PUT",
+      `/connection/vinculate/${connectionId}/${encodeURIComponent(integrationCode)}`
+    );
+    return result.success === true;
+  }
+
+  async updateConnectionIntegrationCode(oldCode: string, newCode: string): Promise<boolean> {
+    type Resp = { success: boolean };
+    const result = await this.makeMapRequest<Resp>(
+      "PUT",
+      `/connection/update/integrationcode/${encodeURIComponent(oldCode)}/${encodeURIComponent(newCode)}`
+    );
+    return result.success === true;
+  }
+}
+
+export interface VoalleMapConnection {
+  id: number;
+  user: string | null;
+  integrationCode: string | null;
+  serviceTag: string | null;
+  equipmentSerialNumber: string | null;
+  mac: string | null;
+  integrationCodeMap: string | null;
+  status: number;
+  client: { id: number; name: string; txId: string } | null;
+  contract: { id: number; status: number; statusDescription: string } | null;
+  address: {
+    street: string | null;
+    postalCode: string | null;
+    number: string | null;
+    neighborhood: string | null;
+    city: string | null;
+    state: string | null;
+    latitude: string | null;
+    longitude: string | null;
+  } | null;
 }

@@ -12839,6 +12839,249 @@ export async function registerRoutes(
     res.send(csv);
   });
 
+  // ========== Reconciliação Voalle ↔ OZmap ==========
+  // Reconecta links cujas conexões foram deletadas/recriadas no Voalle sem código de integração OZmap
+  app.post("/api/admin/voalle-ozmap-reconcile", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    const { linkIds, dryRun = false } = req.body as { linkIds?: number[]; dryRun?: boolean };
+
+    const voalleIntegrations = await db.select().from(externalIntegrations)
+      .where(and(eq(externalIntegrations.provider, "voalle"), eq(externalIntegrations.isActive, true)))
+      .limit(1);
+    if (voalleIntegrations.length === 0) {
+      return res.status(400).json({ error: "Integração Voalle não configurada ou inativa" });
+    }
+
+    const ozmapIntegrations = await db.select().from(externalIntegrations)
+      .where(and(eq(externalIntegrations.provider, "ozmap"), eq(externalIntegrations.isActive, true)))
+      .limit(1);
+    if (ozmapIntegrations.length === 0) {
+      return res.status(400).json({ error: "Integração OZmap não configurada ou inativa" });
+    }
+
+    const voalleAdapter = configureErpAdapter(voalleIntegrations[0]) as any;
+    if (!voalleAdapter?.searchConnectionsByUserData) {
+      return res.status(500).json({ error: "Adapter Voalle não suporta busca de conexões Map API" });
+    }
+
+    const ozmapConfig = ozmapIntegrations[0];
+    const ozmapBaseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    const ozmapHeaders = { "Accept": "application/json", "Authorization": ozmapConfig.apiKey! };
+
+    // Buscar links afetados: com tag mas sem dados OZmap (potência null e ozmapNoRoute != true)
+    let candidateLinks;
+    if (linkIds && linkIds.length > 0) {
+      candidateLinks = await db.select().from(links).where(
+        and(isNull(links.deletedAt), sql`${links.id} = ANY(${linkIds})`)
+      );
+    } else {
+      candidateLinks = await db.select().from(links).where(
+        and(
+          isNull(links.deletedAt),
+          isNull(links.ozmapArrivingPotency),
+          or(isNotNull(links.voalleContractTagServiceTag), isNotNull(links.ozmapTag)),
+          or(eq(links.ozmapNoRoute, false), isNull(links.ozmapNoRoute))
+        )
+      );
+    }
+
+    const results: Array<{
+      linkId: number; linkName: string; status: string; detail: string;
+      voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string;
+    }> = [];
+
+    for (const link of candidateLinks) {
+      const pppoe = link.pppoeUser || link.voalleLogin;
+      const oldTag = link.ozmapTag || link.voalleContractTagServiceTag;
+      const serial = link.equipmentSerialNumber;
+
+      if (!pppoe && !oldTag && !serial) {
+        results.push({ linkId: link.id, linkName: link.name, status: "skip", detail: "Sem PPPoE, tag ou serial para busca" });
+        continue;
+      }
+
+      try {
+        // Passo 1: Buscar conexão no Voalle pelo PPPoE/tag
+        const voalleConns: any[] = await voalleAdapter.searchConnectionsByUserData({
+          users: pppoe ? [pppoe] : [],
+          serviceTags: oldTag ? [oldTag] : [],
+          contractIds: [],
+        });
+
+        const voalleConn = voalleConns[0] ?? null;
+
+        if (!voalleConn) {
+          results.push({ linkId: link.id, linkName: link.name, status: "skip", detail: `Conexão não encontrada no Voalle (pppoe=${pppoe}, tag=${oldTag})` });
+          continue;
+        }
+
+        const currentServiceTag = voalleConn.serviceTag;
+        const currentIntegrationCodeMap = voalleConn.integrationCodeMap;
+
+        if (currentIntegrationCodeMap) {
+          results.push({ linkId: link.id, linkName: link.name, status: "already_linked", detail: `Voalle já possui integrationCodeMap=${currentIntegrationCodeMap}, tag=${currentServiceTag}` });
+          // Atualiza nossa tag se mudou
+          if (currentServiceTag && currentServiceTag !== oldTag && !dryRun) {
+            await db.update(links).set({ ozmapTag: currentServiceTag }).where(eq(links.id, link.id));
+          }
+          continue;
+        }
+
+        // Helper: distância em km entre duas coordenadas (haversine simples)
+        const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+          const R = 6371;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        };
+
+        // Dados do Voalle para comparação
+        const voalleSerial = (voalleConn.equipmentSerialNumber || serial || "").toUpperCase().trim();
+        const voalleLat = voalleConn.address?.latitude ? parseFloat(voalleConn.address.latitude) : (link.latitude ? parseFloat(String(link.latitude)) : null);
+        const voalleLon = voalleConn.address?.longitude ? parseFloat(voalleConn.address.longitude) : (link.longitude ? parseFloat(String(link.longitude)) : null);
+        const voalleIntegrationCode = voalleConn.integrationCode;
+
+        // Passo 2: Buscar candidatos no OZmap com scoring
+        type OzmapCandidate = { _id: string; score: number; row: any };
+        const candidates: OzmapCandidate[] = [];
+
+        const fetchOzmapCandidates = async (filter: object[]) => {
+          const url = `${ozmapBaseUrl}/api/v2/ftth-clients?filter=${encodeURIComponent(JSON.stringify(filter))}&limit=10`;
+          const r = await fetch(url, { headers: ozmapHeaders });
+          if (!r.ok) return;
+          const data = await r.json() as any;
+          const rows: any[] = data?.data || data?.rows || [];
+          for (const row of rows) {
+            const id = row._id || row.id;
+            if (!id || candidates.find(c => c._id === id)) continue;
+            candidates.push({ _id: id, score: 0, row });
+          }
+        };
+
+        // Busca por tag
+        if (oldTag) await fetchOzmapCandidates([{ property: "code", value: oldTag, operator: "=" }]);
+        if (currentServiceTag && currentServiceTag !== oldTag) await fetchOzmapCandidates([{ property: "code", value: currentServiceTag, operator: "=" }]);
+        // Busca por serial
+        if (voalleSerial) await fetchOzmapCandidates([{ property: "onu.serial_number", value: voalleSerial, operator: "=" }]);
+        if (serial && serial.toUpperCase() !== voalleSerial) await fetchOzmapCandidates([{ property: "onu.serial_number", value: serial, operator: "=" }]);
+        // Busca por PPPoE
+        if (pppoe) await fetchOzmapCandidates([{ property: "onu.user_PPPoE", value: pppoe, operator: "=" }]);
+        // Busca por integrationCode do Voalle
+        if (voalleIntegrationCode) await fetchOzmapCandidates([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
+
+        // Pontuar candidatos por similaridade
+        for (const c of candidates) {
+          const row = c.row;
+          const codeVal: string = (row.code || "").toUpperCase().trim();
+          const cSerial: string = (row.onu?.serial_number || row.serialNumber || "").toUpperCase().trim();
+          const cPppoe: string = (row.onu?.user_PPPoE || "").toLowerCase().trim();
+          const cLat: number | null = row.geopoint?.coordinates?.[1] ?? row.latitude ?? null;
+          const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
+          const cIntegrationCode: string = (row.integrationCode || "").trim();
+
+          // +4: tag exata
+          if (codeVal && (codeVal === (oldTag || "").toUpperCase() || codeVal === (currentServiceTag || "").toUpperCase())) c.score += 4;
+          // +3: serial exato (Voalle ou nosso DB)
+          if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
+          // +2: PPPoE exato
+          if (pppoe && cPppoe && cPppoe === pppoe.toLowerCase()) c.score += 2;
+          // +1: localização ≤ 0.05 km (50m)
+          if (voalleLat && voalleLon && cLat && cLon) {
+            const dist = haversineKm(voalleLat, voalleLon, cLat, cLon);
+            if (dist <= 0.05) c.score += 2;
+            else if (dist <= 0.2) c.score += 1;
+          }
+          // +1: integrationCode igual
+          if (voalleIntegrationCode && cIntegrationCode && cIntegrationCode === voalleIntegrationCode) c.score += 1;
+        }
+
+        // Ordenar por score descrescente e pegar o melhor
+        candidates.sort((a, b) => b.score - a.score);
+        const bestCandidate = candidates.length > 0 && candidates[0].score > 0 ? candidates[0] : null;
+        const ozmapClientId = bestCandidate?._id ?? null;
+        const ozmapRow = bestCandidate?.row ?? null;
+        const ozmapExistingIntegrationCode: string | null = ozmapRow?.integrationCode ?? null;
+
+        if (!ozmapClientId) {
+          results.push({
+            linkId: link.id, linkName: link.name, status: "ozmap_not_found",
+            voalleConnectionId: voalleConn.id, newServiceTag: currentServiceTag ?? undefined,
+            detail: `Conexão Voalle id=${voalleConn.id} tag=${currentServiceTag} encontrada, mas nenhum cliente compatível no OZmap (${candidates.length} candidatos sem score)`
+          });
+          // Atualiza tag no nosso banco se mudou
+          if (currentServiceTag && currentServiceTag !== oldTag && !dryRun) {
+            await db.update(links).set({ ozmapTag: currentServiceTag }).where(eq(links.id, link.id));
+          }
+          continue;
+        }
+
+        // Passo 3: Vincular no Voalle (integrationCodeMap = ozmapClientId)
+        let vinculateOk = false;
+        if (!dryRun) {
+          vinculateOk = await voalleAdapter.vinculateConnectionIntegrationCode(voalleConn.id, ozmapClientId);
+        } else {
+          vinculateOk = true;
+        }
+
+        // Passo 4: Atualizar integrationCode no OZmap (para que ambos tenham o mesmo valor)
+        // OZmap recebe o integrationCode do Voalle; Voalle recebe o _id do OZmap
+        let ozmapIntegrationCodeUpdated = false;
+        const targetIntegrationCode = voalleIntegrationCode || String(voalleConn.id);
+        if (!dryRun && vinculateOk && ozmapExistingIntegrationCode !== targetIntegrationCode) {
+          try {
+            const patchUrl = `${ozmapBaseUrl}/api/v2/ftth-clients/${ozmapClientId}`;
+            const patchResp = await fetch(patchUrl, {
+              method: "PATCH",
+              headers: { ...ozmapHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({ integrationCode: targetIntegrationCode }),
+            });
+            ozmapIntegrationCodeUpdated = patchResp.ok;
+            if (!patchResp.ok) console.warn(`[OZmap Reconcile] PATCH integrationCode falhou: ${patchResp.status}`);
+          } catch (e) {
+            console.warn(`[OZmap Reconcile] PATCH integrationCode erro: ${e}`);
+          }
+        } else if (dryRun && ozmapExistingIntegrationCode === targetIntegrationCode) {
+          ozmapIntegrationCodeUpdated = true; // já está correto
+        }
+
+        // Atualiza nossa tag se mudou
+        if (!dryRun && currentServiceTag && currentServiceTag !== oldTag) {
+          await db.update(links).set({ ozmapTag: currentServiceTag }).where(eq(links.id, link.id));
+        }
+
+        const scoreInfo = `score=${bestCandidate?.score}`;
+        results.push({
+          linkId: link.id, linkName: link.name,
+          status: dryRun ? "dry_run" : (vinculateOk ? "success" : "vinculate_failed"),
+          voalleConnectionId: voalleConn.id, newServiceTag: currentServiceTag ?? undefined, ozmapClientId,
+          detail: dryRun
+            ? `[DRY RUN] Vincularia voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} (${scoreInfo}); OZmap integrationCode: ${ozmapExistingIntegrationCode || "vazio"} → ${targetIntegrationCode}`
+            : (vinculateOk
+              ? `Vinculado: voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} (${scoreInfo}); OZmap integrationCode atualizado: ${ozmapIntegrationCodeUpdated}`
+              : `Falha ao vincular voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} (${scoreInfo})`)
+        });
+
+        console.log(`[OZmap Reconcile] ${link.name} (${link.id}): ${results[results.length - 1].detail}`);
+
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[OZmap Reconcile] ${link.name} (${link.id}): erro: ${errMsg}`);
+        results.push({ linkId: link.id, linkName: link.name, status: "error", detail: errMsg });
+      }
+    }
+
+    const summary = {
+      total: results.length, dryRun,
+      success: results.filter(r => r.status === "success").length,
+      already_linked: results.filter(r => r.status === "already_linked").length,
+      ozmap_not_found: results.filter(r => r.status === "ozmap_not_found").length,
+      skip: results.filter(r => r.status === "skip").length,
+      error: results.filter(r => r.status === "error").length,
+    };
+    console.log(`[OZmap Reconcile] Concluído:`, summary);
+    res.json({ summary, results });
+  });
+
   app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
     res.json(enrichmentProgress);
   });

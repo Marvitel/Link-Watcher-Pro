@@ -29,6 +29,7 @@ import {
   Ban,
   Trash2,
   FileDown,
+  Link2,
 } from "lucide-react";
 
 interface DiagnosticCategory {
@@ -104,6 +105,11 @@ const actionLabels: Record<string, string> = {
   discover_all: "Enriquecimento completo",
 };
 
+interface ReconcileResult {
+  summary: { total: number; success: number; already_linked: number; ozmap_not_found: number; skip: number; error: number; dryRun: boolean };
+  results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; newServiceTag?: string; ozmapClientId?: string }>;
+}
+
 export function LinkDiagnosticsTab() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
@@ -111,6 +117,7 @@ export function LinkDiagnosticsTab() {
   const [downloadingNoTag, setDownloadingNoTag] = useState(false);
   const [downloadingNoRoute, setDownloadingNoRoute] = useState(false);
   const [downloadingNotFound, setDownloadingNotFound] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
 
   async function downloadOzmapDivergences() {
     setDownloadingCsv(true);
@@ -195,6 +202,16 @@ export function LinkDiagnosticsTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/links/enrich/status"] });
+    },
+  });
+
+  const reconcileMutation = useMutation({
+    mutationFn: async ({ dryRun, linkIds }: { dryRun: boolean; linkIds?: number[] }) => {
+      const res = await apiRequest("POST", "/api/admin/voalle-ozmap-reconcile", { dryRun, linkIds });
+      return res.json() as Promise<ReconcileResult>;
+    },
+    onSuccess: (data) => {
+      setReconcileResult(data);
     },
   });
 
@@ -534,6 +551,89 @@ export function LinkDiagnosticsTab() {
           );
         })}
       </div>
+
+      {/* Reconciliação Voalle ↔ OZmap */}
+      <Card data-testid="card-voalle-ozmap-reconcile">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-emerald-500" />
+            Reconciliação Voalle ↔ OZmap
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Reconecta links cuja conexão foi deletada e recriada no Voalle sem código de integração OZmap.
+            Busca pelo PPPoE/serial, localiza o cliente no OZmap e vincula automaticamente.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-3">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={reconcileMutation.isPending}
+              onClick={() => reconcileMutation.mutate({ dryRun: true })}
+              data-testid="btn-reconcile-dry-run"
+            >
+              {reconcileMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Simular (dry run)
+            </Button>
+            <Button
+              size="sm"
+              disabled={reconcileMutation.isPending}
+              onClick={() => {
+                if (confirm("Isso vai vincular conexões Voalle → OZmap para todos os links afetados. Continuar?")) {
+                  reconcileMutation.mutate({ dryRun: false });
+                }
+              }}
+              data-testid="btn-reconcile-execute"
+            >
+              {reconcileMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Link2 className="h-3 w-3 mr-1" />}
+              Executar reconciliação
+            </Button>
+          </div>
+
+          {reconcileMutation.isError && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertDescription className="text-xs">
+                {reconcileMutation.error instanceof Error ? reconcileMutation.error.message : "Erro desconhecido"}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {reconcileResult && (
+            <div className="space-y-2">
+              {reconcileResult.summary.dryRun && (
+                <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
+                  <AlertDescription className="text-xs text-yellow-700 dark:text-yellow-300">
+                    Simulação — nenhuma alteração foi feita
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="flex gap-3 flex-wrap text-xs">
+                {reconcileResult.summary.success > 0 && <span className="text-green-600 dark:text-green-400">✓ {reconcileResult.summary.success} vinculados</span>}
+                {reconcileResult.summary.already_linked > 0 && <span className="text-blue-600 dark:text-blue-400">◉ {reconcileResult.summary.already_linked} já vinculados</span>}
+                {reconcileResult.summary.ozmap_not_found > 0 && <span className="text-orange-600 dark:text-orange-400">⚠ {reconcileResult.summary.ozmap_not_found} sem cliente OZmap</span>}
+                {reconcileResult.summary.skip > 0 && <span className="text-muted-foreground">○ {reconcileResult.summary.skip} ignorados</span>}
+                {reconcileResult.summary.error > 0 && <span className="text-red-600 dark:text-red-400">✗ {reconcileResult.summary.error} erros</span>}
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-0.5 border rounded p-2">
+                {reconcileResult.results.filter(r => r.status !== "skip").map((r, i) => (
+                  <div key={i} className="flex gap-2 text-xs font-mono" data-testid={`reconcile-result-${r.linkId}`}>
+                    <span className={
+                      r.status === "success" ? "text-green-600 dark:text-green-400" :
+                      r.status === "already_linked" ? "text-blue-600 dark:text-blue-400" :
+                      r.status === "dry_run" ? "text-yellow-600 dark:text-yellow-400" :
+                      r.status === "ozmap_not_found" ? "text-orange-500" :
+                      "text-red-500"
+                    }>{r.status === "success" ? "✓" : r.status === "already_linked" ? "◉" : r.status === "dry_run" ? "~" : r.status === "ozmap_not_found" ? "⚠" : "✗"}</span>
+                    <span className="font-semibold text-foreground">{r.linkName}</span>
+                    <span className="text-muted-foreground truncate">{r.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {enrichStatus && enrichStatus.errors.length > 0 && !enrichStatus.running && (
         <Card data-testid="card-errors">
