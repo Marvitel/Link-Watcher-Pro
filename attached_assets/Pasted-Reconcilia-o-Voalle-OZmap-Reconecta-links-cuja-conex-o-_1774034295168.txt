@@ -1,0 +1,1352 @@
+Reconciliação Voalle ↔ OZmap
+Reconecta links cuja conexão foi deletada e recriada no Voalle sem código de integração OZmap. Busca pelo PPPoE/serial, localiza o cliente no OZmap e vincula automaticamente.
+Simular (dry run)
+Executar reconciliação
+Simulação — nenhuma alteração foi feita
+◉ 41 já vinculados
+⚠ 411 sem cliente OZmap
+○ 2 ignorados
+⚠
+ROSARIO-AMBIENTAL-RADIO
+Voalle id=1778 tag=DVY6N71W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+Internet Marvitel Fibra 240 Mbps Full
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=5R0QFQBS
+◉
+172.26.96.133
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=3QNRKWMT
+⚠
+valeska.cardoso
+Voalle id=2644 tag=19F7NSLW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PTX_URQUIZIA_BKP
+Voalle id=2254 tag=2RJV19GS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MPLS REDE PRIMAVERA - Hospital Primavera
+Voalle id=44 tag=ContratoM-47-REDEPRIMAVERA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VE.UBATA.PEREIRA
+Voalle id=2582 tag=YA3QFS09 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+THAI-408-JACQUELINE_PRADO
+Voalle já possui integrationCodeMap=67bf10e515315571b3b0de36, tag=F81637L6
+⚠
+LUANA-ALMEIDA
+Voalle id=2732 tag=MWN7G6BT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CDN-MERCADO-LIVRE
+Voalle id=2544 tag=NWC8HX4S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_56) senha: (casa_56)
+Voalle id=709 tag=CASA_56_PKV_D62E1T48 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+rede.ltda
+Voalle id=2899 tag=AJUMVTBAJEY85A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+clodiney.cruz
+Voalle id=2666 tag=LTYXBQ0R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TRIBUNAL DE JUSTIÇA - AQUIDABÃ
+Voalle id=1979 tag=N6NXKQD9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COLOCATION - 1U
+Voalle id=3132 tag=FQ0VG6C6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ROSARIO-AMBIENTAL-RADIO
+Voalle id=1777 tag=YZYVKTJR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PKV-CASA_02
+Voalle id=685 tag=LI0SCXBW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+maracar.ltda
+Voalle id=2971 tag=N75QJTLR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 250Mbps
+Voalle id=3133 tag=1VHX373T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q10E01
+Voalle id=1813 tag=N736DSN7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ICMBIOS-RESERVA-AMBIENTAL-RADIO
+Voalle id=2324 tag=LX3A39BS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JAIME-JUNIOR
+Voalle id=3089 tag=YXNRBV48 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=LWDZFWL7
+⚠
+maui_casa78
+Voalle id=2403 tag=4WCTYRG9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TAHAA
+Voalle id=2136 tag=185QBRGE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MONTEIRO ADVOGADOS - RB2011
+Voalle id=1542 tag=37NEBAGW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - DM985-424 HW3
+Voalle id=767 tag=CASA_46_PKV_2RC9PXKR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ATTENTO-LTDA
+Voalle id=2465 tag=4VGWCT1A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_41) senha: (casa_41)
+Voalle id=753 tag=HT06HXCI encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER
+Voalle id=768 tag=CASA_47_PKV_CVNEBA4T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CARLA-SIMOES
+Voalle id=2172 tag=18MZGR0R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LOJA-FABRICIO
+Voalle id=2742 tag=KWKXFV29 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX BARRA
+Voalle id=2244 tag=HZ2XF6BV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_36) senha: (casa_36)
+Voalle id=731 tag=CASA_36_PKV_0SMEYS3S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TJSE-SANTAMARIA
+Voalle id=2404 tag=F6NWCWNQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Marcela
+Voalle id=91 tag=Contrato N. M-386 - Marcela D'Ávila Melo Barreto - 00264-379-266 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+fernando.seixas
+Voalle id=3011 tag=LQD6363A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (adm.parkville) senha: (parkville)
+Voalle id=694 tag=3IMI36Y8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_79) senha: (casa_79)
+Voalle id=716 tag=CASA_79_PKV_L8BE5SCQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PKV-CASA_83
+Voalle id=718 tag=2APENEY8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+IRAN.JUNIOR
+Voalle id=3070 tag=D92Q3EBZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LE-OTICA
+Voalle id=1947 tag=G7MXDZB6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+F2-VELCOM-AJU
+Voalle id=1851 tag=JVBRJ8C7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_42) senha: (casa_42)
+Voalle id=705 tag=CASA_42_PKV_MTG8KQYW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARINA-CARVALHO
+Voalle id=2600 tag=NAGTKRHA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+PETROX_TANCREDO=== FIOG540058D9
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=MSMWCZD9
+⚠
+jaime.junior
+Voalle id=3090 tag=3SKEJRLT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MICHEL-SANTOS
+Voalle id=2380 tag=Y9MQ4Z1X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EOIP MULTSERV GLORIA
+Voalle id=2958 tag=4XJVKAFA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+guilherme.maluf
+Voalle id=3008 tag=26GVJWLZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_34) senha: (casa_34)
+Voalle id=752 tag=CASA_34_PKV_5SMV36FR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=D8BVLQJT
+◉
+172.26.96.156
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=JQGAFXLW
+⚠
+jose.andrade
+Voalle id=2718 tag=48FVY8YA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ANDRADE-DISTRIBUIDOR
+Voalle id=1766 tag=0V5VM92Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+manuela.leite
+Voalle id=2094 tag=DS1E2TCE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ADELLE-MOADE
+Voalle id=2048 tag=GT5TNWYT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VL-MINERADORRA
+Voalle id=3051 tag=L7DTJ92Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+condominio.praia
+Voalle id=2671 tag=C6MQHQ1Q encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_14) senha: (casa_14)
+Voalle id=690 tag=CASA_14_PKV_M8DZKWGI encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+HOS SEDE LINK
+Voalle id=1832 tag=C85EYTLR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_88) senha: (casa_88)
+Voalle id=719 tag=CASA_88_PKV_KXDXJEL6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COMUNICAÇÃO TAHAA 300 MEGA - CASA 11
+Voalle id=2373 tag=1ZC8180R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ALEX.SOUZA
+Voalle id=2375 tag=585RJALX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+condominio.praia
+Voalle id=2676 tag=JSGTJWCR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q02D07-LEANDRO_BACCI
+Voalle id=2559 tag=BT0VH62W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CLINICA-SONO-E-IMAGEM
+Voalle id=2602 tag=2VYSBZBR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-1508-RILTON-MORAES
+Voalle id=2771 tag=G84QB6Y7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ferdinando.pereira
+Voalle id=2444 tag=3VFTCTME encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI-Q12D03-RUTH-SANTOS
+Voalle id=2759 tag=2SJEBRJR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+daiane.cortes
+Voalle id=2378 tag=1VF65ZL7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q06D13
+Voalle id=1838 tag=GS5RHW0X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ALPHA-SEDE-BACKUP
+Voalle id=2353 tag=MXM63VDQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL PALESTINA
+Voalle id=2831 tag=AJUMVT2V365RDS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+perola.ltda
+Voalle id=3078 tag=2V38JRLT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VITTORIO-EMANUELLE-BKP
+Voalle id=2581 tag=HR3WKXLV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER-TPLINK
+Voalle id=2115 tag=2Q1E3SGZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_64) senha: (casa_64)
+Voalle id=755 tag=CASA_64_PKV_HXF9HWNI encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+clinica.ltda
+Voalle id=2322 tag=3WCAFQKQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 100 MEGA - SCM
+Voalle id=2148 tag=NWBR5X26 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+DISCAR-ITABAIANA-PRINCIPAL
+Voalle id=2451 tag=HV5EYT1T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+F2-VELCOM
+Voalle id=1850 tag=N6LSGAM7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_24) senha: (casa_24)
+Voalle id=727 tag=CASA_24_PKV_CINQLX28 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+103FM-BACKUP
+Voalle id=2369 tag=JSGSB8CA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Dados - CENTRO MÉDICO JOUBERTO UCHOA
+Voalle id=1922 tag=HZKEYRGA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_23) senha: (casa_23)
+Voalle id=726 tag=CASA_23_PKV_L7MEKXYR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GENISON-AQUINO
+Voalle id=2385 tag=J7N8C70S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Yazaki - Link Backup
+Voalle id=622 tag=PEBS5AD9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL MARANHAO
+Voalle id=2817 tag=DR2SCSCR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL PIRAMBU
+Voalle id=2916 tag=AJUMVTBRL9YTJR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EOIP SEBRAE LAGARTO
+Voalle id=2957 tag=K92QDZGZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAKAI(PRODIGY) RESORT - FIBRA
+Voalle id=104 tag=00275-575-296 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Geraldo_Margella-Haras
+Voalle id=2250 tag=PRFEHSHV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_77) senha: (casa_77)
+Voalle id=715 tag=CASA_77_PKV_0A4T37B8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LETICIA-MOREIRA
+Voalle id=2410 tag=4R0ZDWY8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_66) senha: (casa_66)
+Voalle id=757 tag=CASA_66_PKV_B71Z37GR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE User PPPoE (casa_84) senha: (casa_84)
+Voalle id=743 tag=CASA_84_PKV_PE4EHZ18 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 50 MEGA - SCM
+Voalle id=2553 tag=DWNAGX3Q encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q08D01_RINALDO-SERRA
+Voalle id=2549 tag=3SB7D9KW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 100Mbps - FILIAL ECOPOSTO
+Voalle id=2893 tag=AJUMVTM6KS2VYZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_86) senha: (casa_86)
+Voalle id=696 tag=CASA_86_PKV_J8YTM8GV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL JOÃO ALVES
+Voalle id=2883 tag=AJUMVT365EFVH8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=0RL8GRYX
+⚠
+Serviço Internet Dedicado 200 MEGA - SCM (SERVIDOR TEF)
+Voalle id=2258 tag=5EMVC82W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q17D03-CRISTIAN-CALVI
+Voalle id=2822 tag=KV1VY9M9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 50 MEGA - SCM
+Voalle id=2915 tag=AJUMVTMADQYWNW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ednalva.goncalves
+Voalle id=2044 tag=HV4TFTY8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q15E05-ARLEN
+Voalle id=2522 tag=1Q0AGVJV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL PATY
+Voalle já possui integrationCodeMap=64b6e193119b440020bb506d, tag=KALX4AYW
+◉
+FERNANDO.JUNIOR
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=J9K61646
+⚠
+EDIF-RESID-VITTORIO-EMANUELLE
+Voalle id=2703 tag=LW4Z1A3Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MVT4 - BGP IP TRANSPORTE
+Voalle id=2110 tag=DRMA3S1W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL ITAPORANGA
+Voalle id=2914 tag=AJUMVTCRKQC7N8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+POSTO ALPHA01 ATALAIA - ONU BRIDGE (NOVO)
+Voalle id=1914 tag=M61VDRCS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_06) senha: (casa_06)
+Voalle id=687 tag=CASA_06_PKV_YRN859C8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARVITEL-FIBRA-100M - SCM (Junior)
+Voalle id=528 tag=D95IJ84A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_17) senha: (casa_17)
+Voalle id=692 tag=CASA_17_PKV_KWCTG918 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+user
+Voalle id=1960 tag=4RCRN6K7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa16
+Voalle id=2296 tag=GEM8GRCZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX JOÃO RIBEIRO
+Voalle id=2245 tag=562RYE27 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX_ALG=== DACM9121F422
+Voalle id=2240 tag=0V5XDRK8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI-Q05D04
+Voalle id=2135 tag=HWFQ27GS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAUI-CASA 04
+Voalle id=2590 tag=5X3V3V3S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL SIMEAO SOBRAL
+Voalle id=2814 tag=AJUMVTYXC82AFE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+sandra.rezende
+Voalle id=2698 tag=GZFRYRLZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VE.LAIS.PASSOS
+Voalle id=2589 tag=1RBXGE4V encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+alexandre.ramos-MAIKAI_Q03E08
+Voalle id=2161 tag=MVBT171Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_45) senha: (casa_45)
+Voalle id=706 tag=CASA_45_PKV_D9BRBZFV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 100Mbps
+Voalle id=2815 tag=FXME09KT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MSQ-MVT-RB-REDE-PRESID-ECOPOSTO
+Voalle id=2892 tag=AJUMVT5SH91QG6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GBIC User PPPoE (casa_08) senha: (casa_08)
+Voalle id=746 tag=BEPI0ENR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+DISCAR_STO_ANTONIO_DUPLA
+Voalle id=2450 tag=NA0E2THW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MARACAR TANCREDO - ONU BRIDGE (user: support)
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=BRMQBZN8
+⚠
+Serviço de Comunicação de Dados MPLS 100Mbps
+Voalle id=2897 tag=AJUMVT09CTC9JW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GBIC
+Voalle id=2955 tag=YS1A5WL9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JOUBERTO-JUNIOR-MARAVISTA
+Voalle id=2976 tag=0WYT3E0W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps
+Voalle id=2891 tag=AJUMVT5636HRM9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+IZAIAS-BRITO2
+Voalle id=2368 tag=4QJSBQK8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa87
+Voalle id=2311 tag=J7G9H6CT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL LARANJEIRAS
+Voalle id=2867 tag=KWYVJEHR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 50Mbps - FILIAL COELHO
+Voalle id=2828 tag=YR38CXMR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JE-GENILSON-CHAVES
+Voalle id=2836 tag=BZL6FZF8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+maelyn.oliveira
+Voalle id=2607 tag=HA4R4ZC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Comunicação de Dados MPLS 100Mbps
+Voalle id=2810 tag=KEL6DQ5X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DE RÁDIO
+Voalle id=1681 tag=HRK90W06 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de comunicação de dados L2L - RP Marechal
+Voalle id=2788 tag=JQJRCQ27 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Internet Marvitel Fibra 120 Mbps
+Voalle id=1582 tag=KVLS5S27 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+mpse.laranjeiras
+Voalle id=1889 tag=KX4R485W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-CLUBE-02
+Voalle id=2673 tag=1A56J9GA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER
+Voalle id=2208 tag=HXM8JRM7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_29) senha: (casa_29)
+Voalle id=729 tag=CASA_29_PKV_HSKWDEC9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DEDICADO DE 200Mbps SCM - Evento
+Voalle id=2733 tag=2AHS5XCE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CASA03
+Voalle id=2139 tag=59FR3ZFS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DEDICADO DE 100Mbps SCM - Evento
+Voalle id=1783 tag=2T2RLTCX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DEDICADO DE 200Mbps SCM - Evento SEALBA
+Voalle id=2613 tag=5ZDW2Q3T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DEDICADO DE 500Mbps SCM - Evento
+Voalle id=2538 tag=3AFVCSFW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LUCIANA-SILVA-THAI-703
+Voalle id=2872 tag=N8NA184W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+mpse.umbauba
+Voalle id=1912 tag=HQGQC848 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE - User PPPoE (casa_69) senha: (casa_69)
+Voalle id=700 tag=CASA_69_PKV_2_L9NWB8KS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_87) senha: (casa_87)
+Voalle id=745 tag=CASA_87_PKV_HQGXYE1E encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PARKVILLE
+Voalle id=251 tag=Contrato N. M-518 - PARK VILLE CONDOMINIUM - 00094-511-552 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ALVARO-NETO-MSQS
+Voalle id=2687 tag=DS3VDRN7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+vinicius.duarte
+Voalle id=2127 tag=JSMZMQ5S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_80) senha: (casa_80)
+Voalle id=698 tag=CASA_80_PKV_PX5EBSC7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARIANA-DOS-SANTOS
+Voalle id=2345 tag=H95RBZDT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Onu Router
+Voalle id=3068 tag=F7FZBT5W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MPLS REDE PRIMAVERA - Policlin Siqueira
+Voalle id=655 tag=1959CTHW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LUCIANO_BARRETO-MLB
+Voalle id=2191 tag=16LSGADS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=KX39MZGW
+⚠
+associacao.center
+Voalle id=2082 tag=DVKW38B8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_26)
+Voalle id=1079 tag=K65IHX5I encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+HOTEL PARQUE DAS AGUAS - ONU BRIDGE (user: support))
+Voalle id=113 tag=2VGEJV4W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_54) senha: (casa_54)
+Voalle id=739 tag=CASA_54_PKV_Y7BE085Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE - User PPPoE (casa_69) senha: (casa_69)
+Voalle id=701 tag=CASA_68_PKV_2_FQ5ECTMV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa65
+Voalle id=2360 tag=LQ47B6JX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK-UDM
+Voalle id=3085 tag=AJUMVTL7GXBRY9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+STA-HELENA - Link Bkp - Radio
+Voalle id=620 tag=C6CS0627 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JE.eleonora.cruz
+Voalle id=2355 tag=D9KVFSC8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PTX-SEDE
+Voalle id=1769 tag=3RGEM8G6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+braulio.oliveira
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=1Z285T5S
+⚠
+ONU ROUTER User PPPoE (casa_60) senha: (casa_60)
+Voalle id=760 tag=CASA_60_PKV_0T3ZBIYS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER User PPPoE (casa_73) senha: (casa_73)
+Voalle id=1140 tag=CASA_72_PKV_0AFQLRMX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+CONCENTRADOR-GAMA-PEUGEOT
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=471EC91X
+⚠
+maui_casa54
+Voalle id=2424 tag=KE5TLVFT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARIA-DALBOSCO
+Voalle id=2580 tag=2S58CSJS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ANA-PAULA
+Voalle id=2388 tag=5756ME2W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+sandra.rezende
+Voalle id=2700 tag=N61XKZBR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LENISE.FRANCO
+Voalle id=2356 tag=DW195SYQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VANESSA-BEREK
+Voalle id=2932 tag=FVYVC6K9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_55) senha: (casa_55)
+Voalle id=759 tag=CASA_55_PKV_LI2Q49FT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+clinica.ltda
+Voalle id=2341 tag=NANRL91Q encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_53) senha: (casa_53)
+Voalle id=738 tag=CASA_53_PKV_18GVD8BA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK EXCLUSIVO FAN
+Voalle id=3026 tag=JQM6BW4W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER
+Voalle id=2494 tag=0WFTNX3R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LUCIANO_FRANCO_NETO-MLB
+Voalle id=2192 tag=FS4WGX2Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+DISCAR BACKUP
+Voalle id=2452 tag=58JRD8BS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-CLUBE-01
+Voalle id=2672 tag=D8BV2X09 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_28) senha: (casa_28)
+Voalle id=728 tag=CASA_28_PKV_GR4TH6FT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-ANDRE-BARBARA-901
+Voalle id=2679 tag=YZ092VK6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+JOSE-SOUZA-AP201-CO2794
+Voalle já possui integrationCodeMap=6785554f4ff0fa92e21857d9, tag=HE2QB7LR
+⚠
+MYLENA-MARIA
+Voalle id=2180 tag=0R261S59 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+paulo.souza
+Voalle id=2659 tag=581TB9FS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 500 MEGA - SCM - TESTE CIANET
+Voalle id=1452 tag=HSP706D8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_32) senha: (casa_32)
+Voalle id=751 tag=CASA_32_PKV_FA2RC94R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARIA-MESQUITA
+Voalle id=2325 tag=3VYXMWME encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Emgetis - Link IP BGP 20G
+Voalle id=2995 tag=DQL9GZGE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q10E04
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=29NAYXFR
+⚠
+IT PROJETOS - ONU BRIDGE (user: admin)
+Voalle id=2591 tag=B7KTN71S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TV ATALAIA
+Voalle id=1640 tag=P7NRNZFR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+gildecio.fiel
+Voalle id=2690 tag=29DXG8LV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q09D04
+Voalle id=1819 tag=CZMACSN8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+Maikai-Q03E04-GISLAINE
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=N7FWY8LV
+⚠
+CASA_09
+Voalle id=723 tag=KSNI1SKI encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+RODRIGO.SANTANA.Q19D06
+Voalle id=2991 tag=KS3746FE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ALINE.QUEIROZ
+Voalle id=2381 tag=1QJ72WKA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q08D09
+Voalle id=2495 tag=J8H9BR27 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+POSTO_ALPHA06_SANTA_MARIA
+Voalle id=2340 tag=3EKR18N8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 500 MEGA - SCM
+Voalle id=2091 tag=0XBT26BT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK DEDICADO DE 200Mbps SCM - Evento
+Voalle id=3091 tag=EVTBRH7DWFA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+172.26.96.134
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=GQCVYV5Q
+⚠
+marcos.jesus
+Voalle id=2787 tag=3THVJVJZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q16D04
+Voalle id=1763 tag=0VHV4WKR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX_GAZOL
+Voalle id=2236 tag=NV2E1VYT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_81) senha: (casa_81)
+Voalle id=697 tag=CASA_81_PKV_YZ580RPR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COND._TAHAA-BKP
+Voalle id=2153 tag=H8CS5RKZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Kit Inteligente
+Voalle id=45 tag=00164-249-150 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q01D04
+Voalle id=2390 tag=MT18NQL9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COMUNICAÇÃO TAHAA 100 MEGA - CASA24
+Voalle id=2313 tag=GXN6CTDV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa52
+Voalle id=2326 tag=1E561ZN8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE User PPPoE (casa_22) senha: (casa_22)
+Voalle id=748 tag=J80V5X0A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER - Usuario: support
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=0837LE26
+⚠
+PTX-AEROPORTO
+Voalle id=2220 tag=2VGA2TYR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+jose.conceicao
+Voalle id=2711 tag=J84TJ9FE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+172.26.96.61
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=3WDA17LT
+⚠
+livio.feitosa
+Voalle id=2604 tag=MEYSLALA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK-HOTSPOT-SEDE
+Voalle id=3086 tag=AJUMVTD9MXHQHS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER
+Voalle id=2478 tag=JR17B7JZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CARLA.SEREX
+Voalle id=3065 tag=BE3W1W27 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ALPHA5_DETRAN - ONU BRIDGE (User: admin)
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=YQ4X56LR
+⚠
+condominio.praia
+Voalle id=2668 tag=5VFEGWD9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+mvtel_marvitel
+Voalle id=2249 tag=MZCE2TYV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+UNIMED - IP LINK PRINCIPAL
+Voalle id=124 tag=B91T4A5Q encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q07D09_ENIKSON
+Voalle id=3042 tag=0XNVFTJT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EMCS - ONU BRIDGE (user: support)
+Voalle id=148 tag=ContratoM-583-00358-576-372 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Carlos-Castro - Terras AlphaVille 1, Lote J7
+Voalle id=3060 tag=CQHW1ABW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_43)
+Voalle id=1081 tag=M7DEFE4R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+GAMA-VEICULOS - ONU BRIDGE (user: support)
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=5Z1TYV1Q
+⚠
+RICHER_MOTA
+Voalle id=2622 tag=LEBZBV2S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_27) senha: (casa_27)
+Voalle id=750 tag=CASA_27_PKV_4QMA3SF6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+verg.ltda
+Voalle id=3046 tag=L74A2ZCA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER
+Voalle id=1398 tag=YIKABA57 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+alvaro.brasil
+Voalle id=2772 tag=D9MRM7NW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q14E07
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=0RHQ4XGE
+⚠
+ONU ROUTER - User PPPoE (casa_37) senha: (casa_37)
+Voalle id=703 tag=CASA_37_PKV_FENXYAY7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER
+Voalle id=769 tag=CASA_48_PKV_YAMZJT28 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE (USER: support)
+Voalle id=2555 tag=1A0E4TKV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+DARREN-MAIKAI_Q11E08
+Voalle id=3018 tag=KR2Q5ZBV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+RODRIGO-BATISTA-CO2829
+Voalle id=3043 tag=FZBXBE07 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q01D13
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=DQJRYRY7
+⚠
+ONU ROUTER User PPPoE (casa_39) senha: (casa_39)
+Voalle id=733 tag=CASA_39_PKV_FIF6MTCE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_71) senha: (casa_71)
+Voalle id=699 tag=CASA_71_2_PKV_BZYW3QJQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_73) senha: (casa_73)
+Voalle id=1061 tag=3TBE5WN8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa34
+Voalle id=2361 tag=NQ3SCXCW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=N85W2V0A
+⚠
+tahaa-casa19
+Voalle id=2425 tag=2A4XBRDA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_40) senha: (casa_40)
+Voalle id=704 tag=CASA_40_PKV_K73E2VPW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+FARMAC-LINK02-CO1237
+Voalle id=3045 tag=AJUMVTJWY7C9B6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+RODRIGO-GOULART
+Voalle id=2615 tag=GR3A4AJ9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_20) senha: (casa_20)
+Voalle id=747 tag=CASA_20_PKV_FVKSCXC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+sandra.rezende
+Voalle id=2699 tag=K94AD9HZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+POSTO-ALPHA-NOVA-SEDE LINK BKP
+Voalle id=3067 tag=AJUMVTNV2RMRFX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q03D09-LUIZA-CRUZ
+Voalle id=2719 tag=CT4Z1Z1X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+FFB - BACKUP
+Voalle id=1600 tag=FVJQDVJX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+jose.andrade
+Voalle id=2717 tag=5TF6KT46 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+cibelly.arimateia
+Voalle id=2428 tag=B7HEGSY9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q10E09
+Voalle id=1931 tag=CZYQM95X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q01E05-MARIA-APARECIDA
+Voalle id=2537 tag=475QYRMZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_30) senha: (casa_30)
+Voalle id=730 tag=CASA_30_PKV_BZ27BSG6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_51) senha: (casa_51)
+Voalle id=737 tag=CASA_51_PKV_MWCWNWLX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+multserv.ltda
+Voalle id=2924 tag=M9BQ5RFA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+FELLIPE-MENEZES
+Voalle id=2319 tag=KRGT1ZNQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+gildecio.fiel
+Voalle id=2689 tag=J91R2SKX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JARDIM-EUROPA
+Voalle id=2209 tag=KZKX3VMX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-USINA-ENERGIA-SOLAR
+Voalle id=2675 tag=YRMTG84R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+helio.santos
+Voalle id=2142 tag=J9M75X2E encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TESTE
+Voalle id=1528 tag=3I3S0SMS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+glaucia.morais
+Voalle id=3029 tag=390SFQDE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+SELLECTA.LTDA02
+Voalle id=2420 tag=YEMQ3XDQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GUSTAVO-MELO
+Voalle id=2960 tag=CEJ7BAGQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GUARITA
+Voalle id=721 tag=P9DXKQ0I encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_59) senha: (casa_59)
+Voalle id=710 tag=CASA_59_PKV_YACWB6B6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+RAFAEL-ANDRADE-CO2847
+Voalle id=3062 tag=47FV0EKE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-BRIDGE - User PPPoE (casa_12) senha: (casa_12)
+Voalle id=689 tag=CASA_12_PKV_SKXLIBA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q07D08-KAMILLA_DANILLY
+Voalle id=2086 tag=5SJSK8B9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+STANZA-MPLS-ARUANA-CO2798
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=19L7CXJE
+⚠
+ONU-ROUTER - User PPPoE (casa_33)
+Voalle id=1080 tag=LVNXLA39 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_61) senha: (casa_61)
+Voalle id=711 tag=CASA_61_PKV_3W4SDTM7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Link Rádio
+Voalle id=93 tag=00131-482-268 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+guilherme.maluf
+Voalle id=3007 tag=CWY6B63T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ROBERTO-BARBOSA
+Voalle id=2333 tag=47H6482V encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_11) senha: (casa_11)
+Voalle id=1035 tag=FXBV4IC8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GBIC XPON
+Voalle id=2959 tag=J6CTJE3W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Concessionaria HYUNDAI
+Voalle id=3055 tag=LWFE3Q2A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CLUBE
+Voalle id=1532 tag=5ZM7FEHW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tribunal.sergipe
+Voalle id=2307 tag=0XBQKEC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Dupla-Abordagem-HOSPITAL-PRIMAVERA
+Voalle id=1859 tag=NXHQ4W5A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CCPA-BKP
+Voalle id=2227 tag=N7MTJED7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_85) senha: (casa_85)
+Voalle id=744 tag=CASA_85_PKV_HZJWDE3X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MPLS REDE PRIMAVERA - Policlin Itabaiana
+Voalle id=656 tag=CRDXN9FS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-ANDRE-SANTOS-305
+Voalle id=2657 tag=D727BXFE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JOAO-SOUZA
+Voalle id=2944 tag=M84VH6YS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Internet Marvitel Fibra 200 Mbps Full - MAUI
+Voalle id=2419 tag=2W0Q16FR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-BRIDGE
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=JRF7L9F8
+⚠
+HOS - Centro Médico Jardins Sede (Concetrador)
+Voalle id=57 tag=M-113-00150-107-196 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+anderson.nogueira
+Voalle id=2337 tag=H7KXBRGS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_10) senha: (casa_10)
+Voalle id=724 tag=4R1ZM85V encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Maikai_Q02D13-LUIS-ANDR
+Voalle id=2715 tag=NW2QCRGA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Dados - DECÓS
+Voalle id=1921 tag=F9YZG8HE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+lincon.sotocorno
+Voalle id=2393 tag=KE0E1ZC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+BELISSIMA-LTDA-CO2791
+Voalle id=3020 tag=0RN6HW3X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-206-RAYMUNDO-JUNIOR
+Voalle id=2755 tag=K7M7GTJ9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER User PPPoE (casa_62) senha: (casa_62)
+Voalle id=741 tag=CASA_62_PKV_LWM74IMX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=CZ1708B7
+⚠
+ONU ROUTER User PPPoE (casa_50) senha: (casa_50)
+Voalle id=736 tag=CASA_50_PKV_0WGXBSGR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Raizen - Internet 20M (Oferta Contra-Ataque)
+Voalle id=678 tag=CR3SFZPW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CLINICA-MEMBRO
+Voalle id=2229 tag=D6HV472W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+jacqueline.prado
+Voalle id=3100 tag=1W1SJSKX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+REDE-FAN-FM-LINK-PRINCIPAL
+Voalle id=2801 tag=AJU-MVT-5AHZJ8JA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+RODRIGO.SILVA
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=NEG7081Z
+⚠
+condominio.praia
+Voalle id=2670 tag=MSYS29GA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q15DL02-NUARA-CHUERI
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=57MAYQYA
+⚠
+gustavo.guimaraes
+Voalle id=2212 tag=C6DWB9C9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=5QDT49BR
+⚠
+JULIANE-TEIXEIRA
+Voalle id=2171 tag=MAK9HRHZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+DISCAR-COROA-DO-MEIO
+Voalle id=2453 tag=NWH7M7D9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+HOTEL REAL PRAIA - ONU BRIDGE (user: support)
+Voalle id=112 tag=1A3XLQY6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço de Acesso Redundante 200 MEGA - SCM
+Voalle id=1694 tag=NWLQKQYZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Rosa Angelica Santos - Casa 67
+Voalle id=758 tag=CASA_67_PKV_H9LIH6NS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI-Q04D05-ADLER-CHUEIRI
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=MQJZJX2W
+⚠
+TRIBUNAL DE JUSTIÇA - CAMPO DO BRITO
+Voalle id=1965 tag=3W2A18ME encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU BRIDGE User PPPoE (casa_58) senha: (casa_58)
+Voalle id=740 tag=CASA_58_PKV_2ZNWY75I encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EDUARDO-SILVA-THAI-911
+Voalle id=2641 tag=3XMQNVFE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX_LAMARAO
+Voalle id=2242 tag=BW1VBXF7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tribunal.sergipe
+Voalle id=2406 tag=K8DZBAJQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GBIC XPON
+Voalle id=2954 tag=06JTKZNE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+TRIBUNAL DE JUSTIÇA - LARANJEIRAS
+Voalle id=1996 tag=K7KVGQ5T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+jose.junior
+Voalle id=2436 tag=165RBRDX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+camilla.ramos
+Voalle id=2702 tag=4816KV2X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_16) senha: (casa_16)
+Voalle id=691 tag=CASA_16_PKV_MSLSDIGT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+andre.araujo
+Voalle id=2516 tag=4S3QFQY7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CENTRO-MEDICO-JOUBERTO-UCHOA
+Voalle id=2473 tag=3XH626GW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER User PPPoE (casa_13) senha: (casa_13)
+Voalle id=1053 tag=CASA_13_PKV_FR3R3WG6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+F2-VELCOM-SOCORRO
+Voalle id=2260 tag=26YEJ9M8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa26
+Voalle id=2430 tag=G9LZM8H8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JE.victor.araujo
+Voalle id=2295 tag=2TDZMXL8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+lucas.silva
+Voalle id=2727 tag=NS594S5X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=JW37Y8NA
+⚠
+GABRIEL-TAVARES
+Voalle id=2185 tag=4X1Q0QBV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COMUNICAÇÃO PARKVILLE 300 MEGA - MINI MERCADO
+Voalle id=2113 tag=L71A2W2T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+POSTO ALPHA NOVA SEDE
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=AJUMVT5S4W49ME
+⚠
+ITP===DACM0001B0D8
+Voalle id=2599 tag=GEG9080V encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CETAFEST/JBR - Concentrador
+Voalle id=3139 tag=N82TFTBV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_25) senha: (casa_25)
+Voalle id=749 tag=CASA_25_PKV_KTC8575I encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+support
+Voalle id=1392 tag=DSFZG75A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+maui_casa86
+Voalle id=2423 tag=LXMEMQHQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CASA ESTA EM REFORMA
+Voalle id=712 tag=CASA_70_PKV_46NQPW47 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CARMO-ENERGY-TECARMO
+Voalle id=3032 tag=BSDQ2QF6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+nuara.chueiri
+Voalle id=2490 tag=BX0SN7CS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX RUA ESTANCIA
+Voalle id=2223 tag=LEMWBVGS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MARACAR-MATRIZ
+Voalle id=2966 tag=DR5VJXDR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GERENCIA - ONU- Router
+Voalle id=1397 tag=N8KVBAHS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+genison.aquino
+Voalle id=3012 tag=19BW1648 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER-PPOE - Usuario: support
+Voalle id=1041 tag=PZ3XKIBQ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-ROUTER - Usuario: support
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=5SJ9HWG6
+⚠
+ONU ROUTER User PPPoE (casa_38) senha: (casa_38)
+Voalle id=732 tag=CASA_38_PKV_G8D9G8JW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Serviço Internet Dedicado 150 MEGA - SCM
+Voalle id=3143 tag=JXC6HTC7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX_PORTO_DANTAS
+Voalle id=2221 tag=LZ29L7N8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - Usuario: support
+Voalle id=1407 tag=29DQ3WNE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+flavia.pinheiro
+Voalle id=2408 tag=J8K7GQJZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+GUILHERME_MALUF-JFC
+Voalle id=2591 tag=B7KTN71S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-1107-MARCEL-AMARAL
+Voalle id=2773 tag=2XMTJZLR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EMURB SEDE - ONU BRIDGE (user: admin)
+Voalle id=137 tag=EMURB-00147-555-356 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q01E10
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=JSJSKZMA
+⚠
+CONTABILIZAR
+Voalle id=3015 tag=J9K9C81Q encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PKV-CASA_65
+Voalle id=756 tag=CASA_65_PKV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+THAI-1213-JOSE-OLIVEIRA
+Voalle id=2685 tag=0SMWH81E encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+FFB IBIS HOTEL
+Voalle id=116 tag=00297-462-321 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LEONARDO-JUNIOR-1103
+Voalle id=2635 tag=1ZGRKZJZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU DATACOM TESTE
+Voalle id=1451 tag=M9BEDVPS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+JE.luizacatarina
+Voalle id=2047 tag=FSDVYZGT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI-10E11-FABRICIO
+Voalle id=2741 tag=N8G9165X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+camila.albuquerque
+Voalle id=2217 tag=D8GE1ZNV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+SAUDE-FELIZOLA
+Voalle id=2418 tag=YS5ALTHR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+mvt.teste
+Voalle id=1915 tag=J7CWYQJ8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-BRIDGE - User PPPoE (Piscina) senha: (parkville)
+Voalle id=688 tag=4W1T2SHV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+enikson.souza
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=3WNXKEH8
+⚠
+MARCELLI_OLIVEIRA - THAI 704
+Voalle id=2990 tag=5ZJAD7H8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+COMUNICAÇÃO TAHAA 100 MEGA - CASA 69
+Voalle id=2338 tag=Y6HS5AG7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PTX_URQUIZIA_BKP2
+Voalle id=2248 tag=JENZHA28 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q12D02
+Voalle id=2517 tag=GRCECAJW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX_JATOBÁ
+Voalle id=2238 tag=DS5VDAM6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_LOJA01
+Voalle id=2692 tag=264QF61Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_44) senha: (casa_44)
+Voalle id=754 tag=MTN9PTL8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MNET
+Voalle id=1209 tag=N9L9571T encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tribunal.sergipe
+Voalle id=2534 tag=3V1VNTG9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ANDRE-LISB-CASA-80
+Voalle id=2438 tag=HRMZD8B8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CARLA-MESQUITA===TPLGCE0013D8
+Voalle id=2576 tag=19NV2QC9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_31) senha: (casa_31)
+Voalle id=695 tag=CASA_31_PKV_HTKA1T3W encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CASA49
+Voalle id=2033 tag=D8LRK63X encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+HOTEL-REAL-CLASSIC
+Voalle id=118 tag=ContratoN.M-261-C.P.B.HOTEISETURISMOLTDA-ME-00233-254-323 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+tahaa-casa35
+Voalle id=2309 tag=HZH92ABX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+luciana.silva
+Voalle id=3010 tag=1EJXCSY7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+eldon.junior
+Voalle id=2770 tag=374QGELS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Q14E06
+Voalle id=1539 tag=LQGQNXKE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONCOCLINICA
+Voalle id=2197 tag=160S5QB7 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CEMISE INTERNET
+Voalle id=121 tag=Contrato N. M-330 - CEMISE - CENTRO DE MEDICINA INTEGRADA DE SERGIPE LTDA - 00254-323-326 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+MAIKAI_Q09D09
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=NXY7Y9B8
+⚠
+DISCAR-COROA-DO-MEIO-BK
+Voalle id=2454 tag=HSCSBA2R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_21) senha: (casa_21)
+Voalle id=693 tag=G90SJQMA encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_74) senha: (casa_74)
+Voalle id=713 tag=CASA_74_PKV_2QCQY7BX encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU-ROUTER - User PPPoE (casa_05) senha: (casa_05)
+Voalle id=686 tag=CASA_05_PKV_CAMINIFI encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+ONU-BRIDGE
+Voalle já possui integrationCodeMap=64de6d6e944d1a0020ca33a5, tag=MQL74EBZ
+⚠
+edja.queiroz
+Voalle id=2485 tag=C7MRH92A encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+sergipe.publico
+Voalle id=2972 tag=183VD7D8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER
+Voalle id=770 tag=CASA_49_PKV_M7G8N95E encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Dupla-Abordagem-POLICLIN-SIQUEIRA
+Voalle id=1858 tag=38090W5R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+andre.santos
+Voalle id=2746 tag=JT171ANR encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_82) senha: (casa_82)
+Voalle id=717 tag=CASA_82_PKV_YQN70656 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_Q02E14
+Voalle id=2492 tag=MWNQYS2S encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+PETROX MARCOS FREIRE
+Voalle id=2243 tag=5AFV16DT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+rede.ltda
+Voalle id=2911 tag=Y6DSF74Z encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+MAIKAI_12E04-JOAQUIM
+Voalle id=1442 tag=F63X3EC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ORIENTAL - FIBRA
+Voalle id=2088 tag=KT4QBQNV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+POSTO_ALPHA03-EMES- ONU BRIDGE (User:support)
+Voalle id=2342 tag=5AYTJ9HE encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+julio.cunha
+Voalle id=2417 tag=L81TG9D8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Dalon-Backup
+Voalle id=2111 tag=HW4ZB609 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+marcio.melins
+Voalle id=2616 tag=YR57D6NV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER User PPPoE (casa_63) senha: (casa_63)
+Voalle id=742 tag=CASA_63_PKV_MAPXKXHV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_15) senha: (casa_15)
+Voalle id=725 tag=CASA_15_PKV_17DSGZL8 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+CASA_04
+Voalle id=1529 tag=F9C7GIKT encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+EOIP MULTISERV PROPRIA
+Voalle id=2956 tag=1Z274TKS encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+VINICIUS-BEZERRA
+Voalle id=2143 tag=YV5QBVBZ encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+◉
+sociedade.unit
+Voalle já possui integrationCodeMap=60cdf7440fa0d50013384172, tag=H90R18YV
+⚠
+POSTO_ALPHA04_ZAQUEU
+Voalle id=2351 tag=06GA06K9 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LINK-REDUNDANCIA
+Voalle id=3084 tag=AJUMVTHV4WDVC6 encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+Internet Marvitel Fibra 300 Mbps
+Voalle id=2214 tag=JT39C6KW encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+ONU ROUTER - User PPPoE (casa_89) senha: (casa_89)
+Voalle id=720 tag=CASA_89_PKV_MXLQ364R encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)
+⚠
+LIANA-SEABRA
+Voalle id=2331 tag=39M71ABV encontrado, mas sem cliente OZmap compatível (0 candidatos sem score)

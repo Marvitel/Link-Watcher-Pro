@@ -12864,27 +12864,11 @@ export async function registerRoutes(
     }
 
     const ozmapConfig = ozmapIntegrations[0];
-    const ozmapBaseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    let ozmapBaseUrl = ozmapConfig.apiUrl!.replace(/\/+$/, "");
+    if (ozmapBaseUrl.endsWith("/api/v2")) ozmapBaseUrl = ozmapBaseUrl.slice(0, -7);
     const ozmapHeaders = { "Accept": "application/json", "Authorization": ozmapConfig.apiKey! };
 
-    // Buscar links afetados: com tag mas sem dados OZmap (potência null e ozmapNoRoute != true)
-    let candidateLinks;
-    if (linkIds && linkIds.length > 0) {
-      candidateLinks = await db.select().from(links).where(
-        and(isNull(links.deletedAt), sql`${links.id} = ANY(${linkIds})`)
-      );
-    } else {
-      candidateLinks = await db.select().from(links).where(
-        and(
-          isNull(links.deletedAt),
-          isNull(links.ozmapArrivingPotency),
-          or(isNotNull(links.voalleContractTagServiceTag), isNotNull(links.ozmapTag)),
-          or(eq(links.ozmapNoRoute, false), isNull(links.ozmapNoRoute))
-        )
-      );
-    }
-
-    // Helpers
+    // Helpers (definidos antes do pre-flight para poder reutilizar fetchWithTimeout)
     const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
       const R = 6371;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -12911,6 +12895,33 @@ export async function registerRoutes(
       await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, run));
       return results;
     };
+
+    // Pre-flight: verificar conectividade OZmap antes de processar
+    try {
+      const pingResp = await fetchWithTimeout(`${ozmapBaseUrl}/api/v2/box-types?page=1&limit=1`, { headers: ozmapHeaders }, 8000);
+      if (!pingResp.ok) {
+        return res.status(502).json({ error: `OZmap retornou HTTP ${pingResp.status} — verifique se o token JWT está válido` });
+      }
+    } catch (e) {
+      return res.status(502).json({ error: `Não foi possível conectar ao OZmap: ${e instanceof Error ? e.message : String(e)}` });
+    }
+
+    // Buscar links afetados: com tag mas sem dados OZmap (potência null e ozmapNoRoute != true)
+    let candidateLinks;
+    if (linkIds && linkIds.length > 0) {
+      candidateLinks = await db.select().from(links).where(
+        and(isNull(links.deletedAt), sql`${links.id} = ANY(${linkIds})`)
+      );
+    } else {
+      candidateLinks = await db.select().from(links).where(
+        and(
+          isNull(links.deletedAt),
+          isNull(links.ozmapArrivingPotency),
+          or(isNotNull(links.voalleContractTagServiceTag), isNotNull(links.ozmapTag)),
+          or(eq(links.ozmapNoRoute, false), isNull(links.ozmapNoRoute))
+        )
+      );
+    }
 
     // Separar links com e sem dados suficientes
     type LinkInfo = { link: typeof candidateLinks[0]; pppoe: string | null; oldTag: string | null; serial: string | null };
@@ -13009,14 +13020,20 @@ export async function registerRoutes(
           const url = `${ozmapBaseUrl}/api/v2/ftth-clients?filter=${encodeURIComponent(JSON.stringify(filter))}&limit=10`;
           try {
             const r = await fetchWithTimeout(url, { headers: ozmapHeaders }, 10000);
-            if (!r.ok) return;
+            if (!r.ok) {
+              console.warn(`[OZmap Reconcile] OZmap HTTP ${r.status} para filtro ${JSON.stringify(filter)}`);
+              return;
+            }
             const data = await r.json() as any;
-            const rows: any[] = data?.data || data?.rows || [];
+            const rows: any[] = data?.rows || (Array.isArray(data) ? data : []);
             for (const row of rows) {
               const id: string = row._id || row.id;
               if (id && !candidateMap.has(id)) candidateMap.set(id, { _id: id, score: 0, row });
             }
-          } catch { /* timeout ou erro de rede — ignorar */ }
+          } catch (fetchErr) {
+            const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+            console.warn(`[OZmap Reconcile] Erro ao buscar OZmap (filtro=${JSON.stringify(filter)}): ${msg}`);
+          }
         };
 
         const filters: object[][] = [];
