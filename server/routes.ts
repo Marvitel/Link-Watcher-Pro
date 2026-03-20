@@ -13061,18 +13061,33 @@ export async function registerRoutes(
         // Busca por integrationCode (Voalle integrationCode aponta para OZmap integrationCode)
         if (voalleIntegrationCode) filters.push([{ property: "integrationCode", value: voalleIntegrationCode, operator: "=" }]);
 
-        if (filters.length === 0) {
+        if (filters.length === 0 && !(voalleLat && voalleLon)) {
           result.status = "skip";
-          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, ozmapTag ou integrationCode)`;
+          result.detail = `Sem dados para busca no OZmap (sem serial, PPPoE, ozmapTag, integrationCode ou coordenadas)`;
           return result;
         }
 
-        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros (serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, ozmapTag=${link.ozmapTag||"-"})`);
+        console.log(`[OZmap Reconcile] Link "${link.name}": ${filters.length} filtros (serial=${voalleSerial||"-"}, pppoe=${pppoeSearchValues.join(",")||"-"}, ozmapTag=${link.ozmapTag||"-"}, geo=${voalleLat ? `${voalleLat},${voalleLon}` : "-"})`);
 
+        // FASE primária: serial, PPPoE, code, integrationCode
         await Promise.all(filters.map(f => ozmapFetch(f)));
 
+        // FASE geo: se nenhum candidato encontrado e temos coordenadas, tentar bounding box ≈300m
+        // DELTA = 0.003 graus ≈ 333m; pontuação geo: ≤50m=+2, ≤200m=+1, ≤400m=+1 (fallback)
+        const GEO_DELTA = 0.003;
+        if (candidateMap.size === 0 && voalleLat && voalleLon) {
+          const geoFilter = [
+            { property: "geopoint.coordinates.1", value: voalleLat - GEO_DELTA, operator: ">=" },
+            { property: "geopoint.coordinates.1", value: voalleLat + GEO_DELTA, operator: "<=" },
+            { property: "geopoint.coordinates.0", value: voalleLon - GEO_DELTA, operator: ">=" },
+            { property: "geopoint.coordinates.0", value: voalleLon + GEO_DELTA, operator: "<=" },
+          ];
+          console.log(`[OZmap Reconcile] Link "${link.name}": tentando geo fallback (lat=${voalleLat}, lon=${voalleLon}, delta=${GEO_DELTA})`);
+          await ozmapFetch(geoFilter);
+        }
+
         // Scoring
-        for (const c of candidateMap.values()) {
+        const scoreCandidate = (c: OzmapCandidate) => {
           const row = c.row;
           const codeVal  = (row.code || "").toUpperCase().trim();
           const cSerial  = (row.onu?.serial_number || row.serialNumber || "").toUpperCase().trim();
@@ -13081,18 +13096,25 @@ export async function registerRoutes(
           const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
           const cCode    = (row.integrationCode || "").trim();
 
-          // +4 code OZmap bate com ozmapTag do link (confirmação mais forte)
+          // +4 code OZmap bate com ozmapTag do link
           if (link.ozmapTag && codeVal && codeVal === link.ozmapTag.toUpperCase()) c.score += 4;
           // +3 serial bate
           if (voalleSerial && cSerial && cSerial === voalleSerial) c.score += 3;
           // +2 PPPoE bate (voalleConn.user tem precedência)
           if (pppoeSearchValues.length > 0 && cPppoe && pppoeSearchValues.includes(cPppoe)) c.score += 2;
+          // Pontuação por distância haversine
           if (voalleLat && voalleLon && cLat && cLon) {
             const dist = haversineKm(voalleLat, voalleLon, cLat, cLon);
-            if (dist <= 0.05) c.score += 2;
-            else if (dist <= 0.2) c.score += 1;
+            if (dist <= 0.05)  c.score += 2; // dentro de 50m: +2
+            else if (dist <= 0.2)  c.score += 1; // dentro de 200m: +1
+            else if (dist <= 0.4)  c.score += 1; // dentro de 400m: +1 (cobre diagonal da bounding box GEO_DELTA)
           }
+          // +1 integrationCode bate
           if (voalleIntegrationCode && cCode && cCode === voalleIntegrationCode) c.score += 1;
+        };
+
+        for (const c of candidateMap.values()) {
+          scoreCandidate(c);
         }
 
         const candidates = [...candidateMap.values()].sort((a, b) => b.score - a.score);
@@ -13104,7 +13126,13 @@ export async function registerRoutes(
           result.status = "ozmap_not_found";
           result.voalleConnectionId = voalleConn.id;
           result.newServiceTag = currentServiceTag ?? undefined;
-          result.detail = `Voalle id=${voalleConn.id} tag=${currentServiceTag} encontrado, mas sem cliente OZmap compatível (${candidates.length} candidatos sem score)`;
+          const filterSummary = [
+            voalleSerial ? `serial=${voalleSerial}` : `serial=null`,
+            pppoeSearchValues.length ? `pppoe=${pppoeSearchValues.join("|")}` : `pppoe=null`,
+            link.ozmapTag ? `code=${link.ozmapTag}` : null,
+            voalleIntegrationCode ? `intCode=${voalleIntegrationCode}` : null,
+          ].filter(Boolean).join(", ");
+          result.detail = `Voalle id=${voalleConn.id} tag=${currentServiceTag} encontrado, mas sem cliente OZmap compatível (${candidates.length} candidatos) [${filterSummary}]`;
           if (currentServiceTag && currentServiceTag !== oldTag && !dryRun) {
             await db.update(links).set({ ozmapTag: currentServiceTag }).where(eq(links.id, link.id));
           }
