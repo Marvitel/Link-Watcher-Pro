@@ -13044,6 +13044,24 @@ export async function registerRoutes(
       if (conn.equipmentSerialNumber)   voalleBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
     }
 
+    // Detectar integrationCodeMap "falso" — mesmo valor repetido em N+ conexões indica atribuição em massa
+    // (ex: Voalle atribui um ID padrão/placeholder para todas as conexões sem vínculo real)
+    const integrationCodeMapCount = new Map<string, number>();
+    for (const conn of voalleAllConns) {
+      const icm: string | null = conn.integrationCodeMap ?? null;
+      if (icm) integrationCodeMapCount.set(icm, (integrationCodeMapCount.get(icm) ?? 0) + 1);
+    }
+    // Threshold: se o mesmo integrationCodeMap aparece em 4+ conexões, é falso
+    const BOGUS_ICM_THRESHOLD = 4;
+    const bogusIntegrationCodeMaps = new Set<string>(
+      [...integrationCodeMapCount.entries()]
+        .filter(([, count]) => count >= BOGUS_ICM_THRESHOLD)
+        .map(([icm]) => icm)
+    );
+    if (bogusIntegrationCodeMaps.size > 0) {
+      console.log(`[OZmap Reconcile] Detectados ${bogusIntegrationCodeMaps.size} integrationCodeMap(s) falsos (≥${BOGUS_ICM_THRESHOLD} conexões): ${[...bogusIntegrationCodeMaps].join(", ")}`);
+    }
+
     // FASE 2 — Processar cada link em paralelo (máx 5 simultâneos)
     reconcileProgress.phase = "processing";
     reconcileProgress.total = toProcess.length + results.length; // inclui os skip iniciais
@@ -13064,7 +13082,13 @@ export async function registerRoutes(
         }
 
         const currentServiceTag: string | null = voalleConn.serviceTag ?? null;
-        const currentIntegrationCodeMap: string | null = voalleConn.integrationCodeMap ?? null;
+        const rawIntegrationCodeMap: string | null = voalleConn.integrationCodeMap ?? null;
+        // Se o integrationCodeMap for um valor falso (repetido em massa), ignorar — forçar re-busca no OZmap
+        const isBogusIcm = rawIntegrationCodeMap ? bogusIntegrationCodeMaps.has(rawIntegrationCodeMap) : false;
+        const currentIntegrationCodeMap: string | null = isBogusIcm ? null : rawIntegrationCodeMap;
+        if (isBogusIcm) {
+          console.log(`[OZmap Reconcile] "${link.name}": integrationCodeMap falso detectado (${rawIntegrationCodeMap}) — forçando re-busca`);
+        }
 
         // Dados do Voalle para scoring e busca
         const voalleSerial = (voalleConn.equipmentSerialNumber || serial || "").toUpperCase().trim();
@@ -13220,15 +13244,17 @@ export async function registerRoutes(
           return result;
         }
 
-        // Precisa vincular (novo) ou atualizar (integrationCodeMap diferente)
-        const isUpdate = !!currentIntegrationCodeMap && currentIntegrationCodeMap !== ozmapClientId;
+        // Precisa vincular (novo) ou atualizar (integrationCodeMap diferente ou falso)
+        // Se rawIntegrationCodeMap existe (mesmo que falso/bogus), usar update (override via old→new)
+        // Se rawIntegrationCodeMap é null, vincular pela primeira vez
+        const isUpdate = !!rawIntegrationCodeMap && rawIntegrationCodeMap !== ozmapClientId;
         let voalleOk = dryRun;
 
         if (!dryRun) {
           if (isUpdate) {
-            // Atualizar vínculo existente: /connection/update/integrationcode/{old}/{new}
-            voalleOk = await voalleAdapter.updateConnectionIntegrationCode(currentIntegrationCodeMap!, ozmapClientId);
-            if (!voalleOk) console.warn(`[OZmap Reconcile] updateConnectionIntegrationCode falhou: ${currentIntegrationCodeMap} → ${ozmapClientId}`);
+            // Atualizar vínculo existente (ou substituir falso): /connection/update/integrationcode/{old}/{new}
+            voalleOk = await voalleAdapter.updateConnectionIntegrationCode(rawIntegrationCodeMap!, ozmapClientId);
+            if (!voalleOk) console.warn(`[OZmap Reconcile] updateConnectionIntegrationCode falhou: ${rawIntegrationCodeMap} → ${ozmapClientId}`);
           } else {
             // Vincular pela primeira vez: /connection/vinculate/{id}/{integrationcode}
             voalleOk = await voalleAdapter.vinculateConnectionIntegrationCode(voalleConn.id, ozmapClientId);
@@ -13253,18 +13279,20 @@ export async function registerRoutes(
 
         if (dryRun) {
           result.status = "dry_run";
+          const bogusNote = isBogusIcm ? " [ICM FALSO → substituindo]" : "";
           result.detail = isUpdate
-            ? `[DRY RUN] Atualizaria vínculo Voalle: ${currentIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode: "${ozmapExistingIntegrationCode || ""}" → "${targetIntegrationCode}"`
+            ? `[DRY RUN] Atualizaria vínculo Voalle: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode: "${ozmapExistingIntegrationCode || ""}" → "${targetIntegrationCode}"`
             : `[DRY RUN] Vincularia voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; OZmap integrationCode: "${ozmapExistingIntegrationCode || ""}" → "${targetIntegrationCode}"`;
         } else if (voalleOk) {
           result.status = "success";
+          const bogusNote = isBogusIcm ? " [ICM falso substituído]" : "";
           result.detail = isUpdate
-            ? `Vínculo atualizado: ${currentIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode atualizado: ${ozmapUpdated}`
+            ? `Vínculo atualizado: ${rawIntegrationCodeMap}${bogusNote} → ${ozmapClientId} [${scoreInfo}]; OZmap integrationCode atualizado: ${ozmapUpdated}`
             : `Vinculado: voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]; OZmap integrationCode atualizado: ${ozmapUpdated}`;
         } else {
           result.status = "vinculate_failed";
           result.detail = isUpdate
-            ? `Falha ao atualizar vínculo: ${currentIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]`
+            ? `Falha ao atualizar vínculo: ${rawIntegrationCodeMap} → ${ozmapClientId} [${scoreInfo}]`
             : `Falha ao vincular voalleId=${voalleConn.id} → ozmapId=${ozmapClientId} [${scoreInfo}]`;
         }
 
