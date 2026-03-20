@@ -1,0 +1,126 @@
+{
+  "success": true,
+  "messages": null,
+  "response": {
+    "data": [
+      {
+        "id": 1,
+        "user": "USUARIO",
+        "integrationCode": "123123",
+        "serviceTag": "A1B2C3D4",
+        "equipmentSerialNumber": "123456",
+        "mac": "00:00:00:00:00:00",
+        "integrationCodeMap": "123",
+        "status": 1,
+        "client": {
+          "id": 123,
+          "name": "NOME DO CLIENTE",
+          "txId": "00000000000"
+        },
+        "address": {
+          "street": "RUA",
+          "postalCode": "000000000",
+          "number": "NUMERO",
+          "neighborhood": "CEP",
+          "city": "CIDADE",
+          "state": "XX",
+          "latitude": "-00.000000",
+          "longitude": "-00.000000",
+          "addressComplement": "COMPLEMENTO"
+        },
+        "splitter": {
+          "id": 321,
+          "title": "teste1",
+          "code": "321",
+          "integrationCode": "123123",
+          "port": 4,
+          "authenticationContractId": 123,
+          "olt": {
+            "code": "20",
+            "description": "",
+            "integrationCode": "321"
+          }
+        },
+        "contract": {
+          "id": 1,
+          "status": 1,
+          "statusDescription": "Normal",
+          "stage": 3,
+          "stageDescription": "Aprovado"
+        },
+        "authenticationAccessPoint": null
+      },
+      {
+        "id": 2,
+        "user": "USUARIO",
+        "integrationCode": null,
+        "serviceTag": "CLI123456-123",
+        "equipmentSerialNumber": null,
+        "mac": null,
+        "status": 2,
+        "client": {
+          "id": 1234,
+          "name": "NOME DO CLIENTE - EMPRESA",
+          "txId": "00000000000000"
+        },
+        "address": {
+          "street": null,
+          "postalCode": null,
+          "number": null,
+          "neighborhood": null,
+          "city": null,
+          "state": null,
+          "latitude": null,
+          "longitude": null,
+          "addressComplement": null
+        },
+        "splitter": null,
+        "contract": {
+          "id": 12345,
+          "status": 7,
+          "statusDescription": "Bloqueio Administrativo"
+        },
+        "authenticationAccessPoint": null
+      },
+      {
+        "id": 4,
+        "user": "USUARIO",
+        "integrationCode": null,
+        "serviceTag": "L123456",
+        "equipmentSerialNumber": "",
+        "mac": "00:D0:F0:BD:00:E0",
+        "status": 1,
+        "client": {
+          "id": 123,
+          "name": "NOME DO CLIENTE",
+          "txId": "50343041049"
+        },
+        "address": {
+          "street": "",
+          "postalCode": "",
+          "number": "",
+          "neighborhood": "",
+          "city": "",
+          "state": "",
+          "latitude": "",
+          "longitude": "",
+          "addressComplement": ""
+        },
+        "splitter": null,
+        "contract": {
+          "id": 24,
+          "status": 1,
+          "statusDescription": "Normal"
+        },
+        "authenticationAccessPoint": null
+      }
+    ],
+    "totalRecords": 15914,
+    "page": 1,
+    "pageSize": 3,
+    "totalizers": null,
+    "totalPages": 5305
+  },
+  "dataResponseType": "DataPage`1",
+  "elapsedTime": null
+}

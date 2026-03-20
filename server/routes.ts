@@ -13197,7 +13197,7 @@ export async function registerRoutes(
         // A busca é feita em 3 níveis: client.id (mais confiável) → PPPoE → serial.
         const voalleClientId: number | null = voalleConn.client?.id ?? null;
 
-        // Candidatos inativos do mesmo cliente (por clientId, PPPoE ou serial)
+        // Candidatos inativos: primeiro por clientId, depois PPPoE/serial como fallback
         const deletedCandidates: any[] = [];
         if (voalleClientId) {
           const byClientId = deletedByClientId.get(voalleClientId) ?? [];
@@ -13205,29 +13205,44 @@ export async function registerRoutes(
             if (c.id !== voalleConn.id) deletedCandidates.push(c);
           }
         }
-        if (deletedCandidates.length === 0) {
-          // Fallback: PPPoE ou serial
-          const byUser   = voallePppoe  ? deletedByUser.get(voallePppoe)               : null;
-          const bySerial = voalleSerial ? deletedBySerial.get(voalleSerial)             : null;
-          const byPppoe2 = pppoe        ? deletedByUser.get(pppoe.toLowerCase())        : null;
-          const bySerial2 = serial      ? deletedBySerial.get(serial.toUpperCase())     : null;
+        // Adicionar candidatos por PPPoE/serial mesmo quando clientId já encontrou algo
+        // (necessário para priorizar o contrato específico da unidade dentro de clientes com muitos contratos)
+        {
+          const byUser    = voallePppoe  ? deletedByUser.get(voallePppoe.toLowerCase())  : null;
+          const bySerial  = voalleSerial ? deletedBySerial.get(voalleSerial.toUpperCase()) : null;
+          const byPppoe2  = pppoe        ? deletedByUser.get(pppoe.toLowerCase())         : null;
+          const bySerial2 = serial       ? deletedBySerial.get(serial.toUpperCase())      : null;
           for (const c of [byUser, bySerial, byPppoe2, bySerial2]) {
             if (c && c.id !== voalleConn.id && !deletedCandidates.find((x: any) => x.id === c.id)) {
               deletedCandidates.push(c);
             }
           }
         }
-        // Filtrar inativos com ICM falso; priorizar os que têm serviceTag
+        // Filtrar inativos com ICM falso
         const validDeletedCandidates = deletedCandidates.filter((c: any) =>
           !c.integrationCodeMap || !bogusIntegrationCodeMaps.has(c.integrationCodeMap)
         );
-        // Ordenar: serviceTag preenchido primeiro, depois integrationCodeMap preenchido
+
+        // Variáveis de referência para scoring de candidatos inativos
+        const activePppoeNorm  = (voallePppoe || pppoe || "").toLowerCase();
+        const activeSerialNorm = (voalleSerial || serial || "").toUpperCase();
+
+        // Ordenar candidatos inativos — prioridade:
+        //   1) match por PPPoE (contrato da mesma unidade/usuário)
+        //   2) match por serial (mesmo equipamento)
+        //   3) tem serviceTag (útil para busca OZmap)
+        //   4) tem integrationCodeMap (vínculo OZmap direto)
         validDeletedCandidates.sort((a: any, b: any) => {
-          const aHasTag = a.serviceTag ? 1 : 0;
-          const bHasTag = b.serviceTag ? 1 : 0;
-          const aHasIcm = a.integrationCodeMap ? 1 : 0;
-          const bHasIcm = b.integrationCodeMap ? 1 : 0;
-          return (bHasTag + bHasIcm) - (aHasTag + aHasIcm);
+          const score = (c: any) => {
+            let s = 0;
+            if (activePppoeNorm  && c.user  && c.user.toLowerCase()  === activePppoeNorm)  s += 4;
+            if (activeSerialNorm && c.equipmentSerialNumber &&
+                c.equipmentSerialNumber.toUpperCase() === activeSerialNorm)                 s += 3;
+            if (c.serviceTag)         s += 2;
+            if (c.integrationCodeMap) s += 1;
+            return s;
+          };
+          return score(b) - score(a);
         });
         const deletedSibling: any = validDeletedCandidates[0] ?? null;
         if (deletedSibling) {
