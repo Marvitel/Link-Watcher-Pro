@@ -13508,10 +13508,9 @@ export async function registerRoutes(
           [voalleConn.address?.address || voalleConn.address?.street || "", voalleConn.address?.number || ""].join(" ").trim()
         );
 
-        // 7. Geo: SEMPRE tenta quando há coordenadas válidas no Voalle
-        //    Não é mais um "fallback de último recurso" — é um critério independente que adiciona
-        //    candidatos ao pool; o scoring afinará por distância real e similaridade de nome.
-        const GEO_DELTA = 0.003; // ~333m bounding box para captura; scoring usa haversine real
+        // 7. Geo em memória: varre ozmapWithGeo se o download em massa retornou geo
+        //    (a maioria dos OZmap não retorna geo no endpoint paginado — veja passo 8)
+        const GEO_DELTA = 0.003;
         if (voalleLat && voalleLon && ozmapWithGeo.length > 0) {
           let geoHits = 0;
           for (const row of ozmapWithGeo) {
@@ -13524,7 +13523,50 @@ export async function registerRoutes(
               }
             }
           }
-          if (geoHits > 0) console.log(`[OZmap Reconcile] "${link.name}": ${geoHits} candidato(s) geo`);
+          if (geoHits > 0) console.log(`[OZmap Reconcile] "${link.name}": ${geoHits} candidato(s) geo (memória)`);
+        }
+
+        // 8. Geo query direta ao OZmap por link — quando o índice em massa não tem geo
+        //    Tenta $near MongoDB com múltiplos nomes de campo (geoCoord, geopoint, location, etc.)
+        //    Cada OZmap pode usar um nome diferente; tenta até encontrar resposta com resultados.
+        if (candidateMap.size === 0 && voalleLat && voalleLon) {
+          const GEO_RADIUS_M = 500; // raio de 500m
+          const geoFieldCandidates = ["geoCoord", "geopoint", "location", "geo", "coordinates", "geometry"];
+          let geoQueryHits = 0;
+          for (const geoField of geoFieldCandidates) {
+            try {
+              const geoFilter = {
+                [geoField]: {
+                  $near: {
+                    $geometry: { type: "Point", coordinates: [voalleLon, voalleLat] },
+                    $maxDistance: GEO_RADIUS_M,
+                  },
+                },
+              };
+              const geoUrl = `${ozmapBaseUrl}/api/v2/ftth-clients?filter=${encodeURIComponent(JSON.stringify(geoFilter))}&limit=20`;
+              const geoResp = await fetchWithTimeout(geoUrl, { headers: ozmapHeaders }, 8000);
+              if (geoResp.ok) {
+                const geoData = await geoResp.json() as any;
+                const geoRows: any[] = geoData?.rows ?? (Array.isArray(geoData) ? geoData : []);
+                if (geoRows.length > 0) {
+                  geoQueryHits = geoRows.length;
+                  console.log(`[OZmap Reconcile] "${link.name}": geo query campo="${geoField}" → ${geoRows.length} resultado(s)`);
+                  for (const row of geoRows) {
+                    // Pré-calcular _lat/_lon para que scoreCandidate use haversine corretamente
+                    if (row._lat == null) row._lat = extractOzmapLat(row);
+                    if (row._lon == null) row._lon = extractOzmapLon(row);
+                    addCandidate(row);
+                  }
+                  break; // encontrou — não tenta outros campos
+                }
+              }
+            } catch (_geoErr) {
+              // falha silenciosa — tenta próximo campo
+            }
+          }
+          if (geoQueryHits === 0 && voalleLat) {
+            console.log(`[OZmap Reconcile] "${link.name}": geo query sem resultado (geo não suportado ou cliente fora de área)`);
+          }
         }
 
         if (candidateMap.size === 0 && !voalleLat && !voalleStreet && codeSearchValues.length === 0 && !voalleSerial && pppoeSearchValues.length === 0) {
