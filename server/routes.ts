@@ -12865,6 +12865,100 @@ export async function registerRoutes(
     res.send(csv);
   });
 
+  // ========== Diagnósticos Voalle ↔ OZmap ==========
+
+  // GET /api/admin/voalle-ozmap-reconcile/diagnostic/deleted
+  // Retorna amostra bruta das conexões excluídas do Voalle Map API + mapa de etiquetas resolvido
+  app.get("/api/admin/voalle-ozmap-reconcile/diagnostic/deleted", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 20, 200);
+      const voalleIntegration = await storage.getErpIntegrationByProvider("voalle");
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(404).json({ error: "Integração Voalle não configurada ou inativa" });
+      }
+
+      const voalleAdapter = configureErpAdapter(voalleIntegration) as any;
+      if (!voalleAdapter?.getAllDeletedConnectionsPaged) {
+        return res.status(500).json({ error: "Adapter não suporta getAllDeletedConnectionsPaged" });
+      }
+
+      // Buscar mapa de etiquetas id→code
+      const tagMap: Map<number, string> = await voalleAdapter.getAllServiceTagsMap(500).catch(() => new Map<number, string>());
+
+      // Buscar deletadas (1 página = limit registros)
+      const rawDeleted: any[] = await voalleAdapter.getAllDeletedConnectionsPaged(limit);
+
+      const sample = rawDeleted.slice(0, limit).map((conn: any) => {
+        const rawTag = conn.serviceTag;
+        const rawTagStr = rawTag != null ? String(rawTag) : null;
+        const isNumeric = !!rawTagStr && /^\d+$/.test(rawTagStr.trim());
+        const resolved = isNumeric ? (tagMap.get(Number(rawTagStr)) ?? null) : rawTagStr;
+        return {
+          id: conn.id,
+          user: conn.user,
+          serviceTag_raw: rawTag,
+          serviceTag_isNumeric: isNumeric,
+          serviceTag_resolved: resolved,
+          equipmentSerialNumber: conn.equipmentSerialNumber,
+          integrationCodeMap: conn.integrationCodeMap,
+          integrationCode: conn.integrationCode,
+          client: conn.client ? { id: conn.client.id, name: conn.client.name } : null,
+          status: conn.status,
+        };
+      });
+
+      res.json({
+        totalFetched: rawDeleted.length,
+        tagMapSize: tagMap.size,
+        tagMapSample: [...tagMap.entries()].slice(0, 10).map(([id, code]) => ({ id, code })),
+        sample,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // GET /api/admin/voalle-ozmap-reconcile/diagnostic/ozmap
+  // Retorna amostra bruta dos clientes OZmap (ftth-clients) com estrutura de campos
+  app.get("/api/admin/voalle-ozmap-reconcile/diagnostic/ozmap", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const ozmapIntegrations = await db.select().from(externalIntegrations)
+        .where(and(eq(externalIntegrations.provider, "ozmap"), eq(externalIntegrations.isActive, true)))
+        .limit(1);
+      if (!ozmapIntegrations.length) return res.status(404).json({ error: "Integração OZmap não configurada ou inativa" });
+
+      const ozmapConfig = ozmapIntegrations[0];
+      let baseUrl = (ozmapConfig.apiUrl || "").replace(/\/+$/, "");
+      if (baseUrl.endsWith("/api/v2")) baseUrl = baseUrl.slice(0, -7);
+      const headers = { "Accept": "application/json", "Authorization": ozmapConfig.apiKey! };
+
+      const r = await fetch(`${baseUrl}/api/v2/ftth-clients?limit=${limit}&page=0`, { headers });
+      if (!r.ok) return res.status(502).json({ error: `OZmap HTTP ${r.status}` });
+      const data = await r.json() as any;
+      const rows: any[] = data?.rows ?? (Array.isArray(data) ? data : []);
+
+      res.json({
+        total: data?.total ?? rows.length,
+        sampleSize: rows.length,
+        // Registro bruto completo do primeiro resultado — para mapear campos reais da API OZmap
+        firstRecordRaw: rows[0] ?? null,
+        // Resumo dos campos-chave de cada registro
+        sample: rows.map((row: any) => ({
+          _id: row._id || row.id,
+          code: row.code,
+          integrationCode: row.integrationCode,
+          onu_serialNumber: row.onu?.serial_number,
+          onu_userPPPoE: row.onu?.user_PPPoE,
+          onu_keys: row.onu ? Object.keys(row.onu) : [],
+          topLevelKeys: Object.keys(row),
+        })),
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   // ========== Reconciliação Voalle ↔ OZmap ==========
   app.get("/api/admin/voalle-ozmap-reconcile/status", requireAuth, requireSuperAdmin, (_req: Request, res: Response) => {
     res.json(reconcileProgress);
