@@ -13498,7 +13498,14 @@ export async function registerRoutes(
         for (const p of pppoeSearchValues) addCandidate(ozmapByPppoe.get(p));
 
         // 5. Por integrationCode (bidirecionalidade Voalle↔OZmap)
+        //    Caso A: OZmap tem campo integrationCode que bate com o integrationCode do Voalle
         if (voalleIntegrationCode) addCandidate(ozmapByIntegrationCode.get(voalleIntegrationCode));
+        //    Caso B: Voalle guarda o ID MongoDB do cliente OZmap no campo integrationCode
+        //    (ex: "6942989db011d3c21ccca5af" é o _id do cliente OZmap, não um campo intermediário)
+        //    ObjectId MongoDB = 24 hex chars — detecta automaticamente para evitar falsos positivos
+        if (voalleIntegrationCode && /^[0-9a-f]{24}$/i.test(voalleIntegrationCode)) {
+          addCandidate(ozmapById.get(voalleIntegrationCode));
+        }
 
         // 6. Endereço normalizado do Voalle — para match quando não há serial/PPPoE/code
         //    Normaliza: sem acento, lowercase, remove pontuação — compara logradouro + número
