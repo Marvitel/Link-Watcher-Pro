@@ -12492,6 +12492,7 @@ export async function registerRoutes(
     skip: number;
     vinculate_failed: number;
     dry_run: number;
+    conflict: number;
     error: number;
     results: Array<{ linkId: number; linkName: string; status: string; detail: string; voalleConnectionId?: number; linkTag?: string; oldTag?: string; ozmapFoundCode?: string; ozmapClientId?: string }>;
     errorMessage: string;
@@ -12502,7 +12503,7 @@ export async function registerRoutes(
   let reconcileProgress: ReconcileProgress = {
     running: false, dryRun: false, phase: "done",
     total: 0, processed: 0, success: 0, already_linked: 0,
-    ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, error: 0,
+    ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, conflict: 0, error: 0,
     results: [], errorMessage: "", startedAt: 0, finishedAt: 0,
   };
 
@@ -13017,7 +13018,7 @@ export async function registerRoutes(
     reconcileProgress = {
       running: true, dryRun, phase: "preflight_ozmap",
       total: 0, processed: 0, success: 0, already_linked: 0,
-      ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, error: 0,
+      ozmap_not_found: 0, skip: 0, vinculate_failed: 0, dry_run: 0, conflict: 0, error: 0,
       results: [], errorMessage: "", startedAt: Date.now(), finishedAt: 0,
     };
     res.json({ started: true, dryRun });
@@ -13681,6 +13682,9 @@ export async function registerRoutes(
         // Candidato OZmap encontrado — decidir se vincula (novo) ou atualiza (errado)
         const scoreInfo = `score=${best.score}`;
         result.ozmapClientId = ozmapClientId;
+        // Campos temporários para deduplicação pós-processamento (removidos antes de publicar resultado)
+        (result as any)._dedup_score = best.score;
+        (result as any)._dedup_ozmapId = ozmapClientId;
 
         if (currentIntegrationCodeMap && currentIntegrationCodeMap === ozmapClientId) {
           // Já vinculado ao cliente correto — nada a fazer
@@ -13760,6 +13764,50 @@ export async function registerRoutes(
     });
 
     const processed = await pLimit(tasks, 5);
+
+    // DEDUPLICAÇÃO — cada cliente OZmap só pode ser atribuído ao link de MAIOR score
+    // Links com score menor que concorrem ao mesmo ozmapId são marcados como conflito
+    {
+      // 1) Encontrar o vencedor (maior score) para cada ozmapId
+      const bestByOzmapId = new Map<string, { idx: number; score: number; linkName: string }>();
+      for (let i = 0; i < processed.length; i++) {
+        const r = processed[i] as any;
+        const ozmapId: string | null = r._dedup_ozmapId ?? null;
+        const score: number = r._dedup_score ?? 0;
+        const isCandidate = r.status === "dry_run" || r.status === "success" || r.status === "vinculate_failed" || r.status === "already_linked";
+        if (ozmapId && score > 0 && isCandidate) {
+          const existing = bestByOzmapId.get(ozmapId);
+          // already_linked recebe bônus de prioridade (score+1000) — já vinculado ao cliente correto
+          const effectiveScore = r.status === "already_linked" ? score + 1000 : score;
+          if (!existing || effectiveScore > existing.score) {
+            bestByOzmapId.set(ozmapId, { idx: i, score: effectiveScore, linkName: r.linkName });
+          }
+        }
+      }
+      // 2) Marcar perdedores como conflito
+      let conflictCount = 0;
+      for (let i = 0; i < processed.length; i++) {
+        const r = processed[i] as any;
+        const ozmapId: string | null = r._dedup_ozmapId ?? null;
+        const score: number = r._dedup_score ?? 0;
+        const isCandidate = r.status === "dry_run" || r.status === "success" || r.status === "vinculate_failed";
+        if (ozmapId && score > 0 && isCandidate) {
+          const winner = bestByOzmapId.get(ozmapId);
+          if (winner && winner.idx !== i) {
+            r.status = "conflict";
+            r.detail = `[CONFLITO] Cliente OZmap ${ozmapId} já atribuído a "${winner.linkName}" [score=${winner.score}] — este link [score=${score}] não será vinculado`;
+            conflictCount++;
+          }
+        }
+        // Limpar campos temporários
+        delete r._dedup_score;
+        delete r._dedup_ozmapId;
+      }
+      if (conflictCount > 0) {
+        console.log(`[OZmap Reconcile] Deduplicação: ${conflictCount} link(s) marcados como conflito (mesmo cliente OZmap reivindacado por múltiplos links)`);
+      }
+    }
+
     results.push(...processed);
 
     // Atualizar progresso com resultado final
@@ -13774,9 +13822,10 @@ export async function registerRoutes(
     reconcileProgress.skip = results.filter(r => r.status === "skip").length;
     reconcileProgress.vinculate_failed = results.filter(r => r.status === "vinculate_failed").length;
     reconcileProgress.dry_run = results.filter(r => r.status === "dry_run").length;
+    reconcileProgress.conflict = results.filter(r => r.status === "conflict").length;
     reconcileProgress.error = results.filter(r => r.status === "error").length;
     reconcileProgress.results = results;
-    console.log(`[OZmap Reconcile] Concluído: total=${results.length} success=${reconcileProgress.success} already=${reconcileProgress.already_linked} notFound=${reconcileProgress.ozmap_not_found}`);
+    console.log(`[OZmap Reconcile] Concluído: total=${results.length} success=${reconcileProgress.success} dry_run=${reconcileProgress.dry_run} conflict=${reconcileProgress.conflict} already=${reconcileProgress.already_linked} notFound=${reconcileProgress.ozmap_not_found}`);
 
     } catch (bgErr) {
       const msg = bgErr instanceof Error ? bgErr.message : String(bgErr);
