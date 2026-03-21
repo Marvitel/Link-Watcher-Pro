@@ -1396,6 +1396,56 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+  // Busca TODAS as etiquetas (contract_service_tags) em bulk sem filtro de CNPJ
+  // Retorna mapa id → serviceTag (código OZmap real) para resolver IDs numéricos
+  // retornados pelo endpoint de conexões deletadas
+  async getAllServiceTagsMap(pageSize = 500): Promise<Map<number, string>> {
+    const result = new Map<number, string>();
+    let page = 1;
+    let totalPages = 1;
+    do {
+      try {
+        const resp = await this.apiRequest<{
+          success: boolean;
+          response: {
+            data: Array<Record<string, any>>;
+            totalRecords?: number;
+            totalPages?: number;
+          };
+        }>("GET", `/contractservicetagspaged?Page=${page}&PageSize=${pageSize}`);
+
+        if (!resp.success || !resp.response?.data) break;
+
+        if (page === 1) {
+          totalPages = resp.response.totalPages ??
+            Math.ceil((resp.response.totalRecords ?? resp.response.data.length) / pageSize);
+          console.log(`[VoalleAdapter] getAllServiceTagsMap: totalPages=${totalPages}, totalRecords=${resp.response.totalRecords}`);
+        }
+
+        for (const raw of resp.response.data) {
+          const id: number = raw.id;
+          // Tentar campo serviceTag primeiro, depois description, depois code
+          const code: string | undefined = raw.serviceTag || raw.service_tag || raw.code || raw.description;
+          if (id && code && typeof code === "string" && code.trim()) {
+            result.set(id, code.trim());
+          }
+        }
+
+        // Log amostra na primeira página para diagnóstico
+        if (page === 1 && resp.response.data.length > 0) {
+          console.log(`[VoalleAdapter] getAllServiceTagsMap amostra:`, JSON.stringify(resp.response.data[0]));
+        }
+      } catch (err) {
+        console.error(`[VoalleAdapter] getAllServiceTagsMap erro na página ${page}:`, err);
+        break;
+      }
+      page++;
+    } while (page <= totalPages);
+
+    console.log(`[VoalleAdapter] getAllServiceTagsMap: ${result.size} etiquetas indexadas`);
+    return result;
+  }
+
   // ========== Map API (porta 45715/external/map) ==========
 
   private async makeMapRequest<T>(

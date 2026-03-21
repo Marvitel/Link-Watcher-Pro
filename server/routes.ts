@@ -13051,7 +13051,9 @@ export async function registerRoutes(
     const deletedByClientId = new Map<number, any[]>();
     for (const conn of voalleDeleted) {
       if (conn.user)                    deletedByUser.set(conn.user.toLowerCase(), conn);
-      if (conn.serviceTag)              deletedByTag.set(conn.serviceTag.toUpperCase(), conn);
+      // Indexar pelo código OZmap real (_resolvedServiceTag), não pelo ID numérico bruto
+      const resolvedTag = conn._resolvedServiceTag;
+      if (resolvedTag)                  deletedByTag.set(resolvedTag.toUpperCase(), conn);
       if (conn.equipmentSerialNumber)   deletedBySerial.set(conn.equipmentSerialNumber.toUpperCase(), conn);
       if (conn.client?.id) {
         const list = deletedByClientId.get(conn.client.id) ?? [];
@@ -13080,6 +13082,48 @@ export async function registerRoutes(
     );
     if (bogusIntegrationCodeMaps.size > 0) {
       console.log(`[OZmap Reconcile] Detectados ${bogusIntegrationCodeMaps.size} integrationCodeMap(s) falsos (≥${BOGUS_ICM_THRESHOLD} conexões): ${[...bogusIntegrationCodeMaps].join(", ")}`);
+    }
+
+    // Mapa tagId (número) → serviceTag real (código OZmap alfanumérico)
+    // O endpoint Voalle /connection/all/deleted/paged retorna o ID numérico da etiqueta
+    // no campo "serviceTag", não o código OZmap real (ex: "261" = id da etiqueta cujo code é "PT2R5Q3A").
+    // Fonte 1: API Voalle /contractservicetagspaged (contém todos os IDs + codes)
+    // Fonte 2: banco de dados local (fallback para IDs já conhecidos)
+    let voalleTagIdToCode = new Map<number, string>();
+    try {
+      voalleTagIdToCode = await voalleAdapter.getAllServiceTagsMap(500);
+    } catch (err) {
+      console.warn(`[OZmap Reconcile] Falha ao buscar mapa de etiquetas do Voalle, usando DB como fallback:`, err);
+    }
+    // Fallback: complementar com dados do banco para IDs não cobertos pela API
+    {
+      const tagRows = await db.select({
+        tagId:  links.voalleContractTagId,
+        tagCode: links.voalleContractTagServiceTag,
+      }).from(links)
+        .where(and(isNotNull(links.voalleContractTagId), isNotNull(links.voalleContractTagServiceTag)));
+      for (const row of tagRows) {
+        if (row.tagId && row.tagCode && !voalleTagIdToCode.has(row.tagId)) {
+          voalleTagIdToCode.set(row.tagId, row.tagCode);
+        }
+      }
+      console.log(`[OZmap Reconcile] Mapa tagId→code final: ${voalleTagIdToCode.size} entradas`);
+    }
+
+    // Resolver serviceTag de conexão deletada: se for ID numérico, converte para código OZmap real
+    const resolveDeletedServiceTag = (tag: string | null | undefined): string | null => {
+      if (!tag || !tag.trim()) return null;
+      if (/^\d+$/.test(tag.trim())) {
+        const resolved = voalleTagIdToCode.get(Number(tag));
+        if (resolved) console.log(`[OZmap Reconcile] Resolveu tagId=${tag} → code=${resolved}`);
+        return resolved ?? null; // ID não resolvível → descartar (não usar ID numérico bruto como código)
+      }
+      return tag; // já é código alfanumérico, usar diretamente
+    };
+
+    // Aplicar resolução em todas as conexões deletadas antes de indexar
+    for (const conn of voalleDeleted) {
+      conn._resolvedServiceTag = resolveDeletedServiceTag(conn.serviceTag);
     }
 
     // FASE 1.5 — Download em massa de TODOS os clientes OZmap (para evitar filtros por campo aninhado)
@@ -13230,8 +13274,8 @@ export async function registerRoutes(
         // Ordenar candidatos inativos — prioridade:
         //   1) match por PPPoE (contrato da mesma unidade/usuário) → +8
         //   2) match por serial (mesmo equipamento) → +6
-        //   3) serviceTag existe no índice OZmap local (código OZmap real confirmado) → +4
-        //   4) tem serviceTag preenchido → +2
+        //   3) _resolvedServiceTag existe no índice OZmap local (código OZmap real confirmado) → +4
+        //   4) tem _resolvedServiceTag preenchido → +2
         //   5) tem integrationCodeMap (vínculo OZmap direto) → +1
         validDeletedCandidates.sort((a: any, b: any) => {
           const score = (c: any) => {
@@ -13239,9 +13283,10 @@ export async function registerRoutes(
             if (activePppoeNorm  && c.user  && c.user.toLowerCase()  === activePppoeNorm)  s += 8;
             if (activeSerialNorm && c.equipmentSerialNumber &&
                 c.equipmentSerialNumber.toUpperCase() === activeSerialNorm)                 s += 6;
-            // Prioridade extra: serviceTag é um código OZmap real (existe no índice local)
-            if (c.serviceTag && ozmapByCode.has(c.serviceTag.toUpperCase()))               s += 4;
-            if (c.serviceTag)         s += 2;
+            // Prioridade extra: tag resolvida é um código OZmap real (existe no índice local)
+            const rt = c._resolvedServiceTag;
+            if (rt && ozmapByCode.has(rt.toUpperCase()))                                   s += 4;
+            if (rt)                   s += 2;
             if (c.integrationCodeMap) s += 1;
             return s;
           };
@@ -13249,14 +13294,14 @@ export async function registerRoutes(
         });
         const deletedSibling: any = validDeletedCandidates[0] ?? null;
         if (deletedSibling) {
-          console.log(`[OZmap Reconcile] "${link.name}": inativo Voalle id=${deletedSibling.id} clientId=${deletedSibling.client?.id} tag=${deletedSibling.serviceTag} icm=${deletedSibling.integrationCodeMap}`);
+          console.log(`[OZmap Reconcile] "${link.name}": inativo Voalle id=${deletedSibling.id} clientId=${deletedSibling.client?.id} tagId=${deletedSibling.serviceTag} tagResolved=${deletedSibling._resolvedServiceTag} icm=${deletedSibling.integrationCodeMap}`);
         }
-        // Coletar TODAS as etiquetas dos contratos inativos do mesmo cliente para busca OZmap
-        // Etiquetas numéricas (ex: "312", "149") são codes OZmap legítimos de contratos antigos — NÃO filtrar
+        // Coletar TODAS as etiquetas resolvidas dos contratos inativos para busca OZmap
+        // _resolvedServiceTag: ID numérico já convertido para código OZmap real via mapa do banco
         const deletedServiceTags: string[] = validDeletedCandidates
-          .map((c: any) => c.serviceTag)
+          .map((c: any) => c._resolvedServiceTag)
           .filter((t: any): t is string => !!t && typeof t === "string" && t.trim().length > 0);
-        const deletedServiceTag: string | null = (deletedSibling?.serviceTag ?? null);
+        const deletedServiceTag: string | null = (deletedSibling?._resolvedServiceTag ?? null);
         // Todos os integrationCodeMaps válidos dos inativos para lookup direto no índice
         const allDeletedIcms: string[] = validDeletedCandidates
           .map((c: any) => c.integrationCodeMap)
