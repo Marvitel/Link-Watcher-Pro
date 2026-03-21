@@ -12938,19 +12938,42 @@ export async function registerRoutes(
       const data = await r.json() as any;
       const rows: any[] = data?.rows ?? (Array.isArray(data) ? data : []);
 
+      // Detectar qual campo o OZmap usa para coordenadas geográficas
+      const GEO_CANDIDATE_FIELDS = ["geopoint","geoCoord","location","coordinates","geo","geometry","position"];
+      const geoFieldsFound: Record<string, number> = {};
+      let withGeoCount = 0;
+      for (const row of rows) {
+        for (const f of GEO_CANDIDATE_FIELDS) {
+          if (row[f] != null) geoFieldsFound[f] = (geoFieldsFound[f] || 0) + 1;
+        }
+        const hasFlatGeo = row.latitude != null && row.longitude != null;
+        if (hasFlatGeo) geoFieldsFound["latitude/longitude"] = (geoFieldsFound["latitude/longitude"] || 0) + 1;
+        const hasAnyGeo = GEO_CANDIDATE_FIELDS.some(f => row[f] != null) || hasFlatGeo;
+        if (hasAnyGeo) withGeoCount++;
+      }
+
       res.json({
         total: data?.total ?? rows.length,
         sampleSize: rows.length,
+        // Análise de campos geográficos — mostra qual campo o OZmap usa para coordenadas
+        geoAnalysis: {
+          withGeoCount,
+          fieldsFound: geoFieldsFound,
+          pctWithGeo: rows.length > 0 ? Math.round(withGeoCount / rows.length * 100) + "%" : "n/a",
+        },
         // Registro bruto completo do primeiro resultado — para mapear campos reais da API OZmap
         firstRecordRaw: rows[0] ?? null,
         // Resumo dos campos-chave de cada registro
         sample: rows.map((row: any) => ({
           _id: row._id || row.id,
           code: row.code,
+          name: row.name,
           integrationCode: row.integrationCode,
           onu_serialNumber: row.onu?.serial_number,
           onu_userPPPoE: row.onu?.user_PPPoE,
           onu_keys: row.onu ? Object.keys(row.onu) : [],
+          // Extrai coordenadas de qualquer campo candidato
+          geo_raw: GEO_CANDIDATE_FIELDS.reduce((acc: any, f) => { if (row[f]) acc[f] = row[f]; return acc; }, {}),
           topLevelKeys: Object.keys(row),
         })),
       });
@@ -13226,13 +13249,40 @@ export async function registerRoutes(
     reconcileProgress.phase = "fetching_ozmap";
     console.log(`[OZmap Reconcile] Baixando todos os clientes OZmap (FTTH) em massa...`);
 
+    // Helper: extrai lat/lon de um cliente OZmap tentando vários nomes de campo
+    // OZmap pode usar geopoint (GeoJSON), geoCoord, location, ou campos planos latitude/longitude
+    const extractOzmapLat = (row: any): number | null => {
+      const v =
+        row._lat ??
+        row.geopoint?.coordinates?.[1] ??
+        row.geoCoord?.coordinates?.[1] ??
+        row.location?.coordinates?.[1] ??
+        row.coordinates?.[1] ??
+        row.latitude ??
+        null;
+      const n = v != null ? parseFloat(String(v)) : null;
+      return (n != null && !isNaN(n) && n !== 0) ? n : null;
+    };
+    const extractOzmapLon = (row: any): number | null => {
+      const v =
+        row._lon ??
+        row.geopoint?.coordinates?.[0] ??
+        row.geoCoord?.coordinates?.[0] ??
+        row.location?.coordinates?.[0] ??
+        row.coordinates?.[0] ??
+        row.longitude ??
+        null;
+      const n = v != null ? parseFloat(String(v)) : null;
+      return (n != null && !isNaN(n) && n !== 0) ? n : null;
+    };
+
     // Indexes locais OZmap
-    const ozmapById             = new Map<string, any>();  // _id → cliente OZmap
-    const ozmapByCode           = new Map<string, any>();  // code.toUpperCase() → cliente OZmap (primeiro encontrado)
+    const ozmapById             = new Map<string, any>();  // id → cliente OZmap
+    const ozmapByCode           = new Map<string, any>();  // code.toUpperCase() → cliente OZmap
     const ozmapBySerial         = new Map<string, any>();  // onu.serial_number.toUpperCase() → cliente OZmap
     const ozmapByPppoe          = new Map<string, any>();  // onu.user_PPPoE.toLowerCase() → cliente OZmap
     const ozmapByIntegrationCode = new Map<string, any>(); // integrationCode → cliente OZmap
-    const ozmapWithGeo: any[] = [];                        // clientes com coordenadas válidas
+    const ozmapWithGeo: any[] = [];                        // clientes com coordenadas válidas (lat≠0, lon≠0)
 
     try {
       const PAGE_SIZE = 500;
@@ -13259,9 +13309,15 @@ export async function registerRoutes(
         if (pppoe) ozmapByPppoe.set(pppoe, row);
         const intCode = (row.integrationCode || "").trim();
         if (intCode) ozmapByIntegrationCode.set(intCode, row);
-        const lat: number | null = row.geopoint?.coordinates?.[1] ?? row.latitude ?? null;
-        const lon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
-        if (lat && lon) ozmapWithGeo.push(row);
+        // Extrair coordenadas com fallback de campo
+        const lat = extractOzmapLat(row);
+        const lon = extractOzmapLon(row);
+        if (lat !== null && lon !== null) {
+          // Cachear no próprio row para evitar re-extração no loop geo
+          row._lat = lat;
+          row._lon = lon;
+          ozmapWithGeo.push(row);
+        }
       };
       for (const row of firstRows) indexOzmapClient(row);
 
@@ -13452,21 +13508,23 @@ export async function registerRoutes(
           [voalleConn.address?.address || voalleConn.address?.street || "", voalleConn.address?.number || ""].join(" ").trim()
         );
 
-        // 7. Fallback geo: varrer clientes OZmap com coordenadas dentro de ~333m
-        const GEO_DELTA = 0.003;
-        if (candidateMap.size === 0 && (voalleLat || voalleStreet)) {
+        // 7. Geo: SEMPRE tenta quando há coordenadas válidas no Voalle
+        //    Não é mais um "fallback de último recurso" — é um critério independente que adiciona
+        //    candidatos ao pool; o scoring afinará por distância real e similaridade de nome.
+        const GEO_DELTA = 0.003; // ~333m bounding box para captura; scoring usa haversine real
+        if (voalleLat && voalleLon && ozmapWithGeo.length > 0) {
           let geoHits = 0;
           for (const row of ozmapWithGeo) {
-            const cLat: number | null = row.geopoint?.coordinates?.[1] ?? null;
-            const cLon: number | null = row.geopoint?.coordinates?.[0] ?? null;
-            if (voalleLat && voalleLon && cLat && cLon) {
+            const cLat: number | null = row._lat ?? null;
+            const cLon: number | null = row._lon ?? null;
+            if (cLat !== null && cLon !== null) {
               if (Math.abs(cLat - voalleLat) <= GEO_DELTA && Math.abs(cLon - voalleLon) <= GEO_DELTA) {
                 addCandidate(row);
                 geoHits++;
               }
             }
           }
-          if (geoHits > 0) console.log(`[OZmap Reconcile] "${link.name}": geo fallback → ${geoHits} candidatos`);
+          if (geoHits > 0) console.log(`[OZmap Reconcile] "${link.name}": ${geoHits} candidato(s) geo`);
         }
 
         if (candidateMap.size === 0 && !voalleLat && !voalleStreet && codeSearchValues.length === 0 && !voalleSerial && pppoeSearchValues.length === 0) {
@@ -13475,14 +13533,26 @@ export async function registerRoutes(
           return result;
         }
 
+        // Helper: normaliza texto para comparação — sem acento, lowercase, só alfanumérico
+        const normWords = (s: string): string[] =>
+          (s || "").normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, " ")
+            .split(/\s+/)
+            .filter(w => w.length >= 4); // palavras curtas são ruído
+
+        // Palavras significativas do nome do link (ex: "MARACAR TANCREDO" → ["maracar","tancredo"])
+        const voalleNameWords = normWords(link.name || "");
+
         // Scoring: pontua cada candidato com base nos dados disponíveis
         const scoreCandidate = (c: OzmapCandidate) => {
           const row = c.row;
           const codeVal  = (row.code || "").toUpperCase().trim();
           const cSerial  = (row.onu?.serial_number || row.serialNumber || "").toUpperCase().trim();
           const cPppoe   = (row.onu?.user_PPPoE || "").toLowerCase().trim();
-          const cLat: number | null = row.geopoint?.coordinates?.[1] ?? row.latitude ?? null;
-          const cLon: number | null = row.geopoint?.coordinates?.[0] ?? row.longitude ?? null;
+          const cLat: number | null = row._lat ?? null;
+          const cLon: number | null = row._lon ?? null;
           const cIntCode = (row.integrationCode || "").trim();
           const cStreet  = normalizeAddr([row.address || "", row.number || ""].join(" "));
 
@@ -13499,14 +13569,26 @@ export async function registerRoutes(
           // +2 integrationCode bate
           if (voalleIntegrationCode && cIntCode && cIntCode === voalleIntegrationCode) c.score += 2;
           // Pontuação por distância haversine
-          if (voalleLat && voalleLon && cLat && cLon) {
+          if (voalleLat && voalleLon && cLat !== null && cLon !== null) {
             const dist = haversineKm(voalleLat, voalleLon, cLat, cLon);
-            if (dist <= 0.05)  c.score += 3; // ≤50m: +3
-            else if (dist <= 0.15) c.score += 2; // ≤150m: +2
-            else if (dist <= 0.35) c.score += 1; // ≤350m: +1
+            if (dist <= 0.05)       c.score += 4; // ≤50m:  +4 (mesmo bloco)
+            else if (dist <= 0.15)  c.score += 3; // ≤150m: +3 (mesma quadra)
+            else if (dist <= 0.35)  c.score += 2; // ≤350m: +2 (mesmo quarteirão)
+            else if (dist <= 1.0)   c.score += 1; // ≤1km:  +1 (bairro próximo)
           }
           // +2 endereço (logradouro+número) normalizado bate
           if (voalleStreet && cStreet && voalleStreet.length > 5 && cStreet.length > 5 && voalleStreet === cStreet) c.score += 2;
+
+          // Similaridade de nome: palavras do link Voalle encontradas no nome/observação do OZmap
+          // Útil quando geo localiza vários candidatos próximos — o nome distingue o correto
+          if (voalleNameWords.length >= 1) {
+            const ozmapText = normWords([row.name || "", row.observation || ""].join(" "));
+            const matchedWords = voalleNameWords.filter(w => ozmapText.includes(w));
+            if (matchedWords.length >= 3)      c.score += 4; // forte coincidência de nome
+            else if (matchedWords.length === 2) c.score += 3;
+            else if (matchedWords.length === 1 && matchedWords[0].length >= 6) c.score += 2; // 1 palavra longa
+            else if (matchedWords.length === 1) c.score += 1;
+          }
         };
 
         for (const c of candidateMap.values()) scoreCandidate(c);
