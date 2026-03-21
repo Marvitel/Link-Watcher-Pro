@@ -13228,16 +13228,19 @@ export async function registerRoutes(
         const activeSerialNorm = (voalleSerial || serial || "").toUpperCase();
 
         // Ordenar candidatos inativos — prioridade:
-        //   1) match por PPPoE (contrato da mesma unidade/usuário)
-        //   2) match por serial (mesmo equipamento)
-        //   3) tem serviceTag (útil para busca OZmap)
-        //   4) tem integrationCodeMap (vínculo OZmap direto)
+        //   1) match por PPPoE (contrato da mesma unidade/usuário) → +8
+        //   2) match por serial (mesmo equipamento) → +6
+        //   3) serviceTag existe no índice OZmap local (código OZmap real confirmado) → +4
+        //   4) tem serviceTag preenchido → +2
+        //   5) tem integrationCodeMap (vínculo OZmap direto) → +1
         validDeletedCandidates.sort((a: any, b: any) => {
           const score = (c: any) => {
             let s = 0;
-            if (activePppoeNorm  && c.user  && c.user.toLowerCase()  === activePppoeNorm)  s += 4;
+            if (activePppoeNorm  && c.user  && c.user.toLowerCase()  === activePppoeNorm)  s += 8;
             if (activeSerialNorm && c.equipmentSerialNumber &&
-                c.equipmentSerialNumber.toUpperCase() === activeSerialNorm)                 s += 3;
+                c.equipmentSerialNumber.toUpperCase() === activeSerialNorm)                 s += 6;
+            // Prioridade extra: serviceTag é um código OZmap real (existe no índice local)
+            if (c.serviceTag && ozmapByCode.has(c.serviceTag.toUpperCase()))               s += 4;
             if (c.serviceTag)         s += 2;
             if (c.integrationCodeMap) s += 1;
             return s;
