@@ -551,15 +551,81 @@ export class DatabaseStorage {
     if (limit) {
       return rawData.slice(0, limit);
     }
-    
-    // Downsample para períodos longos (>7 dias) se houver muitos pontos
-    const maxPoints = hoursSpan > 24 * 7 ? 720 : 2000; // 1 ponto por hora para 30d, mais pontos para 7d
-    if (rawData.length > maxPoints) {
-      const step = Math.ceil(rawData.length / maxPoints);
-      return rawData.filter((_, i) => i % step === 0);
+
+    // Agregação por bucket para evitar gráficos com "espigas" causadas por coleta rápida (fast-poll)
+    // Tamanho do bucket em minutos varia com o span do período consultado:
+    //   ≤1h  → 1min  (até 60 pontos)
+    //   ≤6h  → 3min  (até 120 pontos)
+    //   ≤24h → 5min  (até 288 pontos)
+    //   >24h → ajuste automático para no máximo ~300 pontos
+    const targetPoints = 300;
+    const autoMinutes = Math.max(1, Math.ceil((hoursSpan * 60) / targetPoints));
+    const bucketMinutes =
+      hoursSpan <= 1  ? 1  :
+      hoursSpan <= 6  ? 3  :
+      hoursSpan <= 24 ? 5  : autoMinutes;
+    const bucketMs = bucketMinutes * 60 * 1000;
+
+    // Apenas agregar se houver mais pontos do que o esperado após bucketing
+    const expectedBuckets = Math.ceil((hoursSpan * 60) / bucketMinutes);
+    if (rawData.length <= expectedBuckets * 1.2) {
+      return rawData; // granularidade já adequada, retorna sem alterar
     }
-    
-    return rawData;
+
+    type BucketAcc = {
+      download: number[]; upload: number[]; latency: number[]; packetLoss: number[];
+      cpuUsage: number[]; memoryUsage: number[];
+      opticalRxPower: number[]; opticalTxPower: number[]; opticalOltRxPower: number[];
+      status: string; timestamp: Date;
+      first: (typeof rawData)[0];
+    };
+    const bucketMap = new Map<number, BucketAcc>();
+
+    for (const row of rawData) {
+      const key = Math.floor(row.timestamp.getTime() / bucketMs) * bucketMs;
+      if (!bucketMap.has(key)) {
+        bucketMap.set(key, {
+          download: [], upload: [], latency: [], packetLoss: [],
+          cpuUsage: [], memoryUsage: [],
+          opticalRxPower: [], opticalTxPower: [], opticalOltRxPower: [],
+          status: row.status || "operational",
+          timestamp: new Date(key),
+          first: row,
+        });
+      }
+      const b = bucketMap.get(key)!;
+      if (row.download != null)          b.download.push(row.download);
+      if (row.upload != null)            b.upload.push(row.upload);
+      if (row.latency != null)           b.latency.push(row.latency);
+      if (row.packetLoss != null)        b.packetLoss.push(row.packetLoss);
+      if (row.cpuUsage != null)          b.cpuUsage.push(row.cpuUsage);
+      if (row.memoryUsage != null)       b.memoryUsage.push(row.memoryUsage);
+      if (row.opticalRxPower != null)    b.opticalRxPower.push(row.opticalRxPower);
+      if (row.opticalTxPower != null)    b.opticalTxPower.push(row.opticalTxPower);
+      if (row.opticalOltRxPower != null) b.opticalOltRxPower.push(row.opticalOltRxPower);
+      // Pior status vence dentro do bucket
+      if (row.status === "offline") b.status = "offline";
+      else if (row.status === "degraded" && b.status !== "offline") b.status = "degraded";
+    }
+
+    const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+
+    return [...bucketMap.values()]
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .map((b) => ({
+        ...b.first,
+        timestamp: b.timestamp,
+        download:          avg(b.download),
+        upload:            avg(b.upload),
+        latency:           avg(b.latency),
+        packetLoss:        avg(b.packetLoss),
+        cpuUsage:          avg(b.cpuUsage),
+        memoryUsage:       avg(b.memoryUsage),
+        opticalRxPower:    avg(b.opticalRxPower),
+        opticalTxPower:    avg(b.opticalTxPower),
+        opticalOltRxPower: avg(b.opticalOltRxPower),
+        status:            b.status,
+      }));
   }
 
   async getLinkEvents(linkId: number): Promise<(Event & { linkName?: string | null })[]> {

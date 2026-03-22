@@ -514,6 +514,10 @@ const previousAdditionalTrafficData = new Map<string, TrafficResult>();
 const watchedLinks = new Map<number, number>(); // linkId → timestamp do último heartbeat
 const WATCH_EXPIRY_MS = 60_000; // expira se não receber heartbeat em 60s
 const FAST_POLL_INTERVAL_MS = 5_000; // intervalo de coleta rápida: 5s
+// Throttle para gravação no banco durante fast-poll: máximo 1 gravação a cada 25s por link
+// Isso evita acúmulo de pontos de alta frequência que causam "espigas" nos gráficos
+const FAST_POLL_DB_WRITE_THROTTLE_MS = 25_000;
+const fastPollLastDbWrite = new Map<number, number>(); // linkId → timestamp da última gravação no banco
 
 export function markLinkWatched(linkId: number): void {
   watchedLinks.set(linkId, Date.now());
@@ -3495,10 +3499,18 @@ async function collectWatchedLinksFast(): Promise<void> {
   for (const [linkId, ts] of watchedLinks.entries()) {
     if (now - ts >= WATCH_EXPIRY_MS) {
       watchedLinks.delete(linkId);
+      fastPollLastDbWrite.delete(linkId);
       continue;
     }
     if (fastCollecting.has(linkId)) continue; // já em coleta
+
+    // Throttle: só grava no banco se passou o tempo mínimo desde a última gravação
+    // O ciclo principal (30s) já grava regularmente — o fast-poll não precisa gravar a cada 5s
+    const lastWrite = fastPollLastDbWrite.get(linkId) ?? 0;
+    if (now - lastWrite < FAST_POLL_DB_WRITE_THROTTLE_MS) continue;
+
     fastCollecting.add(linkId);
+    fastPollLastDbWrite.set(linkId, now);
     db.select().from(links).where(eq(links.id, linkId)).limit(1).then(async (rows) => {
       if (rows.length > 0 && rows[0].monitoringEnabled) {
         try { await processLinkMetrics(rows[0]); } catch {}
