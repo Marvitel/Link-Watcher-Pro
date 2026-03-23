@@ -12997,95 +12997,52 @@ export async function registerRoutes(
     }
   });
 
-  // POST: importa CSV com etiquetas do Voalle
-  // Corpo JSON: { csv: "<conteúdo do arquivo CSV>" }
-  // Colunas esperadas: id,contract_id,sla_categories_id,service_tag,title,description,client_id,status,...
+  // POST: importa um lote de etiquetas Voalle já parseadas pelo browser
+  // Corpo JSON: { rows: [{id, serviceTag, title?, clientId?, contractId?, status?}], skippedInChunk?: number }
+  // O browser parseia o CSV, extrai só os campos necessários e envia em lotes de 500 linhas
   app.post(
     "/api/admin/voalle-service-tags/import",
     requireAuth, requireSuperAdmin,
     async (req: Request, res: Response) => {
       try {
-        const csv: string = typeof req.body?.csv === "string" ? req.body.csv : "";
-        if (!csv.trim()) return res.status(400).json({ error: "Corpo CSV vazio" });
+        const rows: Array<{ id: number; serviceTag: string; title?: string | null; clientId?: number | null; contractId?: number | null; status?: number | null }> = req.body?.rows ?? [];
+        const skippedInChunk: number = req.body?.skippedInChunk ?? 0;
 
-        // Parser CSV simples (sem suporte a campos multi-linha com aspas, mas suficiente para este formato)
-        const parseRow = (line: string): string[] => {
-          const cols: string[] = [];
-          let cur = "";
-          let inQuote = false;
-          for (let i = 0; i < line.length; i++) {
-            const ch = line[i];
-            if (ch === '"' && !inQuote) { inQuote = true; continue; }
-            if (ch === '"' && inQuote) { inQuote = false; continue; }
-            if (ch === "," && !inQuote) { cols.push(cur); cur = ""; continue; }
-            cur += ch;
-          }
-          cols.push(cur);
-          return cols;
-        };
-
-        const lines = csv.split("\n").map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) return res.status(400).json({ error: "CSV precisa ter cabeçalho + dados" });
-
-        // Detectar posição das colunas a partir do cabeçalho
-        const header = parseRow(lines[0]).map(h => h.toLowerCase().trim());
-        const idxId          = header.indexOf("id");
-        const idxContractId  = header.indexOf("contract_id");
-        const idxServiceTag  = header.indexOf("service_tag");
-        const idxTitle       = header.indexOf("title");
-        const idxClientId    = header.indexOf("client_id");
-        const idxStatus      = header.indexOf("status");
-
-        if (idxId < 0 || idxServiceTag < 0) {
-          return res.status(400).json({ error: `CSV inválido: colunas obrigatórias 'id' e 'service_tag' não encontradas. Colunas detectadas: ${header.join(", ")}` });
+        if (!Array.isArray(rows) || rows.length === 0) {
+          return res.status(400).json({ error: "Nenhuma linha válida no lote" });
         }
 
-        const nullVal = (s: string) => (s === "NULL" || s === "" ? null : s);
-        const rows: Array<typeof voalleServiceTags.$inferInsert> = [];
-        let skipped = 0;
-
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseRow(lines[i]);
-          const id = parseInt(cols[idxId] ?? "", 10);
-          const serviceTag = (cols[idxServiceTag] ?? "").trim();
-          if (!id || !serviceTag || serviceTag === "NULL") { skipped++; continue; }
-          rows.push({
-            id,
-            serviceTag,
-            title:      nullVal(cols[idxTitle]     ?? "") ?? undefined,
-            clientId:   parseInt(cols[idxClientId] ?? "", 10) || null,
-            contractId: parseInt(cols[idxContractId]?? "", 10) || null,
-            status:     parseInt(cols[idxStatus]   ?? "", 10) || null,
-          });
-        }
-
-        if (rows.length === 0) return res.status(400).json({ error: `Nenhuma linha válida encontrada. Linhas ignoradas: ${skipped}` });
-
-        // Upsert em lotes de 500
-        const BATCH = 500;
-        let inserted = 0;
         const now = new Date();
-        for (let i = 0; i < rows.length; i += BATCH) {
-          const batch = rows.slice(i, i + BATCH).map(r => ({ ...r, importedAt: now }));
-          await db.insert(voalleServiceTags).values(batch)
-            .onConflictDoUpdate({
-              target: voalleServiceTags.id,
-              set: {
-                serviceTag: sql`excluded.service_tag`,
-                title:      sql`excluded.title`,
-                clientId:   sql`excluded.client_id`,
-                contractId: sql`excluded.contract_id`,
-                status:     sql`excluded.status`,
-                importedAt: sql`excluded.imported_at`,
-              },
-            });
-          inserted += batch.length;
+        const batch = rows.map(r => ({
+          id:         Number(r.id),
+          serviceTag: String(r.serviceTag),
+          title:      r.title ?? null,
+          clientId:   r.clientId ?? null,
+          contractId: r.contractId ?? null,
+          status:     r.status ?? null,
+          importedAt: now,
+        })).filter(r => r.id && r.serviceTag);
+
+        if (batch.length === 0) {
+          return res.status(400).json({ error: "Nenhuma linha válida após validação" });
         }
 
-        console.log(`[VoalleServiceTags] Importados ${inserted} registros (ignorados ${skipped})`);
-        res.json({ imported: inserted, skipped, total: rows.length + skipped });
+        await db.insert(voalleServiceTags).values(batch)
+          .onConflictDoUpdate({
+            target: voalleServiceTags.id,
+            set: {
+              serviceTag: sql`excluded.service_tag`,
+              title:      sql`excluded.title`,
+              clientId:   sql`excluded.client_id`,
+              contractId: sql`excluded.contract_id`,
+              status:     sql`excluded.status`,
+              importedAt: sql`excluded.imported_at`,
+            },
+          });
+
+        res.json({ imported: batch.length, skipped: skippedInChunk });
       } catch (e) {
-        console.error("[VoalleServiceTags] Erro na importação:", e);
+        console.error("[VoalleServiceTags] Erro na importação de lote:", e);
         res.status(500).json({ error: String(e) });
       }
     }

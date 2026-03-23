@@ -244,34 +244,106 @@ export function LinkDiagnosticsTab() {
     refetchInterval: false,
   });
 
-  // Importação CSV de etiquetas Voalle
+  // Importação CSV de etiquetas Voalle (parse no browser, envio em lotes de 500)
   const tagFileRef = useRef<HTMLInputElement>(null);
   const [tagImportResult, setTagImportResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const [tagImportProgress, setTagImportProgress] = useState<{ chunk: number; total: number } | null>(null);
+
+  type TagRow = { id: number; serviceTag: string; title?: string | null; clientId?: number | null; contractId?: number | null; status?: number | null };
+
+  const parseCsvTags = (text: string): { rows: TagRow[]; skipped: number } => {
+    const parseRow = (line: string): string[] => {
+      const cols: string[] = [];
+      let cur = "";
+      let inQuote = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' && !inQuote) { inQuote = true; continue; }
+        if (ch === '"' && inQuote) { inQuote = false; continue; }
+        if (ch === "," && !inQuote) { cols.push(cur); cur = ""; continue; }
+        cur += ch;
+      }
+      cols.push(cur);
+      return cols;
+    };
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return { rows: [], skipped: 0 };
+    const header = parseRow(lines[0]).map(h => h.toLowerCase().trim());
+    const idx = {
+      id:         header.indexOf("id"),
+      serviceTag: header.indexOf("service_tag"),
+      title:      header.indexOf("title"),
+      clientId:   header.indexOf("client_id"),
+      contractId: header.indexOf("contract_id"),
+      status:     header.indexOf("status"),
+    };
+    if (idx.id < 0 || idx.serviceTag < 0) throw new Error(`Colunas 'id' e 'service_tag' não encontradas. Cabeçalho: ${header.slice(0, 10).join(", ")}`);
+    const rows: TagRow[] = [];
+    let skipped = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const c = parseRow(lines[i]);
+      const id = parseInt(c[idx.id] ?? "", 10);
+      const serviceTag = (c[idx.serviceTag] ?? "").trim();
+      if (!id || !serviceTag || serviceTag === "NULL") { skipped++; continue; }
+      rows.push({
+        id,
+        serviceTag,
+        title:      (idx.title >= 0 && c[idx.title] && c[idx.title] !== "NULL") ? c[idx.title] : null,
+        clientId:   idx.clientId >= 0 ? (parseInt(c[idx.clientId] ?? "", 10) || null) : null,
+        contractId: idx.contractId >= 0 ? (parseInt(c[idx.contractId] ?? "", 10) || null) : null,
+        status:     idx.status >= 0 ? (parseInt(c[idx.status] ?? "", 10) || null) : null,
+      });
+    }
+    return { rows, skipped };
+  };
+
   const importTagsMutation = useMutation({
     mutationFn: async (csvText: string) => {
-      const res = await apiRequest("POST", "/api/admin/voalle-service-tags/import", { csv: csvText });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error ?? "Erro desconhecido");
+      const { rows, skipped } = parseCsvTags(csvText);
+      if (rows.length === 0) throw new Error("Nenhuma linha válida encontrada no CSV");
+
+      const CHUNK = 500;
+      const totalChunks = Math.ceil(rows.length / CHUNK);
+      let totalImported = 0;
+      let totalSkipped = skipped;
+
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = i / CHUNK + 1;
+        setTagImportProgress({ chunk, total: totalChunks });
+        const res = await apiRequest("POST", "/api/admin/voalle-service-tags/import", {
+          rows: rows.slice(i, i + CHUNK),
+          skippedInChunk: i === 0 ? skipped : 0,
+        });
+        const data = await res.json() as { imported: number; skipped: number };
+        totalImported += data.imported;
+        if (i === 0) totalSkipped = data.skipped;
       }
-      return res.json() as Promise<{ imported: number; skipped: number; total: number }>;
+      setTagImportProgress(null);
+      return { imported: totalImported, skipped: totalSkipped, total: rows.length + skipped };
     },
     onSuccess: (data) => {
       setTagImportResult(data);
       refetchTagStats();
+    },
+    onError: () => {
+      setTagImportProgress(null);
     },
   });
 
   const handleTagFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setTagImportResult(null);
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      importTagsMutation.mutate(text);
+      e.target.value = "";
+      importTagsMutation.mutate(ev.target?.result as string);
+    };
+    reader.onerror = () => {
+      e.target.value = "";
+      importTagsMutation.reset();
     };
     reader.readAsText(file, "utf-8");
-    e.target.value = "";
   };
 
   if (isLoading) {
@@ -655,7 +727,9 @@ export function LinkDiagnosticsTab() {
               data-testid="btn-import-service-tags"
             >
               {importTagsMutation.isPending
-                ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Importando...</>
+                ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    {tagImportProgress ? `Lote ${tagImportProgress.chunk}/${tagImportProgress.total}...` : "Processando..."}
+                  </>
                 : <><UploadCloud className="h-3 w-3 mr-1" />Importar CSV</>
               }
             </Button>
