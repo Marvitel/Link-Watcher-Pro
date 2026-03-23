@@ -1358,7 +1358,7 @@ export const voalleContractClients = pgTable("voalle_contract_clients", {
 // Usada na reconciliação Voalle↔OZmap para resolver IDs numéricos de conexões excluídas
 export const voalleServiceTags = pgTable("voalle_service_tags", {
   id: integer("id").primaryKey(), // ID numérico original do Voalle (não gerado aqui)
-  serviceTag: varchar("service_tag", { length: 20 }).notNull(), // código alfanumérico (ex: M61VDRCS)
+  serviceTag: varchar("service_tag", { length: 120 }).notNull(), // código alfanumérico (ex: M61VDRCS) ou string de deleção
   title: text("title"),           // descrição do serviço
   clientId: integer("client_id"), // ID do cliente Voalle
   contractId: integer("contract_id"),
