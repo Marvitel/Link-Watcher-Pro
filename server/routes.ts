@@ -49,6 +49,7 @@ import {
   cpes,
   linkCpes,
   voalleContractClients,
+  voalleServiceTags,
   externalIntegrations,
   equipmentVendors,
   snmpProfiles,
@@ -12983,6 +12984,119 @@ export async function registerRoutes(
     }
   });
 
+  // ========== Etiquetas Voalle — Importação CSV ==========
+  // GET: retorna estatísticas do mapeamento importado
+  app.get("/api/admin/voalle-service-tags/stats", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(voalleServiceTags);
+      const latest = await db.select({ importedAt: voalleServiceTags.importedAt })
+        .from(voalleServiceTags).orderBy(sql`imported_at desc`).limit(1);
+      res.json({ count, lastImportedAt: latest[0]?.importedAt ?? null });
+    } catch (e) {
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  // POST: importa CSV (text/plain ou text/csv) com etiquetas do Voalle
+  // Colunas esperadas: id,contract_id,sla_categories_id,service_tag,title,description,client_id,status,...
+  app.post(
+    "/api/admin/voalle-service-tags/import",
+    requireAuth, requireSuperAdmin,
+    (req, res, next) => {
+      // Aceita CSV como corpo de texto
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk: string) => { body += chunk; });
+      req.on("end", () => { (req as any).rawCsvBody = body; next(); });
+    },
+    async (req: Request, res: Response) => {
+      try {
+        const csv: string = (req as any).rawCsvBody ?? "";
+        if (!csv.trim()) return res.status(400).json({ error: "Corpo CSV vazio" });
+
+        // Parser CSV simples (sem suporte a campos multi-linha com aspas, mas suficiente para este formato)
+        const parseRow = (line: string): string[] => {
+          const cols: string[] = [];
+          let cur = "";
+          let inQuote = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"' && !inQuote) { inQuote = true; continue; }
+            if (ch === '"' && inQuote) { inQuote = false; continue; }
+            if (ch === "," && !inQuote) { cols.push(cur); cur = ""; continue; }
+            cur += ch;
+          }
+          cols.push(cur);
+          return cols;
+        };
+
+        const lines = csv.split("\n").map(l => l.trim()).filter(Boolean);
+        if (lines.length < 2) return res.status(400).json({ error: "CSV precisa ter cabeçalho + dados" });
+
+        // Detectar posição das colunas a partir do cabeçalho
+        const header = parseRow(lines[0]).map(h => h.toLowerCase().trim());
+        const idxId          = header.indexOf("id");
+        const idxContractId  = header.indexOf("contract_id");
+        const idxServiceTag  = header.indexOf("service_tag");
+        const idxTitle       = header.indexOf("title");
+        const idxClientId    = header.indexOf("client_id");
+        const idxStatus      = header.indexOf("status");
+
+        if (idxId < 0 || idxServiceTag < 0) {
+          return res.status(400).json({ error: `CSV inválido: colunas obrigatórias 'id' e 'service_tag' não encontradas. Colunas detectadas: ${header.join(", ")}` });
+        }
+
+        const nullVal = (s: string) => (s === "NULL" || s === "" ? null : s);
+        const rows: Array<typeof voalleServiceTags.$inferInsert> = [];
+        let skipped = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseRow(lines[i]);
+          const id = parseInt(cols[idxId] ?? "", 10);
+          const serviceTag = (cols[idxServiceTag] ?? "").trim();
+          if (!id || !serviceTag || serviceTag === "NULL") { skipped++; continue; }
+          rows.push({
+            id,
+            serviceTag,
+            title:      nullVal(cols[idxTitle]     ?? "") ?? undefined,
+            clientId:   parseInt(cols[idxClientId] ?? "", 10) || null,
+            contractId: parseInt(cols[idxContractId]?? "", 10) || null,
+            status:     parseInt(cols[idxStatus]   ?? "", 10) || null,
+          });
+        }
+
+        if (rows.length === 0) return res.status(400).json({ error: `Nenhuma linha válida encontrada. Linhas ignoradas: ${skipped}` });
+
+        // Upsert em lotes de 500
+        const BATCH = 500;
+        let inserted = 0;
+        const now = new Date();
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const batch = rows.slice(i, i + BATCH).map(r => ({ ...r, importedAt: now }));
+          await db.insert(voalleServiceTags).values(batch)
+            .onConflictDoUpdate({
+              target: voalleServiceTags.id,
+              set: {
+                serviceTag: sql`excluded.service_tag`,
+                title:      sql`excluded.title`,
+                clientId:   sql`excluded.client_id`,
+                contractId: sql`excluded.contract_id`,
+                status:     sql`excluded.status`,
+                importedAt: sql`excluded.imported_at`,
+              },
+            });
+          inserted += batch.length;
+        }
+
+        console.log(`[VoalleServiceTags] Importados ${inserted} registros (ignorados ${skipped})`);
+        res.json({ imported: inserted, skipped, total: rows.length + skipped });
+      } catch (e) {
+        console.error("[VoalleServiceTags] Erro na importação:", e);
+        res.status(500).json({ error: String(e) });
+      }
+    }
+  );
+
   // ========== Reconciliação Voalle ↔ OZmap ==========
   app.get("/api/admin/voalle-ozmap-reconcile/status", requireAuth, requireSuperAdmin, (_req: Request, res: Response) => {
     res.json(reconcileProgress);
@@ -13213,7 +13327,7 @@ export async function registerRoutes(
     } catch (err) {
       console.warn(`[OZmap Reconcile] Falha ao buscar mapa de etiquetas do Voalle, usando DB como fallback:`, err);
     }
-    // Fallback: complementar com dados do banco para IDs não cobertos pela API
+    // Fonte 2: complementar com dados do banco de links (IDs já conhecidos)
     {
       const tagRows = await db.select({
         tagId:  links.voalleContractTagId,
@@ -13225,7 +13339,26 @@ export async function registerRoutes(
           voalleTagIdToCode.set(row.tagId, row.tagCode);
         }
       }
-      console.log(`[OZmap Reconcile] Mapa tagId→code final: ${voalleTagIdToCode.size} entradas`);
+    }
+    // Fonte 3: tabela voalle_service_tags populada via importação de CSV
+    // Contém mapeamento completo exportado diretamente do banco Voalle
+    // Preenche IDs que a API (/contractservicetagspaged) não retorna (ex: contratos sem CNPJ)
+    {
+      const csvTagRows = await db.select({
+        id:         voalleServiceTags.id,
+        serviceTag: voalleServiceTags.serviceTag,
+      }).from(voalleServiceTags);
+      let addedFromCsv = 0;
+      for (const row of csvTagRows) {
+        if (row.id && row.serviceTag && !voalleTagIdToCode.has(row.id)) {
+          voalleTagIdToCode.set(row.id, row.serviceTag);
+          addedFromCsv++;
+        }
+      }
+      if (addedFromCsv > 0) {
+        console.log(`[OZmap Reconcile] +${addedFromCsv} entradas adicionadas pelo CSV importado (Fonte 3)`);
+      }
+      console.log(`[OZmap Reconcile] Mapa tagId→code final: ${voalleTagIdToCode.size} entradas (API + links + CSV)`);
     }
 
     // Resolver serviceTag de conexão deletada: se for ID numérico, converte para código OZmap real

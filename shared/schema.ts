@@ -1353,6 +1353,19 @@ export const voalleContractClients = pgTable("voalle_contract_clients", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Tabela de etiquetas de serviço do Voalle — mapeamento id numérico → código alfanumérico
+// Populada via importação de CSV extraído do banco Voalle (contract_service_tags)
+// Usada na reconciliação Voalle↔OZmap para resolver IDs numéricos de conexões excluídas
+export const voalleServiceTags = pgTable("voalle_service_tags", {
+  id: integer("id").primaryKey(), // ID numérico original do Voalle (não gerado aqui)
+  serviceTag: varchar("service_tag", { length: 20 }).notNull(), // código alfanumérico (ex: M61VDRCS)
+  title: text("title"),           // descrição do serviço
+  clientId: integer("client_id"), // ID do cliente Voalle
+  contractId: integer("contract_id"),
+  status: integer("status"),      // 3 = ativo, outros = inativo
+  importedAt: timestamp("imported_at").notNull().defaultNow(),
+});
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;

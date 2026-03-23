@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,8 @@ import {
   Trash2,
   FileDown,
   Link2,
+  UploadCloud,
+  Database,
 } from "lucide-react";
 
 interface DiagnosticCategory {
@@ -235,6 +237,47 @@ export function LinkDiagnosticsTab() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/voalle-ozmap-reconcile/status"] });
     },
   });
+
+  // Estatísticas do mapeamento de etiquetas importado
+  const { data: tagStats, refetch: refetchTagStats } = useQuery<{ count: number; lastImportedAt: string | null }>({
+    queryKey: ["/api/admin/voalle-service-tags/stats"],
+    refetchInterval: false,
+  });
+
+  // Importação CSV de etiquetas Voalle
+  const tagFileRef = useRef<HTMLInputElement>(null);
+  const [tagImportResult, setTagImportResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const importTagsMutation = useMutation({
+    mutationFn: async (csvText: string) => {
+      const res = await fetch("/api/admin/voalle-service-tags/import", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: csvText,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error ?? "Erro desconhecido");
+      }
+      return res.json() as Promise<{ imported: number; skipped: number; total: number }>;
+    },
+    onSuccess: (data) => {
+      setTagImportResult(data);
+      refetchTagStats();
+    },
+  });
+
+  const handleTagFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      importTagsMutation.mutate(text);
+    };
+    reader.readAsText(file, "utf-8");
+    e.target.value = "";
+  };
 
   if (isLoading) {
     return (
@@ -572,6 +615,76 @@ export function LinkDiagnosticsTab() {
           );
         })}
       </div>
+
+      {/* Mapeamento de Etiquetas Voalle — Importação CSV */}
+      <Card data-testid="card-voalle-service-tags">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Database className="h-4 w-4 text-blue-500" />
+            Mapeamento de Etiquetas Voalle
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Importa o CSV exportado do banco Voalle (<code>contract_service_tags</code>) com o mapeamento
+            de IDs numéricos para códigos OZmap reais. Usado pela reconciliação para resolver conexões excluídas.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 text-xs text-muted-foreground">
+              {tagStats ? (
+                <>
+                  <span className="font-medium text-foreground">{tagStats.count.toLocaleString("pt-BR")}</span> etiquetas importadas
+                  {tagStats.lastImportedAt && (
+                    <span className="ml-2 text-muted-foreground/70">
+                      — última importação {new Date(tagStats.lastImportedAt).toLocaleDateString("pt-BR")}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span>Nenhuma etiqueta importada</span>
+              )}
+            </div>
+            <input
+              ref={tagFileRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              className="hidden"
+              onChange={handleTagFileSelect}
+              data-testid="input-service-tags-csv"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={importTagsMutation.isPending}
+              onClick={() => { setTagImportResult(null); tagFileRef.current?.click(); }}
+              data-testid="btn-import-service-tags"
+            >
+              {importTagsMutation.isPending
+                ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Importando...</>
+                : <><UploadCloud className="h-3 w-3 mr-1" />Importar CSV</>
+              }
+            </Button>
+          </div>
+
+          {importTagsMutation.isError && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertDescription className="text-xs">
+                {importTagsMutation.error instanceof Error ? importTagsMutation.error.message : "Erro desconhecido"}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {tagImportResult && (
+            <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20 mb-2">
+              <AlertDescription className="text-xs text-green-700 dark:text-green-300">
+                <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                Importação concluída: <strong>{tagImportResult.imported.toLocaleString("pt-BR")}</strong> etiquetas gravadas
+                {tagImportResult.skipped > 0 && `, ${tagImportResult.skipped} ignoradas`}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Reconciliação Voalle ↔ OZmap */}
       <Card data-testid="card-voalle-ozmap-reconcile">

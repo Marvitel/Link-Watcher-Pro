@@ -60,6 +60,9 @@ The system supports grouping links for redundancy (Active/Passive), aggregation 
 ### Batch Link Diagnostics & Enrichment
 An admin tool provides batch diagnostics and enrichment for links, categorizing missing data (e.g., `missingVoalleLogin`, `missingIp`, `missingOzmapData`) and offering actions like `discover_voalle_login`, `discover_ips`, `assign_concentrators`, and `sync_ozmap`. It includes progress tracking and a RADIUS connection test.
 
+### Voalle Service Tag Mapping
+A dedicated table `voalle_service_tags` stores the mapping between numeric Voalle tag IDs and alphanumeric OZmap codes (e.g., 3401 → "JW37Y8NA"), populated by importing a CSV exported directly from the Voalle database (`contract_service_tags`). The admin UI (Diagnostics tab) includes a CSV upload button that sends the file as text to `POST /api/admin/voalle-service-tags/import`. The reconciliation engine uses this table as Fonte 3 (after the API and links table) to resolve service tags of deleted connections that could not be resolved from the API alone.
+
 ## External Dependencies
 
 ### Database
