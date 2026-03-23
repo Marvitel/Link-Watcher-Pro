@@ -12997,21 +12997,15 @@ export async function registerRoutes(
     }
   });
 
-  // POST: importa CSV (text/plain ou text/csv) com etiquetas do Voalle
+  // POST: importa CSV com etiquetas do Voalle
+  // Corpo JSON: { csv: "<conteúdo do arquivo CSV>" }
   // Colunas esperadas: id,contract_id,sla_categories_id,service_tag,title,description,client_id,status,...
   app.post(
     "/api/admin/voalle-service-tags/import",
     requireAuth, requireSuperAdmin,
-    (req, res, next) => {
-      // Aceita CSV como corpo de texto
-      let body = "";
-      req.setEncoding("utf8");
-      req.on("data", (chunk: string) => { body += chunk; });
-      req.on("end", () => { (req as any).rawCsvBody = body; next(); });
-    },
     async (req: Request, res: Response) => {
       try {
-        const csv: string = (req as any).rawCsvBody ?? "";
+        const csv: string = typeof req.body?.csv === "string" ? req.body.csv : "";
         if (!csv.trim()) return res.status(400).json({ error: "Corpo CSV vazio" });
 
         // Parser CSV simples (sem suporte a campos multi-linha com aspas, mas suficiente para este formato)

@@ -249,12 +249,7 @@ export function LinkDiagnosticsTab() {
   const [tagImportResult, setTagImportResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
   const importTagsMutation = useMutation({
     mutationFn: async (csvText: string) => {
-      const res = await fetch("/api/admin/voalle-service-tags/import", {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: csvText,
-        credentials: "include",
-      });
+      const res = await apiRequest("POST", "/api/admin/voalle-service-tags/import", { csv: csvText });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error ?? "Erro desconhecido");
