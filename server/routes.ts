@@ -13443,13 +13443,41 @@ export async function registerRoutes(
       const result: typeof results[0] = { linkId: link.id, linkName: link.name, status: "skip", detail: "" };
       try {
         // Encontrar conexão Voalle no conjunto completo (por PPPoE, tag ou serial)
-        const voalleConn =
+        let voalleConn: any =
           (pppoe   && voalleByUser.get(pppoe.toLowerCase()))   ||
           (oldTag  && voalleByTag.get(oldTag.toUpperCase()))   ||
           (serial  && voalleBySerial.get(serial.toUpperCase())) ||
           null;
 
+        // Fallback A: serial do nosso DB existe no OZmap → tentar recuperar conexão Voalle
+        // pelo PPPoE do cliente OZmap (caso o Voalle não tenha o serial indexado mas o PPPoE bata)
+        let ozmapSerialDirectMatch: any = null;
+        if (!voalleConn && serial) {
+          ozmapSerialDirectMatch = ozmapBySerial.get(serial.toUpperCase()) ?? null;
+          if (ozmapSerialDirectMatch) {
+            const ozPppoe = (ozmapSerialDirectMatch.onu?.user_PPPoE || "").toLowerCase().trim();
+            if (ozPppoe) {
+              const viaOzPppoe = voalleByUser.get(ozPppoe) ?? null;
+              if (viaOzPppoe) {
+                console.log(`[OZmap Reconcile] "${link.name}": Voalle recuperado via PPPoE do OZmap (serial=${serial}, pppoe=${ozPppoe})`);
+                voalleConn = viaOzPppoe;
+              }
+            }
+          }
+        }
+
         if (!voalleConn) {
+          // Fallback B: serial do nosso DB existe no OZmap mas conexão Voalle é desconhecida
+          // → relatar o match OZmap em vez de silenciar (não vincular, mas informar)
+          if (ozmapSerialDirectMatch) {
+            const ozId   = ozmapSerialDirectMatch._id || ozmapSerialDirectMatch.id;
+            const ozCode = (ozmapSerialDirectMatch.code || "").trim() || null;
+            result.status       = "ozmap_not_found";
+            result.ozmapClientId  = ozId;
+            result.ozmapFoundCode = ozCode || undefined;
+            result.detail = `Serial "${serial}" encontrado no OZmap (id=${ozId}${ozCode ? `, code=${ozCode}` : ""}) mas conexão Voalle não localizada — vincular manualmente no Voalle`;
+            return result;
+          }
           result.status = "skip";
           result.detail = `Conexão não encontrada no Voalle (pppoe=${pppoe}, tag=${oldTag}, serial=${serial})`;
           return result;
