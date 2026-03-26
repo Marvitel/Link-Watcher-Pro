@@ -9454,8 +9454,9 @@ export async function registerRoutes(
           const vendor = vendorData[0];
           vendorName = vendor.name;
           vendorSlug = vendor.slug?.toLowerCase() || "";
-          if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
-          if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
+          // OIDs do fabricante só se o switch não tiver OID próprio configurado (switch tem prioridade)
+          if (vendor.switchOpticalRxOid && !opticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
+          if (vendor.switchOpticalTxOid && !opticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
           if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
           results.vendorConfig = {
             name: vendor.name,

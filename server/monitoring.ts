@@ -2501,10 +2501,10 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             vendorName = vendor.name;
             vendorSlug = vendor.slug?.toLowerCase() || "";
             vendorSnmpProfileId = vendor.snmpProfileId;
-            // Usar OIDs do vendor se disponíveis
-            if (vendor.switchOpticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
-            if (vendor.switchOpticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
-            if (vendor.switchPortIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
+            // Usar OIDs do vendor apenas se o switch não tiver OID próprio configurado
+            if (vendor.switchOpticalRxOid && !opticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
+            if (vendor.switchOpticalTxOid && !opticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
+            if (vendor.switchPortIndexTemplate && !portIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
             if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
             console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendorName} (divisor: ${opticalDivisor})`);
           }
