@@ -102,20 +102,23 @@ export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(fu
     let sshSentTime = 0;
     // Buffer para acumular output recente (para detectar padrões que chegam em chunks)
     let recentOutputBuffer = "";
+    // Controle de injeção de senha via prompt keyboard-interactive
+    let passwordInjectionCount = 0;
+    const MAX_PASSWORD_INJECTIONS = 3;
     
     // Função para marcar quando o SSH foi enviado (chamada após enviar o comando)
     const markSshSent = () => {
       sshSentTime = Date.now();
-      recentOutputBuffer = ""; // Limpar buffer quando novo SSH é enviado
+      recentOutputBuffer = "";
+      passwordInjectionCount = 0;
     };
     
-    // Função para lidar com fallback de autenticação SSH
-    // Definida aqui para estar disponível para ambos os WebSockets (primário e alternativo)
+    // Função para lidar com autenticação SSH (injeção de senha + fallback)
+    // Suporta dois modos:
+    //   1) keyboard-interactive: SSH exibe "Password:" no PTY → injeta senha diretamente (expect-style)
+    //   2) Fallback: após falha definitiva → reenvia SSH com outras credenciais
     const handleSshAuthFallback = (outputText: string, terminal: Terminal, socket: WebSocket, command?: string) => {
-      // Só processar se o SSH já foi enviado e há credenciais de fallback
-      if (!fallbackPassword || fallbackAttempted.current || !command || sshSentTime === 0) {
-        return;
-      }
+      if (!command || sshSentTime === 0) return;
       
       // Acumular output no buffer (manter últimos 2000 caracteres)
       recentOutputBuffer += outputText;
@@ -123,63 +126,69 @@ export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(fu
         recentOutputBuffer = recentOutputBuffer.slice(-2000);
       }
       
-      // Padrões explícitos de erro de autenticação SSH
+      const timeSinceSsh = Date.now() - sshSentTime;
+
+      // ── MODO 1: Injeção de senha no prompt keyboard-interactive ──────────────
+      // Switches/routers legados usam keyboard-interactive com PTY, que exibe
+      // "Password:" diretamente no terminal — SSH_ASKPASS não é chamado.
+      // Detecção: últimos 100 chars terminam com "password:" (case-insensitive).
+      const tailBuffer = recentOutputBuffer.slice(-150).toLowerCase();
+      const hasPasswordPrompt = tailBuffer.includes("password:") && timeSinceSsh > 200;
+      
+      if (hasPasswordPrompt && passwordInjectionCount < MAX_PASSWORD_INJECTIONS) {
+        // Determinar qual senha injetar
+        const passwordToInject = passwordInjectionCount === 0
+          ? (currentPasswordRef.current || "")  // 1ª tentativa: senha principal
+          : (fallbackPassword || currentPasswordRef.current || ""); // 2ª+: fallback
+        
+        if (passwordToInject) {
+          passwordInjectionCount++;
+          console.log(`[SSH] Prompt de senha detectado — injetando (tentativa ${passwordInjectionCount})`);
+          // Limpar detecção: avançar buffer para não re-detectar o mesmo prompt
+          recentOutputBuffer = "";
+          socket.send(JSON.stringify({ type: "input", data: passwordToInject + "\n" }));
+          return;
+        }
+      }
+      
+      // ── MODO 2: Fallback por falha definitiva ────────────────────────────────
+      if (!fallbackPassword || fallbackAttempted.current) return;
+      
+      // Padrões de falha definitiva (após tentativas de senha)
       const authFailPatterns = [
         "Permission denied",
-        "Access denied", 
+        "Access denied",
         "Authentication failed",
-        "password:",  // Prompt de senha interativo (sshpass falhou ao enviar senha)
         "SSHPASS: command not found",
       ];
       
-      // Verificar se é uma falha explícita de autenticação
       const isExplicitAuthFailure = authFailPatterns.some(pattern => 
         recentOutputBuffer.toLowerCase().includes(pattern.toLowerCase())
       );
       
-      // Detectar retorno ao prompt local após SSH (indica falha silenciosa)
-      // O padrão do servidor linkmonitor: [linkmonitor@linkmonitor]$
-      // Procurar no buffer acumulado porque o prompt pode chegar em chunks separados
-      const timeSinceSsh = Date.now() - sshSentTime;
-      
-      // Padrões de prompt local mais abrangentes
+      // Padrões de prompt local (SSH terminou e voltou ao bash local)
       const localPromptPatterns = [
-        /\[linkmonitor@linkmonitor\]\s*\$/,  // Prompt específico do servidor
-        /\[[\w.-]+@[\w.-]+\]\s*\$/,           // [user@host]$
-        /[\w.-]+@[\w.-]+:\S*\$/,               // user@host:~$
+        /\[linkmonitor@linkmonitor\]\s*\$/,
+        /\[[\w.-]+@[\w.-]+\]\s*\$/,
+        /[\w.-]+@[\w.-]+:\S*\$/,
       ];
       
-      // Verificar se o buffer contém indicação de que SSH conectou mas depois voltou ao prompt
       const sshConnected = recentOutputBuffer.includes("Warning: Permanently added") ||
                           recentOutputBuffer.includes("Connecting to");
-      const isBackToLocalPrompt = localPromptPatterns.some(pattern => pattern.test(recentOutputBuffer));
-      
-      // Falha silenciosa: SSH conectou, mas depois voltou ao prompt local
-      // Só considera entre 100ms e 10s após SSH ser enviado (100ms para garantir que não é o primeiro prompt)
+      const isBackToLocalPrompt = localPromptPatterns.some(p => p.test(recentOutputBuffer));
       const isSilentFailure = sshConnected && isBackToLocalPrompt && timeSinceSsh > 100 && timeSinceSsh < 10000;
       
-      // Debug: log detalhado para entender a detecção
-      console.log("[SSH Fallback Debug]", {
-        sshSentTime,
-        timeSinceSsh,
-        sshConnected,
-        isBackToLocalPrompt,
-        isExplicitAuthFailure,
-        isSilentFailure,
-        fallbackAttempted: fallbackAttempted.current,
-        hasFallbackPassword: !!fallbackPassword,
-        bufferLength: recentOutputBuffer.length,
-        bufferLast200: recentOutputBuffer.slice(-200)
+      console.log("[SSH Fallback]", {
+        timeSinceSsh, isExplicitAuthFailure, isSilentFailure, passwordInjectionCount,
+        bufferLast100: recentOutputBuffer.slice(-100)
       });
       
       if (isExplicitAuthFailure || isSilentFailure) {
         fallbackAttempted.current = true;
         terminal.writeln("\n\x1b[33m[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...\x1b[0m");
         
-        // Construir novo comando SSH com credenciais de fallback
         let fallbackCmd = command;
         if (fallbackUser && fallbackCmd.includes("@")) {
-          // Substituir usuário no comando: ... user@host -> ... fallbackUser@host
           const userAtHostMatch = fallbackCmd.match(/(\S+)@(\S+)$/);
           if (userAtHostMatch) {
             const host = userAtHostMatch[2];
@@ -187,32 +196,26 @@ export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(fu
           }
         }
         
-        // Atualizar a senha de ambiente para a senha de fallback
         currentPasswordRef.current = fallbackPassword;
         
-        // Aguardar a sessão SSH anterior terminar completamente antes de iniciar o fallback
         setTimeout(() => {
           if (socket.readyState === WebSocket.OPEN) {
-            // Usar $'...' (ANSI-C quoting) para evitar problemas com caracteres especiais
-            // Escapar apenas ' e \ dentro de $'...'
             const escapedPassword = fallbackPassword
               .replace(/\\/g, '\\\\')
               .replace(/'/g, "\\'");
-            // Definir SSHPASS silenciosamente usando eval para evitar que apareça no histórico/tela
-            // Enviar com códigos ANSI inline para limpar a linha após execução
             const exportCmd = `export SSHPASS=$'${escapedPassword}' && echo -ne '\\033[1A\\033[2K\\033[1A\\033[2K'`;
             socket.send(JSON.stringify({ type: "input", data: `${exportCmd}\n` }));
             
-            // Marcar novo tempo de envio do SSH (para não detectar como falha novamente)
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
                 sshSentTime = Date.now();
-                recentOutputBuffer = ""; // Limpar buffer para nova tentativa
+                recentOutputBuffer = "";
+                passwordInjectionCount = 0;
                 socket.send(JSON.stringify({ type: "input", data: fallbackCmd + "\n" }));
               }
             }, 500);
           }
-        }, 5000); // Aguardar 5 segundos para rate limiting do dispositivo
+        }, 5000);
       }
     };
 
