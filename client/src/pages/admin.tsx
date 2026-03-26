@@ -9113,6 +9113,7 @@ interface SwitchType {
   snmpProfileId: number | null;
   opticalRxOidTemplate: string | null;
   opticalTxOidTemplate: string | null;
+  opticalDivisor: number | null;
   portIndexTemplate: string | null;
   isActive: boolean;
   createdAt: string;
@@ -9154,6 +9155,7 @@ function SwitchesTab() {
     snmpProfileId: null as number | null,
     opticalRxOidTemplate: "",
     opticalTxOidTemplate: "",
+    opticalDivisor: null as number | null,
     portIndexTemplate: "",
     isActive: true,
     voalleIds: null as string | null,
@@ -9175,6 +9177,7 @@ function SwitchesTab() {
       snmpProfileId: null,
       opticalRxOidTemplate: "",
       opticalTxOidTemplate: "",
+      opticalDivisor: null,
       portIndexTemplate: "",
       isActive: true,
       voalleIds: null,
@@ -9199,6 +9202,7 @@ function SwitchesTab() {
       snmpProfileId: sw.snmpProfileId || null,
       opticalRxOidTemplate: sw.opticalRxOidTemplate || "",
       opticalTxOidTemplate: sw.opticalTxOidTemplate || "",
+      opticalDivisor: sw.opticalDivisor || null,
       portIndexTemplate: sw.portIndexTemplate || "",
       isActive: sw.isActive,
       voalleIds: sw.voalleIds || null,
@@ -9424,6 +9428,18 @@ function SwitchesTab() {
                   placeholder="1.3.6.1.4.1.3709.3.5.201.1.4.1.1.6.{portIndex}"
                   data-testid="input-switch-optical-tx-oid"
                 />
+              </div>
+              <div>
+                <Label htmlFor="switch-optical-divisor">Divisor do Valor SNMP</Label>
+                <Input
+                  id="switch-optical-divisor"
+                  type="number"
+                  value={formData.opticalDivisor?.toString() || ""}
+                  onChange={(e) => setFormData({ ...formData, opticalDivisor: e.target.value ? parseInt(e.target.value) : null })}
+                  placeholder="Ex: 1000 Mikrotik, 100 Datacom, 1 se já em dBm"
+                  data-testid="input-switch-optical-divisor"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Divisor para converter valor SNMP para dBm. Deixe vazio para usar o do fabricante.</p>
               </div>
               <div className="col-span-2">
                 <Label htmlFor="switch-port-index-template">Formula Indice da Porta</Label>

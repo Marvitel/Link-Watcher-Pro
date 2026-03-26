@@ -824,6 +824,7 @@ export const switches = pgTable("switches", {
   // OIDs para sinal óptico das portas SFP - variável: {portIndex}
   opticalRxOidTemplate: varchar("optical_rx_oid_template", { length: 255 }), // Ex: 1.3.6.1.4.1.3709.3.5.201.1.4.1.1.7.{portIndex}
   opticalTxOidTemplate: varchar("optical_tx_oid_template", { length: 255 }), // Ex: 1.3.6.1.4.1.3709.3.5.201.1.4.1.1.6.{portIndex}
+  opticalDivisor: integer("optical_divisor"), // Divisor do valor SNMP para dBm. Ex: 1000 Mikrotik, 100 Datacom, 1 se já em dBm. Sobrepõe o do fabricante.
   // Template para calcular índice SNMP da porta - variáveis: {slot}, {port}
   portIndexTemplate: varchar("port_index_template", { length: 100 }), // Ex: "{slot}*8+{port}" ou apenas o número da porta
   isActive: boolean("is_active").notNull().default(true),

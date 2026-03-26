@@ -9458,6 +9458,8 @@ export async function registerRoutes(
           if (vendor.switchOpticalRxOid && !opticalRxOid) opticalRxOid = vendor.switchOpticalRxOid;
           if (vendor.switchOpticalTxOid && !opticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
           if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
+          // Divisor do switch sobrepõe o do fabricante
+          if (sw.opticalDivisor) opticalDivisor = sw.opticalDivisor;
           results.vendorConfig = {
             name: vendor.name,
             slug: vendor.slug,

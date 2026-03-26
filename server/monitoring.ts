@@ -2506,6 +2506,8 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             if (vendor.switchOpticalTxOid && !opticalTxOid) opticalTxOid = vendor.switchOpticalTxOid;
             if (vendor.switchPortIndexTemplate && !portIndexTemplate) portIndexTemplate = vendor.switchPortIndexTemplate;
             if (vendor.switchOpticalDivisor) opticalDivisor = vendor.switchOpticalDivisor;
+            // Divisor do switch tem prioridade sobre o do fabricante
+            if (sw.opticalDivisor) opticalDivisor = sw.opticalDivisor;
             console.log(`[Monitor] ${link.name} - Óptico PTP: usando OIDs do fabricante ${vendorName} (divisor: ${opticalDivisor})`);
           }
         }
