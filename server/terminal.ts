@@ -93,11 +93,14 @@ export function setupTerminalWebSocket(server: Server) {
         if (ptyProcess) {
           ptyProcess.write(`alias ssh='ssh -F ${sshConfigPath}'\n`);
           if (env.SSHPASS) {
-            // Cria script askpass temporário que lê SSHPASS do ambiente
-            // SSH_ASKPASS_REQUIRE=force funciona no OpenSSH 8.4+ (ignora se stdin é TTY)
-            // DISPLAY=:0 é fallback para OpenSSH < 8.4 (ativa SSH_ASKPASS sem TTY check)
+            // Embute a senha DIRETAMENTE no script askpass (não depende de $SSHPASS no filho)
+            // O SSH sanitiza o ambiente antes de chamar o askpass — por isso $SSHPASS ficaria vazio.
+            // Escapa aspas simples na senha para shell single-quote: ' → '\''
+            const escapedPass = env.SSHPASS.replace(/'/g, "'\"'\"'");
+            // SSH_ASKPASS_REQUIRE=force → OpenSSH 8.4+ (ignora se stdin é TTY)
+            // DISPLAY=:0 → fallback para OpenSSH < 8.4
             ptyProcess.write(
-              `printf '#!/bin/sh\\necho "$SSHPASS"\\n' > /tmp/.lm_askpass_$$ && ` +
+              `printf '#!/bin/sh\\necho '\\''${escapedPass}'\\''\\n' > /tmp/.lm_askpass_$$ && ` +
               `/bin/chmod 700 /tmp/.lm_askpass_$$ && ` +
               `export SSH_ASKPASS=/tmp/.lm_askpass_$$ SSH_ASKPASS_REQUIRE=force DISPLAY=:0\n`
             );
