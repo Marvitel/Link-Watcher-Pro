@@ -2102,7 +2102,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     const legacyOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,3des-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512";
     if (password) {
       return {
-        command: `sshpass -e ssh ${legacyOpts} ${portArg}${user}@${device.ip}`,
+        command: `sshpass -e ssh -t ${legacyOpts} ${portArg}${user}@${device.ip}`,
         password: password,
         fallbackPassword: fallbackPassword || undefined,
         fallbackUser: fallbackUser || undefined,
@@ -2369,8 +2369,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             const cpeFallbackPassword = (cpe as any).fallbackSshPassword;
             const sshCommand = cpe.ip 
               ? (sshPassword 
-                  ? `sshpass -e ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`
-                  : `ssh ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`)
+                  ? `sshpass -e ssh -t ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`
+                  : `ssh -t ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
             return (
