@@ -200,11 +200,14 @@ export const XtermTerminal = forwardRef<XtermTerminalRef, XtermTerminalProps>(fu
         
         setTimeout(() => {
           if (socket.readyState === WebSocket.OPEN) {
-            const escapedPassword = fallbackPassword
-              .replace(/\\/g, '\\\\')
-              .replace(/'/g, "\\'");
-            const exportCmd = `export SSHPASS=$'${escapedPassword}' && echo -ne '\\033[1A\\033[2K\\033[1A\\033[2K'`;
-            socket.send(JSON.stringify({ type: "input", data: `${exportCmd}\n` }));
+            // CRÍTICO: reescrever o script askpass com a senha de fallback.
+            // O script foi criado com a senha embutida como literal — export SSHPASS não altera o arquivo.
+            // Usa o mesmo mecanismo do servidor: aspas simples escapadas com '\''
+            const escapedPassShell = fallbackPassword.replace(/'/g, "'\"'\"'");
+            const updateAskpassCmd =
+              `printf '#!/bin/sh\\necho '\\''${escapedPassShell}'\\''\\n' > /tmp/.lm_askpass_$$ && ` +
+              `echo -ne '\\033[1A\\033[2K'`;
+            socket.send(JSON.stringify({ type: "input", data: `${updateAskpassCmd}\n` }));
             
             setTimeout(() => {
               if (socket.readyState === WebSocket.OPEN) {
