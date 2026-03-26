@@ -87,11 +87,21 @@ export function setupTerminalWebSocket(server: Server) {
 
       activePtys.set(ws, ptyProcess);
 
-      // Configurar alias SSH para equipamentos legados após o shell iniciar
-      // Nota: não limpa a tela para que o usuário veja o comando sendo executado
+      // Configurar alias SSH e injeção de senha via SSH_ASKPASS após o shell iniciar
+      // SSH_ASKPASS evita que o sshpass interfira com a alocação de PTY (problema com -t)
       setTimeout(() => {
         if (ptyProcess) {
           ptyProcess.write(`alias ssh='ssh -F ${sshConfigPath}'\n`);
+          if (env.SSHPASS) {
+            // Cria script askpass temporário que lê SSHPASS do ambiente
+            // SSH_ASKPASS_REQUIRE=force funciona no OpenSSH 8.4+ (ignora se stdin é TTY)
+            // DISPLAY=:0 é fallback para OpenSSH < 8.4 (ativa SSH_ASKPASS sem TTY check)
+            ptyProcess.write(
+              `printf '#!/bin/sh\\necho "$SSHPASS"\\n' > /tmp/.lm_askpass_$$ && ` +
+              `chmod 700 /tmp/.lm_askpass_$$ && ` +
+              `export SSH_ASKPASS=/tmp/.lm_askpass_$$ SSH_ASKPASS_REQUIRE=force DISPLAY=:0\n`
+            );
+          }
         }
       }, 300);
 
