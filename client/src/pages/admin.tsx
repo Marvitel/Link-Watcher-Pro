@@ -738,6 +738,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     equipmentSerialNumber: (link as any)?.equipmentSerialNumber || "",
     latitude: (link as any)?.latitude || "",
     longitude: (link as any)?.longitude || "",
+    monitoredIpLocked: (link as any)?.monitoredIpLocked ?? false,
     invertBandwidth: (link as any)?.invertBandwidth ?? false,
     isL2Link: (link as any)?.isL2Link ?? false,
     icmpBlocked: (link as any)?.icmpBlocked ?? false,
@@ -2245,6 +2246,19 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
           </div>
         </div>
         
+        {/* Fixar IP de monitoramento - impede sobrescrita automática */}
+        <div className="flex items-center justify-between p-3 rounded-md border bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800">
+          <div className="space-y-0.5">
+            <p className="font-medium text-sm">Fixar IP de Monitoramento</p>
+            <p className="text-xs text-muted-foreground">Impede que o sistema sobrescreva o IP automaticamente via PPPoE/sync</p>
+          </div>
+          <Switch
+            checked={formData.monitoredIpLocked}
+            onCheckedChange={(checked) => setFormData({ ...formData, monitoredIpLocked: checked })}
+            data-testid="switch-monitored-ip-locked"
+          />
+        </div>
+
         {/* Link L2 - Sem IP monitorado */}
         <div className="flex items-center justify-between p-3 rounded-md border bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
           <div className="space-y-0.5">

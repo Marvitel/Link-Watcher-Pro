@@ -1113,6 +1113,7 @@ export async function registerRoutes(
         'accessPointId', 'accessPointInterfaceIndex', 'accessPointInterfaceName',
         'latitude', 'longitude', 'invertBandwidth', 'sfpType',
         'isL2Link', 'icmpBlocked', 'tcpCheckPort',
+        'monitoredIpLocked',
         'wifiName', 'wifiPassword',
       ]);
       const filteredBody: Record<string, any> = {};

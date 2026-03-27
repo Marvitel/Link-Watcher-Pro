@@ -1714,10 +1714,12 @@ async function handleIfIndexAutoDiscovery(
         console.log(`[Monitor] ${link.name}: Armazenando pppoeUser "${effectivePppoeUser}" (derivado) após discovery bem-sucedido`);
       }
       
-      // Se já temos IP da sessão PPPoE, atualizar monitoredIp
-      if (searchResult.ipAddress) {
+      // Se já temos IP da sessão PPPoE, atualizar monitoredIp (só se não estiver bloqueado manualmente)
+      if (searchResult.ipAddress && !link.monitoredIpLocked) {
         updateData.monitoredIp = searchResult.ipAddress;
         console.log(`[Monitor] ${link.name}: IP atualizado para ${searchResult.ipAddress}`);
+      } else if (searchResult.ipAddress && link.monitoredIpLocked) {
+        console.log(`[Monitor] ${link.name}: IP ${searchResult.ipAddress} ignorado (IP de monitoramento bloqueado manualmente em ${link.monitoredIp})`);
       }
       
       await db.update(links).set(updateData).where(eq(links.id, link.id));
@@ -1815,7 +1817,7 @@ async function handleIfIndexAutoDiscovery(
                   lastIfIndexValidation: now,
                 };
                 
-                if (session.ipAddress) {
+                if (session.ipAddress && !link.monitoredIpLocked) {
                   updateData.monitoredIp = session.ipAddress;
                 }
                 
@@ -1853,7 +1855,7 @@ async function handleIfIndexAutoDiscovery(
                   lastIfIndexValidation: now,
                 };
                 
-                if (corpInfo.ipAddress) {
+                if (corpInfo.ipAddress && !link.monitoredIpLocked) {
                   updateData.monitoredIp = corpInfo.ipAddress;
                 }
                 
