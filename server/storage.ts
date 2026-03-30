@@ -1207,6 +1207,15 @@ export class DatabaseStorage {
   }
 
   async initializeDefaultData(): Promise<void> {
+    // Índices compostos para acelerar queries do dashboard e monitoramento
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_links_status_client ON links(status, client_id) WHERE deleted_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_links_client_deleted ON links(client_id, deleted_at);
+      CREATE INDEX IF NOT EXISTS idx_events_link_resolved ON events(link_id, resolved) WHERE resolved = false;
+      CREATE INDEX IF NOT EXISTS idx_incidents_link_closed ON incidents(link_id, closed_at) WHERE closed_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_incidents_opened ON incidents(opened_at DESC);
+    `);
+
     await this.initializeDefaultPermissions();
     await this.initializeDefaultEventTypes();
     await this.initializeDefaultEquipmentVendors();

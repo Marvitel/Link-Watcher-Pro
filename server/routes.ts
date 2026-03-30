@@ -35,6 +35,8 @@ import {
   insertFirewallWhitelistSchema,
   insertFirewallSettingsSchema,
   links,
+  incidents as incidentsTable,
+  events as eventsTable,
   clients as clientsTable,
   clientSettings as clientSettingsTable,
   blacklistChecks,
@@ -185,6 +187,19 @@ function mapIncidentReasonToEventType(failureReason: string): string {
 
 // Importa função de versão do build (calculada do hash real do index.html)
 import { getBuildVersion } from "./static";
+
+// Cache simples in-memory para o dashboard super-admin (evita queries pesadas a cada troca de página)
+const dashboardCache = new Map<string, { data: any; expiresAt: number }>();
+const DASHBOARD_CACHE_TTL = 20_000; // 20 segundos
+function getDashboardCache(key: string) {
+  const entry = dashboardCache.get(key);
+  if (entry && entry.expiresAt > Date.now()) return entry.data;
+  dashboardCache.delete(key);
+  return null;
+}
+function setDashboardCache(key: string, data: any) {
+  dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -3764,6 +3779,11 @@ export async function registerRoutes(
       const clientIdFilter = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
       const search = (req.query.search as string)?.toLowerCase().trim() || undefined;
 
+      // Verificar cache (evita recalcular tudo a cada troca de página)
+      const cacheKey = `dashboard:${page}:${pageSize}:${statusFilter || 'all'}:${clientIdFilter || 'all'}:${search || ''}`;
+      const cached = getDashboardCache(cacheKey);
+      if (cached) return res.json(cached);
+
       // Build WHERE conditions (all applied at DB level)
       const baseConditions: any[] = [isNull(links.deletedAt)];
 
@@ -3851,15 +3871,33 @@ export async function registerRoutes(
         openIncidents: 0,
       };
 
-      // Fetch events and incidents only for the paginated set
+      // Fetch events and incidents only for the paginated set — queries filtradas por linkId
       const linkIds = paginatedLinks.map(l => l.id);
       const activeEventsByLink = new Map<number, any>();
       const openIncidentsByLink = new Map<number, any>();
 
       if (linkIds.length > 0) {
         const [unresolvedEvents, openIncidents] = await Promise.all([
-          storage.getUnresolvedEventsByLinkIds(linkIds),
-          storage.getOpenIncidents(),
+          // Eventos: só colunas necessárias, filtrados pelos linkIds da página
+          db.select({
+            id: eventsTable.id,
+            linkId: eventsTable.linkId,
+            type: eventsTable.type,
+            description: eventsTable.description,
+            timestamp: eventsTable.timestamp,
+          })
+            .from(eventsTable)
+            .where(and(inArray(eventsTable.linkId, linkIds), eq(eventsTable.resolved, false))),
+          // Incidentes: filtrados pelos linkIds da página (sem buscar todos os incidentes abertos)
+          db.select({
+            id: incidentsTable.id,
+            linkId: incidentsTable.linkId,
+            description: incidentsTable.description,
+            erpTicketId: incidentsTable.erpTicketId,
+            openedAt: incidentsTable.openedAt,
+          })
+            .from(incidentsTable)
+            .where(and(inArray(incidentsTable.linkId, linkIds), isNull(incidentsTable.closedAt))),
         ]);
 
         for (const event of unresolvedEvents) {
@@ -3876,7 +3914,7 @@ export async function registerRoutes(
         }
 
         for (const incident of openIncidents) {
-          if (incident.linkId && linkIds.includes(incident.linkId)) {
+          if (incident.linkId && !openIncidentsByLink.has(incident.linkId)) {
             openIncidentsByLink.set(incident.linkId, {
               id: incident.id,
               title: incident.description || `Incidente #${incident.id}`,
@@ -3913,7 +3951,9 @@ export async function registerRoutes(
         };
       });
 
-      res.json({ items, summary, page, pageSize, totalPages, totalItems });
+      const responseData = { items, summary, page, pageSize, totalPages, totalItems };
+      setDashboardCache(cacheKey, responseData);
+      res.json(responseData);
     } catch (error) {
       console.error("[Link Dashboard] Error:", error);
       res.status(500).json({ error: "Failed to fetch link dashboard" });

@@ -1,4 +1,4 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery, useQueries, keepPreviousData } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -327,6 +327,7 @@ function SuperAdminLinkDashboard({
     refetchInterval: 30000,
     staleTime: 25000,
     retry: 2,
+    placeholderData: keepPreviousData,
   });
 
   const handleStatusChange = (value: string) => {
