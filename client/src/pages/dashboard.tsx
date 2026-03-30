@@ -460,6 +460,13 @@ function SuperAdminLinkDashboard({
             <Skeleton key={i} className="h-36 w-full" />
           ))}
         </div>
+      ) : isFetching && data?.page !== page ? (
+        // Mudança de página: mostra skeletons enquanto a nova página carrega
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
+          {Array.from({ length: 16 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 w-full" />
+          ))}
+        </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
