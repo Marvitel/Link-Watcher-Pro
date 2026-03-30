@@ -59,7 +59,7 @@ import {
 } from "@shared/schema";
 import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
-import { eq, and, or, isNull, isNotNull, sql } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 import {
   getFlashmanConfigForClient,
@@ -3759,105 +3759,138 @@ export async function registerRoutes(
   app.get("/api/super-admin/link-dashboard", requireSuperAdmin, async (req, res) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 50, 100);
-      const status = req.query.status as string | undefined; // 'operational', 'degraded', 'offline', 'all'
-      const clientId = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
+      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 100, 200);
+      const statusFilter = req.query.status as string | undefined;
+      const clientIdFilter = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
       const search = (req.query.search as string)?.toLowerCase().trim() || undefined;
 
-      // Get all clients for name lookup
-      const allClients = await storage.getClients();
-      const clientMap = new Map(allClients.map(c => [c.id, c.name]));
+      // Build WHERE conditions (all applied at DB level)
+      const baseConditions: any[] = [isNull(links.deletedAt)];
 
-      // Get all links
-      let allLinks = await storage.getLinks();
+      // Only links from active clients
+      const activeClients = await db.select({ id: clientsTable.id, name: clientsTable.name })
+        .from(clientsTable).where(eq(clientsTable.isActive, true));
+      const activeClientIds = activeClients.map(c => c.id);
+      const clientMap = new Map(activeClients.map(c => [c.id, c.name]));
 
-      // Apply filters
-      if (clientId) {
-        allLinks = allLinks.filter(l => l.clientId === clientId);
+      if (activeClientIds.length === 0) {
+        return res.json({ items: [], summary: { totalLinks: 0, onlineLinks: 0, degradedLinks: 0, offlineLinks: 0, activeAlerts: 0, openIncidents: 0 }, page: 1, pageSize, totalPages: 0, totalItems: 0 });
       }
-      if (status && status !== 'all') {
-        if (status === 'offline') {
-          allLinks = allLinks.filter(l => l.status === 'offline' || l.status === 'down');
+      baseConditions.push(inArray(links.clientId, activeClientIds));
+
+      if (clientIdFilter) {
+        baseConditions.push(eq(links.clientId, clientIdFilter));
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        if (statusFilter === 'offline') {
+          baseConditions.push(or(eq(links.status, 'offline'), eq(links.status, 'down')));
         } else {
-          allLinks = allLinks.filter(l => l.status === status);
+          baseConditions.push(eq(links.status, statusFilter));
         }
       }
       if (search) {
-        allLinks = allLinks.filter(l => 
-          l.name.toLowerCase().includes(search) ||
-          l.identifier.toLowerCase().includes(search) ||
-          l.ipBlock.toLowerCase().includes(search) ||
-          l.location.toLowerCase().includes(search) ||
-          (clientMap.get(l.clientId) || '').toLowerCase().includes(search)
+        const term = `%${search}%`;
+        baseConditions.push(
+          or(
+            sql`LOWER(${links.name}) LIKE ${term}`,
+            sql`LOWER(${links.identifier}) LIKE ${term}`,
+            sql`LOWER(${links.ipBlock}) LIKE ${term}`,
+            sql`LOWER(${links.location}) LIKE ${term}`,
+            sql`LOWER(${links.address}) LIKE ${term}`,
+          )
         );
       }
 
-      // Calculate summary before pagination
+      const whereClause = and(...baseConditions);
+
+      // Run summary counts and paginated data in parallel
+      const [countRows, onlineRows, degradedRows, offlineRows, paginatedLinks] = await Promise.all([
+        // Total count (with all filters)
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(whereClause),
+        // Online count
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, eq(links.status, 'operational'))),
+        // Degraded count
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, eq(links.status, 'degraded'))),
+        // Offline count
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, or(eq(links.status, 'offline'), eq(links.status, 'down')))),
+        // Paginated links — select only the columns needed for the dashboard card
+        db.select({
+          id: links.id,
+          clientId: links.clientId,
+          name: links.name,
+          identifier: links.identifier,
+          ipBlock: links.ipBlock,
+          location: links.location,
+          bandwidth: links.bandwidth,
+          status: links.status,
+          currentDownload: links.currentDownload,
+          currentUpload: links.currentUpload,
+          latency: links.latency,
+          packetLoss: links.packetLoss,
+          uptime: links.uptime,
+          invertBandwidth: links.invertBandwidth,
+          monitoringEnabled: links.monitoringEnabled,
+          lastUpdated: links.lastUpdated,
+        })
+          .from(links)
+          .where(whereClause)
+          .orderBy(sql`CASE ${links.status} WHEN 'offline' THEN 0 WHEN 'down' THEN 0 WHEN 'degraded' THEN 1 ELSE 2 END`)
+          .limit(pageSize)
+          .offset((page - 1) * pageSize),
+      ]);
+
+      const totalItems = countRows[0]?.count ?? 0;
+      const totalPages = Math.ceil(totalItems / pageSize);
+
       const summary = {
-        totalLinks: allLinks.length,
-        onlineLinks: allLinks.filter(l => l.status === 'operational').length,
-        degradedLinks: allLinks.filter(l => l.status === 'degraded').length,
-        offlineLinks: allLinks.filter(l => l.status === 'offline' || l.status === 'down').length,
+        totalLinks: totalItems,
+        onlineLinks: onlineRows[0]?.count ?? 0,
+        degradedLinks: degradedRows[0]?.count ?? 0,
+        offlineLinks: offlineRows[0]?.count ?? 0,
         activeAlerts: 0,
         openIncidents: 0,
       };
 
-      // Sort by status priority (offline first, then degraded, then operational)
-      const statusPriority: Record<string, number> = { offline: 0, down: 0, degraded: 1, operational: 2 };
-      allLinks.sort((a, b) => (statusPriority[a.status] ?? 2) - (statusPriority[b.status] ?? 2));
-
-      // Paginate
-      const totalItems = allLinks.length;
-      const totalPages = Math.ceil(totalItems / pageSize);
-      const paginatedLinks = allLinks.slice((page - 1) * pageSize, page * pageSize);
-
-      // Get active events for paginated links (batch query)
+      // Fetch events and incidents only for the paginated set
       const linkIds = paginatedLinks.map(l => l.id);
       const activeEventsByLink = new Map<number, any>();
       const openIncidentsByLink = new Map<number, any>();
 
-      // Fetch unresolved events for these specific links only
-      // Get events for all links to find active ones - query all unresolved events directly
-      const allUnresolvedEvents = await storage.getUnresolvedEventsByLinkIds(linkIds);
-      for (const event of allUnresolvedEvents) {
-        if (!activeEventsByLink.has(event.linkId)) {
-          activeEventsByLink.set(event.linkId, {
-            id: event.id,
-            type: event.type,
-            description: event.description,
-            severity: event.type === 'offline' ? 'critical' : event.type === 'degraded' ? 'warning' : 'info',
-            createdAt: event.timestamp,
-          });
-          summary.activeAlerts++;
+      if (linkIds.length > 0) {
+        const [unresolvedEvents, openIncidents] = await Promise.all([
+          storage.getUnresolvedEventsByLinkIds(linkIds),
+          storage.getOpenIncidents(),
+        ]);
+
+        for (const event of unresolvedEvents) {
+          if (!activeEventsByLink.has(event.linkId)) {
+            activeEventsByLink.set(event.linkId, {
+              id: event.id,
+              type: event.type,
+              description: event.description,
+              severity: event.type === 'offline' ? 'critical' : event.type === 'degraded' ? 'warning' : 'info',
+              createdAt: event.timestamp,
+            });
+            summary.activeAlerts++;
+          }
+        }
+
+        for (const incident of openIncidents) {
+          if (incident.linkId && linkIds.includes(incident.linkId)) {
+            openIncidentsByLink.set(incident.linkId, {
+              id: incident.id,
+              title: incident.description || `Incidente #${incident.id}`,
+              voalleProtocolId: incident.erpTicketId ? parseInt(incident.erpTicketId) : null,
+              createdAt: incident.openedAt,
+            });
+            summary.openIncidents++;
+          }
         }
       }
 
-      // Fetch open incidents for these links
-      const openIncidents = await storage.getOpenIncidents();
-      for (const incident of openIncidents) {
-        if (incident.linkId && linkIds.includes(incident.linkId)) {
-          openIncidentsByLink.set(incident.linkId, {
-            id: incident.id,
-            title: incident.description || `Incidente #${incident.id}`,
-            voalleProtocolId: incident.erpTicketId ? parseInt(incident.erpTicketId) : null,
-            createdAt: incident.openedAt,
-          });
-          summary.openIncidents++;
-        }
-      }
-
-      // Build response items
-      // Note: The monitoring system stores data with default inversion (concentrator perspective).
-      // When invertBandwidth=true, it means the link is configured to NOT invert (customer perspective),
-      // so we need to swap the values back to show correct customer-facing download/upload.
       const items = paginatedLinks.map(link => {
-        // By default (invertBandwidth=false), values in DB are already from concentrator perspective
-        // (download = data leaving customer = upload for customer, upload = data entering customer = download for customer)
-        // When invertBandwidth=true, values should be displayed as stored (no swap needed)
-        // When invertBandwidth=false (default), we need to swap to show customer perspective
         const displayDownload = link.invertBandwidth ? link.currentDownload : link.currentUpload;
         const displayUpload = link.invertBandwidth ? link.currentUpload : link.currentDownload;
-        
         return {
           id: link.id,
           name: link.name,
@@ -3880,14 +3913,7 @@ export async function registerRoutes(
         };
       });
 
-      res.json({
-        items,
-        summary,
-        page,
-        pageSize,
-        totalPages,
-        totalItems,
-      });
+      res.json({ items, summary, page, pageSize, totalPages, totalItems });
     } catch (error) {
       console.error("[Link Dashboard] Error:", error);
       res.status(500).json({ error: "Failed to fetch link dashboard" });

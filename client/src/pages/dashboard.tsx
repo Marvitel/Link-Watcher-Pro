@@ -300,7 +300,7 @@ function SuperAdminLinkDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 100;
 
   // Debounce search with useEffect
   useEffect(() => {
@@ -324,9 +324,9 @@ function SuperAdminLinkDashboard({
 
   const { data, isLoading, isFetching, isError, refetch } = useQuery<LinkDashboardResponse>({
     queryKey: [queryUrl],
-    refetchInterval: 10000,
-    staleTime: 5000,
-    retry: 3,
+    refetchInterval: 30000,
+    staleTime: 25000,
+    retry: 2,
   });
 
   const handleStatusChange = (value: string) => {
