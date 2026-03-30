@@ -204,93 +204,79 @@ function SuperAdminLinkCard({ item, onViewClient }: {
       className={`border-l-4 ${borderColor} hover-elevate transition-all`}
       data-testid={`card-link-${item.id}`}
     >
-      <CardContent className="p-4 space-y-3">
-        {/* Header: Cliente e Status */}
-        <div className="flex items-start justify-between gap-2">
+      <CardContent className="p-2 space-y-1.5">
+        {/* Header: Status badge + nome do link */}
+        <div className="flex items-start justify-between gap-1">
           <div className="min-w-0 flex-1">
             <button
               onClick={() => onViewClient(item.clientId, item.clientName)}
-              className="text-xs font-medium text-primary hover:underline truncate block"
+              className="text-[10px] font-medium text-primary hover:underline truncate block leading-tight"
               data-testid={`button-view-client-${item.clientId}`}
             >
               {item.clientName}
             </button>
             <Link href={`/link/${item.id}`}>
-              <h3 className="font-semibold text-sm truncate hover:text-primary cursor-pointer" title={item.name}>
+              <h3 className="font-semibold text-xs truncate hover:text-primary cursor-pointer leading-tight" title={item.name}>
                 {item.name}
               </h3>
             </Link>
-            <p className="text-xs text-muted-foreground truncate" title={item.ipBlock}>
-              {item.ipBlock} • {item.location}
+            <p className="text-[10px] text-muted-foreground truncate leading-tight" title={item.ipBlock}>
+              {item.ipBlock}
             </p>
           </div>
-          <Badge className={`shrink-0 ${statusInfo.className}`}>
+          <Badge className={`shrink-0 text-[10px] px-1 py-0 leading-4 ${statusInfo.className}`}>
             {statusInfo.label}
           </Badge>
         </div>
 
-        {/* Métricas de Tráfego */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <Download className="w-3 h-3 text-blue-500" />
-            <span className="text-muted-foreground">DL:</span>
-            <span className="font-mono font-medium">{formatBandwidth(item.currentDownload)}</span>
+        {/* Métricas DL/UL e Lat/Perda em 2 linhas compactas */}
+        <div className="grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px]">
+          <div className="flex items-center gap-0.5">
+            <Download className="w-2.5 h-2.5 text-blue-500 shrink-0" />
+            <span className="font-mono font-medium truncate">{formatBandwidth(item.currentDownload)}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Upload className="w-3 h-3 text-green-500" />
-            <span className="text-muted-foreground">UL:</span>
-            <span className="font-mono font-medium">{formatBandwidth(item.currentUpload)}</span>
+          <div className="flex items-center gap-0.5">
+            <Upload className="w-2.5 h-2.5 text-green-500 shrink-0" />
+            <span className="font-mono font-medium truncate">{formatBandwidth(item.currentUpload)}</span>
           </div>
-        </div>
-
-        {/* Latência e Perda */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            <span className="text-muted-foreground">Lat:</span>
+          <div className="flex items-center gap-0.5">
+            <Clock className="w-2.5 h-2.5 shrink-0" />
             <span className={`font-mono font-medium ${getLatencyColor(item.latency)}`}>
               {item.latency.toFixed(1)}ms
             </span>
           </div>
-          <div className="flex items-center gap-1">
-            <Activity className="w-3 h-3" />
-            <span className="text-muted-foreground">Perda:</span>
+          <div className="flex items-center gap-0.5">
+            <Activity className="w-2.5 h-2.5 shrink-0" />
             <span className={`font-mono font-medium ${getLossColor(item.packetLoss)}`}>
               {item.packetLoss.toFixed(1)}%
             </span>
           </div>
         </div>
 
-        {/* Uptime/SLA */}
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1">
-            <Gauge className="w-3 h-3" />
-            <span className="text-muted-foreground">SLA:</span>
-            <span className={`font-mono font-medium ${item.uptime >= 99 ? 'text-green-600 dark:text-green-400' : item.uptime >= 95 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-              {item.uptime.toFixed(2)}%
-            </span>
-          </div>
-          <span className="text-muted-foreground">
-            {item.bandwidth} Mbps
+        {/* SLA + Banda */}
+        <div className="flex items-center justify-between text-[10px]">
+          <span className={`font-mono font-medium ${item.uptime >= 99 ? 'text-green-600 dark:text-green-400' : item.uptime >= 95 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+            {item.uptime.toFixed(1)}%
           </span>
+          <span className="text-muted-foreground">{item.bandwidth} Mbps</span>
         </div>
 
         {/* Motivo da Falha e Tickets */}
         {(item.activeEvent || item.openIncident) && (
-          <div className="pt-2 border-t border-border space-y-1.5">
+          <div className="pt-1 border-t border-border space-y-0.5">
             {item.activeEvent && (
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
-                <span className="text-xs text-destructive font-medium" title={item.activeEvent.description}>
+              <div className="flex items-start gap-1">
+                <AlertTriangle className="w-3 h-3 text-destructive shrink-0 mt-0.5" />
+                <span className="text-[10px] text-destructive font-medium truncate" title={item.activeEvent.description}>
                   {getFailureReason()}
                 </span>
               </div>
             )}
             {item.openIncident && (
-              <div className="flex items-center gap-2">
-                <Ticket className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <span className="text-xs text-muted-foreground">
-                  {item.openIncident.voalleProtocolId ? `Ticket #${item.openIncident.voalleProtocolId}` : 'Incidente Aberto'}
+              <div className="flex items-center gap-1">
+                <Ticket className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="text-[10px] text-muted-foreground truncate">
+                  {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
                 </span>
               </div>
             )}
@@ -468,14 +454,14 @@ function SuperAdminLinkDashboard({
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <Skeleton key={i} className="h-48 w-full" />
+            <Skeleton key={i} className="h-36 w-full" />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
             {data.items.map((item) => (
               <SuperAdminLinkCard 
                 key={item.id} 
