@@ -274,7 +274,25 @@ function SuperAdminLinkDashboard({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 200;
+  const [pageSize, setPageSize] = useState(100);
+
+  // Calcula pageSize com base nas dimensões da tela
+  useEffect(() => {
+    const CARD_W = 200 + 8; // largura do card + gap
+    const CARD_H = 128 + 8; // altura do card + gap
+    const SIDEBAR_W = 256;  // sidebar estimada
+    const HEADER_H = 220;   // header + filtros estimados
+
+    const calc = () => {
+      const cols = Math.max(1, Math.floor((window.innerWidth - SIDEBAR_W) / CARD_W));
+      const rows = Math.max(2, Math.floor((window.innerHeight - HEADER_H) / CARD_H));
+      setPageSize(cols * rows);
+    };
+
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
 
   // Debounce search with useEffect
   useEffect(() => {
