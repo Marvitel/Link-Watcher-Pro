@@ -181,23 +181,23 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     <Link href={`/link/${item.id}`}>
       <div
         className={`bg-card border border-border border-t-4 ${topBorder} rounded-md overflow-hidden cursor-pointer hover:shadow-md hover:border-t-[5px] transition-all`}
-        style={{ width: 200, height: 128 }}
+        style={{ width: 240, height: 155 }}
         data-testid={`card-link-${item.id}`}
       >
-        <div className="p-2 flex flex-col h-full gap-0.5">
+        <div className="p-2.5 flex flex-col h-full gap-1">
 
           {/* Linha 1: nome do link (destaque) + badge de status */}
           <div className="flex items-start gap-1 min-w-0">
             <h3
               className="font-bold leading-tight flex-1 min-w-0 line-clamp-2"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 13 }}
               title={item.name}
             >
               {item.name}
             </h3>
             <span
               className={`${badgeBg} text-white font-bold rounded-full shrink-0 flex items-center justify-center`}
-              style={{ width: 18, height: 18, fontSize: 9, marginTop: 1 }}
+              style={{ width: 20, height: 20, fontSize: 10, marginTop: 1 }}
             >
               {alertCount > 0 ? alertCount : "✓"}
             </span>
@@ -421,14 +421,14 @@ function SuperAdminLinkDashboard({
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 200px)' }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, 240px)' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
-            <Skeleton key={i} style={{ width: 200, height: 128 }} />
+            <Skeleton key={i} style={{ width: 240, height: 155 }} />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
-          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 200px)' }}>
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, 240px)' }}>
             {data.items.map((item) => (
               <SuperAdminLinkCard 
                 key={item.id} 
