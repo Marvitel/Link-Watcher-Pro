@@ -15,6 +15,34 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+// ── Utilitários de suavização e detecção de gaps ──────────────────────────────
+
+/** Retorna a mediana dos gaps entre timestamps consecutivos (em ms). */
+function getExpectedGapMs(items: Array<{ timestamp: string }>): number {
+  if (items.length < 2) return 60_000;
+  const gaps: number[] = [];
+  for (let i = 1; i < Math.min(items.length, 40); i++) {
+    const g = new Date(items[i].timestamp).getTime() - new Date(items[i - 1].timestamp).getTime();
+    if (g > 0) gaps.push(g);
+  }
+  if (!gaps.length) return 60_000;
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
+}
+
+/** Média móvel simples. Janela ajustada aos extremos para não encurtar o array. */
+function smoothValues(values: number[], window: number): number[] {
+  const half = Math.floor(window / 2);
+  return values.map((_, i) => {
+    const start = Math.max(0, i - half);
+    const end   = Math.min(values.length, i + half + 1);
+    const slice = values.slice(start, end);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface BandwidthChartProps {
   data: Array<{
     timestamp: string;
@@ -42,6 +70,22 @@ export function BandwidthChart({
     if (!data || !Array.isArray(data)) return [];
     try {
       const filtered = data.filter((item) => item && item.timestamp);
+      if (!filtered.length) return [];
+
+      // Gap threshold: 4× mediana dos intervalos ou no mínimo 3 min
+      const expectedGapMs = getExpectedGapMs(filtered);
+      const gapThreshold = Math.max(expectedGapMs * 4, 3 * 60_000);
+
+      // Pré-calcular DL/UL já invertidos para suavização
+      const shouldInvert = !invertBandwidth;
+      const rawDls = filtered.map(it => shouldInvert ? (it.upload ?? 0) : (it.download ?? 0));
+      const rawUls = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
+
+      // Média móvel: janela 5 quando há muitos pontos, senão 3
+      const win = filtered.length > 200 ? 5 : filtered.length > 60 ? 3 : 1;
+      const smoothDls = win > 1 ? smoothValues(rawDls, win) : rawDls;
+      const smoothUls = win > 1 ? smoothValues(rawUls, win) : rawUls;
+
       const result: Array<{
         time: string;
         tsNum: number;
@@ -58,6 +102,22 @@ export function BandwidthChart({
         const prevItem = i > 0 ? filtered[i - 1] : null;
         
         try {
+          // Inserir quebra de linha quando há gap de restart/queda
+          if (prevItem) {
+            const prevTs = new Date(prevItem.timestamp).getTime();
+            const currTs = new Date(item.timestamp).getTime();
+            if (currTs - prevTs > gapThreshold) {
+              const midTs = Math.round((prevTs + currTs) / 2);
+              result.push({
+                time: format(new Date(midTs), "HH:mm", { locale: ptBR }),
+                tsNum: midTs,
+                download: null, upload: null,
+                downloadDown: null, uploadDown: null,
+                isDown: false, isDegraded: false,
+              });
+            }
+          }
+
           const pointStatus = item.status || "operational";
           const isDown = isDownStatus(pointStatus);
           const isDegraded = pointStatus === "degraded";
@@ -67,11 +127,8 @@ export function BandwidthChart({
           const d = new Date(item.timestamp);
           const time = format(d, "HH:mm", { locale: ptBR });
           const tsNum = d.getTime();
-          const rawDl = item.download ?? 0;
-          const rawUl = item.upload ?? 0;
-          const shouldInvert = !invertBandwidth;
-          const dl = shouldInvert ? rawUl : rawDl;
-          const ul = shouldInvert ? rawDl : rawUl;
+          const dl = smoothDls[i];
+          const ul = smoothUls[i];
           
           if (prevItem && isDown !== wasDown) {
             result.push({ time, tsNum, download: dl, upload: ul, downloadDown: dl, uploadDown: ul, isDown, isDegraded });
@@ -557,8 +614,53 @@ export function UnifiedMetricsChart({
     if (!data || !Array.isArray(data)) return [];
     try {
       const filtered = data.filter((item) => item && item.timestamp);
-      
-      return filtered.map((item) => {
+      if (!filtered.length) return [];
+
+      // Gap threshold: 4× mediana dos intervalos ou no mínimo 3 min
+      const expectedGapMs = getExpectedGapMs(filtered);
+      const gapThreshold = Math.max(expectedGapMs * 4, 3 * 60_000);
+
+      // Pré-calcular séries para suavização
+      const shouldInvert = !invertBandwidth;
+      const rawDls     = filtered.map(it => shouldInvert ? (it.upload ?? 0)   : (it.download ?? 0));
+      const rawUls     = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
+      const rawLats    = filtered.map(it => it.latency ?? 0);
+
+      const win = filtered.length > 200 ? 5 : filtered.length > 60 ? 3 : 1;
+      const smoothDls  = win > 1 ? smoothValues(rawDls,  win) : rawDls;
+      const smoothUls  = win > 1 ? smoothValues(rawUls,  win) : rawUls;
+      const smoothLats = win > 1 ? smoothValues(rawLats, win) : rawLats;
+
+      const result: Array<{
+        time: string; tsNum: number; timestamp: string;
+        download: number | null; upload: number | null; latency: number | null;
+        packetLoss: number | null;
+        availabilityOk: number; availabilityDegraded: number; availabilityDown: number;
+        status: string;
+        isGap?: boolean;
+      }> = [];
+
+      for (let i = 0; i < filtered.length; i++) {
+        const item = filtered[i];
+        const prevItem = i > 0 ? filtered[i - 1] : null;
+
+        // Quebra de linha para restart/gap — null faz o Recharts não conectar os pontos
+        if (prevItem) {
+          const prevTs = new Date(prevItem.timestamp).getTime();
+          const currTs = new Date(item.timestamp).getTime();
+          if (currTs - prevTs > gapThreshold) {
+            const midTs = Math.round((prevTs + currTs) / 2);
+            result.push({
+              time: format(new Date(midTs), "HH:mm", { locale: ptBR }),
+              tsNum: midTs, timestamp: new Date(midTs).toISOString(),
+              download: null, upload: null, latency: null,
+              packetLoss: null,
+              availabilityOk: 0, availabilityDegraded: 0, availabilityDown: 0,
+              status: "gap", isGap: true,
+            });
+          }
+        }
+
         const pointStatus = item.status || "operational";
         const isDown = isDownStatus(pointStatus);
         const isDegraded = pointStatus === "degraded";
@@ -571,27 +673,22 @@ export function UnifiedMetricsChart({
           timeLabel = format(d, "HH:mm", { locale: ptBR });
         } catch {}
         
-        const rawDl = item.download ?? 0;
-        const rawUl = item.upload ?? 0;
-        const shouldInvert = !invertBandwidth;
-        const dl = shouldInvert ? rawUl : rawDl;
-        const ul = shouldInvert ? rawDl : rawUl;
-        
-        return {
+        result.push({
           time: timeLabel,
           tsNum,
           timestamp: item.timestamp,
-          download: dl,
-          upload: ul,
-          latency: item.latency ?? 0,
-          // Fix: quando link offline (perda 100%), não plota linha — barra vermelha já indica
+          download: smoothDls[i],
+          upload:   smoothUls[i],
+          latency:  smoothLats[i],
           packetLoss: isDown ? null : (item.packetLoss ?? 0),
           availabilityOk: !isDown && !isDegraded ? 1 : 0,
           availabilityDegraded: isDegraded ? 1 : 0,
           availabilityDown: isDown ? 1 : 0,
           status: pointStatus,
-        };
-      });
+        });
+      }
+
+      return result;
     } catch {
       return [];
     }
@@ -602,8 +699,8 @@ export function UnifiedMetricsChart({
     let maxBw = 0;
     let maxLat = 0;
     chartData.forEach(d => {
-      maxBw = Math.max(maxBw, d.download, d.upload);
-      maxLat = Math.max(maxLat, d.latency);
+      maxBw = Math.max(maxBw, d.download ?? 0, d.upload ?? 0);
+      maxLat = Math.max(maxLat, d.latency ?? 0);
     });
     return { 
       maxBandwidth: Math.ceil(maxBw * 1.1), 
@@ -730,6 +827,7 @@ export function UnifiedMetricsChart({
                 stroke="hsl(210, 85%, 55%)"
                 strokeWidth={2}
                 fill="url(#gradDownload)"
+                connectNulls={false}
               />
             )}
             {visibleSeries.upload && (
@@ -740,6 +838,7 @@ export function UnifiedMetricsChart({
                 stroke="hsl(280, 70%, 60%)"
                 strokeWidth={2}
                 fill="url(#gradUpload)"
+                connectNulls={false}
               />
             )}
             
@@ -753,6 +852,7 @@ export function UnifiedMetricsChart({
                 strokeWidth={1.5}
                 dot={false}
                 strokeDasharray="3 3"
+                connectNulls={false}
               />
             )}
             
@@ -765,6 +865,7 @@ export function UnifiedMetricsChart({
                 stroke="hsl(0, 84%, 60%)"
                 strokeWidth={1}
                 dot={false}
+                connectNulls={false}
               />
             )}
           </ComposedChart>

@@ -355,6 +355,12 @@ export default function LinkDetail() {
     return `${base}?hours=${selectedPeriod}`;
   };
 
+  // Intervalo de polling adaptado ao período: 1h→10s, 6h→20s, 24h+→30s
+  const metricsRefetchInterval = isCustomRange ? false
+    : selectedPeriod <= 1  ? 10_000
+    : selectedPeriod <= 6  ? 20_000
+    : 30_000;
+
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: ["/api/links", linkId, "metrics", { hours: selectedPeriod, dateRange, isCustomRange }],
     queryFn: async () => {
@@ -371,7 +377,8 @@ export default function LinkDetail() {
       return res.json();
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 5000,
+    refetchInterval: metricsRefetchInterval,
+    staleTime: typeof metricsRefetchInterval === "number" ? metricsRefetchInterval - 2000 : 60_000,
   });
 
   // Query para interfaces de tráfego adicionais
@@ -432,7 +439,7 @@ export default function LinkDetail() {
       }));
     },
     enabled: !isNaN(linkId),
-    refetchInterval: isCustomRange ? false : 5000,
+    refetchInterval: metricsRefetchInterval,
   });
 
   const additionalInterfaces = trafficInterfacesData || [];
