@@ -11,7 +11,7 @@ import { SLACompactCard } from "@/components/sla-indicators";
 import { LinkGroupCard } from "@/components/link-group-card";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Component, ErrorInfo, ReactNode, useState, useMemo, useEffect } from "react";
 import {
   Activity,
@@ -142,6 +142,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
   item: LinkDashboardItem; 
   onViewClient: (clientId: number, clientName: string) => void;
 }) {
+  const [, navigate] = useLocation();
   const isOffline = item.status === "offline" || item.status === "down";
   const isDegraded = item.status === "degraded";
   const isOnline = item.status === "operational";
@@ -192,9 +193,14 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     ? "text-yellow-600 dark:text-yellow-400"
     : "text-red-500 dark:text-red-400";
 
+  const handleCardClick = () => {
+    onViewClient(item.clientId, item.clientName);
+    navigate(`/link/${item.id}`);
+  };
+
   return (
-    <Link href={`/link/${item.id}`}>
       <div
+        onClick={handleCardClick}
         className={`bg-card border border-border border-t-4 ${topBorder} rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all`}
         style={{ width: 240, height: 156 }}
         data-testid={`card-link-${item.id}`}
@@ -278,7 +284,6 @@ function SuperAdminLinkCard({ item, onViewClient }: {
 
         </div>
       </div>
-    </Link>
   );
 }
 
@@ -290,11 +295,25 @@ function SuperAdminLinkDashboard({
   clients: Client[];
   setSelectedClient: (id: number, name: string) => void;
 }) {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [clientFilter, setClientFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  // Debounce search with useEffect
+  // Restaura filtros do sessionStorage ao voltar
+  const savedFilters = (() => {
+    try { return JSON.parse(sessionStorage.getItem("dashboardFilters") || "{}"); } catch { return {}; }
+  })();
+  const [statusFilter, setStatusFilter] = useState<string>(savedFilters.status || "all");
+  const [clientFilter, setClientFilter] = useState<string>(savedFilters.clientId || "all");
+  const [searchQuery, setSearchQuery] = useState(savedFilters.search || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(savedFilters.search || "");
+
+  // Persiste filtros no sessionStorage sempre que mudam
+  useEffect(() => {
+    sessionStorage.setItem("dashboardFilters", JSON.stringify({
+      status: statusFilter,
+      clientId: clientFilter,
+      search: searchQuery,
+    }));
+  }, [statusFilter, clientFilter, searchQuery]);
+
+  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
