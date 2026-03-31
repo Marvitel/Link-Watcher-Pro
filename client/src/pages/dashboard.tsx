@@ -204,8 +204,9 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     : "text-red-500 dark:text-red-400";
 
   return (
+    <Link href={`/link/${item.id}`}>
     <Card
-      className={`border-l-4 ${borderColor} hover-elevate transition-all cursor-default`}
+      className={`border-l-4 ${borderColor} hover-elevate transition-all cursor-pointer`}
       data-testid={`card-link-${item.id}`}
     >
       <CardContent className="p-2.5 flex flex-col gap-1" style={{ height: 148 }}>
@@ -217,7 +218,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
             {statusLabel}
           </span>
           <button
-            onClick={() => onViewClient(item.clientId, item.clientName)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewClient(item.clientId, item.clientName); }}
             className="text-[10px] text-muted-foreground hover:text-primary hover:underline truncate min-w-0 flex-1 text-right leading-tight"
             data-testid={`button-view-client-${item.clientId}`}
             title={item.clientName}
@@ -227,14 +228,12 @@ function SuperAdminLinkCard({ item, onViewClient }: {
         </div>
 
         {/* Linha 2: nome do link */}
-        <Link href={`/link/${item.id}`}>
-          <h3
-            className="font-bold text-[11px] leading-tight truncate hover:text-primary cursor-pointer"
-            title={item.name}
-          >
-            {item.name}
-          </h3>
-        </Link>
+        <h3
+          className="font-bold text-[11px] leading-tight truncate"
+          title={item.name}
+        >
+          {item.name}
+        </h3>
 
         {/* Linha 3: IP + banda contratada */}
         <div className="flex items-center justify-between gap-1">
@@ -296,6 +295,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
 
       </CardContent>
     </Card>
+    </Link>
   );
 }
 
