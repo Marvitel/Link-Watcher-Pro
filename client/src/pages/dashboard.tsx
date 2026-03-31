@@ -204,9 +204,9 @@ function SuperAdminLinkCard({ item, onViewClient }: {
       className={`border-l-4 ${borderColor} hover-elevate transition-all`}
       data-testid={`card-link-${item.id}`}
     >
-      <CardContent className="p-2 space-y-1.5">
+      <CardContent className="p-2 flex flex-col" style={{ height: 145 }}>
         {/* Header: Status badge + nome do link */}
-        <div className="flex items-start justify-between gap-1">
+        <div className="flex items-start justify-between gap-1 mb-1.5">
           <div className="min-w-0 flex-1">
             <button
               onClick={() => onViewClient(item.clientId, item.clientName)}
@@ -230,7 +230,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
         </div>
 
         {/* Métricas DL/UL e Lat/Perda em 2 linhas compactas */}
-        <div className="grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px]">
+        <div className="grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px] mb-1.5">
           <div className="flex items-center gap-0.5">
             <Download className="w-2.5 h-2.5 text-blue-500 shrink-0" />
             <span className="font-mono font-medium truncate">{formatBandwidth(item.currentDownload)}</span>
@@ -254,34 +254,33 @@ function SuperAdminLinkCard({ item, onViewClient }: {
         </div>
 
         {/* SLA + Banda */}
-        <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center justify-between text-[10px] mb-1.5">
           <span className={`font-mono font-medium ${item.uptime >= 99 ? 'text-green-600 dark:text-green-400' : item.uptime >= 95 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
             {item.uptime.toFixed(1)}%
           </span>
           <span className="text-muted-foreground">{item.bandwidth} Mbps</span>
         </div>
 
-        {/* Motivo da Falha e Tickets */}
-        {(item.activeEvent || item.openIncident) && (
-          <div className="pt-1 border-t border-border space-y-0.5">
-            {item.activeEvent && (
-              <div className="flex items-start gap-1">
-                <AlertTriangle className="w-3 h-3 text-destructive shrink-0 mt-0.5" />
-                <span className="text-[10px] text-destructive font-medium truncate" title={item.activeEvent.description}>
-                  {getFailureReason()}
-                </span>
-              </div>
-            )}
-            {item.openIncident && (
-              <div className="flex items-center gap-1">
-                <Ticket className="w-3 h-3 text-muted-foreground shrink-0" />
-                <span className="text-[10px] text-muted-foreground truncate">
-                  {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Área reservada para alertas/incidentes — altura fixa, sempre presente */}
+        <div className="border-t border-border pt-1 flex-1 min-h-0 overflow-hidden">
+          {item.activeEvent ? (
+            <div className="flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 text-destructive shrink-0 mt-0.5" />
+              <span className="text-[10px] text-destructive font-medium truncate" title={item.activeEvent.description}>
+                {getFailureReason()}
+              </span>
+            </div>
+          ) : item.openIncident ? (
+            <div className="flex items-center gap-1">
+              <Ticket className="w-3 h-3 text-muted-foreground shrink-0" />
+              <span className="text-[10px] text-muted-foreground truncate">
+                {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
+              </span>
+            </div>
+          ) : (
+            <span className="text-[10px] text-muted-foreground/40">—</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -455,21 +454,21 @@ function SuperAdminLinkDashboard({
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <Skeleton key={i} className="h-36 w-full" />
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+            <Skeleton key={i} className="h-36" style={{ width: 175 }} />
           ))}
         </div>
       ) : isFetching && data?.page !== page ? (
         // Mudança de página: mostra skeletons enquanto a nova página carrega
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
           {Array.from({ length: 16 }).map((_, i) => (
-            <Skeleton key={i} className="h-36 w-full" />
+            <Skeleton key={i} className="h-36" style={{ width: 175 }} />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
             {data.items.map((item) => (
               <SuperAdminLinkCard 
                 key={item.id} 
