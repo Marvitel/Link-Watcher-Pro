@@ -144,29 +144,31 @@ function SuperAdminLinkCard({ item, onViewClient }: {
   item: LinkDashboardItem; 
   onViewClient: (clientId: number, clientName: string) => void;
 }) {
-  const statusColors: Record<string, string> = {
-    operational: "border-l-green-500",
-    degraded: "border-l-yellow-500",
-    offline: "border-l-red-500",
-    down: "border-l-red-500",
-  };
+  const isOffline = item.status === "offline" || item.status === "down";
+  const isDegraded = item.status === "degraded";
+  const isOnline = item.status === "operational";
 
-  const statusInfo = item.status === "operational" 
-    ? { label: "Online", className: "bg-green-500 text-white" }
-    : item.status === "degraded"
-    ? { label: "Degradado", className: "bg-yellow-500 text-white" }
-    : item.status === "offline" || item.status === "down"
-    ? { label: "Offline", className: "bg-red-500 text-white" }
-    : { label: item.status, className: "" };
+  const statusDot = isOnline
+    ? "bg-green-500"
+    : isDegraded
+    ? "bg-yellow-500"
+    : isOffline
+    ? "bg-red-500"
+    : "bg-gray-400";
 
-  const borderColor = statusColors[item.status] || "border-l-gray-400";
+  const statusLabel = isOnline ? "Online" : isDegraded ? "Degradado" : isOffline ? "Offline" : item.status;
 
-  // Extrai o motivo da falha do evento ativo
+  const borderColor = isOnline
+    ? "border-l-green-500"
+    : isDegraded
+    ? "border-l-yellow-500"
+    : isOffline
+    ? "border-l-red-500"
+    : "border-l-gray-400";
+
   const getFailureReason = () => {
     if (!item.activeEvent) return null;
     const desc = item.activeEvent.description?.toLowerCase() || "";
-    
-    // Mapeia palavras-chave para causas legíveis
     if (desc.includes("rompimento") || desc.includes("fibra")) return "Rompimento de Fibra";
     if (desc.includes("energia") || desc.includes("power")) return "Queda de Energia";
     if (desc.includes("perda de pacotes") || desc.includes("packet loss")) return "Perda de Pacotes";
@@ -174,113 +176,124 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     if (desc.includes("saturação") || desc.includes("banda") || desc.includes("bandwidth")) return "Saturação de Banda";
     if (desc.includes("latência") || desc.includes("latency")) return "Alta Latência";
     if (desc.includes("timeout") || desc.includes("sem resposta")) return "Timeout/Sem Resposta";
-    if (desc.includes("degradação") || desc.includes("degraded")) return "Degradação de Desempenho";
-    
-    // Se não encontrar padrão, retorna parte da descrição
-    if (item.activeEvent.description && item.activeEvent.description.length > 0) {
-      return item.activeEvent.description.length > 50 
-        ? item.activeEvent.description.substring(0, 47) + "..."
+    if (desc.includes("degradação") || desc.includes("degraded")) return "Degradação";
+    if (item.activeEvent.description?.length > 0) {
+      return item.activeEvent.description.length > 40
+        ? item.activeEvent.description.substring(0, 38) + "…"
         : item.activeEvent.description;
     }
-    return item.activeEvent.type === 'offline' ? 'Link Offline' : 'Problema Detectado';
+    return isOffline ? "Link Offline" : "Problema Detectado";
   };
 
-  // Cor da latência baseada em thresholds
-  const getLatencyColor = (lat: number) => {
-    if (lat <= 50) return "text-green-600 dark:text-green-400";
-    if (lat <= 80) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
+  const latColor = item.latency <= 50
+    ? "text-green-600 dark:text-green-400"
+    : item.latency <= 80
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
 
-  // Cor da perda baseada em thresholds
-  const getLossColor = (loss: number) => {
-    if (loss <= 1) return "text-green-600 dark:text-green-400";
-    if (loss <= 2) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
+  const lossColor = item.packetLoss <= 1
+    ? "text-green-600 dark:text-green-400"
+    : item.packetLoss <= 2
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
+
+  const uptimeColor = item.uptime >= 99
+    ? "text-green-600 dark:text-green-400"
+    : item.uptime >= 95
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
 
   return (
-    <Card 
-      className={`border-l-4 ${borderColor} hover-elevate transition-all`}
+    <Card
+      className={`border-l-4 ${borderColor} hover-elevate transition-all cursor-default`}
       data-testid={`card-link-${item.id}`}
     >
-      <CardContent className="p-2 flex flex-col" style={{ height: 145 }}>
-        {/* Header: Status badge + nome do link */}
-        <div className="flex items-start justify-between gap-1 mb-1.5">
-          <div className="min-w-0 flex-1">
-            <button
-              onClick={() => onViewClient(item.clientId, item.clientName)}
-              className="text-[10px] font-medium text-primary hover:underline truncate block leading-tight"
-              data-testid={`button-view-client-${item.clientId}`}
-            >
-              {item.clientName}
-            </button>
-            <Link href={`/link/${item.id}`}>
-              <h3 className="font-semibold text-xs truncate hover:text-primary cursor-pointer leading-tight" title={item.name}>
-                {item.name}
-              </h3>
-            </Link>
-            <p className="text-[10px] text-muted-foreground truncate leading-tight" title={item.ipBlock}>
-              {item.ipBlock}
-            </p>
-          </div>
-          <Badge className={`shrink-0 text-[10px] px-1 py-0 leading-4 ${statusInfo.className}`}>
-            {statusInfo.label}
-          </Badge>
+      <CardContent className="p-2.5 flex flex-col gap-1" style={{ height: 148 }}>
+
+        {/* Linha 1: status dot + label + cliente */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${statusDot}`} />
+          <span className={`text-[10px] font-semibold shrink-0 ${isOnline ? "text-green-600 dark:text-green-400" : isDegraded ? "text-yellow-600 dark:text-yellow-400" : "text-red-500 dark:text-red-400"}`}>
+            {statusLabel}
+          </span>
+          <button
+            onClick={() => onViewClient(item.clientId, item.clientName)}
+            className="text-[10px] text-muted-foreground hover:text-primary hover:underline truncate min-w-0 flex-1 text-right leading-tight"
+            data-testid={`button-view-client-${item.clientId}`}
+            title={item.clientName}
+          >
+            {item.clientName}
+          </button>
         </div>
 
-        {/* Métricas DL/UL e Lat/Perda em 2 linhas compactas */}
-        <div className="grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px] mb-1.5">
-          <div className="flex items-center gap-0.5">
-            <Download className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-            <span className="font-mono font-medium truncate">{formatBandwidth(item.currentDownload)}</span>
+        {/* Linha 2: nome do link */}
+        <Link href={`/link/${item.id}`}>
+          <h3
+            className="font-bold text-[11px] leading-tight truncate hover:text-primary cursor-pointer"
+            title={item.name}
+          >
+            {item.name}
+          </h3>
+        </Link>
+
+        {/* Linha 3: IP + banda contratada */}
+        <div className="flex items-center justify-between gap-1">
+          <span className="font-mono text-[10px] text-muted-foreground truncate" title={item.ipBlock}>
+            {item.ipBlock || "—"}
+          </span>
+          <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
+            {item.bandwidth}M
+          </span>
+        </div>
+
+        {/* Linha 4: métricas DL / UL */}
+        <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-0.5 min-w-0">
+            <Download className="w-3 h-3 text-blue-500 shrink-0" />
+            <span className="font-mono font-semibold truncate">{formatBandwidth(item.currentDownload)}</span>
           </div>
-          <div className="flex items-center gap-0.5">
-            <Upload className="w-2.5 h-2.5 text-green-500 shrink-0" />
-            <span className="font-mono font-medium truncate">{formatBandwidth(item.currentUpload)}</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <Clock className="w-2.5 h-2.5 shrink-0" />
-            <span className={`font-mono font-medium ${getLatencyColor(item.latency)}`}>
-              {item.latency.toFixed(1)}ms
-            </span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <Activity className="w-2.5 h-2.5 shrink-0" />
-            <span className={`font-mono font-medium ${getLossColor(item.packetLoss)}`}>
-              {item.packetLoss.toFixed(1)}%
-            </span>
+          <div className="flex items-center gap-0.5 min-w-0">
+            <Upload className="w-3 h-3 text-emerald-500 shrink-0" />
+            <span className="font-mono font-semibold truncate">{formatBandwidth(item.currentUpload)}</span>
           </div>
         </div>
 
-        {/* SLA + Banda */}
-        <div className="flex items-center justify-between text-[10px] mb-1.5">
-          <span className={`font-mono font-medium ${item.uptime >= 99 ? 'text-green-600 dark:text-green-400' : item.uptime >= 95 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+        {/* Linha 5: latência / perda / uptime */}
+        <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-0.5">
+            <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+            <span className={`font-mono font-semibold ${latColor}`}>{item.latency.toFixed(0)}ms</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Activity className="w-3 h-3 text-muted-foreground shrink-0" />
+            <span className={`font-mono font-semibold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
+          </div>
+          <span className={`font-mono font-semibold ml-auto shrink-0 ${uptimeColor}`}>
             {item.uptime.toFixed(1)}%
           </span>
-          <span className="text-muted-foreground">{item.bandwidth} Mbps</span>
         </div>
 
-        {/* Área reservada para alertas/incidentes — altura fixa, sempre presente */}
-        <div className="border-t border-border pt-1 flex-1 min-h-0 overflow-hidden">
+        {/* Linha 6: alerta / incidente (altura reservada sempre) */}
+        <div className="border-t border-border/60 pt-1 flex-1 min-h-0 flex items-start overflow-hidden">
           {item.activeEvent ? (
-            <div className="flex items-start gap-1">
-              <AlertTriangle className="w-3 h-3 text-destructive shrink-0 mt-0.5" />
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
               <span className="text-[10px] text-destructive font-medium truncate" title={item.activeEvent.description}>
                 {getFailureReason()}
               </span>
             </div>
           ) : item.openIncident ? (
-            <div className="flex items-center gap-1">
-              <Ticket className="w-3 h-3 text-muted-foreground shrink-0" />
+            <div className="flex items-center gap-1 w-full min-w-0">
+              <Ticket className="w-3 h-3 text-amber-500 shrink-0" />
               <span className="text-[10px] text-muted-foreground truncate">
-                {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : 'Incidente'}
+                Protocolo {item.openIncident.voalleProtocolId ? `#${item.openIncident.voalleProtocolId}` : "aberto"}
               </span>
             </div>
           ) : (
-            <span className="text-[10px] text-muted-foreground/40">—</span>
+            <span className="text-[10px] text-muted-foreground/30 select-none">Sem ocorrências</span>
           )}
         </div>
+
       </CardContent>
     </Card>
   );
@@ -454,21 +467,21 @@ function SuperAdminLinkDashboard({
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 220px)' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
-            <Skeleton key={i} className="h-36" style={{ width: 175 }} />
+            <Skeleton key={i} style={{ width: 220, height: 148 }} />
           ))}
         </div>
       ) : isFetching && data?.page !== page ? (
         // Mudança de página: mostra skeletons enquanto a nova página carrega
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 220px)' }}>
           {Array.from({ length: 16 }).map((_, i) => (
-            <Skeleton key={i} className="h-36" style={{ width: 175 }} />
+            <Skeleton key={i} style={{ width: 220, height: 148 }} />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
-          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 175px)' }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 220px)' }}>
             {data.items.map((item) => (
               <SuperAdminLinkCard 
                 key={item.id} 
