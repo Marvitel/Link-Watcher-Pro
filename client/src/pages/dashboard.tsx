@@ -78,8 +78,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 function LinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: [`/api/links/${link.id}/metrics`],
-    refetchInterval: 5000,
-    staleTime: 0, // Sempre buscar dados frescos
+    refetchInterval: 30000,
+    staleTime: 25000,
   });
 
   // Ordenar ASC por timestamp: mais antigo à esquerda, mais recente à direita
@@ -504,8 +504,8 @@ type ViewMode = "cards" | "compact" | "table";
 function CompactLinkCardWithMetrics({ link }: { link: LinkType }) {
   const { data: metrics } = useQuery<Metric[]>({
     queryKey: [`/api/links/${link.id}/metrics`],
-    refetchInterval: 5000,
-    staleTime: 0,
+    refetchInterval: 30000,
+    staleTime: 25000,
   });
 
   const metricsHistory = metrics ? [...metrics]
@@ -688,6 +688,10 @@ function DashboardContent() {
     enabled: isSuperAdmin,
   });
 
+  // Super-admin sem filtro de cliente usa o SuperAdminLinkDashboard (cards Monsta)
+  // Nesse modo as queries de stats/links/events/sla/ddos são desnecessárias
+  const isClientView = !isSuperAdmin || isViewingAsClient;
+
   const statsUrl = selectedClientId ? `/api/stats?clientId=${selectedClientId}` : "/api/stats";
   const linksUrl = selectedClientId ? `/api/links?clientId=${selectedClientId}` : "/api/links";
   const eventsUrl = selectedClientId ? `/api/events?clientId=${selectedClientId}` : "/api/events";
@@ -696,20 +700,22 @@ function DashboardContent() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: [statsUrl],
     refetchInterval: 5000,
+    enabled: isClientView,
   });
 
   const { data: clientSettings } = useQuery<{ wanguardEnabled: boolean; voalleEnabled: boolean }>({
     queryKey: [settingsUrl],
     staleTime: 60000,
+    enabled: isClientView,
   });
 
-  const showDdosCard = isSuperAdmin || clientSettings?.wanguardEnabled;
+  const showDdosCard = !isSuperAdmin && (clientSettings?.wanguardEnabled ?? false);
 
   const ddosUrl = selectedClientId ? `/api/security/ddos?clientId=${selectedClientId}` : "/api/security/ddos";
   const { data: ddosEvents } = useQuery<{ id: number; attackType: string; startTime: string; mitigationStatus: string; peakBandwidth: number | null; targetIp: string | null }[]>({
     queryKey: [ddosUrl],
     refetchInterval: 10000,
-    enabled: showDdosCard,
+    enabled: isClientView && showDdosCard,
   });
 
   const activeDdosAttacks = useMemo(() => 
@@ -727,6 +733,7 @@ function DashboardContent() {
   const { data: links, isLoading: linksLoading } = useQuery<LinkType[]>({
     queryKey: [linksUrl],
     refetchInterval: 5000,
+    enabled: isClientView,
   });
   
   const linksArray = useMemo(() => Array.isArray(links) ? links : [], [links]);
@@ -752,8 +759,8 @@ function DashboardContent() {
   const metricsQueries = useQueries({
     queries: linksArray.map((link) => ({
       queryKey: [`/api/links/${link.id}/metrics`],
-      refetchInterval: viewMode === "table" ? 10000 : 5000,
-      staleTime: 5000,
+      refetchInterval: 30000,
+      staleTime: 25000,
       enabled: viewMode === "table" && linksArray.length > 0,
     })),
   });
@@ -772,6 +779,7 @@ function DashboardContent() {
   const { data: eventsData, isLoading: eventsLoading } = useQuery<{ events: Event[]; total: number }>({
     queryKey: [eventsUrl],
     refetchInterval: 10000,
+    enabled: isClientView,
   });
   const events = eventsData?.events || [];
 
@@ -779,6 +787,7 @@ function DashboardContent() {
   const { data: slaIndicators, isLoading: slaLoading } = useQuery<SLAIndicator[]>({
     queryKey: [slaUrl],
     refetchInterval: 30000,
+    enabled: isClientView,
   });
 
   interface LinkGroupMember {
@@ -808,6 +817,7 @@ function DashboardContent() {
   const { data: linkGroups, isLoading: linkGroupsLoading } = useQuery<LinkGroup[]>({
     queryKey: [linkGroupsUrl],
     refetchInterval: 10000,
+    enabled: isClientView,
   });
 
   const linkGroupsArray = useMemo(() => 
