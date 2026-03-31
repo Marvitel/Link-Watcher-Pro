@@ -102,18 +102,29 @@ export function BandwidthChart({
         const prevItem = i > 0 ? filtered[i - 1] : null;
         
         try {
-          // Inserir quebra de linha quando há gap de restart/queda
+          // Interpolar ponto médio quando há gap de restart/queda
           if (prevItem) {
             const prevTs = new Date(prevItem.timestamp).getTime();
             const currTs = new Date(item.timestamp).getTime();
             if (currTs - prevTs > gapThreshold) {
               const midTs = Math.round((prevTs + currTs) / 2);
+              const prevDl = smoothDls[i - 1];
+              const prevUl = smoothUls[i - 1];
+              const currDl = smoothDls[i];
+              const currUl = smoothUls[i];
+              const midDl = (prevDl + currDl) / 2;
+              const midUl = (prevUl + currUl) / 2;
+              const pointStatus = item.status || "operational";
+              const isDown = isDownStatus(pointStatus);
               result.push({
                 time: format(new Date(midTs), "HH:mm", { locale: ptBR }),
                 tsNum: midTs,
-                download: null, upload: null,
-                downloadDown: null, uploadDown: null,
-                isDown: false, isDegraded: false,
+                download: isDown ? null : midDl,
+                upload: isDown ? null : midUl,
+                downloadDown: isDown ? midDl : null,
+                uploadDown: isDown ? midUl : null,
+                isDown,
+                isDegraded: pointStatus === "degraded",
               });
             }
           }
@@ -237,10 +248,10 @@ export function BandwidthChart({
             return [`${numVal.toFixed(1)} Mbps`, label];
           }}
         />
-        <Area type="monotone" dataKey="download" stroke="hsl(210, 85%, 50%)" strokeWidth={2} fill="url(#colorDownload)" connectNulls={false} />
-        <Area type="monotone" dataKey="upload" stroke="hsl(142, 76%, 45%)" strokeWidth={2} fill="url(#colorUpload)" connectNulls={false} />
-        <Area type="monotone" dataKey="downloadDown" stroke="hsl(0, 84%, 60%)" strokeWidth={2} fill="url(#colorDownloadRed)" connectNulls={false} />
-        <Area type="monotone" dataKey="uploadDown" stroke="hsl(0, 70%, 50%)" strokeWidth={2} fill="url(#colorUploadRed)" connectNulls={false} />
+        <Area type="monotone" dataKey="download" stroke="hsl(210, 85%, 50%)" strokeWidth={2} fill="url(#colorDownload)" connectNulls={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="upload" stroke="hsl(142, 76%, 45%)" strokeWidth={2} fill="url(#colorUpload)" connectNulls={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="downloadDown" stroke="hsl(0, 84%, 60%)" strokeWidth={2} fill="url(#colorDownloadRed)" connectNulls={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="uploadDown" stroke="hsl(0, 70%, 50%)" strokeWidth={2} fill="url(#colorUploadRed)" connectNulls={false} isAnimationActive={false} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -404,6 +415,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           strokeWidth={1}
           strokeDasharray="5 5"
           fill="none"
+          isAnimationActive={false}
         />
         <Area
           type="monotone"
@@ -412,6 +424,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           strokeWidth={2}
           fill="url(#colorLatency)"
           connectNulls={false}
+          isAnimationActive={false}
         />
         <Area
           type="monotone"
@@ -420,6 +433,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           strokeWidth={2}
           fill="url(#colorLatencyRed)"
           connectNulls={false}
+          isAnimationActive={false}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -644,17 +658,21 @@ export function UnifiedMetricsChart({
         const item = filtered[i];
         const prevItem = i > 0 ? filtered[i - 1] : null;
 
-        // Quebra de linha para restart/gap — null faz o Recharts não conectar os pontos
+        // Interpolar ponto médio quando há gap de restart/queda
         if (prevItem) {
           const prevTs = new Date(prevItem.timestamp).getTime();
           const currTs = new Date(item.timestamp).getTime();
           if (currTs - prevTs > gapThreshold) {
             const midTs = Math.round((prevTs + currTs) / 2);
+            const midDl  = (smoothDls[i - 1]  + smoothDls[i])  / 2;
+            const midUl  = (smoothUls[i - 1]  + smoothUls[i])  / 2;
+            const midLat = (smoothLats[i - 1] + smoothLats[i]) / 2;
+            const midLoss = ((prevItem.packetLoss ?? 0) + (item.packetLoss ?? 0)) / 2;
             result.push({
               time: format(new Date(midTs), "HH:mm", { locale: ptBR }),
               tsNum: midTs, timestamp: new Date(midTs).toISOString(),
-              download: null, upload: null, latency: null,
-              packetLoss: null,
+              download: midDl, upload: midUl, latency: midLat,
+              packetLoss: midLoss,
               availabilityOk: 0, availabilityDegraded: 0, availabilityDown: 0,
               status: "gap", isGap: true,
             });
@@ -828,6 +846,7 @@ export function UnifiedMetricsChart({
                 strokeWidth={2}
                 fill="url(#gradDownload)"
                 connectNulls={false}
+                isAnimationActive={false}
               />
             )}
             {visibleSeries.upload && (
@@ -839,6 +858,7 @@ export function UnifiedMetricsChart({
                 strokeWidth={2}
                 fill="url(#gradUpload)"
                 connectNulls={false}
+                isAnimationActive={false}
               />
             )}
             
@@ -853,6 +873,7 @@ export function UnifiedMetricsChart({
                 dot={false}
                 strokeDasharray="3 3"
                 connectNulls={false}
+                isAnimationActive={false}
               />
             )}
             
@@ -866,6 +887,7 @@ export function UnifiedMetricsChart({
                 strokeWidth={1}
                 dot={false}
                 connectNulls={false}
+                isAnimationActive={false}
               />
             )}
           </ComposedChart>

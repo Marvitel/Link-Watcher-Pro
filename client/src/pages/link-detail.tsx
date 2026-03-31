@@ -355,10 +355,10 @@ export default function LinkDetail() {
     return `${base}?hours=${selectedPeriod}`;
   };
 
-  // Intervalo de polling adaptado ao período: 1h→10s, 6h→20s, 24h+→30s
+  // Intervalo de polling: 1h→5s (live), 6h→15s, 24h+→30s
   const metricsRefetchInterval = isCustomRange ? false
-    : selectedPeriod <= 1  ? 10_000
-    : selectedPeriod <= 6  ? 20_000
+    : selectedPeriod <= 1  ? 5_000
+    : selectedPeriod <= 6  ? 15_000
     : 30_000;
 
   const { data: metrics } = useQuery<Metric[]>({
