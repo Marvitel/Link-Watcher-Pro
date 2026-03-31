@@ -3810,15 +3810,21 @@ export async function registerRoutes(
       }
       if (search) {
         const term = `%${search}%`;
-        baseConditions.push(
-          or(
-            sql`LOWER(${links.name}) LIKE ${term}`,
-            sql`LOWER(${links.identifier}) LIKE ${term}`,
-            sql`LOWER(${links.ipBlock}) LIKE ${term}`,
-            sql`LOWER(${links.location}) LIKE ${term}`,
-            sql`LOWER(${links.address}) LIKE ${term}`,
-          )
-        );
+        // Clientes cujo nome bate com a busca (já estão em memória, sem query extra)
+        const matchingClientIds = activeClients
+          .filter(c => c.name.toLowerCase().includes(search))
+          .map(c => c.id);
+        const searchClauses: any[] = [
+          sql`LOWER(${links.name}) LIKE ${term}`,
+          sql`LOWER(${links.identifier}) LIKE ${term}`,
+          sql`LOWER(${links.ipBlock}) LIKE ${term}`,
+          sql`LOWER(${links.location}) LIKE ${term}`,
+          sql`LOWER(${links.address}) LIKE ${term}`,
+        ];
+        if (matchingClientIds.length > 0) {
+          searchClauses.push(inArray(links.clientId, matchingClientIds));
+        }
+        baseConditions.push(or(...searchClauses));
       }
 
       const whereClause = and(...baseConditions);
