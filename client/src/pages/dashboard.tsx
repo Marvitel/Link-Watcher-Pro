@@ -177,19 +177,34 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     ? "text-yellow-600 dark:text-yellow-400"
     : "text-red-500 dark:text-red-400";
 
+  const statusLabel = isOnline ? "Online" : isDegraded ? "Degradado" : isOffline ? "Offline" : "Sem Monit.";
+  const statusTextColor = isOnline
+    ? "text-green-600 dark:text-green-400"
+    : isDegraded
+    ? "text-yellow-600 dark:text-yellow-400"
+    : isOffline
+    ? "text-red-500 dark:text-red-400"
+    : "text-muted-foreground";
+
+  const uptimeColor = item.uptime >= 99
+    ? "text-green-600 dark:text-green-400"
+    : item.uptime >= 95
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
+
   return (
     <Link href={`/link/${item.id}`}>
       <div
-        className={`bg-card border border-border border-t-4 ${topBorder} rounded-md overflow-hidden cursor-pointer hover:shadow-md hover:border-t-[5px] transition-all`}
-        style={{ width: 240, height: 155 }}
+        className={`bg-card border border-border border-t-4 ${topBorder} rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all`}
+        style={{ width: 240, height: 170 }}
         data-testid={`card-link-${item.id}`}
       >
-        <div className="p-2.5 flex flex-col h-full gap-1">
+        <div className="px-3 py-2.5 flex flex-col h-full gap-1.5">
 
-          {/* Linha 1: nome do link (destaque) + badge de status */}
-          <div className="flex items-start gap-1 min-w-0">
+          {/* Linha 1: nome do link + badge */}
+          <div className="flex items-start gap-1.5 min-w-0">
             <h3
-              className="font-bold leading-tight flex-1 min-w-0 line-clamp-2"
+              className="font-bold leading-snug flex-1 min-w-0 line-clamp-2"
               style={{ fontSize: 13 }}
               title={item.name}
             >
@@ -197,60 +212,68 @@ function SuperAdminLinkCard({ item, onViewClient }: {
             </h3>
             <span
               className={`${badgeBg} text-white font-bold rounded-full shrink-0 flex items-center justify-center`}
-              style={{ width: 20, height: 20, fontSize: 10, marginTop: 1 }}
+              style={{ width: 22, height: 22, fontSize: 11, marginTop: 1 }}
             >
               {alertCount > 0 ? alertCount : "✓"}
             </span>
           </div>
 
-          {/* Linha 2: IP + banda contratada */}
+          {/* Linha 2: status + IP */}
           <div className="flex items-center justify-between gap-1">
+            <span className={`font-semibold ${statusTextColor}`} style={{ fontSize: 11 }}>
+              {statusLabel}
+            </span>
             <span
-              className="font-mono text-muted-foreground truncate"
-              style={{ fontSize: 10 }}
+              className="font-mono text-muted-foreground truncate text-right"
+              style={{ fontSize: 11 }}
               title={item.ipBlock}
             >
               {item.ipBlock || "—"}
             </span>
+          </div>
+
+          {/* Divisor */}
+          <div className="border-t border-border/40" />
+
+          {/* Linha 3: DL + UL + banda contratada */}
+          <div className="flex items-center justify-between gap-1" style={{ fontSize: 11 }}>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-500 font-mono font-semibold">↓ {formatBandwidth(item.currentDownload)}</span>
+              <span className="text-emerald-500 font-mono font-semibold">↑ {formatBandwidth(item.currentUpload)}</span>
+            </div>
             <span className="text-muted-foreground shrink-0 font-medium" style={{ fontSize: 10 }}>
               {item.bandwidth}M
             </span>
           </div>
 
-          {/* Linha 3: DL + UL */}
-          <div className="flex items-center gap-2" style={{ fontSize: 10 }}>
-            <span className="text-blue-500 font-mono font-semibold">
-              ↓{formatBandwidth(item.currentDownload)}
-            </span>
-            <span className="text-emerald-500 font-mono font-semibold">
-              ↑{formatBandwidth(item.currentUpload)}
-            </span>
-          </div>
-
           {/* Linha 4: latência / perda / uptime */}
-          <div className="flex items-center gap-2" style={{ fontSize: 10 }}>
-            <span className={`font-mono font-semibold ${latColor}`}>{item.latency.toFixed(0)}ms</span>
-            <span className={`font-mono font-semibold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
-            <span className="font-mono text-muted-foreground ml-auto">{item.uptime.toFixed(1)}%</span>
+          <div className="flex items-center gap-3" style={{ fontSize: 11 }}>
+            <span>
+              <span className="text-muted-foreground">Lat </span>
+              <span className={`font-mono font-semibold ${latColor}`}>{item.latency.toFixed(0)}ms</span>
+            </span>
+            <span>
+              <span className="text-muted-foreground">Perd </span>
+              <span className={`font-mono font-semibold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
+            </span>
+            <span className={`font-mono font-semibold ml-auto ${uptimeColor}`} style={{ fontSize: 10 }}>
+              {item.uptime.toFixed(1)}%
+            </span>
           </div>
 
-          {/* Linha 5: cliente + ícone de alerta */}
-          <div className="flex items-center gap-1 min-w-0 border-t border-border/50 pt-0.5 mt-auto">
+          {/* Linha 5: cliente */}
+          <div className="flex items-center gap-1 min-w-0 mt-auto">
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewClient(item.clientId, item.clientName); }}
               className="text-muted-foreground hover:text-primary truncate flex-1 text-left leading-tight"
-              style={{ fontSize: 9 }}
+              style={{ fontSize: 10 }}
               data-testid={`button-view-client-${item.clientId}`}
               title={item.clientName}
             >
               {item.clientName}
             </button>
-            {item.activeEvent && (
-              <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
-            )}
-            {!item.activeEvent && item.openIncident && (
-              <Ticket className="w-3 h-3 text-amber-500 shrink-0" />
-            )}
+            {item.activeEvent && <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />}
+            {!item.activeEvent && item.openIncident && <Ticket className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
           </div>
 
         </div>
@@ -423,7 +446,7 @@ function SuperAdminLinkDashboard({
       ) : isLoading ? (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, 240px)' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
-            <Skeleton key={i} style={{ width: 240, height: 155 }} />
+            <Skeleton key={i} style={{ width: 240, height: 170 }} />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
