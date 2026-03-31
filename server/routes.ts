@@ -3774,7 +3774,7 @@ export async function registerRoutes(
   app.get("/api/super-admin/link-dashboard", requireSuperAdmin, async (req, res) => {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 100, 200);
+      const pageSize = Math.min(parseInt(req.query.pageSize as string) || 100, 9999);
       const statusFilter = req.query.status as string | undefined;
       const clientIdFilter = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
       const search = (req.query.search as string)?.toLowerCase().trim() || undefined;

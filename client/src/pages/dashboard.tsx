@@ -33,8 +33,6 @@ import {
   Upload,
   Bell,
   Ticket,
-  ChevronLeft,
-  ChevronRight,
   SquareStack,
   Zap,
 } from "lucide-react";
@@ -273,46 +271,24 @@ function SuperAdminLinkDashboard({
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
-
-  // Calcula pageSize com base nas dimensões da tela
-  useEffect(() => {
-    const CARD_W = 200 + 8; // largura do card + gap
-    const CARD_H = 128 + 8; // altura do card + gap
-    const SIDEBAR_W = 256;  // sidebar estimada
-    const HEADER_H = 220;   // header + filtros estimados
-
-    const calc = () => {
-      const cols = Math.max(1, Math.floor((window.innerWidth - SIDEBAR_W) / CARD_W));
-      const rows = Math.max(2, Math.floor((window.innerHeight - HEADER_H) / CARD_H));
-      setPageSize(cols * rows);
-    };
-
-    calc();
-    window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
-  }, []);
-
   // Debounce search with useEffect
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      setPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Build query URL with filters
+  // Build query URL with filters — carrega todos os links de uma vez
   const queryUrl = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("page", page.toString());
-    params.set("pageSize", pageSize.toString());
+    params.set("page", "1");
+    params.set("pageSize", "9999");
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (clientFilter !== "all") params.set("clientId", clientFilter);
     if (debouncedSearch) params.set("search", debouncedSearch);
     return `/api/super-admin/link-dashboard?${params.toString()}`;
-  }, [page, statusFilter, clientFilter, debouncedSearch]);
+  }, [statusFilter, clientFilter, debouncedSearch]);
 
   const { data, isLoading, isFetching, isError, refetch } = useQuery<LinkDashboardResponse>({
     queryKey: [queryUrl],
@@ -324,12 +300,10 @@ function SuperAdminLinkDashboard({
 
   const handleStatusChange = (value: string) => {
     setStatusFilter(value);
-    setPage(1);
   };
 
   const handleClientChange = (value: string) => {
     setClientFilter(value);
-    setPage(1);
   };
 
   return (
@@ -452,13 +426,6 @@ function SuperAdminLinkDashboard({
             <Skeleton key={i} style={{ width: 200, height: 128 }} />
           ))}
         </div>
-      ) : isFetching && data?.page !== page ? (
-        // Mudança de página: mostra skeletons enquanto a nova página carrega
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 200px)' }}>
-          {Array.from({ length: 16 }).map((_, i) => (
-            <Skeleton key={i} style={{ width: 200, height: 128 }} />
-          ))}
-        </div>
       ) : data?.items && data.items.length > 0 ? (
         <>
           <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, 200px)' }}>
@@ -471,39 +438,10 @@ function SuperAdminLinkDashboard({
             ))}
           </div>
 
-          {/* Paginação */}
-          {data.totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, data.totalItems)} de {data.totalItems} links
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  data-testid="button-prev-page"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Anterior
-                </Button>
-                <span className="text-sm">
-                  Página {page} de {data.totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(data.totalPages, p + 1))}
-                  disabled={page === data.totalPages}
-                  data-testid="button-next-page"
-                >
-                  Próxima
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Contagem total */}
+          <div className="text-xs text-muted-foreground pt-2">
+            Mostrando {data.items.length} de {data.totalItems} links
+          </div>
         </>
       ) : (
         <Card>
