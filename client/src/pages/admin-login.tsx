@@ -27,8 +27,8 @@ export default function AdminLogin() {
     
     if (result.success) {
       toast({ title: "Login realizado com sucesso" });
-      // Redirecionar para painel admin
-      window.location.href = "/admin";
+      // Redirecionar para o dashboard de links (página principal)
+      window.location.href = "/";
     } else {
       toast({ 
         title: "Erro ao fazer login", 
