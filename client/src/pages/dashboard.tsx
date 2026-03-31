@@ -196,15 +196,15 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     <Link href={`/link/${item.id}`}>
       <div
         className={`bg-card border border-border border-t-4 ${topBorder} rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all`}
-        style={{ width: 240, height: 170 }}
+        style={{ width: 240, height: 156 }}
         data-testid={`card-link-${item.id}`}
       >
-        <div className="px-3 py-2.5 flex flex-col h-full gap-1.5">
+        <div className="px-3 py-2 flex flex-col h-full gap-1">
 
           {/* Linha 1: nome do link + badge */}
           <div className="flex items-start gap-1.5 min-w-0">
             <h3
-              className="font-bold leading-snug flex-1 min-w-0 line-clamp-2"
+              className="font-extrabold leading-snug flex-1 min-w-0 line-clamp-2"
               style={{ fontSize: 13 }}
               title={item.name}
             >
@@ -220,11 +220,11 @@ function SuperAdminLinkCard({ item, onViewClient }: {
 
           {/* Linha 2: status + IP */}
           <div className="flex items-center justify-between gap-1">
-            <span className={`font-semibold ${statusTextColor}`} style={{ fontSize: 11 }}>
+            <span className={`font-bold ${statusTextColor}`} style={{ fontSize: 11 }}>
               {statusLabel}
             </span>
             <span
-              className="font-mono text-muted-foreground truncate text-right"
+              className="font-mono font-semibold text-muted-foreground truncate text-right"
               style={{ fontSize: 11 }}
               title={item.ipBlock}
             >
@@ -238,10 +238,10 @@ function SuperAdminLinkCard({ item, onViewClient }: {
           {/* Linha 3: DL + UL + banda contratada */}
           <div className="flex items-center justify-between gap-1" style={{ fontSize: 11 }}>
             <div className="flex items-center gap-2">
-              <span className="text-blue-500 font-mono font-semibold">↓ {formatBandwidth(item.currentDownload)}</span>
-              <span className="text-emerald-500 font-mono font-semibold">↑ {formatBandwidth(item.currentUpload)}</span>
+              <span className="text-blue-500 font-mono font-bold">↓ {formatBandwidth(item.currentDownload)}</span>
+              <span className="text-emerald-500 font-mono font-bold">↑ {formatBandwidth(item.currentUpload)}</span>
             </div>
-            <span className="text-muted-foreground shrink-0 font-medium" style={{ fontSize: 10 }}>
+            <span className="text-muted-foreground shrink-0 font-bold" style={{ fontSize: 11 }}>
               {item.bandwidth}M
             </span>
           </div>
@@ -249,14 +249,14 @@ function SuperAdminLinkCard({ item, onViewClient }: {
           {/* Linha 4: latência / perda / uptime */}
           <div className="flex items-center gap-3" style={{ fontSize: 11 }}>
             <span>
-              <span className="text-muted-foreground">Lat </span>
-              <span className={`font-mono font-semibold ${latColor}`}>{item.latency.toFixed(0)}ms</span>
+              <span className="text-muted-foreground font-semibold">Lat </span>
+              <span className={`font-mono font-bold ${latColor}`}>{item.latency.toFixed(0)}ms</span>
             </span>
             <span>
-              <span className="text-muted-foreground">Perd </span>
-              <span className={`font-mono font-semibold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
+              <span className="text-muted-foreground font-semibold">Perd </span>
+              <span className={`font-mono font-bold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
             </span>
-            <span className={`font-mono font-semibold ml-auto ${uptimeColor}`} style={{ fontSize: 10 }}>
+            <span className={`font-mono font-bold ml-auto ${uptimeColor}`} style={{ fontSize: 11 }}>
               {item.uptime.toFixed(1)}%
             </span>
           </div>
@@ -265,7 +265,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
           <div className="flex items-center gap-1 min-w-0 mt-auto">
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onViewClient(item.clientId, item.clientName); }}
-              className="text-muted-foreground hover:text-primary truncate flex-1 text-left leading-tight"
+              className="text-muted-foreground hover:text-primary truncate flex-1 text-left leading-tight font-medium"
               style={{ fontSize: 10 }}
               data-testid={`button-view-client-${item.clientId}`}
               title={item.clientName}
@@ -446,7 +446,7 @@ function SuperAdminLinkDashboard({
       ) : isLoading ? (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, 240px)' }}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
-            <Skeleton key={i} style={{ width: 240, height: 170 }} />
+            <Skeleton key={i} style={{ width: 240, height: 156 }} />
           ))}
         </div>
       ) : data?.items && data.items.length > 0 ? (
