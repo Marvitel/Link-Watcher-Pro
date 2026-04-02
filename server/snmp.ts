@@ -834,10 +834,13 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     case 'furukawa-g8s':
       // Furukawa: índice SNMP = {portId}.{onuSnmpId}
       // portId = 6000 + (slot * 100) + port
-      // IMPORTANTE: SNMP usa índice 1-based, CLI da OLT usa 0-based
-      // Exemplo CLI: gpon0.3 ONU 0 → SNMP: 6103.1
-      // Conversão: onuSnmpId = onuId (0-based CLI) + 1
-      const furukawaPortId = 6000 + (slot * 100) + port;
+      // IMPORTANTE: CLI Furukawa usa slot 0-based (gpon0, gpon1...), SNMP usa 1-based
+      // slot=0 no banco → card físico 1 na OLT → SNMP slot=1
+      // Exemplo CLI: gpon0.3 ONU 0 → banco: slot=0, port=3, onuId=0 → SNMP: 6103.1
+      // Conversão slot: slotSnmp = slot === 0 ? 1 : slot
+      // Conversão onuId: onuSnmpId = onuId (0-based CLI) + 1
+      const furukawaSlot = slot === 0 ? 1 : slot;
+      const furukawaPortId = 6000 + (furukawaSlot * 100) + port;
       const furukawaSnmpOnuId = onuId + 1;
       return `${furukawaPortId}.${furukawaSnmpOnuId}`;
 
