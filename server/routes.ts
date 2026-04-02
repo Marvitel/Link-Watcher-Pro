@@ -4530,9 +4530,12 @@ export async function registerRoutes(
         }
       }
       
-      // Buscar portas salvas no banco
-      const savedPorts = await storage.getCpePortStatus(cpeId, linkCpeId);
-      res.json(savedPorts);
+      // Buscar portas salvas no banco + modelo do CPE
+      const [savedPorts, cpeInfo] = await Promise.all([
+        storage.getCpePortStatus(cpeId, linkCpeId),
+        storage.getCpe(cpeId),
+      ]);
+      res.json({ ports: savedPorts, model: cpeInfo?.model || null, sysName: (cpeInfo as any)?.sysName || null });
     } catch (error) {
       console.error("Error fetching CPE port status:", error);
       res.status(500).json({ error: "Falha ao buscar status das portas" });
@@ -4612,6 +4615,22 @@ export async function registerRoutes(
         };
       }
       
+      // Coletar sysDescr/sysName via SNMP e salvar no campo model do CPE
+      try {
+        const { testSnmpConnection } = await import("./snmp");
+        const snmpInfo = await testSnmpConnection(targetIp, snmpProfile as any);
+        if (snmpInfo.success && (snmpInfo.sysDescr || snmpInfo.sysName)) {
+          // sysDescr costuma conter modelo completo, sysName é o hostname
+          const collectedModel = (snmpInfo.sysDescr || snmpInfo.sysName || "").substring(0, 200).trim();
+          if (collectedModel) {
+            await storage.updateCpe(cpeId, { model: collectedModel });
+          }
+        }
+      } catch (sysErr) {
+        // Não falha o fluxo por erro ao coletar sysDescr
+        console.warn(`[CPE Ports] Falha ao coletar sysDescr do CPE ${cpeId}:`, sysErr);
+      }
+
       // Descobrir interfaces via SNMP
       const interfaces = await discoverInterfaces(targetIp, snmpProfile);
       
@@ -4654,10 +4673,12 @@ export async function registerRoutes(
         savedPorts.push(saved);
       }
       
+      const updatedCpe = await storage.getCpe(cpeId);
       res.json({
         success: true,
         portsFound: physicalInterfaces.length,
         ports: savedPorts,
+        model: updatedCpe?.model || null,
       });
     } catch (error) {
       console.error("Error refreshing CPE port status:", error);

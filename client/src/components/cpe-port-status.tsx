@@ -122,6 +122,29 @@ function PortIcon({ port, compact }: { port: CpePortStatusType; compact?: boolea
   );
 }
 
+// Exibe nome do CPE + modelo coletado via SNMP (sysDescr truncado)
+function CpeNameModel({ cpeName, cpeModel }: { cpeName?: string; cpeModel: string | null }) {
+  if (!cpeName && !cpeModel) return null;
+
+  // sysDescr pode ser muito longo: pegar apenas a primeira linha ou até 80 chars
+  const shortModel = cpeModel
+    ? cpeModel.split(/[\r\n]/)[0].substring(0, 80).trim()
+    : null;
+
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      {cpeName && (
+        <span className="text-sm font-medium text-foreground leading-tight">{cpeName}</span>
+      )}
+      {shortModel && (
+        <span className="text-xs text-muted-foreground leading-tight truncate" title={cpeModel ?? undefined}>
+          {shortModel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkOffline }: CpePortStatusProps) {
   const queryClient = useQueryClient();
   const [hasAutoRefreshed, setHasAutoRefreshed] = useState(false);
@@ -131,7 +154,7 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkO
   
   // Link offline → apenas carrega dados salvos do banco, sem polling automático
   // (CPE inacessível junto com o link — SNMP causaria timeouts desnecessários)
-  const { data: ports = [], isLoading, isFetched } = useQuery<CpePortStatusType[]>({
+  const { data: portData, isLoading, isFetched } = useQuery<{ ports: CpePortStatusType[]; model: string | null }>({
     queryKey,
     queryFn: async () => {
       const url = linkCpeId 
@@ -144,6 +167,9 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkO
     refetchInterval: linkOffline ? false : 60000,
     staleTime: linkOffline ? Infinity : 0,
   });
+
+  const ports = portData?.ports ?? [];
+  const cpeModel = portData?.model || null;
   
   const refreshMutation = useMutation({
     mutationFn: async () => {
@@ -180,9 +206,7 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkO
     const portsOffline = ports.map(p => ({ ...p, operStatus: "down" as const }));
     return (
       <div className="space-y-2">
-        {cpeName && (
-          <span className="text-sm font-medium text-muted-foreground">{cpeName}</span>
-        )}
+        <CpeNameModel cpeName={cpeName} cpeModel={cpeModel} />
         {totalPorts > 0 ? (
           <>
             <div className="flex flex-wrap gap-1">
@@ -210,9 +234,7 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkO
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        {cpeName && (
-          <span className="text-sm font-medium text-muted-foreground">{cpeName}</span>
-        )}
+        <CpeNameModel cpeName={cpeName} cpeModel={cpeModel} />
         <Button
           size="sm"
           variant="ghost"
