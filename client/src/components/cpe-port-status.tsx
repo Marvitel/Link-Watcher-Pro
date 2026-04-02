@@ -177,27 +177,30 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkO
   // Estado offline: forçar todas as portas como down + aviso
   if (linkOffline) {
     const totalPorts = ports.length;
-    // Sobrescreve operStatus para "down" em todas as portas — CPE inacessível
     const portsOffline = ports.map(p => ({ ...p, operStatus: "down" as const }));
     return (
       <div className="space-y-2">
         <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          <span className="font-medium">CPE inacessível</span> — coleta de portas pausada. Portas exibidas como offline.
+          <span className="font-medium">CPE inacessível</span> — coleta de portas pausada. Status exibido como offline.
         </div>
-        {totalPorts > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {portsOffline.map((port) => (
-              <div key={port.id} className="flex flex-col items-center gap-0.5">
-                <PortIcon port={port} compact={compact} />
-                <span className="text-[10px] text-muted-foreground truncate max-w-8">
-                  {port.portName?.replace(/^(Ethernet|GigabitEthernet|eth)/i, "").substring(0, 4) || port.portIndex}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {totalPorts > 0 && (
-          <div className="text-xs text-muted-foreground">{totalPorts} portas — todas offline (dispositivo inacessível)</div>
+        {totalPorts > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-1">
+              {portsOffline.map((port) => (
+                <div key={port.id} className="flex flex-col items-center gap-0.5">
+                  <PortIcon port={port} compact={compact} />
+                  <span className="text-[10px] text-muted-foreground truncate max-w-8">
+                    {port.portName?.replace(/^(Ethernet|GigabitEthernet|eth)/i, "").substring(0, 4) || port.portIndex}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span>0/{totalPorts} portas ativas</span>
+            </div>
+          </>
+        ) : (
+          <div className="text-sm text-muted-foreground">Nenhuma porta registrada.</div>
         )}
       </div>
     );
