@@ -12,6 +12,7 @@ interface CpePortStatusProps {
   linkCpeId?: number;
   cpeName?: string;
   compact?: boolean;
+  linkOffline?: boolean;
 }
 
 function formatSpeed(speed: number | null): string {
@@ -121,13 +122,15 @@ function PortIcon({ port, compact }: { port: CpePortStatusType; compact?: boolea
   );
 }
 
-export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact }: CpePortStatusProps) {
+export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact, linkOffline }: CpePortStatusProps) {
   const queryClient = useQueryClient();
   const [hasAutoRefreshed, setHasAutoRefreshed] = useState(false);
   const queryKey = linkCpeId 
     ? ["/api/cpe", cpeId, "ports", { linkCpeId }]
     : ["/api/cpe", cpeId, "ports"];
   
+  // Link offline → apenas carrega dados salvos do banco, sem polling automático
+  // (CPE inacessível junto com o link — SNMP causaria timeouts desnecessários)
   const { data: ports = [], isLoading, isFetched } = useQuery<CpePortStatusType[]>({
     queryKey,
     queryFn: async () => {
@@ -138,7 +141,8 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact }: Cpe
       if (!response.ok) throw new Error("Failed to fetch ports");
       return response.json();
     },
-    refetchInterval: 60000,
+    refetchInterval: linkOffline ? false : 60000,
+    staleTime: linkOffline ? Infinity : 0,
   });
   
   const refreshMutation = useMutation({
@@ -153,19 +157,48 @@ export function CpePortStatusDisplay({ cpeId, linkCpeId, cpeName, compact }: Cpe
     },
   });
   
-  // Coleta automática quando não há dados salvos
+  // Coleta automática quando não há dados salvos e link está online
   useEffect(() => {
-    if (isFetched && ports.length === 0 && !hasAutoRefreshed && !refreshMutation.isPending) {
+    if (!linkOffline && isFetched && ports.length === 0 && !hasAutoRefreshed && !refreshMutation.isPending) {
       setHasAutoRefreshed(true);
       refreshMutation.mutate();
     }
-  }, [isFetched, ports.length, hasAutoRefreshed, refreshMutation]);
+  }, [isFetched, ports.length, hasAutoRefreshed, refreshMutation, linkOffline]);
   
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Loader2 className="w-4 h-4 animate-spin" />
         <span>Carregando portas...</span>
+      </div>
+    );
+  }
+
+  // Estado offline: forçar todas as portas como down + aviso
+  if (linkOffline) {
+    const totalPorts = ports.length;
+    // Sobrescreve operStatus para "down" em todas as portas — CPE inacessível
+    const portsOffline = ports.map(p => ({ ...p, operStatus: "down" as const }));
+    return (
+      <div className="space-y-2">
+        <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          <span className="font-medium">CPE inacessível</span> — coleta de portas pausada. Portas exibidas como offline.
+        </div>
+        {totalPorts > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {portsOffline.map((port) => (
+              <div key={port.id} className="flex flex-col items-center gap-0.5">
+                <PortIcon port={port} compact={compact} />
+                <span className="text-[10px] text-muted-foreground truncate max-w-8">
+                  {port.portName?.replace(/^(Ethernet|GigabitEthernet|eth)/i, "").substring(0, 4) || port.portIndex}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {totalPorts > 0 && (
+          <div className="text-xs text-muted-foreground">{totalPorts} portas — todas offline (dispositivo inacessível)</div>
+        )}
       </div>
     );
   }

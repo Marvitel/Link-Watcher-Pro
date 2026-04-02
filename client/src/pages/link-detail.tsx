@@ -1264,17 +1264,13 @@ export default function LinkDetail() {
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 <Network className="w-5 h-5" />
                 <CardTitle className="text-base">Status das Portas</CardTitle>
-                {link.status === 'offline' && (
-                  <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded px-2 py-0.5">
-                    Link offline — dados podem estar desatualizados
-                  </span>
-                )}
               </CardHeader>
               <CardContent>
                 <CpePortStatusDisplay 
                   cpeId={equipmentCpe.cpeId} 
                   linkCpeId={equipmentCpe.linkCpeId}
                   cpeName={equipmentCpe.name}
+                  linkOffline={link.status === 'offline'}
                 />
               </CardContent>
             </Card>
