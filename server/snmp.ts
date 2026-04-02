@@ -1332,6 +1332,11 @@ export async function getOpticalSignalFromSwitch(
               // Converter valor SNMP para dBm usando divisor configurado
               const rawValue = Number(varbind.value);
               if (!isNaN(rawValue)) {
+                // Raw=0 indica SFP sem sinal / equipamento offline — não é 0 dBm válido
+                if (rawValue === 0) {
+                  console.log(`[SNMP Switch Optical] ${key}: raw=0 (sem sinal / SFP offline), ignorando`);
+                  continue;
+                }
                 // Usar divisor parametrizado (ex: 1000 para Mikrotik, 100 para outros)
                 // Se divisor = 1, valor já está em dBm
                 const dBmValue = divisor > 1 ? rawValue / divisor : rawValue;
@@ -1623,6 +1628,11 @@ export async function getCiscoOpticalSignal(
           if (key && varbind.value !== undefined) {
             const rawValue = Number(varbind.value);
             if (!isNaN(rawValue)) {
+              // Raw=0 indica SFP sem sinal / módulo offline — não é 0 dBm válido
+              if (rawValue === 0) {
+                console.log(`[Cisco Optical] ${key}: raw=0 (sem sinal / SFP offline), ignorando`);
+                continue;
+              }
               // Cisco retorna valor em centésimos de dBm (ex: -1523 = -15.23 dBm)
               // Usar divisor = 100 para converter
               const dBmValue = divisor > 1 ? rawValue / divisor : rawValue;
