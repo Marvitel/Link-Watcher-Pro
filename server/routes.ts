@@ -1881,6 +1881,14 @@ export async function registerRoutes(
         } else {
           console.log(`[Devices] CPE ${cpe.id} (${cpe.name}): sem senha SSH cadastrada`);
         }
+        let decryptedWebPassword = null;
+        if (cpe.webPassword) {
+          try {
+            decryptedWebPassword = isEncrypted(cpe.webPassword) ? decrypt(cpe.webPassword) : cpe.webPassword;
+          } catch (e) {
+            console.error(`Failed to decrypt web password for CPE ${cpe.id}:`, e);
+          }
+        }
         // IP efetivo: usa ipOverride se disponível, senão ipAddress do CPE
         const effectiveIp = assoc.ipOverride || cpe.ipAddress;
         // Buscar nome do fabricante
@@ -1921,7 +1929,10 @@ export async function registerRoutes(
           sshPort: cpe.sshPort || 22,
           webPort: cpe.webPort || 80,
           webProtocol: cpe.webProtocol || "http",
+          webUser: cpe.webUser || null,
+          webPassword: decryptedWebPassword,
           winboxPort: cpe.winboxPort || 8291,
+          vendor: vendor?.slug || null,
           hasAccess: cpe.hasAccess,
           cpuUsage: lastMonitoredAt ? (cpuUsage ?? null) : null,
           memoryUsage: lastMonitoredAt ? (memoryUsage ?? null) : null,

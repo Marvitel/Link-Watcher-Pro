@@ -1895,8 +1895,10 @@ interface DeviceInfo {
   sshPort?: number;
   webPort?: number;
   webProtocol?: string;
+  webUser?: string | null;
+  webPassword?: string | null;
   winboxPort?: number;
-  vendor?: string;
+  vendor?: string | null;
 }
 
 interface CpeDeviceInfo extends DeviceInfo {
@@ -2042,16 +2044,28 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`ssh://${user}@${formattedIp}:${port}`, "_blank");
   };
 
-  const openWinbox = (ip: string, port: number = 8291) => {
-    // Winbox não precisa de colchetes para IPv6
-    window.open(`winbox://${ip}:${port}`, "_blank");
+  const openWinbox = (ip: string, port: number = 8291, user?: string | null, pass?: string | null) => {
+    // Winbox suporta credenciais na URL: winbox://user:pass@IP:PORT
+    const auth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : "";
+    window.open(`winbox://${auth}${ip}:${port}`, "_blank");
   };
 
-  const openWebFig = (ip: string, webPort: number = 80, webProtocol: string = "http") => {
-    // WebFig: interface web nativa do RouterOS — funciona em qualquer SO via browser
+  const openWebFig = (ip: string, webPort: number = 80, webProtocol: string = "http", user?: string | null, pass?: string | null) => {
+    // WebFig: browsers modernos bloqueiam credenciais na URL (http://user:pass@host)
+    // Estratégia: copiar credenciais para clipboard e abrir WebFig em seguida
     const formattedIp = formatIpForUrl(ip);
-    const port = webPort !== (webProtocol === "https" ? 443 : 80) ? `:${webPort}` : "";
-    window.open(`${webProtocol}://${formattedIp}${port}/webfig`, "_blank");
+    const portPart = webPort !== (webProtocol === "https" ? 443 : 80) ? `:${webPort}` : "";
+    const url = `${webProtocol}://${formattedIp}${portPart}/webfig`;
+    if (user || pass) {
+      const creds = `Usuário: ${user || "admin"}\nSenha: ${pass || "(sem senha)"}`;
+      navigator.clipboard.writeText(creds).catch(() => {});
+      toast({
+        title: "Credenciais copiadas",
+        description: `${user || "admin"} / ${pass ? "••••••••" : "(sem senha)"} — use ao fazer login no WebFig`,
+        duration: 6000,
+      });
+    }
+    window.open(url, "_blank");
   };
 
   const getSshConfig = (type: TerminalType): { command?: string; password?: string; fallbackPassword?: string; fallbackUser?: string } => {
@@ -2155,6 +2169,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     sshPort = 22,
     webPort = 80,
     webProtocol = "http",
+    webUser = null,
+    webPassword = null,
     winboxPort = 8291,
   }: { 
     title: string; 
@@ -2167,6 +2183,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     sshPort?: number;
     webPort?: number;
     webProtocol?: string;
+    webUser?: string | null;
+    webPassword?: string | null;
     winboxPort?: number;
   }) => (
     <Card className={!available ? "opacity-50" : ""}>
@@ -2237,14 +2255,17 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                     size="sm"
                     variant="outline"
                     disabled={!available}
-                    onClick={() => ip && openWebFig(ip, webPort, webProtocol)}
+                    onClick={() => ip && openWebFig(ip, webPort, webProtocol, webUser, webPassword)}
                     data-testid={`button-webfig-${target}`}
                   >
                     <Globe className="w-4 h-4 mr-1" />
                     WebFig
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Interface web do RouterOS — funciona em qualquer SO</TooltipContent>
+                <TooltipContent>
+                  Interface web do RouterOS — funciona em qualquer SO
+                  {(webUser || webPassword) && ` · credenciais copiadas ao clicar`}
+                </TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2252,14 +2273,16 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                     size="sm"
                     variant="outline"
                     disabled={!available}
-                    onClick={() => ip && openWinbox(ip, winboxPort)}
+                    onClick={() => ip && openWinbox(ip, winboxPort, webUser, webPassword)}
                     data-testid={`button-winbox-${target}`}
                   >
                     <Network className="w-4 h-4 mr-1" />
                     Winbox
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Abre via app Winbox — requer aplicativo instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+                <TooltipContent>
+                  {(webUser || webPassword) ? `Login: ${webUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
+                </TooltipContent>
               </Tooltip>
             </>
           )}
@@ -2421,6 +2444,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               || cpe.manufacturer?.toLowerCase().includes("mikrotik");
             const cpeWebPort = (cpe as any).webPort || 80;
             const cpeWebProtocol = (cpe as any).webProtocol || "http";
+            const cpeWebUser = (cpe as any).webUser as string | null ?? null;
+            const cpeWebPass = (cpe as any).webPassword as string | null ?? null;
             const cpeWinboxPort = (cpe as any).winboxPort || 8291;
             return (
               <Card key={cpe.id} className={!cpe.available ? "opacity-50" : ""}>
@@ -2441,14 +2466,17 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol)}
+                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol, cpeWebUser, cpeWebPass)}
                                 data-testid={`button-webfig-cpe-${cpe.id}`}
                               >
                                 <Globe className="w-3.5 h-3.5 mr-1" />
                                 WebFig
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
+                            <TooltipContent>
+                              Interface web RouterOS — funciona em qualquer SO
+                              {(cpeWebUser || cpeWebPass) && " · credenciais copiadas ao clicar"}
+                            </TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -2456,14 +2484,16 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort)}
+                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort, cpeWebUser, cpeWebPass)}
                                 data-testid={`button-winbox-cpe-${cpe.id}`}
                               >
                                 <Network className="w-3.5 h-3.5 mr-1" />
                                 Winbox
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+                            <TooltipContent>
+                              {(cpeWebUser || cpeWebPass) ? `Login: ${cpeWebUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
+                            </TooltipContent>
                           </Tooltip>
                         </>
                       )}
@@ -2529,7 +2559,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             onClick={() => devices?.cpe?.ip && openWebFig(
                               devices.cpe.ip,
                               devices.cpe.webPort || 80,
-                              devices.cpe.webProtocol || "http"
+                              devices.cpe.webProtocol || "http",
+                              devices.cpe.webUser || null,
+                              devices.cpe.webPassword || null
                             )}
                             data-testid="button-webfig-cpe"
                           >
@@ -2537,7 +2569,10 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             WebFig
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
+                        <TooltipContent>
+                          Interface web RouterOS — funciona em qualquer SO
+                          {(devices?.cpe?.webUser || devices?.cpe?.webPassword) && " · credenciais copiadas ao clicar"}
+                        </TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -2547,7 +2582,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             disabled={!cpeAvailable}
                             onClick={() => devices?.cpe?.ip && openWinbox(
                               devices.cpe.ip,
-                              devices.cpe.winboxPort || 8291
+                              devices.cpe.winboxPort || 8291,
+                              devices.cpe.webUser || null,
+                              devices.cpe.webPassword || null
                             )}
                             data-testid="button-winbox-cpe"
                           >
@@ -2555,7 +2592,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             Winbox
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+                        <TooltipContent>
+                          {(devices?.cpe?.webUser || devices?.cpe?.webPassword) ? `Login: ${devices?.cpe?.webUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
+                        </TooltipContent>
                       </Tooltip>
                     </>
                   )}
