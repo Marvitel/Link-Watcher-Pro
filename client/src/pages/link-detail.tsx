@@ -2445,8 +2445,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               || cpe.manufacturer?.toLowerCase().includes("mikrotik");
             const cpeWebPort = (cpe as any).webPort || 80;
             const cpeWebProtocol = (cpe as any).webProtocol || "http";
-            const cpeWebUser = (cpe as any).webUser as string | null ?? null;
-            const cpeWebPass = (cpe as any).webPassword as string | null ?? null;
+            // RouterOS: mesmas credenciais para SSH, WebFig e Winbox — usar SSH como fallback
+            const cpeWebUser = ((cpe as any).webUser || (cpe as any).sshUser) as string | null ?? null;
+            const cpeWebPass = ((cpe as any).webPassword || (cpe as any).sshPassword) as string | null ?? null;
             const cpeWinboxPort = (cpe as any).winboxPort || 8291;
             return (
               <Card key={cpe.id} className={!cpe.available ? "opacity-50" : ""}>
@@ -2561,8 +2562,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                               devices.cpe.ip,
                               devices.cpe.webPort || 80,
                               devices.cpe.webProtocol || "http",
-                              devices.cpe.webUser || null,
-                              devices.cpe.webPassword || null
+                              devices.cpe.webUser || devices.cpe.sshUser || null,
+                              devices.cpe.webPassword || devices.cpe.sshPassword || null
                             )}
                             data-testid="button-webfig-cpe"
                           >
@@ -2572,7 +2573,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                         </TooltipTrigger>
                         <TooltipContent>
                           Interface web RouterOS — funciona em qualquer SO
-                          {(devices?.cpe?.webUser || devices?.cpe?.webPassword) && " · credenciais copiadas ao clicar"}
+                          {((devices?.cpe?.webUser || devices?.cpe?.sshUser) || (devices?.cpe?.webPassword || devices?.cpe?.sshPassword)) && " · credenciais copiadas ao clicar"}
                         </TooltipContent>
                       </Tooltip>
                       <Tooltip>
@@ -2584,8 +2585,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             onClick={() => devices?.cpe?.ip && openWinbox(
                               devices.cpe.ip,
                               devices.cpe.winboxPort || 8291,
-                              devices.cpe.webUser || null,
-                              devices.cpe.webPassword || null
+                              devices.cpe.webUser || devices.cpe.sshUser || null,
+                              devices.cpe.webPassword || devices.cpe.sshPassword || null
                             )}
                             data-testid="button-winbox-cpe"
                           >
@@ -2594,7 +2595,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {(devices?.cpe?.webUser || devices?.cpe?.webPassword) ? `Login: ${devices?.cpe?.webUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
+                          {(devices?.cpe?.webUser || devices?.cpe?.sshUser) 
+                            ? `Login: ${devices?.cpe?.webUser || devices?.cpe?.sshUser} · Requer app Winbox instalado` 
+                            : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
                         </TooltipContent>
                       </Tooltip>
                     </>
@@ -2695,6 +2698,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={accessPointDevice?.sshPort || 22}
           webPort={accessPointDevice?.webPort || 80}
           webProtocol={accessPointDevice?.webProtocol || "http"}
+          webUser={accessPointDevice?.webUser || accessPointDevice?.sshUser || null}
+          webPassword={accessPointDevice?.webPassword || accessPointDevice?.sshPassword || null}
           winboxPort={accessPointDevice?.winboxPort || 8291}
         />
         <DeviceCard
@@ -2708,6 +2713,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={devices?.concentrator?.sshPort || 22}
           webPort={devices?.concentrator?.webPort || 80}
           webProtocol={devices?.concentrator?.webProtocol || "http"}
+          webUser={devices?.concentrator?.webUser || devices?.concentrator?.sshUser || null}
+          webPassword={devices?.concentrator?.webPassword || devices?.concentrator?.sshPassword || null}
           winboxPort={devices?.concentrator?.winboxPort || 8291}
         />
         <DeviceCard
@@ -2721,6 +2728,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={devices?.cpe?.sshPort || 22}
           webPort={devices?.cpe?.webPort || 80}
           webProtocol={devices?.cpe?.webProtocol || "http"}
+          webUser={devices?.cpe?.webUser || devices?.cpe?.sshUser || null}
+          webPassword={devices?.cpe?.webPassword || devices?.cpe?.sshPassword || null}
           winboxPort={devices?.cpe?.winboxPort || 8291}
         />
       </div>
