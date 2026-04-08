@@ -2047,6 +2047,13 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
+  const openWebFig = (ip: string, webPort: number = 80, webProtocol: string = "http") => {
+    // WebFig: interface web nativa do RouterOS — funciona em qualquer SO via browser
+    const formattedIp = formatIpForUrl(ip);
+    const port = webPort !== (webProtocol === "https" ? 443 : 80) ? `:${webPort}` : "";
+    window.open(`${webProtocol}://${formattedIp}${port}/webfig`, "_blank");
+  };
+
   const getSshConfig = (type: TerminalType): { command?: string; password?: string; fallbackPassword?: string; fallbackUser?: string } => {
     if (type === "shell") return {};
     
@@ -2223,16 +2230,38 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
             SSH
           </Button>
           {showWinbox && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!available}
-              onClick={() => ip && openWinbox(ip, winboxPort)}
-              data-testid={`button-winbox-${target}`}
-            >
-              <Network className="w-4 h-4 mr-1" />
-              Winbox
-            </Button>
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!available}
+                    onClick={() => ip && openWebFig(ip, webPort, webProtocol)}
+                    data-testid={`button-webfig-${target}`}
+                  >
+                    <Globe className="w-4 h-4 mr-1" />
+                    WebFig
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Interface web do RouterOS — funciona em qualquer SO</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!available}
+                    onClick={() => ip && openWinbox(ip, winboxPort)}
+                    data-testid={`button-winbox-${target}`}
+                  >
+                    <Network className="w-4 h-4 mr-1" />
+                    Winbox
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abre via app Winbox — requer aplicativo instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+              </Tooltip>
+            </>
           )}
         </div>
       </CardContent>
@@ -2388,6 +2417,11 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   : `ssh -t ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
+            const isMikrotikCpe = (cpe as any).vendor?.toLowerCase() === "mikrotik"
+              || cpe.manufacturer?.toLowerCase().includes("mikrotik");
+            const cpeWebPort = (cpe as any).webPort || 80;
+            const cpeWebProtocol = (cpe as any).webProtocol || "http";
+            const cpeWinboxPort = (cpe as any).winboxPort || 8291;
             return (
               <Card key={cpe.id} className={!cpe.available ? "opacity-50" : ""}>
                 <CardHeader className="pb-2">
@@ -2398,20 +2432,56 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                       <Badge variant="outline" className="text-xs">{cpe.type || "CPE"}</Badge>
                       {roleLabel && <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>}
                     </CardTitle>
-                    <Button
-                      size="sm"
-                      variant={isOpen ? "destructive" : "default"}
-                      onClick={() => {
-                        setOpenCpeTerminals(prev => ({ ...prev, [cpe.id || 0]: !prev[cpe.id || 0] }));
-                        if (!isOpen) {
-                          setCpeTerminalKeys(prev => ({ ...prev, [cpe.id || 0]: (prev[cpe.id || 0] || 0) + 1 }));
-                        }
-                      }}
-                      disabled={!cpe.available}
-                      data-testid={`button-terminal-ssh-cpe-${cpe.id}`}
-                    >
-                      {isOpen ? <X className="w-4 h-4" /> : "SSH"}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {isMikrotikCpe && (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!cpe.available}
+                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol)}
+                                data-testid={`button-webfig-cpe-${cpe.id}`}
+                              >
+                                <Globe className="w-3.5 h-3.5 mr-1" />
+                                WebFig
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!cpe.available}
+                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort)}
+                                data-testid={`button-winbox-cpe-${cpe.id}`}
+                              >
+                                <Network className="w-3.5 h-3.5 mr-1" />
+                                Winbox
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant={isOpen ? "destructive" : "default"}
+                        onClick={() => {
+                          setOpenCpeTerminals(prev => ({ ...prev, [cpe.id || 0]: !prev[cpe.id || 0] }));
+                          if (!isOpen) {
+                            setCpeTerminalKeys(prev => ({ ...prev, [cpe.id || 0]: (prev[cpe.id || 0] || 0) + 1 }));
+                          }
+                        }}
+                        disabled={!cpe.available}
+                        data-testid={`button-terminal-ssh-cpe-${cpe.id}`}
+                      >
+                        {isOpen ? <X className="w-4 h-4" /> : "SSH"}
+                      </Button>
+                    </div>
                   </div>
                   {cpe.available && (
                     <p className="text-xs text-muted-foreground">
@@ -2442,20 +2512,63 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
         ) : (
           <Card className={!cpeAvailable ? "opacity-50" : ""}>
             <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <HardDrive className="w-4 h-4" />
                   {devices?.cpe?.name || "CPE"}
                 </CardTitle>
-                <Button
-                  size="sm"
-                  variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}
-                  onClick={() => toggleTerminal("ssh-cpe")}
-                  disabled={!cpeAvailable}
-                  data-testid="button-terminal-ssh-cpe"
-                >
-                  {openTerminals["ssh-cpe"] ? <X className="w-4 h-4" /> : "SSH"}
-                </Button>
+                <div className="flex items-center gap-1">
+                  {showWinbox && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!cpeAvailable}
+                            onClick={() => devices?.cpe?.ip && openWebFig(
+                              devices.cpe.ip,
+                              devices.cpe.webPort || 80,
+                              devices.cpe.webProtocol || "http"
+                            )}
+                            data-testid="button-webfig-cpe"
+                          >
+                            <Globe className="w-3.5 h-3.5 mr-1" />
+                            WebFig
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!cpeAvailable}
+                            onClick={() => devices?.cpe?.ip && openWinbox(
+                              devices.cpe.ip,
+                              devices.cpe.winboxPort || 8291
+                            )}
+                            data-testid="button-winbox-cpe"
+                          >
+                            <Network className="w-3.5 h-3.5 mr-1" />
+                            Winbox
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}
+                    onClick={() => toggleTerminal("ssh-cpe")}
+                    disabled={!cpeAvailable}
+                    data-testid="button-terminal-ssh-cpe"
+                  >
+                    {openTerminals["ssh-cpe"] ? <X className="w-4 h-4" /> : "SSH"}
+                  </Button>
+                </div>
               </div>
               {cpeAvailable && (
                 <p className="text-xs text-muted-foreground">{devices?.cpe?.ip}</p>
