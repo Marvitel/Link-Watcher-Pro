@@ -4767,6 +4767,66 @@ export async function registerRoutes(
     }
   });
 
+  // Habilitar WebFig via SSH no Mikrotik
+  app.post("/api/cpe/:cpeId/enable-webfig", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      if (isNaN(cpeId)) return res.status(400).json({ error: "ID inválido" });
+
+      const cpe = await storage.getCpe(cpeId);
+      if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
+
+      const ip = cpe.ipAddress;
+      if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
+
+      const sshUser = cpe.sshUser || "admin";
+      const rawPass = cpe.sshPassword
+        ? (isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword)
+        : "";
+      const sshPort = cpe.sshPort || 22;
+
+      // Comando RouterOS para habilitar o serviço www (WebFig)
+      const command = "/ip service set www disabled=no address=0.0.0.0/0";
+
+      const { Client: SSHClient2 } = await import("ssh2");
+      const output = await new Promise<string>((resolve, reject) => {
+        const client = new SSHClient2();
+        let out = "";
+        const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 12000);
+
+        client.on("ready", () => {
+          client.exec(command, (err: any, stream: any) => {
+            if (err) { clearTimeout(timer); client.end(); return reject(err); }
+            stream.on("close", () => { clearTimeout(timer); client.end(); resolve(out.trim()); });
+            stream.on("data", (d: Buffer) => { out += d.toString(); });
+            stream.stderr.on("data", (d: Buffer) => { out += d.toString(); });
+          });
+        });
+
+        client.on("error", (err: any) => { clearTimeout(timer); reject(err); });
+
+        client.connect({
+          host: ip,
+          port: sshPort,
+          username: sshUser,
+          password: rawPass,
+          readyTimeout: 10000,
+          algorithms: {
+            kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
+            cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
+            serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256"],
+          },
+        });
+      });
+
+      console.log(`[WebFig] CPE ${cpe.name} (${ip}): WebFig habilitado. Saída: "${output}"`);
+      res.json({ success: true, message: "WebFig habilitado com sucesso", output });
+    } catch (error: any) {
+      console.error("[WebFig] Erro ao habilitar WebFig:", error);
+      res.status(500).json({ error: `Falha ao conectar via SSH: ${error.message}` });
+    }
+  });
+
   // CPE Command History - Histórico de execução de comandos
   app.get("/api/cpe/:cpeId/command-history", requireAuth, async (req, res) => {
     try {

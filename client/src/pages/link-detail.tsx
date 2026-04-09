@@ -2053,6 +2053,26 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`${webProtocol}://${formattedIp}${portPart}/webfig`, "_blank");
   };
 
+  const enableWebFigMutation = useMutation({
+    mutationFn: async (cpeId: number) => {
+      const res = await apiRequest("POST", `/api/cpe/${cpeId}/enable-webfig`);
+      return res.json();
+    },
+    onSuccess: (_data, cpeId) => {
+      toast({
+        title: "WebFig habilitado",
+        description: "Serviço www habilitado no Mikrotik. Você já pode abrir o WebFig.",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erro ao habilitar WebFig",
+        description: err.message || "Verifique as credenciais SSH do CPE.",
+      });
+    },
+  });
+
   const getSshConfig = (type: TerminalType): { command?: string; password?: string; fallbackPassword?: string; fallbackUser?: string } => {
     if (type === "shell") return {};
     
@@ -2439,6 +2459,23 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                disabled={!cpe.available || enableWebFigMutation.isPending}
+                                onClick={() => cpe.cpeId && enableWebFigMutation.mutate(cpe.cpeId)}
+                                data-testid={`button-enable-webfig-cpe-${cpe.id}`}
+                              >
+                                {enableWebFigMutation.isPending && enableWebFigMutation.variables === cpe.cpeId
+                                  ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                  : <Zap className="w-3.5 h-3.5 mr-1" />}
+                                Habilitar WebFig
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Executa via SSH: /ip service set www disabled=no</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 disabled={!cpe.available}
                                 onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol)}
                                 data-testid={`button-webfig-cpe-${cpe.id}`}
@@ -2519,6 +2556,26 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                 <div className="flex items-center gap-1">
                   {showWinbox && (
                     <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!cpeAvailable || enableWebFigMutation.isPending}
+                            onClick={() => {
+                              const cpeId = (devices?.cpe as any)?.cpeId || (devices?.cpe as any)?.id;
+                              if (cpeId) enableWebFigMutation.mutate(cpeId);
+                            }}
+                            data-testid="button-enable-webfig-cpe"
+                          >
+                            {enableWebFigMutation.isPending
+                              ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              : <Zap className="w-3.5 h-3.5 mr-1" />}
+                            Habilitar WebFig
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Executa via SSH: /ip service set www disabled=no</TooltipContent>
+                      </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
