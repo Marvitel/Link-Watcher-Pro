@@ -113,8 +113,11 @@ export async function runDatacomExport(
   return new Promise<string>((resolve, reject) => {
     const client = new SSHClient();
     let out = "";
+    let configOut = "";         // Acumula só após o show running-config ser enviado
+    let captureConfig = false;  // Liga quando começa a capturar a config
     let resolved = false;
     let idleTimer: NodeJS.Timeout | null = null;
+    let detectedPrompt = "";    // Texto do prompt (ex: "HOSTNAME#")
 
     const done = (err?: Error) => {
       if (resolved) return;
@@ -123,10 +126,26 @@ export async function runDatacomExport(
       if (idleTimer) clearTimeout(idleTimer);
       client.end();
       if (err) return reject(err);
-      const cleaned = out
-        .replace(/--More--|<Press any key to continue>/gi, "")
-        .replace(/\r/g, "")
+
+      // Usa configOut se disponível; senão cai no out completo
+      const raw = captureConfig ? configOut : out;
+
+      // Remove: \r, --More--, linhas que são só o prompt, echo do comando
+      const lines = raw.replace(/\r/g, "").split("\n");
+      const promptEscaped = detectedPrompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const promptRe = promptEscaped ? new RegExp(`^\\s*${promptEscaped}\\s*(terminal length.*|show running.*)?\\s*$`, "i") : null;
+
+      const cleaned = lines
+        .filter(l => {
+          const t = l.trim();
+          if (!t) return false;
+          if (/--More--|<Press any key to continue>/i.test(t)) return false;
+          if (promptRe && promptRe.test(t)) return false;
+          return true;
+        })
+        .join("\n")
         .trim();
+
       if (!cleaned) return reject(new Error("Saída vazia — show running-config não retornou dados"));
       resolve(cleaned);
     };
@@ -148,40 +167,57 @@ export async function runDatacomExport(
     });
 
     client.on("ready", () => {
-      // Tenta exec channel primeiro (mais limpo, sem prompt interativo)
-      client.exec("show running-config", (err: any, stream: any) => {
-        if (err) {
-          // Se exec channel não funcionar, tenta shell interativo
-          client.shell((shellErr: any, shellStream: any) => {
-            if (shellErr) return done(shellErr);
-            let promptDetected = false;
-            shellStream.on("data", (d: Buffer) => {
-              const chunk = d.toString();
-              out += chunk;
-              resetIdleTimer();
-              // Se recebeu o prompt do Datacom (ex: "hostname#" ou "hostname>"), encerra após idle
-              if (/[>#]\s*$/.test(chunk.trim())) promptDetected = true;
-            });
-            shellStream.stderr?.on("data", (d: Buffer) => { out += d.toString(); });
-            shellStream.on("close", () => done());
-            shellStream.on("end", () => done());
-            resetIdleTimer();
-            // Envia terminal length 0 para evitar paginação, depois o comando
-            setTimeout(() => {
-              shellStream.write("terminal length 0\n");
-              setTimeout(() => {
-                shellStream.write("show running-config\n");
-                resetIdleTimer();
-              }, 800);
-            }, 500);
-          });
-          return;
-        }
+      // Datacom EDD não suporta exec channel (retorna só o prompt sem executar)
+      // Usa sempre shell interativo com detecção de prompt
+      client.shell((shellErr: any, shellStream: any) => {
+        if (shellErr) return done(shellErr);
 
-        stream.on("data", (d: Buffer) => { out += d.toString(); resetIdleTimer(); });
-        stream.stderr.on("data", (d: Buffer) => { out += d.toString(); resetIdleTimer(); });
-        stream.on("close", () => done());
-        stream.on("end", () => { setTimeout(() => done(), 500); });
+        let cmdSent = false;       // true após enviar show running-config
+        let promptPattern: RegExp | null = null;
+
+        shellStream.on("data", (d: Buffer) => {
+          const chunk = d.toString();
+          out += chunk;
+
+          // Detecta o padrão do prompt na primeira resposta (ex: "HOSTNAME#")
+          if (!detectedPrompt) {
+            const m = chunk.match(/([A-Za-z0-9_\-\.]{3,}[#>])\s*$/m);
+            if (m) {
+              detectedPrompt = m[1];
+              const escaped = detectedPrompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              promptPattern = new RegExp(`^\\s*${escaped}\\s*$`, "m");
+            }
+          }
+
+          // Envia os comandos após receber o prompt inicial
+          if (!cmdSent && promptPattern && promptPattern.test(chunk)) {
+            cmdSent = true;
+            shellStream.write("terminal length 0\n");
+            setTimeout(() => {
+              shellStream.write("show running-config\n");
+              // A partir daqui, começamos a capturar no configOut
+              captureConfig = true;
+              resetIdleTimer();
+            }, 600);
+            return;
+          }
+
+          // Acumula config separadamente após o comando ser enviado
+          if (captureConfig) {
+            configOut += chunk;
+            // Se viu o prompt novamente e já temos conteúdo de config → terminou
+            if (promptPattern && promptPattern.test(chunk) && /^(!|version|hostname|interface|ip |spanning|end)/m.test(configOut)) {
+              done();
+              return;
+            }
+          }
+
+          resetIdleTimer();
+        });
+
+        shellStream.stderr?.on("data", (d: Buffer) => { out += d.toString(); });
+        shellStream.on("close", () => done());
+        shellStream.on("end", () => { setTimeout(() => done(), 500); });
 
         resetIdleTimer();
       });
