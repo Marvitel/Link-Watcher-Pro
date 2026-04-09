@@ -244,16 +244,41 @@ export function CpeBackupDialog({
 
   const backupMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/cpe/${cpeId}/backup`, {
-        linkCpeId,
-        sshUser,
-        sshPassword,
+      // Usamos fetch direto para capturar o status HTTP (504 do nginx = timeout do proxy)
+      const res = await fetch(`/api/cpe/${cpeId}/backup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ linkCpeId, sshUser, sshPassword }),
       });
+
+      // 504 = nginx cortou antes do backend terminar, mas o backup pode ter sido salvo
+      if (res.status === 504) {
+        return { timedOut: true };
+      }
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `Erro ${res.status}` }));
+        throw new Error(body.error || `Erro ${res.status}`);
+      }
+
       return res.json();
     },
-    onSuccess: (data) => {
-      toast({ title: "Backup realizado", description: `${formatBytes(data.size)} salvos com sucesso.` });
-      queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
+    onSuccess: (data: any) => {
+      if (data?.timedOut) {
+        // O export demorou mais que o timeout do proxy — verificar se foi salvo
+        toast({
+          title: "Verificando backup...",
+          description: "O processo demorou mais que o esperado. Atualizando lista para confirmar.",
+        });
+        // Aguarda 3s e recarrega a lista para ver se o backup apareceu
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
+        }, 3000);
+      } else {
+        toast({ title: "Backup realizado", description: `${formatBytes(data.size)} salvos com sucesso.` });
+        queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
+      }
     },
     onError: (err: any) => {
       toast({ variant: "destructive", title: "Falha no backup", description: err.message });
