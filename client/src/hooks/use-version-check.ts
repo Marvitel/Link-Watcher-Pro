@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
-const VERSION_CHECK_INTERVAL = 60000; // Verificar a cada 1 minuto
+const VERSION_CHECK_INTERVAL = 60000; // Verificar a cada 1 minuto — auto-logout ao detectar novo deploy
 const VERSION_STORAGE_KEY = "link_monitor_app_version";
 const ROUTE_RESTORE_KEY = "link_monitor_restore_route";
 const KIOSK_RELOAD_KEY = "link_monitor_kiosk_last_reload";
