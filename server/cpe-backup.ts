@@ -142,6 +142,11 @@ export async function runDatacomExport(
       }, 12000);
     };
 
+    client.on("keyboard-interactive", (_name: any, _instructions: any, _instructionsLang: any, prompts: any, finish: any) => {
+      // Responde automaticamente ao desafio keyboard-interactive com a senha
+      finish(prompts.map(() => sshPass));
+    });
+
     client.on("ready", () => {
       // Tenta exec channel primeiro (mais limpo, sem prompt interativo)
       client.exec("show running-config", (err: any, stream: any) => {
@@ -189,6 +194,7 @@ export async function runDatacomExport(
       port,
       username: sshUser,
       password: sshPass,
+      tryKeyboard: true, // Datacom EDD usa keyboard-interactive, não password puro
       readyTimeout: 20000,
       algorithms: {
         kex: [
