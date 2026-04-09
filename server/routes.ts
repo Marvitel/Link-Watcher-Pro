@@ -4836,8 +4836,9 @@ export async function registerRoutes(
       const rawPass = resolvedPass;
       const sshPort = cpe.sshPort || 22;
 
-      // Comando RouterOS para habilitar o serviço www (WebFig) — restringe ao IP do servidor
-      const command = "/ip service set www disabled=no port=80 address=191.52.254.74/32,191.52.248.26/32,191.52.248.227/32";
+      // Comando RouterOS para habilitar o serviço www (WebFig) sem restrição de IP de origem
+      // (o CPE é acessível apenas pela rede interna da Marvitel; address="" = libera todos)
+      const command = '/ip service set www disabled=no port=80 address=""';
 
       const { Client: SSHClient2 } = await import("ssh2");
       const output = await new Promise<string>((resolve, reject) => {
@@ -4925,8 +4926,8 @@ export async function registerRoutes(
         sshUser = bodyUser;
         sshPass = bodyPassword;
       } else if (radiusCredsBk?.username && radiusCredsBk?.password) {
-        // Fallback: credenciais RADIUS da sessão (disponíveis mesmo sem useRadiusForDevices global)
-        sshUser = bodyUser || radiusCredsBk.username;
+        // Fallback: credenciais RADIUS da sessão — usa o par RADIUS completo (não mistura com bodyUser)
+        sshUser = radiusCredsBk.username;
         sshPass = radiusCredsBk.password;
       } else {
         // Último recurso: credenciais locais do CPE
@@ -4934,7 +4935,7 @@ export async function registerRoutes(
         if (cpe.sshPassword) {
           try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
         }
-        sshUser = (useRadiusBk && radiusCredsBk?.username) ? radiusCredsBk.username : (bodyUser || cpe.sshUser || "admin");
+        sshUser = bodyUser || cpe.sshUser || "admin";
         sshPass = decPass || "";
       }
       console.log(`[Backup] CPE ${cpe.name} (${ip}): user=${sshUser}, hasPass=${!!sshPass}, fromFrontend=${!!(bodyUser && bodyPassword)}, hasRadius=${!!radiusCredsBk?.username}`);
@@ -5012,15 +5013,16 @@ export async function registerRoutes(
         sshUser = bodyUser;
         sshPass = bodyPassword;
       } else if (radiusCredsRs?.username && radiusCredsRs?.password) {
-        sshUser = bodyUser || radiusCredsRs.username;
+        // Usa o par RADIUS completo — não mistura bodyUser com senha RADIUS
+        sshUser = radiusCredsRs.username;
         sshPass = radiusCredsRs.password;
       } else {
         let decPass: string | null = null;
         if (cpe.sshPassword) {
           try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
         }
-        sshUser = (useRadiusRs && radiusCredsRs?.username) ? radiusCredsRs.username : (bodyUser || cpe.sshUser || "admin");
-        sshPass = (useRadiusRs && radiusCredsRs?.password) ? radiusCredsRs.password : (decPass || "");
+        sshUser = bodyUser || cpe.sshUser || "admin";
+        sshPass = decPass || "";
       }
 
       const output = await restoreMikrotikBackup(ip, cpe.sshPort || 22, sshUser, sshPass, backup.content);
