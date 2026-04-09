@@ -5040,11 +5040,62 @@ export async function registerRoutes(
       if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
       const backup = await storage.getCpeBackup(backupId);
       if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
-      const ext = backup.vendor?.includes("datacom") ? "cfg" : "rsc";
-      const filename = `cpe-${backup.cpeId}-backup-${new Date(backup.createdAt).toISOString().slice(0, 10)}.${ext}`;
+
+      // Busca dados do CPE e do link para enriquecer o arquivo
+      const cpe = await storage.getCpe(backup.cpeId);
+      let linkName = "";
+      let linkId = "";
+      if (backup.linkCpeId) {
+        const linkCpe = await storage.getLinkCpe(backup.linkCpeId);
+        if (linkCpe) {
+          const link = await storage.getLink(linkCpe.linkId);
+          if (link) {
+            linkName = link.name;
+            linkId = String(link.id);
+          }
+        }
+      }
+
+      const isDatacom = backup.vendor?.includes("datacom");
+      const ext = isDatacom ? "cfg" : "rsc";
+      const commentChar = isDatacom ? "!" : "#";
+
+      // Monta nome de arquivo: LINK-CPE-DATA.ext (slug seguro para nome de arquivo)
+      const slugify = (s: string) =>
+        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9_\-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+
+      const datePart = new Date(backup.createdAt).toISOString().slice(0, 10);
+      const nameParts = [
+        linkName ? slugify(linkName) : `cpe-${backup.cpeId}`,
+        cpe?.name ? slugify(cpe.name) : null,
+        datePart,
+      ].filter(Boolean);
+      const filename = `${nameParts.join("_")}.${ext}`;
+
+      // Monta cabeçalho de metadados (comentários compatíveis com o formato do fabricante)
+      const createdAt = new Date(backup.createdAt);
+      const dateStr = createdAt.toLocaleString("pt-BR", { timeZone: "America/Maceio", hour12: false });
+      const headerLines = [
+        `${commentChar} ============================================================`,
+        `${commentChar} Link Monitor - Backup de Configuração`,
+        `${commentChar} ============================================================`,
+        linkName  ? `${commentChar} Link: ${linkName}` : null,
+        linkId    ? `${commentChar} Link ID: ${linkId}` : null,
+        cpe?.name ? `${commentChar} CPE: ${cpe.name}` : null,
+        backup.deviceName ? `${commentChar} Hostname: ${backup.deviceName}` : null,
+        backup.routerosVersion ? `${commentChar} Firmware: ${backup.routerosVersion}` : null,
+        `${commentChar} Fabricante: ${backup.vendor || "desconhecido"}`,
+        `${commentChar} Data do backup: ${dateStr}`,
+        backup.source === "scheduled" ? `${commentChar} Origem: Agendado automaticamente` : `${commentChar} Origem: Manual${backup.createdByUsername ? ` (${backup.createdByUsername})` : ""}`,
+        `${commentChar} ============================================================`,
+        "",
+      ].filter(l => l !== null).join("\n");
+
+      const content = headerLines + (backup.content || "");
+
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(backup.content);
+      res.send(content);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

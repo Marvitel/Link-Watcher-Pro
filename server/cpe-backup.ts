@@ -139,8 +139,11 @@ export async function runDatacomExport(
         .filter(l => {
           const t = l.trim();
           if (!t) return false;
-          if (/--More--|<Press any key to continue>/i.test(t)) return false;
+          if (/--More--|<Press any key to continue>|\[MORE\]|\(more\)/i.test(t)) return false;
           if (promptRe && promptRe.test(t)) return false;
+          // Remove eco do comando e mensagem de status do dispositivo
+          if (/^show running-config\s*$/i.test(t)) return false;
+          if (/^building configuration/i.test(t)) return false;
           return true;
         })
         .join("\n")
