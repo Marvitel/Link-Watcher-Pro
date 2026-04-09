@@ -4841,35 +4841,63 @@ export async function registerRoutes(
       const command = '/ip service set www disabled=no port=80 address=""';
 
       const { Client: SSHClient2 } = await import("ssh2");
-      const output = await new Promise<string>((resolve, reject) => {
-        const client = new SSHClient2();
-        let out = "";
-        const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 12000);
 
-        client.on("ready", () => {
-          client.exec(command, (err: any, stream: any) => {
-            if (err) { clearTimeout(timer); client.end(); return reject(err); }
-            stream.on("close", () => { clearTimeout(timer); client.end(); resolve(out.trim()); });
-            stream.on("data", (d: Buffer) => { out += d.toString(); });
-            stream.stderr.on("data", (d: Buffer) => { out += d.toString(); });
+      const runSshCommand = (user: string, pass: string): Promise<string> =>
+        new Promise<string>((resolve, reject) => {
+          const client = new SSHClient2();
+          let out = "";
+          const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 12000);
+
+          client.on("ready", () => {
+            client.exec(command, (err: any, stream: any) => {
+              if (err) { clearTimeout(timer); client.end(); return reject(err); }
+              stream.on("close", () => { clearTimeout(timer); client.end(); resolve(out.trim()); });
+              stream.on("data", (d: Buffer) => { out += d.toString(); });
+              stream.stderr.on("data", (d: Buffer) => { out += d.toString(); });
+            });
+          });
+
+          client.on("error", (err: any) => { clearTimeout(timer); reject(err); });
+
+          client.connect({
+            host: ip,
+            port: sshPort,
+            username: user,
+            password: pass,
+            readyTimeout: 10000,
+            algorithms: {
+              kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
+              cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
+              serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256"],
+            },
           });
         });
 
-        client.on("error", (err: any) => { clearTimeout(timer); reject(err); });
+      const isWfAuthError = (err: any) =>
+        /All configured authentication methods failed|USERAUTH_FAILURE|auth.*fail/i.test(err?.message || "");
 
-        client.connect({
-          host: ip,
-          port: sshPort,
-          username: sshUser,
-          password: rawPass,
-          readyTimeout: 10000,
-          algorithms: {
-            kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
-            cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
-            serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256"],
-          },
-        });
-      });
+      let output: string;
+      try {
+        output = await runSshCommand(sshUser, rawPass);
+      } catch (primaryErr: any) {
+        if (isWfAuthError(primaryErr)) {
+          // Auth falhou — tenta credenciais locais do CPE
+          let decPassFb: string | null = null;
+          if (cpe.sshPassword) {
+            try { decPassFb = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
+          }
+          const fbUser = cpe.sshUser || "admin";
+          const fbPass = decPassFb || "";
+          if (fbUser !== sshUser || fbPass !== rawPass) {
+            console.log(`[WebFig] Auth falhou com "${sshUser}" — tentando credenciais locais: "${fbUser}"`);
+            output = await runSshCommand(fbUser, fbPass);
+          } else {
+            throw primaryErr;
+          }
+        } else {
+          throw primaryErr;
+        }
+      }
 
       console.log(`[WebFig] CPE ${cpe.name} (${ip}): WebFig habilitado. Saída: "${output}"`);
       res.json({ success: true, message: "WebFig habilitado com sucesso", output });
@@ -4941,12 +4969,42 @@ export async function registerRoutes(
       console.log(`[Backup] CPE ${cpe.name} (${ip}): user=${sshUser}, hasPass=${!!sshPass}, fromFrontend=${!!(bodyUser && bodyPassword)}, hasRadius=${!!radiusCredsBk?.username}`);
 
       const user = req.user as any;
-      const { backupId, size } = await backupCpe(
-        cpeId, linkCpeId, ip, cpe.sshPort || 22, sshUser, sshPass, "manual",
-        user?.id, user?.name || user?.username,
-      );
+      // Helper: verifica se o erro é de autenticação SSH
+      const isAuthError = (err: any) =>
+        /All configured authentication methods failed|USERAUTH_FAILURE|auth.*fail/i.test(err?.message || "");
 
-      res.json({ success: true, backupId, size, message: "Backup realizado com sucesso" });
+      // Tenta backup com as credenciais resolvidas
+      let backupResult: { backupId: number; size: number };
+      try {
+        backupResult = await backupCpe(
+          cpeId, linkCpeId, ip, cpe.sshPort || 22, sshUser, sshPass, "manual",
+          user?.id, user?.name || user?.username,
+        );
+      } catch (primaryErr: any) {
+        if (isAuthError(primaryErr)) {
+          // Auth falhou — tenta credenciais locais do CPE (usuário/senha cadastrados no cadastro)
+          let decPassFallback: string | null = null;
+          if (cpe.sshPassword) {
+            try { decPassFallback = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
+          }
+          const fbUser = cpe.sshUser || "admin";
+          const fbPass = decPassFallback || "";
+
+          if (fbUser !== sshUser || fbPass !== sshPass) {
+            console.log(`[Backup] Auth falhou com "${sshUser}" — tentando credenciais locais: "${fbUser}"`);
+            backupResult = await backupCpe(
+              cpeId, linkCpeId, ip, cpe.sshPort || 22, fbUser, fbPass, "manual",
+              user?.id, user?.name || user?.username,
+            );
+          } else {
+            throw primaryErr;
+          }
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      res.json({ success: true, backupId: backupResult.backupId, size: backupResult.size, message: "Backup realizado com sucesso" });
     } catch (error: any) {
       console.error("[Backup] Erro:", error);
       res.status(500).json({ error: `Falha ao executar backup: ${error.message}` });
