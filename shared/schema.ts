@@ -1375,8 +1375,9 @@ export const cpeBackups = pgTable("cpe_backups", {
   cpeId: integer("cpe_id").notNull(),
   linkCpeId: integer("link_cpe_id"),
   content: text("content").notNull(),
+  vendor: varchar("vendor", { length: 50 }), // mikrotik, datacom, etc.
   deviceName: varchar("device_name", { length: 255 }),
-  routerosVersion: varchar("routeros_version", { length: 80 }),
+  routerosVersion: varchar("routeros_version", { length: 80 }), // firmware version (qualquer fabricante)
   size: integer("size"), // bytes
   source: varchar("source", { length: 20 }).notNull().default("manual"), // manual, scheduled
   label: varchar("label", { length: 255 }),

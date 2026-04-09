@@ -44,9 +44,26 @@ interface CpeBackupDialogProps {
   cpeId: number;
   linkCpeId?: number;
   cpeName: string;
+  vendorSlug?: string;
   sshUser?: string;
   sshPassword?: string;
   disabled?: boolean;
+}
+
+function isDatacomVendor(vendorSlug?: string): boolean {
+  return !!(vendorSlug && vendorSlug.toLowerCase().includes("datacom"));
+}
+
+function getFileExtension(backup: CpeBackup, vendorSlug?: string): string {
+  const vendor = backup.vendor || vendorSlug || "";
+  return vendor.toLowerCase().includes("datacom") ? "cfg" : "rsc";
+}
+
+function getFirmwareLabel(backup: CpeBackup, vendorSlug?: string): string | null {
+  if (!backup.routerosVersion) return null;
+  const vendor = backup.vendor || vendorSlug || "";
+  if (vendor.toLowerCase().includes("datacom")) return `FW ${backup.routerosVersion}`;
+  return `RouterOS ${backup.routerosVersion}`;
 }
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -58,6 +75,7 @@ function formatBytes(bytes: number | null | undefined): string {
 
 function BackupRow({
   backup,
+  vendorSlug,
   sshUser,
   sshPassword,
   onDelete,
@@ -66,6 +84,7 @@ function BackupRow({
   deleting,
 }: {
   backup: CpeBackup;
+  vendorSlug?: string;
   sshUser?: string;
   sshPassword?: string;
   onDelete: (id: number) => void;
@@ -74,6 +93,8 @@ function BackupRow({
   deleting: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const isDatacom = isDatacomVendor(backup.vendor || vendorSlug);
+  const firmwareLabel = getFirmwareLabel(backup, vendorSlug);
 
   return (
     <div className="border rounded-lg p-3 space-y-2 text-sm">
@@ -83,8 +104,13 @@ function BackupRow({
             <Badge variant={backup.source === "scheduled" ? "secondary" : "outline"} className="text-xs shrink-0">
               {backup.source === "scheduled" ? "Automático" : "Manual"}
             </Badge>
-            {backup.routerosVersion && (
-              <span className="text-xs text-muted-foreground">RouterOS {backup.routerosVersion}</span>
+            {backup.vendor && (
+              <Badge variant="outline" className="text-xs shrink-0 capitalize">
+                {backup.vendor}
+              </Badge>
+            )}
+            {firmwareLabel && (
+              <span className="text-xs text-muted-foreground">{firmwareLabel}</span>
             )}
             {backup.deviceName && (
               <span className="text-xs text-muted-foreground font-mono">{backup.deviceName}</span>
@@ -133,42 +159,59 @@ function BackupRow({
                 <Download className="w-3.5 h-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Baixar .rsc</TooltipContent>
+            <TooltipContent>Baixar .{getFileExtension(backup, vendorSlug)}</TooltipContent>
           </Tooltip>
-          <AlertDialog>
+          {!isDatacom ? (
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      disabled={restoring}
+                      data-testid={`button-backup-restore-${backup.id}`}
+                    >
+                      {restoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Restaurar este backup</TooltipContent>
+              </Tooltip>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Restaurar backup?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação vai importar a configuração salva em{" "}
+                    <strong>{format(new Date(backup.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</strong>{" "}
+                    no dispositivo via SSH. O processo pode reiniciar serviços.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onRestore(backup.id)}>
+                    Confirmar Restauração
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    disabled={restoring}
-                    data-testid={`button-backup-restore-${backup.id}`}
-                  >
-                    {restoring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                  </Button>
-                </AlertDialogTrigger>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 opacity-30 cursor-not-allowed"
+                  disabled
+                  data-testid={`button-backup-restore-${backup.id}`}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>Restaurar este backup</TooltipContent>
+              <TooltipContent>Restauração não disponível para Datacom</TooltipContent>
             </Tooltip>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Restaurar backup?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta ação vai importar a configuração salva em{" "}
-                  <strong>{format(new Date(backup.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</strong>{" "}
-                  no dispositivo via SSH. O processo pode reiniciar serviços.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onRestore(backup.id)}>
-                  Confirmar Restauração
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          )}
           <AlertDialog>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -219,6 +262,7 @@ export function CpeBackupDialog({
   cpeId,
   linkCpeId,
   cpeName,
+  vendorSlug,
   sshUser,
   sshPassword,
   disabled,
@@ -228,6 +272,7 @@ export function CpeBackupDialog({
   const queryClient = useQueryClient();
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const isDatacom = isDatacomVendor(vendorSlug);
 
   const backupsQuery = useQuery<CpeBackup[]>({
     queryKey: ["/api/cpe", cpeId, "backups", linkCpeId],
@@ -244,15 +289,13 @@ export function CpeBackupDialog({
 
   const backupMutation = useMutation({
     mutationFn: async () => {
-      // Usamos fetch direto para capturar o status HTTP (504 do nginx = timeout do proxy)
       const res = await fetch(`/api/cpe/${cpeId}/backup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ linkCpeId, sshUser, sshPassword }),
+        body: JSON.stringify({ linkCpeId, sshUser, sshPassword, vendorSlug }),
       });
 
-      // 504 = nginx cortou antes do backend terminar, mas o backup pode ter sido salvo
       if (res.status === 504) {
         return { timedOut: true };
       }
@@ -266,12 +309,10 @@ export function CpeBackupDialog({
     },
     onSuccess: (data: any) => {
       if (data?.timedOut) {
-        // O export demorou mais que o timeout do proxy — verificar se foi salvo
         toast({
           title: "Verificando backup...",
           description: "O processo demorou mais que o esperado. Atualizando lista para confirmar.",
         });
-        // Aguarda 3s e recarrega a lista para ver se o backup apareceu
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
         }, 3000);
@@ -330,6 +371,10 @@ export function CpeBackupDialog({
 
   const backups: CpeBackup[] = backupsQuery.data ?? [];
 
+  const tooltipText = isDatacom
+    ? "Backups de configuração Datacom (show running-config)"
+    : "Backups de configuração RouterOS";
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Tooltip>
@@ -346,7 +391,7 @@ export function CpeBackupDialog({
             </Button>
           </DialogTrigger>
         </TooltipTrigger>
-        <TooltipContent>Backups de configuração RouterOS</TooltipContent>
+        <TooltipContent>{tooltipText}</TooltipContent>
       </Tooltip>
 
       <DialogContent className="max-w-xl">
@@ -354,13 +399,18 @@ export function CpeBackupDialog({
           <DialogTitle className="flex items-center gap-2">
             <Archive className="w-4 h-4" />
             Backups — {cpeName}
+            {isDatacom && (
+              <Badge variant="outline" className="text-xs">Datacom</Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Backup semanal automático • máximo 2 armazenados
+              {isDatacom
+                ? "Backup via SSH (show running-config) • máx. 2 automáticos"
+                : "Backup semanal automático • máximo 2 armazenados"}
             </p>
             <Button
               size="sm"
@@ -391,6 +441,7 @@ export function CpeBackupDialog({
                   <BackupRow
                     key={backup.id}
                     backup={backup}
+                    vendorSlug={vendorSlug}
                     sshUser={sshUser}
                     sshPassword={sshPassword}
                     onDelete={handleDelete}

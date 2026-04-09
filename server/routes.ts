@@ -4928,11 +4928,19 @@ export async function registerRoutes(
       const cpe = await storage.getCpe(cpeId);
       if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
 
-      const { linkCpeId, sshUser: bodyUser, sshPassword: bodyPassword } = req.body as {
+      const { linkCpeId, sshUser: bodyUser, sshPassword: bodyPassword, vendorSlug: bodyVendorSlug } = req.body as {
         linkCpeId?: number;
         sshUser?: string;
         sshPassword?: string;
+        vendorSlug?: string;
       };
+
+      // Resolver vendor slug — prefere o enviado pelo frontend; fallback: busca pelo vendorId do CPE
+      let resolvedVendorSlug: string | null = bodyVendorSlug || null;
+      if (!resolvedVendorSlug && cpe.vendorId) {
+        const vendor = await storage.getEquipmentVendor(cpe.vendorId);
+        resolvedVendorSlug = vendor?.slug || null;
+      }
 
       // Resolver IP efetivo
       let ip = cpe.ipAddress?.trim() || null;
@@ -4979,6 +4987,7 @@ export async function registerRoutes(
         backupResult = await backupCpe(
           cpeId, linkCpeId, ip, cpe.sshPort || 22, sshUser, sshPass, "manual",
           user?.id, user?.name || user?.username,
+          resolvedVendorSlug,
         );
       } catch (primaryErr: any) {
         if (isAuthError(primaryErr)) {
@@ -4995,6 +5004,7 @@ export async function registerRoutes(
             backupResult = await backupCpe(
               cpeId, linkCpeId, ip, cpe.sshPort || 22, fbUser, fbPass, "manual",
               user?.id, user?.name || user?.username,
+              resolvedVendorSlug,
             );
           } else {
             throw primaryErr;
@@ -5030,7 +5040,8 @@ export async function registerRoutes(
       if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
       const backup = await storage.getCpeBackup(backupId);
       if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
-      const filename = `cpe-${backup.cpeId}-backup-${new Date(backup.createdAt).toISOString().slice(0, 10)}.rsc`;
+      const ext = backup.vendor?.includes("datacom") ? "cfg" : "rsc";
+      const filename = `cpe-${backup.cpeId}-backup-${new Date(backup.createdAt).toISOString().slice(0, 10)}.${ext}`;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.send(backup.content);
@@ -5045,6 +5056,10 @@ export async function registerRoutes(
       if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
       const backup = await storage.getCpeBackup(backupId);
       if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
+
+      if (backup.vendor === "datacom") {
+        return res.status(400).json({ error: "Restauração automática não suportada para Datacom. Aplique a configuração manualmente." });
+      }
 
       const cpe = await storage.getCpe(backup.cpeId);
       if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });

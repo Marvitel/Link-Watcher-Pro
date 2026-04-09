@@ -2300,7 +2300,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   }
 
   const cpeVendor = (link as any)?.cpeVendor || "";
-  const showWinbox = cpeVendor.toLowerCase() === "mikrotik";
+  const cpeVendorLower = cpeVendor.toLowerCase();
+  const showWinbox = cpeVendorLower === "mikrotik" || cpeVendorLower.includes("mikrotik");
+  const showDatacomBackup = !showWinbox && (cpeVendorLower === "datacom" || cpeVendorLower.includes("datacom"));
 
   const oltAvailable = !!devices?.olt?.ip;
   const switchAvailable = !!devices?.switch?.ip;
@@ -2438,8 +2440,10 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                   : `ssh -t ${legacyOpts} -p ${cpe.sshPort || 22} ${sshUser}@${cpe.ip}`)
               : undefined;
             const roleLabel = cpe.role === "primary" ? "Principal" : cpe.role === "backup" ? "Backup" : cpe.role === "firewall" ? "Firewall" : cpe.role || "";
-            const isMikrotikCpe = (cpe as any).vendor?.toLowerCase() === "mikrotik"
-              || cpe.manufacturer?.toLowerCase().includes("mikrotik");
+            const cpeVendorSlug = ((cpe as any).vendor || cpe.manufacturer || "").toLowerCase();
+            const isMikrotikCpe = cpeVendorSlug.includes("mikrotik") || cpeVendorSlug.includes("routeros");
+            const isDatacomCpe = cpeVendorSlug.includes("datacom");
+            const supportsBackup = isMikrotikCpe || isDatacomCpe;
             const cpeWebPort = (cpe as any).webPort || 80;
             const cpeWebProtocol = (cpe as any).webProtocol || "http";
             const cpeWinboxPort = (cpe as any).winboxPort || 8291;
@@ -2503,15 +2507,18 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             </TooltipTrigger>
                             <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
                           </Tooltip>
-                          <CpeBackupDialog
-                            cpeId={cpe.cpeId || cpe.id}
-                            linkCpeId={cpe.linkCpeId}
-                            cpeName={cpe.name || "CPE"}
-                            sshUser={cpe.sshUser}
-                            sshPassword={cpe.sshPassword}
-                            disabled={!cpe.available}
-                          />
                         </>
+                      )}
+                      {supportsBackup && (
+                        <CpeBackupDialog
+                          cpeId={cpe.cpeId || cpe.id}
+                          linkCpeId={cpe.linkCpeId}
+                          cpeName={cpe.name || "CPE"}
+                          vendorSlug={cpeVendorSlug}
+                          sshUser={cpe.sshUser}
+                          sshPassword={cpe.sshPassword}
+                          disabled={!cpe.available}
+                        />
                       )}
                       <Button
                         size="sm"
@@ -2637,6 +2644,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             cpeId={cpeId}
                             linkCpeId={cpeData?.linkCpeId}
                             cpeName={devices?.cpe?.name || "CPE"}
+                            vendorSlug={cpeVendorLower}
                             sshUser={cpeData?.sshUser}
                             sshPassword={cpeData?.sshPassword}
                             disabled={!cpeAvailable}
@@ -2645,6 +2653,21 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                       })()}
                     </>
                   )}
+                  {showDatacomBackup && (() => {
+                    const cpeData = devices?.cpe as any;
+                    const cpeId = cpeData?.cpeId || cpeData?.id;
+                    return cpeId ? (
+                      <CpeBackupDialog
+                        cpeId={cpeId}
+                        linkCpeId={cpeData?.linkCpeId}
+                        cpeName={devices?.cpe?.name || "CPE"}
+                        vendorSlug={cpeVendorLower}
+                        sshUser={cpeData?.sshUser}
+                        sshPassword={cpeData?.sshPassword}
+                        disabled={!cpeAvailable}
+                      />
+                    ) : null;
+                  })()}
                   <Button
                     size="sm"
                     variant={openTerminals["ssh-cpe"] ? "destructive" : "default"}

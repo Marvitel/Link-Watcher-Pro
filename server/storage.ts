@@ -3070,7 +3070,7 @@ export class DatabaseStorage {
       .limit(limit);
   }
 
-  // Retorna todas as associações link-CPE ativas com CPE Mikrotik (para o scheduler de backup)
+  // Retorna todas as associações link-CPE ativas com SSH configurado (para o scheduler de backup)
   async getActiveLinkCpesWithSsh(): Promise<Array<{
     linkCpeId: number;
     cpeId: number;
@@ -3082,6 +3082,7 @@ export class DatabaseStorage {
     sshPort: number | null;
     cpeName: string | null;
     isStandard: boolean | null;
+    vendorSlug: string | null;
   }>> {
     const results = await db
       .select({
@@ -3095,9 +3096,11 @@ export class DatabaseStorage {
         sshPort: cpes.sshPort,
         cpeName: cpes.name,
         isStandard: cpes.isStandard,
+        vendorSlug: equipmentVendors.slug,
       })
       .from(linkCpes)
       .innerJoin(cpes, eq(linkCpes.cpeId, cpes.id))
+      .leftJoin(equipmentVendors, eq(cpes.vendorId, equipmentVendors.id))
       .where(and(eq(cpes.isActive, true), sql`${cpes.sshUser} IS NOT NULL`));
     return results;
   }
