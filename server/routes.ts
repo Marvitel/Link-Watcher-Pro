@@ -63,6 +63,7 @@ import { invalidateCache, getFirewallStatus } from "./firewall";
 import { db } from "./db";
 import { eq, and, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
+import { backupCpe, restoreMikrotikBackup, startCpeBackupScheduler } from "./cpe-backup";
 import {
   getFlashmanConfigForClient,
   testFlashmanConnection,
@@ -4870,6 +4871,147 @@ export async function registerRoutes(
     }
   });
 
+  // CPE Backups — listar, criar, restaurar, excluir
+  app.get("/api/cpe/:cpeId/backups", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      if (isNaN(cpeId)) return res.status(400).json({ error: "ID inválido" });
+      const backups = await storage.getCpeBackups(cpeId, 20);
+      res.json(backups);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/cpe/:cpeId/backup", requireAuth, async (req, res) => {
+    try {
+      const cpeId = parseInt(req.params.cpeId, 10);
+      if (isNaN(cpeId)) return res.status(400).json({ error: "ID inválido" });
+
+      const cpe = await storage.getCpe(cpeId);
+      if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
+
+      const { linkCpeId, sshUser: bodyUser, sshPassword: bodyPassword } = req.body as {
+        linkCpeId?: number;
+        sshUser?: string;
+        sshPassword?: string;
+      };
+
+      // Resolver IP efetivo
+      let ip = cpe.ipAddress;
+      if (linkCpeId) {
+        const linkCpe = await storage.getLinkCpe(linkCpeId);
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+      }
+      if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
+
+      // Resolver credenciais (frontend envia as já resolvidas)
+      let sshUser: string;
+      let sshPass: string;
+      if (bodyUser) {
+        sshUser = bodyUser;
+        sshPass = bodyPassword || "";
+      } else {
+        const radiusSettings = await storage.getRadiusSettings();
+        const useRadius = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
+        const radiusCreds = (req.session as any)?.radiusCredentials;
+        let decPass: string | null = null;
+        if (cpe.sshPassword) {
+          try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
+        }
+        sshUser = (useRadius && radiusCreds?.username) ? radiusCreds.username : (cpe.sshUser || "admin");
+        sshPass = (useRadius && radiusCreds?.password) ? radiusCreds.password : (decPass || "");
+      }
+
+      const user = req.user as any;
+      const { backupId, size } = await backupCpe(
+        cpeId, linkCpeId, ip, cpe.sshPort || 22, sshUser, sshPass, "manual",
+        user?.id, user?.name || user?.username,
+      );
+
+      res.json({ success: true, backupId, size, message: "Backup realizado com sucesso" });
+    } catch (error: any) {
+      console.error("[Backup] Erro:", error);
+      res.status(500).json({ error: `Falha ao executar backup: ${error.message}` });
+    }
+  });
+
+  app.delete("/api/cpe/backup/:backupId", requireAuth, async (req, res) => {
+    try {
+      const backupId = parseInt(req.params.backupId, 10);
+      if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
+      const backup = await storage.getCpeBackup(backupId);
+      if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
+      await storage.deleteCpeBackup(backupId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/cpe/backup/:backupId/download", requireAuth, async (req, res) => {
+    try {
+      const backupId = parseInt(req.params.backupId, 10);
+      if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
+      const backup = await storage.getCpeBackup(backupId);
+      if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
+      const filename = `cpe-${backup.cpeId}-backup-${new Date(backup.createdAt).toISOString().slice(0, 10)}.rsc`;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(backup.content);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/cpe/backup/:backupId/restore", requireAuth, async (req, res) => {
+    try {
+      const backupId = parseInt(req.params.backupId, 10);
+      if (isNaN(backupId)) return res.status(400).json({ error: "ID inválido" });
+      const backup = await storage.getCpeBackup(backupId);
+      if (!backup) return res.status(404).json({ error: "Backup não encontrado" });
+
+      const cpe = await storage.getCpe(backup.cpeId);
+      if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
+
+      const { sshUser: bodyUser, sshPassword: bodyPassword } = req.body as {
+        sshUser?: string;
+        sshPassword?: string;
+      };
+
+      let ip = cpe.ipAddress;
+      if (backup.linkCpeId) {
+        const linkCpe = await storage.getLinkCpe(backup.linkCpeId);
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+      }
+      if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
+
+      let sshUser: string;
+      let sshPass: string;
+      if (bodyUser) {
+        sshUser = bodyUser;
+        sshPass = bodyPassword || "";
+      } else {
+        const radiusSettings = await storage.getRadiusSettings();
+        const useRadius = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
+        const radiusCreds = (req.session as any)?.radiusCredentials;
+        let decPass: string | null = null;
+        if (cpe.sshPassword) {
+          try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
+        }
+        sshUser = (useRadius && radiusCreds?.username) ? radiusCreds.username : (cpe.sshUser || "admin");
+        sshPass = (useRadius && radiusCreds?.password) ? radiusCreds.password : (decPass || "");
+      }
+
+      const output = await restoreMikrotikBackup(ip, cpe.sshPort || 22, sshUser, sshPass, backup.content);
+      console.log(`[Backup] Restore do backup ${backupId} no CPE ${cpe.name} (${ip}): ${output}`);
+      res.json({ success: true, message: "Restauração iniciada com sucesso", output });
+    } catch (error: any) {
+      console.error("[Backup] Erro ao restaurar:", error);
+      res.status(500).json({ error: `Falha ao restaurar: ${error.message}` });
+    }
+  });
+
   // CPE Command History - Histórico de execução de comandos
   app.get("/api/cpe/:cpeId/command-history", requireAuth, async (req, res) => {
     try {
@@ -9047,6 +9189,9 @@ export async function registerRoutes(
       storage.createBlacklistEvent(linkId, clientId, linkName, listedIps, rbls),
     resolveBlacklistEvents: (linkId) => storage.resolveBlacklistEvents(linkId),
   });
+
+  // Backup semanal automático de CPEs Mikrotik
+  startCpeBackupScheduler();
 
   // ========== Diagnostics & Health Check API ==========
 

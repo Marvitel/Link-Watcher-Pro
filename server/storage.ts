@@ -39,6 +39,7 @@ import {
   cpePortStatus,
   cpeCommandTemplates,
   cpeCommandHistory,
+  cpeBackups,
   diagnosticTargets,
   linkTrafficInterfaces,
   trafficInterfaceMetrics,
@@ -105,6 +106,8 @@ import {
   type InsertCpeCommandTemplate,
   type CpeCommandHistory,
   type InsertCpeCommandHistory,
+  type CpeBackup,
+  type InsertCpeBackup,
   type DiagnosticTarget,
   type InsertDiagnosticTarget,
   type LinkTrafficInterface,
@@ -125,7 +128,7 @@ import {
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
 import { startAggregationJobs } from "./aggregation";
-import { eq, desc, gte, lte, and, lt, isNull, sql, or, like } from "drizzle-orm";
+import { eq, desc, gte, lte, and, lt, isNull, sql, or, like, inArray } from "drizzle-orm";
 import crypto from "crypto";
 import { encrypt } from "./crypto";
 
@@ -2697,6 +2700,10 @@ export class DatabaseStorage {
     return cpe;
   }
 
+  async getAllCpes(): Promise<Cpe[]> {
+    return await db.select().from(cpes).where(eq(cpes.isActive, true));
+  }
+
   async createCpe(data: InsertCpe): Promise<Cpe> {
     const [cpe] = await db.insert(cpes).values(data).returning();
     return cpe;
@@ -3041,6 +3048,49 @@ export class DatabaseStorage {
   async deleteOldTrafficInterfaceMetrics(olderThan: Date): Promise<void> {
     await db.delete(trafficInterfaceMetrics)
       .where(lt(trafficInterfaceMetrics.timestamp, olderThan));
+  }
+
+  // CPE Backups — armazenamento de configurações Mikrotik
+  async createCpeBackup(data: InsertCpeBackup): Promise<CpeBackup> {
+    const [backup] = await db.insert(cpeBackups).values(data).returning();
+    return backup;
+  }
+
+  async getCpeBackups(cpeId: number, limit: number = 20): Promise<CpeBackup[]> {
+    return await db.select()
+      .from(cpeBackups)
+      .where(eq(cpeBackups.cpeId, cpeId))
+      .orderBy(desc(cpeBackups.createdAt))
+      .limit(limit);
+  }
+
+  async getCpeBackup(id: number): Promise<CpeBackup | undefined> {
+    const [backup] = await db.select().from(cpeBackups).where(eq(cpeBackups.id, id));
+    return backup;
+  }
+
+  async deleteCpeBackup(id: number): Promise<void> {
+    await db.delete(cpeBackups).where(eq(cpeBackups.id, id));
+  }
+
+  async countCpeBackups(cpeId: number): Promise<number> {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(cpeBackups)
+      .where(eq(cpeBackups.cpeId, cpeId));
+    return Number(count);
+  }
+
+  async deleteOldestCpeBackups(cpeId: number, keepCount: number): Promise<void> {
+    // Remove backups automáticos mais antigos, mantendo apenas `keepCount` total
+    const allBackups = await db.select({ id: cpeBackups.id })
+      .from(cpeBackups)
+      .where(and(eq(cpeBackups.cpeId, cpeId), eq(cpeBackups.source, "scheduled")))
+      .orderBy(desc(cpeBackups.createdAt));
+    if (allBackups.length > keepCount) {
+      const toDelete = allBackups.slice(keepCount).map(b => b.id);
+      await db.delete(cpeBackups).where(inArray(cpeBackups.id, toDelete));
+    }
   }
 }
 

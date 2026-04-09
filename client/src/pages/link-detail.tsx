@@ -19,6 +19,7 @@ import { OpticalSignalSection } from "@/components/optical-signal-section";
 import { OzmapRouteSection } from "@/components/ozmap-route-section";
 import { XtermTerminal, XtermTerminalRef } from "@/components/xterm-terminal";
 import { CpePortStatusDisplay } from "@/components/cpe-port-status";
+import { CpeBackupDialog } from "@/components/cpe-backup-dialog";
 import { CpeCommandLibrary } from "@/components/cpe-command-library";
 import { FlashmanPanel } from "@/components/flashman-panel";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -2501,6 +2502,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             </TooltipTrigger>
                             <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
                           </Tooltip>
+                          <CpeBackupDialog
+                            cpeId={cpe.cpeId || cpe.id}
+                            linkCpeId={cpe.linkCpeId}
+                            cpeName={cpe.name || "CPE"}
+                            sshUser={cpe.sshUser}
+                            sshPassword={cpe.sshPassword}
+                            disabled={!cpe.available}
+                          />
                         </>
                       )}
                       <Button
@@ -2619,6 +2628,20 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                         </TooltipTrigger>
                         <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
                       </Tooltip>
+                      {(() => {
+                        const cpeData = devices?.cpe as any;
+                        const cpeId = cpeData?.cpeId || cpeData?.id;
+                        return cpeId ? (
+                          <CpeBackupDialog
+                            cpeId={cpeId}
+                            linkCpeId={cpeData?.linkCpeId}
+                            cpeName={devices?.cpe?.name || "CPE"}
+                            sshUser={cpeData?.sshUser}
+                            sshPassword={cpeData?.sshPassword}
+                            disabled={!cpeAvailable}
+                          />
+                        ) : null;
+                      })()}
                     </>
                   )}
                   <Button

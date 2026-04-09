@@ -1369,6 +1369,25 @@ export const voalleServiceTags = pgTable("voalle_service_tags", {
   importedAt: timestamp("imported_at").notNull().defaultNow(),
 });
 
+// Backups de configuração de CPEs Mikrotik (via SSH /export compact)
+export const cpeBackups = pgTable("cpe_backups", {
+  id: serial("id").primaryKey(),
+  cpeId: integer("cpe_id").notNull(),
+  linkCpeId: integer("link_cpe_id"),
+  content: text("content").notNull(),
+  deviceName: varchar("device_name", { length: 255 }),
+  routerosVersion: varchar("routeros_version", { length: 80 }),
+  size: integer("size"), // bytes
+  source: varchar("source", { length: 20 }).notNull().default("manual"), // manual, scheduled
+  label: varchar("label", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdByUserId: integer("created_by_user_id"),
+  createdByUsername: varchar("created_by_username", { length: 100 }),
+});
+
+export type CpeBackup = typeof cpeBackups.$inferSelect;
+export type InsertCpeBackup = typeof cpeBackups.$inferInsert;
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;
