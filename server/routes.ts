@@ -4785,10 +4785,47 @@ export async function registerRoutes(
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
-      const sshUser = cpe.sshUser || "admin";
-      const rawPass = cpe.sshPassword
-        ? (isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword)
-        : "";
+      // Credenciais SSH: aceitar do frontend (já resolvidas pelo endpoint /devices, que considera RADIUS)
+      // ou recalcular localmente como fallback
+      const { sshUser: bodyUser, sshPassword: bodyPassword } = req.body as {
+        sshUser?: string;
+        sshPassword?: string;
+      };
+
+      let resolvedUser: string;
+      let resolvedPass: string;
+
+      if (bodyUser) {
+        // Frontend enviou credenciais já resolvidas (RADIUS ou locais) → usar diretamente
+        resolvedUser = bodyUser;
+        resolvedPass = bodyPassword || "";
+        console.log(`[WebFig] CPE ${cpe.name} (${ip}): usando credenciais do frontend — user=${resolvedUser}`);
+      } else {
+        // Fallback: resolver localmente (mesma lógica do endpoint de devices)
+        const radiusSettings = await storage.getRadiusSettings();
+        const useRadiusForDevices = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
+        const radiusCredentials = (req.session as any)?.radiusCredentials;
+
+        let decryptedSshPassword: string | null = null;
+        if (cpe.sshPassword) {
+          try {
+            decryptedSshPassword = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword;
+          } catch (e) {
+            console.error(`[WebFig] Falha ao descriptografar senha SSH do CPE ${cpeId}:`, e);
+          }
+        }
+
+        resolvedUser = (useRadiusForDevices && radiusCredentials?.username)
+          ? radiusCredentials.username
+          : (cpe.sshUser || "admin");
+        resolvedPass = (useRadiusForDevices && radiusCredentials?.password)
+          ? radiusCredentials.password
+          : (decryptedSshPassword || "");
+        console.log(`[WebFig] CPE ${cpe.name} (${ip}): fallback local — user=${resolvedUser}, useRadius=${useRadiusForDevices}`);
+      }
+
+      const sshUser = resolvedUser;
+      const rawPass = resolvedPass;
       const sshPort = cpe.sshPort || 22;
 
       // Comando RouterOS para habilitar o serviço www (WebFig)

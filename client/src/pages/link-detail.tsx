@@ -2054,8 +2054,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   };
 
   const enableWebFigMutation = useMutation({
-    mutationFn: async ({ cpeId, linkCpeId }: { cpeId: number; linkCpeId?: number }) => {
-      const res = await apiRequest("POST", `/api/cpe/${cpeId}/enable-webfig`, { linkCpeId });
+    mutationFn: async ({ cpeId, linkCpeId, sshUser, sshPassword }: { cpeId: number; linkCpeId?: number; sshUser?: string; sshPassword?: string }) => {
+      const res = await apiRequest("POST", `/api/cpe/${cpeId}/enable-webfig`, { linkCpeId, sshUser, sshPassword });
       return res.json();
     },
     onSuccess: () => {
@@ -2460,7 +2460,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available || enableWebFigMutation.isPending}
-                                onClick={() => cpe.cpeId && enableWebFigMutation.mutate({ cpeId: cpe.cpeId, linkCpeId: cpe.linkCpeId })}
+                                onClick={() => cpe.cpeId && enableWebFigMutation.mutate({ cpeId: cpe.cpeId, linkCpeId: cpe.linkCpeId, sshUser: cpe.sshUser, sshPassword: cpe.sshPassword })}
                                 data-testid={`button-enable-webfig-cpe-${cpe.id}`}
                               >
                                 {enableWebFigMutation.isPending && enableWebFigMutation.variables?.cpeId === cpe.cpeId
@@ -2563,9 +2563,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             variant="outline"
                             disabled={!cpeAvailable || enableWebFigMutation.isPending}
                             onClick={() => {
-                              const cpeId = (devices?.cpe as any)?.cpeId || (devices?.cpe as any)?.id;
-                              const linkCpeId = (devices?.cpe as any)?.linkCpeId;
-                              if (cpeId) enableWebFigMutation.mutate({ cpeId, linkCpeId });
+                              const cpeData = devices?.cpe as any;
+                              const cpeId = cpeData?.cpeId || cpeData?.id;
+                              if (cpeId) enableWebFigMutation.mutate({
+                                cpeId,
+                                linkCpeId: cpeData?.linkCpeId,
+                                sshUser: cpeData?.sshUser,
+                                sshPassword: cpeData?.sshPassword,
+                              });
                             }}
                             data-testid="button-enable-webfig-cpe"
                           >

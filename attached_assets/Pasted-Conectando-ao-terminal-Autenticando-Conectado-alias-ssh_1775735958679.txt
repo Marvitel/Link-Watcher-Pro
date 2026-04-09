@@ -1,0 +1,61 @@
+Conectando ao terminal...
+Autenticando...
+Conectado!
+
+alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+bash: impossível definir grupo do processo do terminal (-1): ioctl inapropriado para dispositivo
+bash: nenhum controle de trabalho neste shell
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ printf '#!/bin/sh\necho '\''mari2013Ma'\''\n' > /tmp/.lm_askpass_$$ && /bin/chmod 700 /tmp/.lm_askpass_$$ && export SSH_ASKPASS=/tmp/.lm_askpass_$$ SSH_ASKPASS_REQUIRE=force DISPLAY=:0
+[linkmonitor@linkmonitor]$ ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,3des-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512 -p 2220 marcus.melo@100.65.131.218
+Warning: Permanently added '[100.65.131.218]:2220' (RSA) to the list of known hosts.
+
+
+
+
+
+
+
+
+  MMM      MMM       KKK                          TTTTTTTTTTT      KKK
+  MMMM    MMMM       KKK                          TTTTTTTTTTT      KKK
+  MMM MMMM MMM  III  KKK  KKK  RRRRRR     OOOOOO      TTT     III  KKK  KKK
+  MMM  MM  MMM  III  KKKKK     RRR  RRR  OOO  OOO     TTT     III  KKKKK
+  MMM      MMM  III  KKK KKK   RRRRRR    OOO  OOO     TTT     III  KKK KKK
+  MMM      MMM  III  KKK  KKK  RRR  RRR   OOOOOO      TTT     III  KKK  KKK
+
+  MikroTik RouterOS 6.49.19 (c) 1999-2026       http://www.mikrotik.com/
+
+[?]             Gives the list of available commands
+command [?]     Gives help on the command and list of arguments
+
+[Tab]           Completes the command/word. If the input is ambiguous,
+                a second [Tab] gives possible options
+
+/               Move up to base level
+..              Move up one level
+/command        Use command at the base level
+                                                                                                             
+ ||===================================================================||
+
+
+
+ || MM    MM AAAAAAAAA RR  RR    VV VV    III    TTT   EE      LL     || 
+ || MM    MM AA     AA RR   RR    VVV    IIIII   TTT   EEEEEEE LLLLLL ||
+ ||===================================================================||
+ ||===================================================================|| 
+ || TTTTTTT EEEEEEE LL      EEEEEEE  CCCCC   OOOOO  MM    MM          || 
+ ||   TTT   EE      LL      EE      CC      OO   OO MMM  MMM          || 
+ ||   TTT   EEEEE   LL      EEEEE   CC      OO   OO MM MM MM          || 
+ ||   TTT   EE      LL      EE      CC      OO   OO MM    MM          || 
+ ||   TTT   EEEEEEE LLLLLLL EEEEEEE  CCCCC   OOOO0  MM    MM          ||
+ ||===================================================================||
+apr/08/2026 18:43:58 system,error,critical login failure for user admin from 191.52.254.74 via web
+apr/08/2026 18:47:30 system,error,critical login failure for user admin from 191.52.254.74 via web
+apr/09/2026 08:41:06 system,error,critical login failure for user admin from 191.52.254.74 via web
+apr/09/2026 08:41:28 system,error,critical login failure for user admin from 191.52.254.74 via web
+apr/09/2026 08:41:59 system,error,critical login failure for user admin from 191.52.254.74 via web
+apr/09/2026 08:58:21 system,error,critical login failure for user mvtel@marvitel from 191.52.248.35 via ssh
+  
+[marcus.melo@AJU-MVT-RB-ALPHA-SEDE] > 
