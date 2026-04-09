@@ -174,9 +174,9 @@ export async function backupCpe(
     label: source === "scheduled" ? "Automático (semanal)" : undefined,
   });
 
-  // Mantém somente os 2 backups automáticos mais recentes
+  // Mantém somente os 2 backups automáticos mais recentes (por vínculo link-CPE quando disponível)
   if (source === "scheduled") {
-    await storage.deleteOldestCpeBackups(cpeId, MAX_SCHEDULED_BACKUPS);
+    await storage.deleteOldestCpeBackups(cpeId, MAX_SCHEDULED_BACKUPS, linkCpeId);
   }
 
   console.log(`[CpeBackup] CPE ${cpeId}: backup ${source} salvo (${size} bytes, id=${backup.id})`);
@@ -189,29 +189,46 @@ let backupInterval: NodeJS.Timeout | null = null;
 async function runWeeklyBackupJob() {
   console.log("[CpeBackup] Iniciando backup semanal automático de CPEs Mikrotik...");
   try {
-    // Busca todos os CPEs ativos que sejam Mikrotik (sshUser configurado)
-    const allCpes = await storage.getCpes();
-    const mikrotikCpes = allCpes.filter((c: any) =>
-      c.isActive && c.sshUser && (c.sshPassword || c.ipAddress)
-    );
-    console.log(`[CpeBackup] ${mikrotikCpes.length} CPE(s) com SSH configurado para backup`);
+    // Itera por associação link-CPE (não por CPE físico) para que cada link
+    // receba seu próprio backup, inclusive CPEs padrão compartilhados
+    const associations = await storage.getActiveLinkCpesWithSsh();
+    console.log(`[CpeBackup] ${associations.length} associação(ões) link-CPE com SSH configurado`);
 
-    let ok = 0, fail = 0;
-    for (const cpe of mikrotikCpes) {
-      const ip = cpe.ipAddress;
+    // Deduplica por IP efetivo para não bater no mesmo dispositivo várias vezes
+    // (CPE não-padrão sem ipOverride pode estar em múltiplos links com o mesmo IP)
+    const seenIps = new Set<string>();
+    let ok = 0, fail = 0, skipped = 0;
+
+    for (const assoc of associations) {
+      const ip = assoc.ipOverride || assoc.ipAddress;
       if (!ip) { fail++; continue; }
+
+      // Para CPEs padrão com ipOverride diferente por link, permite múltiplos backups
+      // Para CPEs não-padrão sem ipOverride, deduplica por IP
+      const dedupeKey = assoc.isStandard && assoc.ipOverride ? `${assoc.linkCpeId}:${ip}` : ip;
+      if (seenIps.has(dedupeKey)) { skipped++; continue; }
+      seenIps.add(dedupeKey);
+
       try {
-        const rawPass = cpe.sshPassword
-          ? (isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword)
+        const rawPass = assoc.sshPassword
+          ? (isEncrypted(assoc.sshPassword) ? decrypt(assoc.sshPassword) : assoc.sshPassword)
           : "";
-        await backupCpe(cpe.id, undefined, ip, cpe.sshPort || 22, cpe.sshUser || "admin", rawPass, "scheduled");
+        await backupCpe(
+          assoc.cpeId,
+          assoc.linkCpeId,
+          ip,
+          assoc.sshPort || 22,
+          assoc.sshUser || "admin",
+          rawPass,
+          "scheduled",
+        );
         ok++;
       } catch (e: any) {
-        console.error(`[CpeBackup] Falha no backup do CPE ${cpe.id} (${cpe.name}):`, e.message);
+        console.error(`[CpeBackup] Falha no backup link-CPE ${assoc.linkCpeId} (${assoc.cpeName}, ${ip}):`, e.message);
         fail++;
       }
     }
-    console.log(`[CpeBackup] Backup semanal concluído: ${ok} ok, ${fail} falhos`);
+    console.log(`[CpeBackup] Backup semanal concluído: ${ok} ok, ${fail} falhos, ${skipped} duplicatas ignoradas`);
   } catch (e) {
     console.error("[CpeBackup] Erro no job semanal:", e);
   }

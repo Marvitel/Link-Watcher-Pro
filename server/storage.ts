@@ -3057,13 +3057,10 @@ export class DatabaseStorage {
   }
 
   async getCpeBackups(cpeId: number, limit: number = 20, linkCpeId?: number): Promise<CpeBackup[]> {
-    // Se linkCpeId fornecido: mostra backups desta associação link-CPE específica
-    // + backups automáticos (scheduler) do mesmo CPE físico (sem linkCpeId)
+    // Se linkCpeId fornecido: filtra estritamente por esse vínculo link-CPE
+    // (cada link vê apenas seus próprios backups, mesmo que compartilhe o CPE físico)
     const condition = linkCpeId != null
-      ? and(
-          eq(cpeBackups.cpeId, cpeId),
-          or(eq(cpeBackups.linkCpeId, linkCpeId), isNull(cpeBackups.linkCpeId))
-        )
+      ? and(eq(cpeBackups.cpeId, cpeId), eq(cpeBackups.linkCpeId, linkCpeId))
       : eq(cpeBackups.cpeId, cpeId);
 
     return await db.select()
@@ -3071,6 +3068,38 @@ export class DatabaseStorage {
       .where(condition)
       .orderBy(desc(cpeBackups.createdAt))
       .limit(limit);
+  }
+
+  // Retorna todas as associações link-CPE ativas com CPE Mikrotik (para o scheduler de backup)
+  async getActiveLinkCpesWithSsh(): Promise<Array<{
+    linkCpeId: number;
+    cpeId: number;
+    linkId: number;
+    ipOverride: string | null;
+    ipAddress: string | null;
+    sshUser: string | null;
+    sshPassword: string | null;
+    sshPort: number | null;
+    cpeName: string | null;
+    isStandard: boolean | null;
+  }>> {
+    const results = await db
+      .select({
+        linkCpeId: linkCpes.id,
+        cpeId: cpes.id,
+        linkId: linkCpes.linkId,
+        ipOverride: linkCpes.ipOverride,
+        ipAddress: cpes.ipAddress,
+        sshUser: cpes.sshUser,
+        sshPassword: cpes.sshPassword,
+        sshPort: cpes.sshPort,
+        cpeName: cpes.name,
+        isStandard: cpes.isStandard,
+      })
+      .from(linkCpes)
+      .innerJoin(cpes, eq(linkCpes.cpeId, cpes.id))
+      .where(and(eq(cpes.isActive, true), sql`${cpes.sshUser} IS NOT NULL`));
+    return results;
   }
 
   async getCpeBackup(id: number): Promise<CpeBackup | undefined> {
@@ -3090,11 +3119,16 @@ export class DatabaseStorage {
     return Number(count);
   }
 
-  async deleteOldestCpeBackups(cpeId: number, keepCount: number): Promise<void> {
-    // Remove backups automáticos mais antigos, mantendo apenas `keepCount` total
+  async deleteOldestCpeBackups(cpeId: number, keepCount: number, linkCpeId?: number): Promise<void> {
+    // Remove backups automáticos mais antigos, mantendo apenas `keepCount`
+    // Quando linkCpeId fornecido, limpa apenas os do vínculo específico
+    const condition = linkCpeId != null
+      ? and(eq(cpeBackups.cpeId, cpeId), eq(cpeBackups.linkCpeId, linkCpeId), eq(cpeBackups.source, "scheduled"))
+      : and(eq(cpeBackups.cpeId, cpeId), eq(cpeBackups.source, "scheduled"), isNull(cpeBackups.linkCpeId));
+
     const allBackups = await db.select({ id: cpeBackups.id })
       .from(cpeBackups)
-      .where(and(eq(cpeBackups.cpeId, cpeId), eq(cpeBackups.source, "scheduled")))
+      .where(condition)
       .orderBy(desc(cpeBackups.createdAt));
     if (allBackups.length > keepCount) {
       const toDelete = allBackups.slice(keepCount).map(b => b.id);
