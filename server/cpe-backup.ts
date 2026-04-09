@@ -205,8 +205,19 @@ export async function runDatacomExport(
           // Acumula config separadamente após o comando ser enviado
           if (captureConfig) {
             configOut += chunk;
-            // Se viu o prompt novamente e já temos conteúdo de config → terminou
-            if (promptPattern && promptPattern.test(chunk) && /^(!|version|hostname|interface|ip |spanning|end)/m.test(configOut)) {
+
+            // Datacom EDD pagina mesmo com "terminal length 0" em algumas firmwares
+            // Envia espaço para avançar a paginação
+            if (/--More--|<Press any key to continue>|\[MORE\]|\(more\)/i.test(chunk)) {
+              shellStream.write(" ");
+              resetIdleTimer();
+              return;
+            }
+
+            // Encerra quando: config tem conteúdo E viu o prompt final
+            // Só considera "fim" se a config terminou com ! ou end (evita prompt intermediário de paginação)
+            const configEnded = /\bend\s*\n?\s*$/.test(configOut) || /\n!\s*\n?\s*$/.test(configOut);
+            if (promptPattern && promptPattern.test(chunk) && configEnded) {
               done();
               return;
             }
