@@ -2,8 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
-const VERSION_CHECK_INTERVAL = 60000; // Verificar a cada 1 minuto — auto-logout ao detectar novo deploy
-const VERSION_STORAGE_KEY = "link_monitor_app_version";
+const VERSION_CHECK_INTERVAL = 60000; // Verificar a cada 1 minuto
 const ROUTE_RESTORE_KEY = "link_monitor_restore_route";
 const KIOSK_RELOAD_KEY = "link_monitor_kiosk_last_reload";
 const KIOSK_RELOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 horas em ms
@@ -48,82 +47,64 @@ function isInReloadCooldown(): boolean {
   return elapsed < RELOAD_COOLDOWN_MS;
 }
 
-// Função para limpar todo o cache e forçar reload limpo (somente kiosk)
+// Reload limpo para kiosk
 function performCleanReload(newVersion: string) {
   if (isInReloadCooldown()) {
     console.log(`[Version] Reload bloqueado - cooldown ativo`);
-    localStorage.setItem(VERSION_STORAGE_KEY, newVersion);
     return;
   }
-
   console.log(`[Version] Recarregando para versão ${newVersion} (kiosk)`);
-
   saveCurrentRoute();
   queryClient.clear();
-  localStorage.setItem(VERSION_STORAGE_KEY, newVersion);
   localStorage.setItem(RELOAD_COOLDOWN_KEY, Date.now().toString());
-
   if (isKioskMode()) {
     localStorage.setItem(KIOSK_RELOAD_KEY, Date.now().toString());
   }
-
   window.location.reload();
 }
 
 // Verifica se é hora de fazer reload periódico em modo kiosk
 function shouldKioskReload(): boolean {
   if (!isKioskMode()) return false;
-
   const lastReload = localStorage.getItem(KIOSK_RELOAD_KEY);
   if (!lastReload) {
     localStorage.setItem(KIOSK_RELOAD_KEY, Date.now().toString());
     return false;
   }
-
   const elapsed = Date.now() - parseInt(lastReload, 10);
   return elapsed >= KIOSK_RELOAD_INTERVAL;
 }
 
 export function useVersionCheck(onNewVersion?: () => Promise<void>) {
   const { toast } = useToast();
-  const currentVersionRef = useRef<string | null>(null);
+  // Versão registrada na primeira verificação bem-sucedida desta sessão
+  const initialVersionRef = useRef<string | null>(null);
   const hasActedRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkVersion = useCallback(async () => {
-    // Em desenvolvimento, desabilitar verificação de versão para evitar reloads
-    if (import.meta.env.DEV) {
-      return;
-    }
+    // Em desenvolvimento, desabilitar para evitar loops
+    if (import.meta.env.DEV) return;
 
     try {
       const kioskMode = isKioskMode();
 
-      // Em modo kiosk, verificar se é hora do reload periódico (6h)
+      // Kiosk: verificar reload periódico (6h)
       if (kioskMode && shouldKioskReload()) {
         console.log(`[Kiosk] Reload periódico após ${KIOSK_RELOAD_INTERVAL / 3600000}h`);
         try {
-          const response = await fetch("/api/version", { cache: "no-store" });
-          if (response.ok) {
-            const data: VersionResponse = await response.json();
-            performCleanReload(data.version);
-          } else {
-            const fallbackVersion = currentVersionRef.current || Date.now().toString(36);
-            performCleanReload(fallbackVersion);
-          }
+          const r = await fetch("/api/version", { cache: "no-store" });
+          const ver = r.ok ? (await r.json() as VersionResponse).version : Date.now().toString(36);
+          performCleanReload(ver);
         } catch {
-          const fallbackVersion = currentVersionRef.current || Date.now().toString(36);
-          performCleanReload(fallbackVersion);
+          performCleanReload(Date.now().toString(36));
         }
         return;
       }
 
       const response = await fetch("/api/version", {
         cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-        },
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
       });
 
       if (!response.ok) return;
@@ -131,52 +112,38 @@ export function useVersionCheck(onNewVersion?: () => Promise<void>) {
       const data: VersionResponse = await response.json();
       const serverVersion = data.version;
 
-      // Primeira execução: salvar a versão atual
-      if (!currentVersionRef.current) {
-        const storedVersion = localStorage.getItem(VERSION_STORAGE_KEY);
-        currentVersionRef.current = storedVersion || serverVersion;
-        localStorage.setItem(VERSION_STORAGE_KEY, serverVersion);
+      console.log(`[Version] Servidor: ${serverVersion} | Inicial: ${initialVersionRef.current ?? "(ainda não registrado)"}`);
 
-        // Se a versão armazenada for diferente da do servidor na inicialização
-        if (storedVersion && storedVersion !== serverVersion && !hasActedRef.current) {
-          console.log(`[Version] Nova versão na inicialização: ${storedVersion} → ${serverVersion}`);
-          hasActedRef.current = true;
-          localStorage.setItem(VERSION_STORAGE_KEY, serverVersion);
-
-          if (kioskMode) {
-            performCleanReload(serverVersion);
-          } else if (onNewVersion) {
-            // Logout automático — novo deploy detectado
-            await onNewVersion();
-          }
-        }
+      // Primeira verificação desta sessão: apenas registrar a versão atual
+      if (!initialVersionRef.current) {
+        initialVersionRef.current = serverVersion;
+        console.log(`[Version] Versão inicial registrada: ${serverVersion}`);
         return;
       }
 
-      // Verificar se há nova versão durante uso
-      if (serverVersion !== currentVersionRef.current && !hasActedRef.current) {
-        console.log(`[Version] Atualização detectada: ${currentVersionRef.current} → ${serverVersion}`);
+      // Versão mudou desde que a sessão começou → novo deploy detectado
+      if (serverVersion !== initialVersionRef.current && !hasActedRef.current) {
         hasActedRef.current = true;
-        localStorage.setItem(VERSION_STORAGE_KEY, serverVersion);
+        console.log(`[Version] Novo deploy detectado: ${initialVersionRef.current} → ${serverVersion}`);
 
         // Kiosk: reload silencioso
         if (kioskMode) {
-          console.log(`[Kiosk] Reload silencioso para nova versão`);
           performCleanReload(serverVersion);
           return;
         }
 
-        // Usuário normal: avisar e fazer logout após 5 segundos
+        // Usuários normais: aviso + logout automático após 5 segundos
         toast({
           title: "Sistema atualizado",
           description: "Uma nova versão foi publicada. Você será desconectado em 5 segundos para garantir o funcionamento correto.",
-          duration: 5000,
+          duration: 6000,
         });
 
         setTimeout(async () => {
           if (onNewVersion) {
             await onNewVersion();
           } else {
+            // Fallback: reload se não tiver handler de logout
             performCleanReload(serverVersion);
           }
         }, 5000);
@@ -187,10 +154,13 @@ export function useVersionCheck(onNewVersion?: () => Promise<void>) {
   }, [toast, onNewVersion]);
 
   useEffect(() => {
+    // Verificar imediatamente ao montar
     checkVersion();
 
+    // Verificar periodicamente
     intervalRef.current = setInterval(checkVersion, VERSION_CHECK_INTERVAL);
 
+    // Verificar quando a aba volta ao foco
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         checkVersion();
@@ -199,9 +169,7 @@ export function useVersionCheck(onNewVersion?: () => Promise<void>) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [checkVersion]);

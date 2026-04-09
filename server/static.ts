@@ -18,7 +18,12 @@ if (typeof __dirname === 'string' && __dirname) {
   _dirname = process.cwd();
 }
 
-// Versão do build - calculada do conteúdo real dos arquivos
+// Timestamp de inicialização do servidor — muda a cada restart (= deploy)
+// Isso garante que qualquer reinício do serviço gera uma versão nova,
+// independente do código ter mudado ou não
+const SERVER_START_TS = Date.now().toString(36);
+
+// Versão do build - calculada do conteúdo real dos arquivos + timestamp de startup
 // Cacheada para ser estável durante toda a vida do servidor
 let cachedBuildVersion: string | null = null;
 
@@ -34,18 +39,19 @@ export function getBuildVersion(): string {
     return cachedBuildVersion;
   }
   
-  // Em produção, calcula do hash do index.html
+  // Em produção: hash do index.html (estável para o código) + timestamp de startup
+  // O timestamp garante que cada restart gera versão diferente mesmo sem mudança de código
   const distPath = path.resolve(_dirname, "public");
+  let contentHash = 'build-unknown';
   try {
     const indexPath = path.resolve(distPath, "index.html");
-    // Usa hash do conteúdo (estável até próximo deploy)
     const content = fs.readFileSync(indexPath, 'utf-8');
-    cachedBuildVersion = crypto.createHash('md5').update(content).digest('hex').substring(0, 8);
+    contentHash = crypto.createHash('md5').update(content).digest('hex').substring(0, 8);
   } catch {
-    // Fallback: usar versão fixa
-    cachedBuildVersion = 'build-unknown';
+    // Fallback: só usa timestamp
   }
   
+  cachedBuildVersion = `${contentHash}-${SERVER_START_TS}`;
   console.log(`[Version] Build version: ${cachedBuildVersion}`);
   return cachedBuildVersion;
 }
