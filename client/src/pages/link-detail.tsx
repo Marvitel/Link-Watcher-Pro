@@ -1896,8 +1896,6 @@ interface DeviceInfo {
   sshPort?: number;
   webPort?: number;
   webProtocol?: string;
-  webUser?: string | null;
-  webPassword?: string | null;
   winboxPort?: number;
   vendor?: string | null;
 }
@@ -2045,28 +2043,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     window.open(`ssh://${user}@${formattedIp}:${port}`, "_blank");
   };
 
-  const openWinbox = (ip: string, port: number = 8291, user?: string | null, pass?: string | null) => {
-    // Winbox suporta credenciais na URL: winbox://user:pass@IP:PORT
-    const auth = user ? (pass ? `${encodeURIComponent(user)}:${encodeURIComponent(pass)}@` : `${encodeURIComponent(user)}@`) : "";
-    window.open(`winbox://${auth}${ip}:${port}`, "_blank");
+  const openWinbox = (ip: string, port: number = 8291) => {
+    window.open(`winbox://${ip}:${port}`, "_blank");
   };
 
-  const openWebFig = (ip: string, webPort: number = 80, webProtocol: string = "http", user?: string | null, pass?: string | null) => {
-    // WebFig: browsers modernos bloqueiam credenciais na URL (http://user:pass@host)
-    // Estratégia: copiar credenciais para clipboard e abrir WebFig em seguida
+  const openWebFig = (ip: string, webPort: number = 80, webProtocol: string = "http") => {
     const formattedIp = formatIpForUrl(ip);
     const portPart = webPort !== (webProtocol === "https" ? 443 : 80) ? `:${webPort}` : "";
-    const url = `${webProtocol}://${formattedIp}${portPart}/webfig`;
-    if (user || pass) {
-      const creds = `Usuário: ${user || "admin"}\nSenha: ${pass || "(sem senha)"}`;
-      navigator.clipboard.writeText(creds).catch(() => {});
-      toast({
-        title: "Credenciais copiadas",
-        description: `${user || "admin"} / ${pass ? "••••••••" : "(sem senha)"} — use ao fazer login no WebFig`,
-        duration: 6000,
-      });
-    }
-    window.open(url, "_blank");
+    window.open(`${webProtocol}://${formattedIp}${portPart}/webfig`, "_blank");
   };
 
   const getSshConfig = (type: TerminalType): { command?: string; password?: string; fallbackPassword?: string; fallbackUser?: string } => {
@@ -2170,8 +2154,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     sshPort = 22,
     webPort = 80,
     webProtocol = "http",
-    webUser = null,
-    webPassword = null,
     winboxPort = 8291,
   }: { 
     title: string; 
@@ -2184,8 +2166,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     sshPort?: number;
     webPort?: number;
     webProtocol?: string;
-    webUser?: string | null;
-    webPassword?: string | null;
     winboxPort?: number;
   }) => (
     <Card className={!available ? "opacity-50" : ""}>
@@ -2256,17 +2236,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                     size="sm"
                     variant="outline"
                     disabled={!available}
-                    onClick={() => ip && openWebFig(ip, webPort, webProtocol, webUser, webPassword)}
+                    onClick={() => ip && openWebFig(ip, webPort, webProtocol)}
                     data-testid={`button-webfig-${target}`}
                   >
                     <Globe className="w-4 h-4 mr-1" />
                     WebFig
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  Interface web do RouterOS — funciona em qualquer SO
-                  {(webUser || webPassword) && ` · credenciais copiadas ao clicar`}
-                </TooltipContent>
+                <TooltipContent>Interface web do RouterOS — funciona em qualquer SO</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2274,16 +2251,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                     size="sm"
                     variant="outline"
                     disabled={!available}
-                    onClick={() => ip && openWinbox(ip, winboxPort, webUser, webPassword)}
+                    onClick={() => ip && openWinbox(ip, winboxPort)}
                     data-testid={`button-winbox-${target}`}
                   >
                     <Network className="w-4 h-4 mr-1" />
                     Winbox
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {(webUser || webPassword) ? `Login: ${webUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
-                </TooltipContent>
+                <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
               </Tooltip>
             </>
           )}
@@ -2445,9 +2420,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
               || cpe.manufacturer?.toLowerCase().includes("mikrotik");
             const cpeWebPort = (cpe as any).webPort || 80;
             const cpeWebProtocol = (cpe as any).webProtocol || "http";
-            // RouterOS: mesmas credenciais para SSH, WebFig e Winbox — usar SSH como fallback
-            const cpeWebUser = ((cpe as any).webUser || (cpe as any).sshUser) as string | null ?? null;
-            const cpeWebPass = ((cpe as any).webPassword || (cpe as any).sshPassword) as string | null ?? null;
             const cpeWinboxPort = (cpe as any).winboxPort || 8291;
             return (
               <Card key={cpe.id} className={!cpe.available ? "opacity-50" : ""}>
@@ -2468,17 +2440,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol, cpeWebUser, cpeWebPass)}
+                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol)}
                                 data-testid={`button-webfig-cpe-${cpe.id}`}
                               >
                                 <Globe className="w-3.5 h-3.5 mr-1" />
                                 WebFig
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              Interface web RouterOS — funciona em qualquer SO
-                              {(cpeWebUser || cpeWebPass) && " · credenciais copiadas ao clicar"}
-                            </TooltipContent>
+                            <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -2486,16 +2455,14 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort, cpeWebUser, cpeWebPass)}
+                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort)}
                                 data-testid={`button-winbox-cpe-${cpe.id}`}
                               >
                                 <Network className="w-3.5 h-3.5 mr-1" />
                                 Winbox
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              {(cpeWebUser || cpeWebPass) ? `Login: ${cpeWebUser || "admin"} · Requer app Winbox instalado` : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
-                            </TooltipContent>
+                            <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
                           </Tooltip>
                         </>
                       )}
@@ -2561,9 +2528,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             onClick={() => devices?.cpe?.ip && openWebFig(
                               devices.cpe.ip,
                               devices.cpe.webPort || 80,
-                              devices.cpe.webProtocol || "http",
-                              devices.cpe.webUser || devices.cpe.sshUser || null,
-                              devices.cpe.webPassword || devices.cpe.sshPassword || null
+                              devices.cpe.webProtocol || "http"
                             )}
                             data-testid="button-webfig-cpe"
                           >
@@ -2571,10 +2536,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             WebFig
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          Interface web RouterOS — funciona em qualquer SO
-                          {((devices?.cpe?.webUser || devices?.cpe?.sshUser) || (devices?.cpe?.webPassword || devices?.cpe?.sshPassword)) && " · credenciais copiadas ao clicar"}
-                        </TooltipContent>
+                        <TooltipContent>Interface web RouterOS — funciona em qualquer SO</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -2584,9 +2546,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             disabled={!cpeAvailable}
                             onClick={() => devices?.cpe?.ip && openWinbox(
                               devices.cpe.ip,
-                              devices.cpe.winboxPort || 8291,
-                              devices.cpe.webUser || devices.cpe.sshUser || null,
-                              devices.cpe.webPassword || devices.cpe.sshPassword || null
+                              devices.cpe.winboxPort || 8291
                             )}
                             data-testid="button-winbox-cpe"
                           >
@@ -2594,11 +2554,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             Winbox
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          {(devices?.cpe?.webUser || devices?.cpe?.sshUser) 
-                            ? `Login: ${devices?.cpe?.webUser || devices?.cpe?.sshUser} · Requer app Winbox instalado` 
-                            : "Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)"}
-                        </TooltipContent>
+                        <TooltipContent>Requer app Winbox instalado (Windows nativo; Linux/macOS via Wine)</TooltipContent>
                       </Tooltip>
                     </>
                   )}
@@ -2698,8 +2654,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={accessPointDevice?.sshPort || 22}
           webPort={accessPointDevice?.webPort || 80}
           webProtocol={accessPointDevice?.webProtocol || "http"}
-          webUser={accessPointDevice?.webUser || accessPointDevice?.sshUser || null}
-          webPassword={accessPointDevice?.webPassword || accessPointDevice?.sshPassword || null}
           winboxPort={accessPointDevice?.winboxPort || 8291}
         />
         <DeviceCard
@@ -2713,8 +2667,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={devices?.concentrator?.sshPort || 22}
           webPort={devices?.concentrator?.webPort || 80}
           webProtocol={devices?.concentrator?.webProtocol || "http"}
-          webUser={devices?.concentrator?.webUser || devices?.concentrator?.sshUser || null}
-          webPassword={devices?.concentrator?.webPassword || devices?.concentrator?.sshPassword || null}
           winboxPort={devices?.concentrator?.winboxPort || 8291}
         />
         <DeviceCard
@@ -2728,8 +2680,6 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
           sshPort={devices?.cpe?.sshPort || 22}
           webPort={devices?.cpe?.webPort || 80}
           webProtocol={devices?.cpe?.webProtocol || "http"}
-          webUser={devices?.cpe?.webUser || devices?.cpe?.sshUser || null}
-          webPassword={devices?.cpe?.webPassword || devices?.cpe?.sshPassword || null}
           winboxPort={devices?.cpe?.winboxPort || 8291}
         />
       </div>
