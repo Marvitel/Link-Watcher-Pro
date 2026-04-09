@@ -29,37 +29,56 @@ export async function runMikrotikExport(
   return new Promise<string>((resolve, reject) => {
     const client = new SSHClient();
     let out = "";
-    const timer = setTimeout(() => {
+    let resolved = false;
+    let idleTimer: NodeJS.Timeout | null = null;
+
+    const done = (err?: Error) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(globalTimer);
+      if (idleTimer) clearTimeout(idleTimer);
       client.end();
-      reject(new Error("Timeout de conexão SSH (export)"));
-    }, 30000);
+      if (err) return reject(err);
+      if (!out.trim()) return reject(new Error("Saída vazia — /export não retornou dados"));
+      resolve(out.trim());
+    };
+
+    // Timeout global: 90s (export em roteadores grandes pode demorar)
+    const globalTimer = setTimeout(() => done(new Error("Timeout de conexão SSH (export)")), 90000);
 
     client.on("ready", () => {
       client.exec("/export compact", (err: any, stream: any) => {
-        if (err) {
-          clearTimeout(timer);
-          client.end();
-          return reject(err);
-        }
-        stream.on("close", () => {
-          clearTimeout(timer);
-          client.end();
-          if (!out.trim()) return reject(new Error("Saída vazia — /export não retornou dados"));
-          resolve(out.trim());
+        if (err) return done(err);
+
+        const resetIdleTimer = () => {
+          if (idleTimer) clearTimeout(idleTimer);
+          // Se ficar 15s sem receber dados novos, assume que o export terminou
+          idleTimer = setTimeout(() => {
+            if (out.trim()) done();
+            else done(new Error("Timeout — nenhum dado recebido do /export"));
+          }, 15000);
+        };
+
+        stream.on("data", (d: Buffer) => { out += d.toString(); resetIdleTimer(); });
+        stream.stderr.on("data", (d: Buffer) => { out += d.toString(); resetIdleTimer(); });
+        stream.on("close", () => done());
+        stream.on("end", () => {
+          // Alguns RouterOS não emitem close — end é suficiente
+          setTimeout(() => done(), 500);
         });
-        stream.on("data", (d: Buffer) => { out += d.toString(); });
-        stream.stderr.on("data", (d: Buffer) => { out += d.toString(); });
+
+        resetIdleTimer(); // inicia o idle timer desde a conexão
       });
     });
 
-    client.on("error", (err: any) => { clearTimeout(timer); reject(err); });
+    client.on("error", (err: any) => done(err));
 
     client.connect({
       host: ip,
       port,
       username: sshUser,
       password: sshPass,
-      readyTimeout: 15000,
+      readyTimeout: 20000,
       algorithms: {
         kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
         cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
