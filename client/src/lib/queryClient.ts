@@ -1,8 +1,28 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getAuthToken } from "./auth";
 
+// Handler global para 401 — registrado pelo AuthProvider no mount
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler;
+}
+
+export function clearUnauthorizedHandler() {
+  unauthorizedHandler = null;
+}
+
+function triggerUnauthorized() {
+  if (unauthorizedHandler) {
+    unauthorizedHandler();
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) {
+      triggerUnauthorized();
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -27,7 +47,7 @@ export async function apiRequest(
   if (data) {
     headers["Content-Type"] = "application/json";
   }
-  
+
   const res = await fetch(url, {
     method,
     headers,
@@ -50,8 +70,11 @@ export const getQueryFn: <T>(options: {
       headers: getAuthHeaders(),
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      triggerUnauthorized();
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
     }
 
     await throwIfResNotOk(res);

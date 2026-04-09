@@ -52,8 +52,8 @@ function AppContent() {
   const [, setLocation] = useLocation();
   const kioskMode = isKioskMode();
   
-  // Verificação automática de versão - recarrega quando há atualização
-  useVersionCheck();
+  // Verificação automática de versão — ao detectar novo deploy, faz logout
+  useVersionCheck(logout);
   
   // Restaurar rota após reload (versão ou kiosk) e invalidar cache
   useEffect(() => {

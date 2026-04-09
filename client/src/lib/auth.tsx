@@ -1,4 +1,5 @@
 import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from "react";
+import { setUnauthorizedHandler, clearUnauthorizedHandler } from "./queryClient";
 
 interface AuthUser {
   id: number;
@@ -57,6 +58,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setIsLoading(false);
+  }, []);
+
+  // Registrar handler global de 401 — faz logout automático quando o servidor
+  // retorna não autorizado (sessão expirada, deploy com reinício de servidor, etc.)
+  useEffect(() => {
+    let logoutCalled = false;
+    setUnauthorizedHandler(() => {
+      if (logoutCalled) return;
+      // Só age se houver usuário logado para evitar loops na tela de login
+      const hasToken = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (!hasToken) return;
+      logoutCalled = true;
+      console.log("[Auth] 401 recebido — encerrando sessão automaticamente");
+      // Limpar dados locais e redirecionar
+      const isAdmin = (() => {
+        try {
+          const u = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "{}");
+          return u?.isSuperAdmin === true;
+        } catch { return false; }
+      })();
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      setUser(null);
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      if (isAdmin) {
+        const port = window.location.port;
+        if (port && port !== "443" && port !== "80" && port !== "") {
+          window.location.href = `${window.location.protocol}//${window.location.hostname}:${port}/admin/login`;
+        } else {
+          window.location.href = `${window.location.protocol}//${window.location.hostname}:5001/admin/login`;
+        }
+      } else {
+        window.location.href = "/";
+      }
+    });
+    return () => {
+      clearUnauthorizedHandler();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
