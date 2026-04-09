@@ -1909,6 +1909,14 @@ export async function registerRoutes(
           ? radiusCredentials.password 
           : decryptedSshPassword;
         const cpeUsingRadius = !!(useRadiusForDevices && radiusCredentials?.username);
+
+        // Fallback user: quando o sshUser armazenado é igual ao usuário RADIUS (ou está vazio),
+        // usa "admin" para evitar tentar o mesmo usuário que já falhou.
+        const radiusUsername = radiusCredentials?.username;
+        const storedLocalUser = cpe.sshUser;
+        const effectiveFallbackUser = cpeUsingRadius
+          ? ((!storedLocalUser || storedLocalUser === radiusUsername) ? "admin" : storedLocalUser)
+          : undefined;
         
         return {
           id: cpe.id,
@@ -1939,8 +1947,8 @@ export async function registerRoutes(
           memoryUsage: lastMonitoredAt ? (memoryUsage ?? null) : null,
           lastMonitoredAt: lastMonitoredAt?.toISOString() || null,
           usingRadiusCredentials: cpeUsingRadius,
-          // Credenciais de fallback (locais do CPE)
-          fallbackSshUser: cpeUsingRadius ? (cpe.sshUser || "admin") : undefined,
+          // Credenciais de fallback (locais do CPE — usuário diferente do RADIUS)
+          fallbackSshUser: effectiveFallbackUser,
           fallbackSshPassword: cpeUsingRadius ? decryptedSshPassword : undefined,
         };
       }).filter(Boolean);

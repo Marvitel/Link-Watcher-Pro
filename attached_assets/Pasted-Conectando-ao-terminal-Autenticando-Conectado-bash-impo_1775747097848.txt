@@ -1,0 +1,23 @@
+Conectando ao terminal...
+Autenticando...
+Conectado!
+
+bash: impossível definir grupo do processo do terminal (-1): ioctl inapropriado para dispositivo
+bash: nenhum controle de trabalho neste shell
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ alias ssh='ssh -F /opt/link-monitor/ssh_legacy_config'
+[linkmonitor@linkmonitor]$ printf '#!/bin/sh\necho '\''mari2013Ma'\''\n' > /tmp/.lm_askpass_$$ && /bin/chmod 700 /tmp/.lm_askpass_$$ && export SSH_ASKPASS=/tmp/.lm_askpass_$$ SSH_ASKPASS_REQUIRE=force DISPLAY=:0
+[linkmonitor@linkmonitor]$ ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,3des-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512 -p 2220 marcus.melo@100.65.128.190 
+Warning: Permanently added '[100.65.128.190]:2220' (RSA) to the list of known hosts.
+Permission denied, please try again.
+
+[SSH] Autenticação falhou. Tentando com credenciais locais do dispositivo...
+Permission denied, please try again.
+marcus.melo@100.65.128.190: Permission denied (password).
+[linkmonitor@linkmonitor]$ printf '#!/bin/sh\necho '\''RTBMKT.c73l'\''\n' > /tmp/.lm_askpass_$$ && echo -ne '
+[linkmonitor@linkmonitor]$ ssh -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o KexAlgorithms=diffie-hellman-group14-sha1,diffie-hellman-group1-sha1,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,curve25519-sha256 -o HostKeyAlgorithms=rsa-sha2-256,rsa-sha2-512,ssh-rsa,ssh-ed25519,ecdsa-sha2-nistp256,ssh-dss -o Ciphers=aes128-ctr,aes256-ctr,aes128-cbc,aes256-cbc,3des-cbc,chacha20-poly1305@openssh.com -o PubkeyAcceptedAlgorithms=rsa-sha2-256,ssh-rsa,ssh-ed25519,ssh-dss -o MACs=hmac-sha1,hmac-md5,hmac-sha2-256,hmac-sha2-512 -p 2220 marcus.melo@100.65.128.190 
+Warning: Permanently added '[100.65.128.190]:2220' (RSA) to the list of known hosts.
+Permission denied, please try again.
+Permission denied, please try again.
+marcus.melo@100.65.128.190: Permission denied (password).
+[linkmonitor@linkmonitor]$ 
