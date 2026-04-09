@@ -4776,7 +4776,13 @@ export async function registerRoutes(
       const cpe = await storage.getCpe(cpeId);
       if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
 
-      const ip = cpe.ipAddress;
+      // Determinar IP efetivo: ipOverride da associação link_cpe ou ipAddress do CPE
+      const { linkCpeId } = req.body as { linkCpeId?: number };
+      let ip = cpe.ipAddress;
+      if (linkCpeId) {
+        const linkCpe = await storage.getLinkCpe(linkCpeId);
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+      }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
       const sshUser = cpe.sshUser || "admin";

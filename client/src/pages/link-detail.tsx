@@ -2054,11 +2054,11 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
   };
 
   const enableWebFigMutation = useMutation({
-    mutationFn: async (cpeId: number) => {
-      const res = await apiRequest("POST", `/api/cpe/${cpeId}/enable-webfig`);
+    mutationFn: async ({ cpeId, linkCpeId }: { cpeId: number; linkCpeId?: number }) => {
+      const res = await apiRequest("POST", `/api/cpe/${cpeId}/enable-webfig`, { linkCpeId });
       return res.json();
     },
-    onSuccess: (_data, cpeId) => {
+    onSuccess: () => {
       toast({
         title: "WebFig habilitado",
         description: "Serviço www habilitado no Mikrotik. Você já pode abrir o WebFig.",
@@ -2460,10 +2460,10 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available || enableWebFigMutation.isPending}
-                                onClick={() => cpe.cpeId && enableWebFigMutation.mutate(cpe.cpeId)}
+                                onClick={() => cpe.cpeId && enableWebFigMutation.mutate({ cpeId: cpe.cpeId, linkCpeId: cpe.linkCpeId })}
                                 data-testid={`button-enable-webfig-cpe-${cpe.id}`}
                               >
-                                {enableWebFigMutation.isPending && enableWebFigMutation.variables === cpe.cpeId
+                                {enableWebFigMutation.isPending && enableWebFigMutation.variables?.cpeId === cpe.cpeId
                                   ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
                                   : <Zap className="w-3.5 h-3.5 mr-1" />}
                                 Habilitar WebFig
@@ -2564,7 +2564,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                             disabled={!cpeAvailable || enableWebFigMutation.isPending}
                             onClick={() => {
                               const cpeId = (devices?.cpe as any)?.cpeId || (devices?.cpe as any)?.id;
-                              if (cpeId) enableWebFigMutation.mutate(cpeId);
+                              const linkCpeId = (devices?.cpe as any)?.linkCpeId;
+                              if (cpeId) enableWebFigMutation.mutate({ cpeId, linkCpeId });
                             }}
                             data-testid="button-enable-webfig-cpe"
                           >
