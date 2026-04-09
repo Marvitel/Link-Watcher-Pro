@@ -4828,8 +4828,8 @@ export async function registerRoutes(
       const rawPass = resolvedPass;
       const sshPort = cpe.sshPort || 22;
 
-      // Comando RouterOS para habilitar o serviço www (WebFig)
-      const command = "/ip service set www disabled=no address=0.0.0.0/0";
+      // Comando RouterOS para habilitar o serviço www (WebFig) — restringe ao IP do servidor
+      const command = "/ip service set www disabled=no address=191.52.254.74/32,191.52.248.26/32";
 
       const { Client: SSHClient2 } = await import("ssh2");
       const output = await new Promise<string>((resolve, reject) => {
