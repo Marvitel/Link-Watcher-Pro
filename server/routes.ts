@@ -4795,18 +4795,22 @@ export async function registerRoutes(
 
       let resolvedUser: string;
       let resolvedPass: string;
+      const radiusSettingsWf = await storage.getRadiusSettings();
+      const useRadiusWf = radiusSettingsWf?.isEnabled && radiusSettingsWf?.useRadiusForDevices;
+      const radiusCredsWf = (req.session as any)?.radiusCredentials;
 
-      if (bodyUser) {
+      if (bodyUser && bodyPassword) {
         // Frontend enviou credenciais já resolvidas (RADIUS ou locais) → usar diretamente
         resolvedUser = bodyUser;
-        resolvedPass = bodyPassword || "";
+        resolvedPass = bodyPassword;
         console.log(`[WebFig] CPE ${cpe.name} (${ip}): usando credenciais do frontend — user=${resolvedUser}`);
+      } else if (radiusCredsWf?.username && radiusCredsWf?.password) {
+        // Fallback: credenciais RADIUS da sessão (disponíveis mesmo sem useRadiusForDevices global)
+        resolvedUser = bodyUser || radiusCredsWf.username;
+        resolvedPass = radiusCredsWf.password;
+        console.log(`[WebFig] CPE ${cpe.name} (${ip}): usando credenciais RADIUS da sessão — user=${resolvedUser}`);
       } else {
-        // Fallback: resolver localmente (mesma lógica do endpoint de devices)
-        const radiusSettings = await storage.getRadiusSettings();
-        const useRadiusForDevices = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
-        const radiusCredentials = (req.session as any)?.radiusCredentials;
-
+        // Último recurso: credenciais locais do CPE
         let decryptedSshPassword: string | null = null;
         if (cpe.sshPassword) {
           try {
@@ -4815,14 +4819,9 @@ export async function registerRoutes(
             console.error(`[WebFig] Falha ao descriptografar senha SSH do CPE ${cpeId}:`, e);
           }
         }
-
-        resolvedUser = (useRadiusForDevices && radiusCredentials?.username)
-          ? radiusCredentials.username
-          : (cpe.sshUser || "admin");
-        resolvedPass = (useRadiusForDevices && radiusCredentials?.password)
-          ? radiusCredentials.password
-          : (decryptedSshPassword || "");
-        console.log(`[WebFig] CPE ${cpe.name} (${ip}): fallback local — user=${resolvedUser}, useRadius=${useRadiusForDevices}`);
+        resolvedUser = (useRadiusWf && radiusCredsWf?.username) ? radiusCredsWf.username : (bodyUser || cpe.sshUser || "admin");
+        resolvedPass = (useRadiusWf && radiusCredsWf?.password) ? radiusCredsWf.password : (decryptedSshPassword || "");
+        console.log(`[WebFig] CPE ${cpe.name} (${ip}): credenciais locais — user=${resolvedUser}, useRadius=${useRadiusWf}`);
       }
 
       const sshUser = resolvedUser;
@@ -4908,20 +4907,28 @@ export async function registerRoutes(
       // Resolver credenciais (frontend envia as já resolvidas)
       let sshUser: string;
       let sshPass: string;
-      if (bodyUser) {
+      const radiusSettingsBk = await storage.getRadiusSettings();
+      const useRadiusBk = radiusSettingsBk?.isEnabled && radiusSettingsBk?.useRadiusForDevices;
+      const radiusCredsBk = (req.session as any)?.radiusCredentials;
+
+      if (bodyUser && bodyPassword) {
+        // Credenciais completas enviadas pelo frontend (já resolvidas pelo endpoint /devices)
         sshUser = bodyUser;
-        sshPass = bodyPassword || "";
+        sshPass = bodyPassword;
+      } else if (radiusCredsBk?.username && radiusCredsBk?.password) {
+        // Fallback: credenciais RADIUS da sessão (disponíveis mesmo sem useRadiusForDevices global)
+        sshUser = bodyUser || radiusCredsBk.username;
+        sshPass = radiusCredsBk.password;
       } else {
-        const radiusSettings = await storage.getRadiusSettings();
-        const useRadius = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
-        const radiusCreds = (req.session as any)?.radiusCredentials;
+        // Último recurso: credenciais locais do CPE
         let decPass: string | null = null;
         if (cpe.sshPassword) {
           try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
         }
-        sshUser = (useRadius && radiusCreds?.username) ? radiusCreds.username : (cpe.sshUser || "admin");
-        sshPass = (useRadius && radiusCreds?.password) ? radiusCreds.password : (decPass || "");
+        sshUser = (useRadiusBk && radiusCredsBk?.username) ? radiusCredsBk.username : (bodyUser || cpe.sshUser || "admin");
+        sshPass = decPass || "";
       }
+      console.log(`[Backup] CPE ${cpe.name} (${ip}): user=${sshUser}, hasPass=${!!sshPass}, fromFrontend=${!!(bodyUser && bodyPassword)}, hasRadius=${!!radiusCredsBk?.username}`);
 
       const user = req.user as any;
       const { backupId, size } = await backupCpe(
@@ -4988,19 +4995,23 @@ export async function registerRoutes(
 
       let sshUser: string;
       let sshPass: string;
-      if (bodyUser) {
+      const radiusSettingsRs = await storage.getRadiusSettings();
+      const useRadiusRs = radiusSettingsRs?.isEnabled && radiusSettingsRs?.useRadiusForDevices;
+      const radiusCredsRs = (req.session as any)?.radiusCredentials;
+
+      if (bodyUser && bodyPassword) {
         sshUser = bodyUser;
-        sshPass = bodyPassword || "";
+        sshPass = bodyPassword;
+      } else if (radiusCredsRs?.username && radiusCredsRs?.password) {
+        sshUser = bodyUser || radiusCredsRs.username;
+        sshPass = radiusCredsRs.password;
       } else {
-        const radiusSettings = await storage.getRadiusSettings();
-        const useRadius = radiusSettings?.isEnabled && radiusSettings?.useRadiusForDevices;
-        const radiusCreds = (req.session as any)?.radiusCredentials;
         let decPass: string | null = null;
         if (cpe.sshPassword) {
           try { decPass = isEncrypted(cpe.sshPassword) ? decrypt(cpe.sshPassword) : cpe.sshPassword; } catch {}
         }
-        sshUser = (useRadius && radiusCreds?.username) ? radiusCreds.username : (cpe.sshUser || "admin");
-        sshPass = (useRadius && radiusCreds?.password) ? radiusCreds.password : (decPass || "");
+        sshUser = (useRadiusRs && radiusCredsRs?.username) ? radiusCredsRs.username : (bodyUser || cpe.sshUser || "admin");
+        sshPass = (useRadiusRs && radiusCredsRs?.password) ? radiusCredsRs.password : (decPass || "");
       }
 
       const output = await restoreMikrotikBackup(ip, cpe.sshPort || 22, sshUser, sshPass, backup.content);
