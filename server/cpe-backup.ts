@@ -191,9 +191,18 @@ export async function runDatacomExport(
       password: sshPass,
       readyTimeout: 20000,
       algorithms: {
-        kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
-        cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
-        serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256"],
+        kex: [
+          "diffie-hellman-group1-sha1",
+          "diffie-hellman-group-exchange-sha1",
+          "diffie-hellman-group-exchange-sha256",
+          "diffie-hellman-group14-sha1",
+          "diffie-hellman-group14-sha256",
+          "ecdh-sha2-nistp256",
+          "curve25519-sha256",
+        ],
+        cipher: ["aes128-cbc", "aes256-cbc", "3des-cbc", "aes128-ctr", "aes256-ctr", "aes192-cbc", "aes192-ctr"],
+        serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256", "rsa-sha2-512"],
+        hmac: ["hmac-sha1", "hmac-sha2-256", "hmac-sha1-96", "hmac-md5"],
       },
     });
   });
