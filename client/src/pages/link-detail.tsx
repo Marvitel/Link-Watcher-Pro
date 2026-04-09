@@ -2029,8 +2029,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   // Formata IP para URL (adiciona colchetes se for IPv6)
   const formatIpForUrl = (ip: string): string => {
-    const isIPv6 = ip.includes(':') && !ip.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
-    return isIPv6 ? `[${ip.replace(/^\[|\]$/g, '')}]` : ip;
+    const t = ip.trim();
+    const isIPv6 = t.includes(':') && !t.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/);
+    return isIPv6 ? `[${t.replace(/^\[|\]$/g, '')}]` : t;
   };
 
   const openWeb = (ip: string, port: number = 80, protocol: string = "http") => {
@@ -2478,7 +2479,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWebFig(cpe.ip, cpeWebPort, cpeWebProtocol)}
+                                onClick={() => cpe.ip && openWebFig(cpe.ip, (cpe as any).webPort || 80, (cpe as any).webProtocol || "http")}
                                 data-testid={`button-webfig-cpe-${cpe.id}`}
                               >
                                 <Globe className="w-3.5 h-3.5 mr-1" />
@@ -2493,7 +2494,7 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
                                 size="sm"
                                 variant="outline"
                                 disabled={!cpe.available}
-                                onClick={() => cpe.ip && openWinbox(cpe.ip, cpeWinboxPort)}
+                                onClick={() => cpe.ip && openWinbox(cpe.ip, (cpe as any).winboxPort || 8291)}
                                 data-testid={`button-winbox-cpe-${cpe.id}`}
                               >
                                 <Network className="w-3.5 h-3.5 mr-1" />
