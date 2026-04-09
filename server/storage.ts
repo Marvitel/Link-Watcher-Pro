@@ -3056,10 +3056,19 @@ export class DatabaseStorage {
     return backup;
   }
 
-  async getCpeBackups(cpeId: number, limit: number = 20): Promise<CpeBackup[]> {
+  async getCpeBackups(cpeId: number, limit: number = 20, linkCpeId?: number): Promise<CpeBackup[]> {
+    // Se linkCpeId fornecido: mostra backups desta associação link-CPE específica
+    // + backups automáticos (scheduler) do mesmo CPE físico (sem linkCpeId)
+    const condition = linkCpeId != null
+      ? and(
+          eq(cpeBackups.cpeId, cpeId),
+          or(eq(cpeBackups.linkCpeId, linkCpeId), isNull(cpeBackups.linkCpeId))
+        )
+      : eq(cpeBackups.cpeId, cpeId);
+
     return await db.select()
       .from(cpeBackups)
-      .where(eq(cpeBackups.cpeId, cpeId))
+      .where(condition)
       .orderBy(desc(cpeBackups.createdAt))
       .limit(limit);
   }

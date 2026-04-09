@@ -4875,7 +4875,8 @@ export async function registerRoutes(
     try {
       const cpeId = parseInt(req.params.cpeId, 10);
       if (isNaN(cpeId)) return res.status(400).json({ error: "ID inválido" });
-      const backups = await storage.getCpeBackups(cpeId, 20);
+      const linkCpeId = req.query.linkCpeId ? parseInt(req.query.linkCpeId as string, 10) : undefined;
+      const backups = await storage.getCpeBackups(cpeId, 20, linkCpeId && !isNaN(linkCpeId) ? linkCpeId : undefined);
       res.json(backups);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -230,9 +230,12 @@ export function CpeBackupDialog({
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const backupsQuery = useQuery<CpeBackup[]>({
-    queryKey: ["/api/cpe", cpeId, "backups"],
+    queryKey: ["/api/cpe", cpeId, "backups", linkCpeId],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/cpe/${cpeId}/backups`);
+      const url = linkCpeId
+        ? `/api/cpe/${cpeId}/backups?linkCpeId=${linkCpeId}`
+        : `/api/cpe/${cpeId}/backups`;
+      const res = await apiRequest("GET", url);
       return res.json();
     },
     enabled: open,
@@ -250,7 +253,7 @@ export function CpeBackupDialog({
     },
     onSuccess: (data) => {
       toast({ title: "Backup realizado", description: `${formatBytes(data.size)} salvos com sucesso.` });
-      queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
     },
     onError: (err: any) => {
       toast({ variant: "destructive", title: "Falha no backup", description: err.message });
@@ -281,7 +284,7 @@ export function CpeBackupDialog({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cpe", cpeId, "backups", linkCpeId] });
       setDeletingId(null);
     },
     onError: (err: any) => {
