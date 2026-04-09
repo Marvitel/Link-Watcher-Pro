@@ -4836,9 +4836,8 @@ export async function registerRoutes(
       const rawPass = resolvedPass;
       const sshPort = cpe.sshPort || 22;
 
-      // Comando RouterOS para habilitar o serviço www (WebFig) sem restrição de IP de origem
-      // (o CPE é acessível apenas pela rede interna da Marvitel; address="" = libera todos)
-      const command = '/ip service set www disabled=no port=80 address=""';
+      // Comando RouterOS para habilitar o serviço www (WebFig) restrito aos IPs de gerência da Marvitel
+      const command = '/ip service set www disabled=no port=80 address=191.52.254.74/32,191.52.248.26/32,191.52.248.227/32';
 
       const { Client: SSHClient2 } = await import("ssh2");
 
