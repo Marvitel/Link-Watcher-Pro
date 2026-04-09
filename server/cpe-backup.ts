@@ -24,6 +24,7 @@ export async function runMikrotikExport(
   sshUser: string,
   sshPass: string,
 ): Promise<string> {
+  ip = ip.trim();
   const { Client: SSHClient } = await import("ssh2");
 
   return new Promise<string>((resolve, reject) => {
@@ -96,6 +97,7 @@ export async function restoreMikrotikBackup(
   sshPass: string,
   content: string,
 ): Promise<string> {
+  ip = ip.trim();
   const { Client: SSHClient } = await import("ssh2");
 
   return new Promise<string>((resolve, reject) => {

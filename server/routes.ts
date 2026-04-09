@@ -4787,10 +4787,10 @@ export async function registerRoutes(
 
       // Determinar IP efetivo: ipOverride da associação link_cpe ou ipAddress do CPE
       const { linkCpeId } = req.body as { linkCpeId?: number };
-      let ip = cpe.ipAddress;
+      let ip = cpe.ipAddress?.trim() || null;
       if (linkCpeId) {
         const linkCpe = await storage.getLinkCpe(linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
@@ -4906,10 +4906,10 @@ export async function registerRoutes(
       };
 
       // Resolver IP efetivo
-      let ip = cpe.ipAddress;
+      let ip = cpe.ipAddress?.trim() || null;
       if (linkCpeId) {
         const linkCpe = await storage.getLinkCpe(linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
@@ -4995,10 +4995,10 @@ export async function registerRoutes(
         sshPassword?: string;
       };
 
-      let ip = cpe.ipAddress;
+      let ip = cpe.ipAddress?.trim() || null;
       if (backup.linkCpeId) {
         const linkCpe = await storage.getLinkCpe(backup.linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride;
+        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
