@@ -10335,6 +10335,115 @@ export async function registerRoutes(
     }
   });
 
+  // ── SNMP Full Walk — walk completo de qualquer OID em uma OLT/switch ──────
+  app.get("/api/admin/olt/:oltId/snmp-walk", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const oltId = parseInt(req.params.oltId, 10);
+      if (isNaN(oltId)) return res.status(400).json({ error: "OLT ID inválido" });
+
+      const olt = await db.select().from(olts).where(eq(olts.id, oltId)).limit(1);
+      if (olt.length === 0) return res.status(404).json({ error: "OLT não encontrada" });
+      const oltData = olt[0];
+
+      if (!oltData.snmpProfileId) return res.status(400).json({ error: "OLT sem perfil SNMP" });
+      const profiles = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, oltData.snmpProfileId)).limit(1);
+      if (profiles.length === 0) return res.status(400).json({ error: "Perfil SNMP não encontrado" });
+      const profile = profiles[0];
+
+      const baseOid = (req.query.oid as string) || "1.3.6.1.4.1.3709.3.6.2.1.1.22";
+      const maxEntries = Math.min(parseInt((req.query.limit as string) || "500", 10), 2000);
+      const decodeIndex = req.query.decode !== "false"; // decodifica slot/port/onu por padrão
+
+      const snmpLib = await import("net-snmp");
+      const snmpVer = (profile.version || "2c").replace("v", "").toLowerCase();
+      const snmpVersion = snmpVer === "1" ? 0 : 1;
+      const session = snmpLib.default.createSession(oltData.ipAddress, profile.community || "public", {
+        port: profile.port || 161, timeout: 10000, retries: 1, version: snmpVersion,
+      });
+
+      const entries: any[] = [];
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => { try { session.close(); } catch {} resolve(); }, 30000);
+        session.subtree(baseOid, 20, (varbinds: any[]) => {
+          for (const vb of varbinds) {
+            if (entries.length >= maxEntries) break;
+            const oidStr: string = vb.oid;
+            let rawVal: any = vb.value;
+            let numVal: number | null = null;
+            let strVal: string | null = null;
+            if (typeof rawVal === 'number') {
+              numVal = rawVal;
+            } else if (Buffer.isBuffer(rawVal)) {
+              // Tentar como número primeiro, depois como string
+              const asInt = parseInt(rawVal.toString(), 10);
+              if (!isNaN(asInt)) numVal = asInt;
+              else strVal = rawVal.toString('hex');
+            } else if (typeof rawVal === 'string') {
+              strVal = rawVal;
+            }
+
+            const entry: any = { oid: oidStr };
+            if (numVal !== null) entry.raw = numVal;
+            if (strVal !== null) entry.str = strVal;
+
+            // Decodificar índice final como slot/port/onu (Datacom)
+            if (decodeIndex && oltData.vendor?.toLowerCase().includes('datacom')) {
+              const lastPart = oidStr.split('.').pop();
+              if (lastPart) {
+                const idx = parseInt(lastPart);
+                if (!isNaN(idx) && idx > 16000000) {
+                  const slot = Math.floor(idx / 16777216);
+                  const rem = idx % 16777216;
+                  const portSNMP = Math.floor(rem / 256);   // 0-indexed
+                  const onuSNMP = rem % 256;
+                  entry.decoded = { idx, slot, portSNMP, portCLI: portSNMP + 1, onuSNMP };
+                  if (numVal !== null) {
+                    const dBm = Math.abs(numVal) > 100 ? numVal / 100 : numVal;
+                    if (!isNaN(dBm) && dBm !== 0 && dBm >= -50 && dBm <= 10) {
+                      entry.dBm = Math.round(dBm * 10) / 10;
+                    }
+                  }
+                }
+              }
+            }
+            entries.push(entry);
+          }
+        }, (_err: any) => {
+          clearTimeout(timer);
+          try { session.close(); } catch {}
+          resolve();
+        });
+      });
+
+      // Agrupar por port (se Datacom)
+      let portSummary: Record<string, any[]> | null = null;
+      if (decodeIndex && oltData.vendor?.toLowerCase().includes('datacom')) {
+        portSummary = {};
+        for (const e of entries) {
+          if (e.decoded) {
+            const key = `port_${e.decoded.portCLI}`;
+            if (!portSummary[key]) portSummary[key] = [];
+            portSummary[key].push({ onuSNMP: e.decoded.onuSNMP, idx: e.decoded.idx, dBm: e.dBm ?? null });
+          }
+        }
+      }
+
+      return res.json({
+        oltName: oltData.name,
+        oltIp: oltData.ipAddress,
+        vendor: oltData.vendor,
+        baseOid,
+        maxEntries,
+        entriesFound: entries.length,
+        portSummary,
+        entries,
+      });
+    } catch (err: any) {
+      console.error("[SNMP Walk]", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/admin/diagnostics/link/:linkId/traffic-test", requireDiagnosticsAccess, async (req, res) => {
     try {
       const linkId = parseInt(req.params.linkId, 10);
