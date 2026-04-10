@@ -822,11 +822,11 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     case 'datacom-dm4610':
     case 'datacom-dm4615':
       // Datacom DM4610/DM4615: fórmula confirmada via snmpwalk em produção
-      // Índice = (slot * 16777216) + (onuId * 256) + (port - 1)
-      // Onde slot=1 (fixo para DM4610), port=porta PON (1-8), onuId=ID da ONU (0-127)
-      // IMPORTANTE: port e onuId estão invertidos na fórmula!
-      // port usa base 1 na CLI mas base 0 no índice, por isso (port - 1)
-      const datacomIndex = (slot * 16777216) + (onuId * 256) + (port - 1);
+      // Índice = (slot * 16777216) + ((port - 1) * 256) + onuId
+      // Onde slot=1 (fixo para DM4610), port=porta PON 1-indexed na CLI/BD, onuId=ID da ONU (0-indexed)
+      // Confirmado pelo walk: índice 16777472 = slot=1, port=2 (port-1=1), onu=0
+      //                       índice 16777475 = slot=1, port=2 (port-1=1), onu=3
+      const datacomIndex = (slot * 16777216) + ((port - 1) * 256) + onuId;
       return datacomIndex.toString();
     
     case 'furukawa':
