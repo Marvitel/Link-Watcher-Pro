@@ -4845,7 +4845,7 @@ export async function registerRoutes(
         new Promise<string>((resolve, reject) => {
           const client = new SSHClient2();
           let out = "";
-          const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 25000);
+          const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 35000);
 
           client.on("ready", () => {
             client.exec(command, (err: any, stream: any) => {
