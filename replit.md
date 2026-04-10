@@ -46,11 +46,14 @@ Per-link optical signal monitoring is provided through a cascading fallback mech
 This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) and defines thresholds for signal levels, detecting optical signal deltas. Cisco Nexus SFP optical sensors are automatically discovered.
 
 #### Datacom SNMP Quirks (confirmados em produção)
-- **Fórmula de índice**: `(slot × 16777216) + ((port-1) × 256) + onuId` — port é 1-indexed no BD, onuId é o **ID interno SNMP** (NÃO o ID CLI da OLT)
+- **Fórmula de índice DEFINITIVA**: `(slot × 16777216) + (portCLI × 256) + snmpOnuId`
+  - `portCLI`: número da porta PON exatamente como na CLI e no BD (1-indexed, **SEM** subtrair 1)
+  - `snmpOnuId`: ID interno sequencial de registro no MIB — campo `onuId` no BD (NÃO o ID CLI)
+  - Confirmado empiricamente: port=8, snmpOnuId=6 → índice 16779270 → "-26.38" dBm (ONU CLI 53, XPON22050984) ✓
 - **ID interno ≠ ID CLI**: A Datacom usa IDs de registro sequenciais internos no MIB. O campo `onuId` no banco deve conter o ID interno SNMP (ex: 2, 4, 6), não o ID que aparece na CLI da OLT (ex: 14, 15, 53)
 - **Valores em STRING**: O MIB retorna potência como STRING ("-20.61") e não como INTEGER — o código usa `parseFloat` para preservar o decimal
-- **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) não aparecem no MIB SNMP da Datacom mesmo com `snmp enable` configurado na ONU. Dados ópticos só disponíveis via CLI. Para esses links, desabilitar coleta SNMP e usar Zabbix como fallback
-- **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico de mapeamento de índices
+- **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) **SIM aparecem no MIB** (contrariando crença anterior) — confirmado: ONU 53 (XPON22050984) retorna -26.38 dBm via SNMP. A chave é ter o `snmpOnuId` correto no BD
+- **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico de mapeamento de índices. Use-o para descobrir o `snmpOnuId` de cada ONU (decodificar: `(índice - slot×16777216 - portCLI×256)` = snmpOnuId)
 
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
