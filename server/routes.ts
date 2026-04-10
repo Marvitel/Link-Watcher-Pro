@@ -9966,30 +9966,39 @@ export async function registerRoutes(
                 : "Nenhuma entrada encontrada — OID base inválido ou OLT sem ONUs nessa porta",
             };
 
-            // Walk direcionado: a partir do índice base do port esperado
-            // Isso garante ver o que existe no port específico independente do volume total
+            // Walk direcionado: filtra entradas do walk global pela faixa de índices do port esperado
+            // (mais confiável que um subtree walk com OID folha, que retorna zero entradas)
             if (onuIndex) {
               const { calculateOnuSnmpIndex } = await import("./snmp");
-              // Calcular o índice base do port (onuId=0) para começar o walk direcionado
               const basePortIndex = calculateOnuSnmpIndex(oltData.vendor, { ...onuParams, onuId: 0 });
               if (basePortIndex) {
-                const targetedOid = `${rxOid}.${basePortIndex}`;
-                const targetedEntries = await doWalk(targetedOid, 30);
+                const baseNum = parseInt(basePortIndex);
                 const expectedOid = `${rxOid}.${onuIndex}`;
-                const found = targetedEntries.some(e => e.oid === expectedOid);
+                // Filtrar entradas do walk global que estão na faixa [basePortIndex, basePortIndex+255]
+                const portEntries = walkEntries.filter(e => {
+                  const entryIdx = parseInt(e.oid.split('.').pop() || '0');
+                  return entryIdx >= baseNum && entryIdx <= baseNum + 255;
+                });
+                const found = portEntries.some(e => e.oid === expectedOid);
+                const portCoveredByWalk = walkEntries.some(e => {
+                  const entryIdx = parseInt(e.oid.split('.').pop() || '0');
+                  return entryIdx >= baseNum - 256 && entryIdx <= baseNum + 511;
+                });
                 results.targetedWalk = {
-                  startOid: targetedOid,
                   basePortIndex,
                   expectedIndex: onuIndex,
                   expectedOid,
                   foundExpectedIndex: found,
-                  entriesFound: targetedEntries.length,
-                  entries: targetedEntries,
+                  portCoveredByGlobalWalk: portCoveredByWalk,
+                  entriesOnPort: portEntries.length,
+                  entries: portEntries,
                   diagnosis: found
                     ? `ONU encontrada no índice ${onuIndex} — índice correto, verificar valor retornado`
-                    : targetedEntries.length === 0
-                      ? `Nenhuma ONU encontrada no port ${onuParams.port} — verifique se portOlt=${onuParams.port} está correto`
-                      : `ONUs encontradas no port ${onuParams.port} mas não no índice ${onuIndex} — onuId=${onuParams.onuId} pode estar errado. ONUs presentes: ${targetedEntries.map(e => e.oid.split('.').pop()).join(', ')}`,
+                    : !portCoveredByWalk
+                      ? `Port ${onuParams.port} fora do alcance do walk global (100 entradas) — OLT tem muitas ONUs. Índice esperado: ${onuIndex}`
+                      : portEntries.length === 0
+                        ? `Nenhuma ONU encontrada no port ${onuParams.port} — verifique se portOlt=${onuParams.port} está correto`
+                        : `ONUs presentes no port ${onuParams.port} mas não onuId=${onuParams.onuId}. Índices encontrados: ${portEntries.map(e => ({ idx: e.oid.split('.').pop(), dBm: e.dBm }))}`,
                 };
               }
             }
