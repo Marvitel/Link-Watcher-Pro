@@ -13,6 +13,10 @@ import { wanguardService } from "./wanguard";
 
 const execAsync = promisify(exec);
 
+// Período de carência após reinício do servidor (previne falsos negativos em deploys)
+const SERVER_START_TIME = Date.now();
+const STARTUP_GRACE_PERIOD_MS = 3 * 60 * 1000; // 3 minutos
+
 // Cache de IPs em blacklist por linkId - carregado uma vez por ciclo de monitoramento
 let blacklistCache: Map<number, { ip: string; isListed: boolean }[]> = new Map();
 
@@ -2908,6 +2912,17 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
 
     const previousStatus = link.status;
     const newStatus = collectedMetrics.status;
+
+    // Período de carência: suprime transições negativas nos primeiros 3 min após reinício
+    // Previne falsos negativos causados por deploys/restarts do servidor
+    const isNegativeTransition =
+      (newStatus === 'offline' && previousStatus !== 'offline') ||
+      (newStatus === 'degraded' && previousStatus === 'operational');
+    const withinStartupGrace = (Date.now() - SERVER_START_TIME) < STARTUP_GRACE_PERIOD_MS;
+    const suppressTransition = withinStartupGrace && isNegativeTransition;
+    if (suppressTransition) {
+      console.log(`[Monitor] ${link.name}: Startup grace period active — suppressing ${previousStatus}→${newStatus} transition (${Math.round((Date.now() - SERVER_START_TIME) / 1000)}s after start)`);
+    }
     
     // Helper function to enrich with OLT diagnosis
     const enrichWithOltDiagnosis = async (): Promise<string> => {
@@ -3012,8 +3027,8 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     
     const isContractBlocked = link.contractStatus === "blocked" || link.contractStatus === "cancelled";
 
-    // Create event on status change (skip for blocked/cancelled contracts)
-    if (previousStatus !== newStatus && !isContractBlocked) {
+    // Create event on status change (skip for blocked/cancelled contracts and startup grace period)
+    if (previousStatus !== newStatus && !isContractBlocked && !suppressTransition) {
       const eventConfig = getStatusChangeEvent(previousStatus, newStatus, link.name, safeLatency, safePacketLoss);
       if (eventConfig) {
         let eventDescription = eventConfig.description + diagnosisSuffix;
@@ -3253,14 +3268,15 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     // Determine final failureReason and failureSource
     let finalFailureReason: string | null = null;
     let finalFailureSource: string | null = null;
-    let finalStatus = collectedMetrics.status;
+    // Durante o período de carência, preservar o status anterior no BD para evitar falsos negativos
+    let finalStatus = suppressTransition ? previousStatus : collectedMetrics.status;
     
     // Check if link has IPs currently listed in blacklist (from cached data)
     // This uses the cache loaded once per monitoring cycle for performance
     const cachedBlacklistIps = blacklistCache.get(link.id) || [];
     const hasBlacklistedIps = cachedBlacklistIps.length > 0;
     
-    if (collectedMetrics.status === 'offline') {
+    if (collectedMetrics.status === 'offline' && !suppressTransition) {
       if (hasOltDiagnosisFromCache && cached.failureReason) {
         finalFailureReason = cached.failureReason;
         finalFailureSource = 'olt';
@@ -3272,7 +3288,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
         finalFailureReason = collectedMetrics.failureReason;
         finalFailureSource = 'monitoring';
       }
-    } else if (collectedMetrics.status === 'degraded') {
+    } else if (collectedMetrics.status === 'degraded' && !suppressTransition) {
       // For degraded status, use monitoring-derived reason (e.g., packet_loss)
       finalFailureReason = collectedMetrics.failureReason;
       finalFailureSource = collectedMetrics.failureReason ? 'monitoring' : null;
