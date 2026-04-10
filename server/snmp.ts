@@ -821,15 +821,16 @@ export function calculateOnuSnmpIndex(vendorSlug: string, params: OnuParams): st
     case 'datacom':
     case 'datacom-dm4610':
     case 'datacom-dm4615':
-      // Datacom DM4610/DM4615: fórmula DEFINITIVA confirmada via snmpwalk completo em produção
-      // Índice = (slot * 16777216) + (portCLI * 256) + snmpOnuId
-      // - portCLI: número da porta PON exatamente como na CLI e no BD (1-indexed, SEM subtrair 1)
-      // - snmpOnuId: ID interno sequencial de registro no MIB (≠ ID CLI); campo onuId no BD
-      // Confirmado empiricamente:
-      //   port=8, snmpOnuId=6 → 16777216 + 8×256 + 6 = 16779270 → "-26.38" dBm (ONU 53 CLI, ODI XPON22050984) ✓
-      //   port=1, snmpOnuId=0 → 16777216 + 1×256 + 0 = 16777472 ✓
-      //   port=2, snmpOnuId=1 → 16777216 + 2×256 + 1 = 16777729 ✓
-      const datacomIndex = (slot * 16777216) + (port * 256) + onuId;
+      // Datacom DM4610/DM4615: fórmula DEFINITIVA confirmada empiricamente em produção
+      // Índice = (slot * 16777216) + (onuId * 256) + (portCLI - 1)
+      // - onuId: ID da ONU exatamente como na CLI e no BD (ex: 14, 53) — NÃO é ID interno SNMP
+      // - portCLI: porta PON 1-indexed (subtrai 1 para portIndex 0-based)
+      // Confirmado:
+      //   onuId=14, port=8 → 16777216 + 14×256 + 7 = 16780807 → "-22.44" dBm ✓
+      //   onuId=53, port=8 → 16777216 + 53×256 + 7 = 16790791 → "-26.38" dBm ✓
+      //   onuId=51, port=8 → 16777216 + 51×256 + 7 = 16790279 → "-20.27" dBm ✓
+      //   onuId=52, port=8 → 16777216 + 52×256 + 7 = 16790535 → "-18.18" dBm ✓
+      const datacomIndex = (slot * 16777216) + (onuId * 256) + (port - 1);
       return datacomIndex.toString();
     
     case 'furukawa':

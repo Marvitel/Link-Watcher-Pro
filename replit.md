@@ -46,14 +46,13 @@ Per-link optical signal monitoring is provided through a cascading fallback mech
 This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) and defines thresholds for signal levels, detecting optical signal deltas. Cisco Nexus SFP optical sensors are automatically discovered.
 
 #### Datacom SNMP Quirks (confirmados em produção)
-- **Fórmula de índice DEFINITIVA**: `(slot × 16777216) + (portCLI × 256) + snmpOnuId`
-  - `portCLI`: número da porta PON exatamente como na CLI e no BD (1-indexed, **SEM** subtrair 1)
-  - `snmpOnuId`: ID interno sequencial de registro no MIB — campo `onuId` no BD (NÃO o ID CLI)
-  - Confirmado empiricamente: port=8, snmpOnuId=6 → índice 16779270 → "-26.38" dBm (ONU CLI 53, XPON22050984) ✓
-- **ID interno ≠ ID CLI**: A Datacom usa IDs de registro sequenciais internos no MIB. O campo `onuId` no banco deve conter o ID interno SNMP (ex: 2, 4, 6), não o ID que aparece na CLI da OLT (ex: 14, 15, 53)
+- **Fórmula de índice DEFINITIVA**: `(slot × 16777216) + (onuId × 256) + (portCLI - 1)`
+  - `onuId`: ID da ONU **exatamente como na CLI e no BD** — é o mesmo ID CLI (14, 53, etc.), NÃO um ID interno diferente
+  - `portCLI`: porta PON 1-indexed; subtrai-se 1 para obter o portIndex 0-based
+  - Confirmado com múltiplos casos: onuId=14 port=8 → 16780807 → "-22.44" dBm ✓; onuId=53 port=8 → 16790791 → "-26.38" dBm ✓
 - **Valores em STRING**: O MIB retorna potência como STRING ("-20.61") e não como INTEGER — o código usa `parseFloat` para preservar o decimal
-- **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) **SIM aparecem no MIB** (contrariando crença anterior) — confirmado: ONU 53 (XPON22050984) retorna -26.38 dBm via SNMP. A chave é ter o `snmpOnuId` correto no BD
-- **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico de mapeamento de índices. Use-o para descobrir o `snmpOnuId` de cada ONU (decodificar: `(índice - slot×16777216 - portCLI×256)` = snmpOnuId)
+- **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) aparecem normalmente no MIB — confirmado ONU 53 (XPON22050984) com -26.38 dBm via SNMP. Não há limitação especial para esse tipo
+- **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico. Decodificar índice: `onuId = (índice - slot×16777216) ÷ 256` (parte inteira), `portCLI = ((índice - slot×16777216) % 256) + 1`
 
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
