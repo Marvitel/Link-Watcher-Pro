@@ -4845,7 +4845,7 @@ export async function registerRoutes(
         new Promise<string>((resolve, reject) => {
           const client = new SSHClient2();
           let out = "";
-          const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 12000);
+          const timer = setTimeout(() => { client.end(); reject(new Error("Timeout de conexão SSH")); }, 25000);
 
           client.on("ready", () => {
             client.exec(command, (err: any, stream: any) => {
@@ -4863,12 +4863,18 @@ export async function registerRoutes(
             port: sshPort,
             username: user,
             password: pass,
-            readyTimeout: 10000,
+            readyTimeout: 20000,
+            tryKeyboard: true,
             algorithms: {
               kex: ["diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "ecdh-sha2-nistp256", "curve25519-sha256"],
               cipher: ["aes128-ctr", "aes256-ctr", "aes128-cbc", "3des-cbc", "aes256-cbc"],
               serverHostKey: ["ssh-rsa", "ssh-dss", "ecdsa-sha2-nistp256", "rsa-sha2-256"],
+              hmac: ["hmac-sha1", "hmac-sha2-256", "hmac-sha1-96", "hmac-md5"],
             },
+          });
+
+          client.on("keyboard-interactive", (_name: any, _instructions: any, _lang: any, _prompts: any, finish: any) => {
+            finish([pass]);
           });
         });
 
