@@ -9928,28 +9928,35 @@ export async function registerRoutes(
             const snmpLib = await import("net-snmp");
             const snmpVer = (oltProfile.version || "2c").replace("v", "").toLowerCase();
             const snmpVersion = snmpVer === "1" ? 0 : 1;
-            const walkSession = snmpLib.default.createSession(oltData.ipAddress, oltProfile.community || "public", {
-              port: oltProfile.port || 161, timeout: 8000, retries: 1, version: snmpVersion,
-            });
-            const walkEntries: any[] = [];
-            await new Promise<void>((resolve) => {
-              const walkTimeout = setTimeout(() => { try { walkSession.close(); } catch {} resolve(); }, 15000);
-              walkSession.subtree(rxOid!, 20, (varbinds: any[]) => {
-                for (const vb of varbinds) {
-                  if (walkEntries.length >= 30) break;
-                  let rawVal: any = vb.value;
-                  let numVal: number | null = null;
-                  if (typeof rawVal === 'number') numVal = rawVal;
-                  else if (Buffer.isBuffer(rawVal)) numVal = parseInt(rawVal.toString(), 10);
-                  const dBm = numVal !== null && !isNaN(numVal) ? (Math.abs(numVal) > 100 ? numVal / 100 : numVal) : null;
-                  walkEntries.push({ oid: vb.oid, raw: numVal, dBm: dBm !== null ? Math.round(dBm * 10) / 10 : null });
-                }
-              }, (err: any) => {
-                clearTimeout(walkTimeout);
-                try { walkSession.close(); } catch {}
-                resolve();
+
+            const doWalk = (startOid: string, maxEntries: number): Promise<any[]> => {
+              const session = snmpLib.default.createSession(oltData.ipAddress, oltProfile.community || "public", {
+                port: oltProfile.port || 161, timeout: 8000, retries: 1, version: snmpVersion,
               });
-            });
+              const entries: any[] = [];
+              return new Promise<any[]>((resolve) => {
+                const timer = setTimeout(() => { try { session.close(); } catch {} resolve(entries); }, 15000);
+                session.subtree(startOid, 20, (varbinds: any[]) => {
+                  for (const vb of varbinds) {
+                    if (entries.length >= maxEntries) break;
+                    let rawVal: any = vb.value;
+                    let numVal: number | null = null;
+                    if (typeof rawVal === 'number') numVal = rawVal;
+                    else if (Buffer.isBuffer(rawVal)) numVal = parseInt(rawVal.toString(), 10);
+                    const dBm = numVal !== null && !isNaN(numVal) ? (Math.abs(numVal) > 100 ? numVal / 100 : numVal) : null;
+                    entries.push({ oid: vb.oid, raw: numVal, dBm: dBm !== null ? Math.round(dBm * 10) / 10 : null });
+                  }
+                }, (err: any) => {
+                  clearTimeout(timer);
+                  try { session.close(); } catch {}
+                  resolve(entries);
+                });
+              });
+            };
+
+            // Walk global (primeiras 100 entradas da tabela completa)
+            const walkEntries = await doWalk(rxOid!, 100);
+
             results.walkResult = {
               baseOid: rxOid,
               entriesFound: walkEntries.length,
@@ -9958,6 +9965,34 @@ export async function registerRoutes(
                 ? `Índices encontrados: ${walkEntries.slice(0, 5).map(e => e.oid.split('.').slice(-2).join('.')).join(', ')}...`
                 : "Nenhuma entrada encontrada — OID base inválido ou OLT sem ONUs nessa porta",
             };
+
+            // Walk direcionado: a partir do índice base do port esperado
+            // Isso garante ver o que existe no port específico independente do volume total
+            if (onuIndex) {
+              const { calculateOnuSnmpIndex } = await import("./snmp");
+              // Calcular o índice base do port (onuId=0) para começar o walk direcionado
+              const basePortIndex = calculateOnuSnmpIndex(oltData.vendor, { ...onuParams, onuId: 0 });
+              if (basePortIndex) {
+                const targetedOid = `${rxOid}.${basePortIndex}`;
+                const targetedEntries = await doWalk(targetedOid, 30);
+                const expectedOid = `${rxOid}.${onuIndex}`;
+                const found = targetedEntries.some(e => e.oid === expectedOid);
+                results.targetedWalk = {
+                  startOid: targetedOid,
+                  basePortIndex,
+                  expectedIndex: onuIndex,
+                  expectedOid,
+                  foundExpectedIndex: found,
+                  entriesFound: targetedEntries.length,
+                  entries: targetedEntries,
+                  diagnosis: found
+                    ? `ONU encontrada no índice ${onuIndex} — índice correto, verificar valor retornado`
+                    : targetedEntries.length === 0
+                      ? `Nenhuma ONU encontrada no port ${onuParams.port} — verifique se portOlt=${onuParams.port} está correto`
+                      : `ONUs encontradas no port ${onuParams.port} mas não no índice ${onuIndex} — onuId=${onuParams.onuId} pode estar errado. ONUs presentes: ${targetedEntries.map(e => e.oid.split('.').pop()).join(', ')}`,
+                };
+              }
+            }
           } catch (walkErr: any) {
             results.walkResult = { error: walkErr.message };
           }
