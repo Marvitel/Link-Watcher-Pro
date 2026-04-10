@@ -45,6 +45,13 @@ Per-link optical signal monitoring is provided through a cascading fallback mech
 3.  **Flashman ACS** (fallback for neutral networks)
 This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) and defines thresholds for signal levels, detecting optical signal deltas. Cisco Nexus SFP optical sensors are automatically discovered.
 
+#### Datacom SNMP Quirks (confirmados em produção)
+- **Fórmula de índice**: `(slot × 16777216) + ((port-1) × 256) + onuId` — port é 1-indexed no BD, onuId é o **ID interno SNMP** (NÃO o ID CLI da OLT)
+- **ID interno ≠ ID CLI**: A Datacom usa IDs de registro sequenciais internos no MIB. O campo `onuId` no banco deve conter o ID interno SNMP (ex: 2, 4, 6), não o ID que aparece na CLI da OLT (ex: 14, 15, 53)
+- **Valores em STRING**: O MIB retorna potência como STRING ("-20.61") e não como INTEGER — o código usa `parseFloat` para preservar o decimal
+- **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) não aparecem no MIB SNMP da Datacom mesmo com `snmp enable` configurado na ONU. Dados ópticos só disponíveis via CLI. Para esses links, desabilitar coleta SNMP e usar Zabbix como fallback
+- **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico de mapeamento de índices
+
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
 

@@ -9942,7 +9942,7 @@ export async function registerRoutes(
                     let rawVal: any = vb.value;
                     let numVal: number | null = null;
                     if (typeof rawVal === 'number') numVal = rawVal;
-                    else if (Buffer.isBuffer(rawVal)) numVal = parseInt(rawVal.toString(), 10);
+                    else if (Buffer.isBuffer(rawVal)) numVal = parseFloat(rawVal.toString().trim());
                     const dBm = numVal !== null && !isNaN(numVal) ? (Math.abs(numVal) > 100 ? numVal / 100 : numVal) : null;
                     entries.push({ oid: vb.oid, raw: numVal, dBm: dBm !== null ? Math.round(dBm * 10) / 10 : null });
                   }
@@ -10374,9 +10374,9 @@ export async function registerRoutes(
             if (typeof rawVal === 'number') {
               numVal = rawVal;
             } else if (Buffer.isBuffer(rawVal)) {
-              // Tentar como número primeiro, depois como string
-              const asInt = parseInt(rawVal.toString(), 10);
-              if (!isNaN(asInt)) numVal = asInt;
+              // Datacom retorna STRING ("-20.61") — usar parseFloat para preservar decimal
+              const asFloat = parseFloat(rawVal.toString().trim());
+              if (!isNaN(asFloat)) numVal = asFloat;
               else strVal = rawVal.toString('hex');
             } else if (typeof rawVal === 'string') {
               strVal = rawVal;

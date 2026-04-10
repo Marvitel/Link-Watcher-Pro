@@ -995,9 +995,10 @@ export async function getOpticalSignal(
               if (typeof varbind.value === 'number') {
                 value = varbind.value;
               } else if (Buffer.isBuffer(varbind.value)) {
-                value = parseInt(varbind.value.toString(), 10);
+                // Datacom retorna STRING ("-20.61") — usar parseFloat para preservar decimal
+                value = parseFloat(varbind.value.toString().trim());
               } else {
-                value = parseFloat(String(varbind.value));
+                value = parseFloat(String(varbind.value).trim());
               }
               
               if (!isNaN(value)) {
