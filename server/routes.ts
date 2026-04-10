@@ -1183,15 +1183,6 @@ export async function registerRoutes(
         await storage.resolveBlacklistEvents(linkId);
         console.log(`[Link] IP block changed for link ${linkId}: "${oldIpBlock}" -> "${newIpBlock}", cleared blacklist checks and resolved events`);
         
-        // If link was degraded due to blacklist, reset to operational
-        if (updatedLink?.status === 'degraded' && updatedLink?.failureSource === 'blacklist') {
-          await db.update(links).set({
-            status: 'operational',
-            failureReason: null,
-            failureSource: null
-          }).where(eq(links.id, linkId));
-          console.log(`[Link] Reset link ${linkId} status from blacklist-degraded to operational`);
-        }
         
         // If new IP block is not empty, trigger blacklist check for new IPs
         if (newIpBlock && updatedLink) {

@@ -3260,9 +3260,6 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     const cachedBlacklistIps = blacklistCache.get(link.id) || [];
     const hasBlacklistedIps = cachedBlacklistIps.length > 0;
     
-    // Check if link is currently degraded due to blacklist - preserve this status
-    const isBlacklistDegraded = link.status === 'degraded' && link.failureSource === 'blacklist';
-    
     if (collectedMetrics.status === 'offline') {
       if (hasOltDiagnosisFromCache && cached.failureReason) {
         finalFailureReason = cached.failureReason;
@@ -3279,19 +3276,9 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       // For degraded status, use monitoring-derived reason (e.g., packet_loss)
       finalFailureReason = collectedMetrics.failureReason;
       finalFailureSource = collectedMetrics.failureReason ? 'monitoring' : null;
-    } else if (collectedMetrics.status === 'operational' && (isBlacklistDegraded || hasBlacklistedIps)) {
-      // FORCE/PRESERVE blacklist degraded status - don't override with operational
-      // This ensures links with blacklisted IPs always show as degraded
-      finalStatus = 'degraded';
-      if (hasBlacklistedIps) {
-        const listedIps = cachedBlacklistIps.map(c => c.ip).join(', ');
-        finalFailureReason = `IP(s) em blacklist: ${listedIps}`;
-      } else {
-        finalFailureReason = link.failureReason;
-      }
-      finalFailureSource = 'blacklist';
     }
-    // For operational status (without blacklist), both remain null (no failure)
+    // Blacklist não altera o status do link — avisos são exibidos na aba Blacklist sem impactar o status
+    // For operational status, both remain null (no failure)
     
     // Build update object
     const updateData: Record<string, any> = {
