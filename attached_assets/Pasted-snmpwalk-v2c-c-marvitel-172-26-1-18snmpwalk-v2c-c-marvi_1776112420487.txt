@@ -1,0 +1,20 @@
+snmpwalk -v2c -c marvitel 172.26.1.18snmpwalk -v2c -c marvitel 172.26.1.186 1.3.6.1.4.1.3709.3.6.2.1.1.22 2>/dev/null | grep "\-25\."
+iso.3.6.1.4.1.3709.3.6.2.1.1.22.16777985 = STRING: "-25.89"
+iso.3.6.1.4.1.3709.3.6.2.1.1.22.16780288 = STRING: "-25.69"
+iso.3.6.1.4.1.3709.3.6.2.1.1.22.16782853 = STRING: "-25.38"
+iso.3.6.1.4.1.3709.3.6.2.1.1.22.16783109 = STRING: "-25.53"
+iso.3.6.1.4.1.3709.3.6.2.1.1.22.16784133 = STRING: "-25.69"
+root@link-monitor:/opt/link-monitor# abr 13 17:33:26 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:33:26 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:33:26 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:33:26 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.68dBm TX=2.58dBm OLT_RX=-40dBm
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.68dBm TX=2.58dBm OLT_RX=-40dBm
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (100.2% usage)
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=0.8ms, loss=0.0%, status=operational
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (100.2% usage)
+abr 13 17:33:27 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=0.8ms, loss=0.0%, status=operational
