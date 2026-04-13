@@ -3586,7 +3586,18 @@ export async function collectAllLinksMetrics(): Promise<void> {
     const startTime = Date.now();
     console.log(`[Monitor] Starting parallel collection for ${enabledLinks.length} links (${workers} workers)`);
     
-    const results = await runWithConcurrencyLimit(enabledLinks, workers, processLinkMetrics);
+    const results = await runWithConcurrencyLimit(enabledLinks, workers, async (link) => {
+      // Se o fast-poll já está coletando este link, pular para evitar coleta dupla e eventos duplicados
+      if (fastCollecting.has(link.id)) {
+        return true;
+      }
+      fastCollecting.add(link.id);
+      try {
+        return await processLinkMetrics(link);
+      } finally {
+        fastCollecting.delete(link.id);
+      }
+    });
     
     const successful = results.filter(r => r === true).length;
     const failed = results.filter(r => r === false || r === null).length;

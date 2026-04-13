@@ -1,0 +1,54 @@
+corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40dBm
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Auto-resolved 1 status events (link fully normal)
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40dBm
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Auto-resolved 1 status events (link fully normal)
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (101.5% usage)
+abr 13 17:27:11 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (101.5% usage)
+abr 13 17:27:12 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=1.1ms, loss=0.0%, status=operational
+abr 13 17:27:12 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=1.1ms, loss=0.0%, status=operational
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: 14 elementos na rota
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: 14 elementos na rota
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 2
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 5
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 169, Porta: 2
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 2
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Salvo - Splitter: CEO MVT 169, Porta: 2, Potência: -21.570754194396343
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 5
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 169, Porta: 2
+abr 13 17:27:16 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Salvo - Splitter: CEO MVT 169, Porta: 2, Potência: -21.570754194396343
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: 14 elementos na rota
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: 14 elementos na rota
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 2
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 2
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 5
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 167, Porta: 5
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 169, Porta: 2
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Splitter: CEO MVT 169, Porta: 2
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Salvo - Splitter: CEO MVT 169, Porta: 2, Potência: -21.570754194396343
+abr 13 17:27:18 link-monitor npm[682156]: [OZmap Auto-Sync] Link PRIME-OFFICE-ARACAJU: Salvo - Splitter: CEO MVT 169, Porta: 2, Potência: -21.570754194396343
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: ifIndex 143 verified OK - "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU" matches "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU"
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: ifIndex 143 verified OK - "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU" matches "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU"
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40dBm
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40dBm
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Auto-resolved 1 status events (link fully normal)
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Auto-resolved 1 status events (link fully normal)
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (100.7% usage)
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: Created congestion event (100.7% usage)
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=1.6ms, loss=0.0%, status=operational
+abr 13 17:27:36 link-monitor npm[682156]: [Monitor] PRIME-OFFICE-ARACAJU: lat=1.6ms, loss=0.0%, status=operational
