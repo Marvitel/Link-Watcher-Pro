@@ -1984,15 +1984,17 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
     // Use concentrator for traffic collection when concentratorId is set
     // This handles both trafficSourceType='concentrator' and 'manual' with concentrator
     // Cisco Vi interfaces (Vi1.x) exist on the concentrator, not the CPE
+    // Corporate links with vlanInterface (BDI) also live on the concentrator, not the CPE
     const concentrator = await getConcentrator(link.concentratorId);
     if (concentrator) {
       const isCiscoViInterface = /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '');
-      if (isCiscoViInterface || link.trafficSourceType === 'concentrator') {
+      const isCorporateVlan = link.authType === 'corporate' && !!link.vlanInterface && link.trafficSourceType !== 'manual';
+      if (isCiscoViInterface || link.trafficSourceType === 'concentrator' || isCorporateVlan) {
         trafficSourceIp = concentrator.ipAddress;
         if (concentrator.snmpProfileId) {
           trafficSourceProfileId = concentrator.snmpProfileId;
         }
-        console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection (Cisco Vi=${isCiscoViInterface}, sourceType=${link.trafficSourceType}). IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
+        console.log(`[Monitor] ${link.name}: Using concentrator (${concentrator.name}) for traffic collection (CiscoVi=${isCiscoViInterface}, corporate=${isCorporateVlan}, sourceType=${link.trafficSourceType}). IP: ${trafficSourceIp}, ifIndex: ${trafficSourceIfIndex}, profileId: ${trafficSourceProfileId}`);
       }
     }
   }
