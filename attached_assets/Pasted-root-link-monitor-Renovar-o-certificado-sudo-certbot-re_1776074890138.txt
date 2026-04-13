@@ -1,0 +1,38 @@
+root@link-monitor:~# # Renovar o certificado
+sudo certbot renew --force-renewal
+
+# Depois recarregar o Nginx
+sudo systemctl reload nginx
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Processing /etc/letsencrypt/renewal/linkmonitor.marvitel.com.br.conf
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Renewing an existing certificate for linkmonitor.marvitel.com.br
+Failed to renew certificate linkmonitor.marvitel.com.br with error: Could not bind TCP port 80 because it is already in use by another process on this system (such as a web server). Please stop the program in question and then try again.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+All renewals failed. The following certificates could not be renewed:
+  /etc/letsencrypt/live/linkmonitor.marvitel.com.br/fullchain.pem (failure)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+1 renew failure(s), 0 parse failure(s)
+Ask for help or search for solutions at https://community.letsencrypt.org. See the logfile /var/log/letsencrypt/letsencrypt.log or re-run Certbot with -v for more details.
+root@link-monitor:~# sudo certbot certonly --nginx -d linkmonitor.marvitel.com.br --force-renewal
+sudo systemctl reload nginx
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+Renewing an existing certificate for linkmonitor.marvitel.com.br
+
+Successfully received certificate.
+Certificate is saved at: /etc/letsencrypt/live/linkmonitor.marvitel.com.br/fullchain.pem
+Key is saved at:         /etc/letsencrypt/live/linkmonitor.marvitel.com.br/privkey.pem
+This certificate expires on 2026-07-12.
+These files will be updated when the certificate renews.
+Certbot has set up a scheduled task to automatically renew this certificate in the background.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+If you like Certbot, please consider supporting our work by:
+ * Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+ * Donating to EFF:                    https://eff.org/donate-le
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+root@link-monitor:~# echo | openssl s_client -connect linkmonitor.marvitel.com.br:443 2>&1 | grep notAfter
+root@link-monitor:~# 
