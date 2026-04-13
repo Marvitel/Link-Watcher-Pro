@@ -2142,14 +2142,25 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" alias "${verification.actualAlias}" matches pppoeUser "${knownAlias}"`);
               }
             } else if (!verification.matches && verification.actualName !== null) {
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch! Expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Clearing ifIndex and forcing immediate auto-discovery.`);
-              trafficDataSuccess = false;
-              previousTrafficData.delete(link.id);
-              trafficSourceIfIndex = null;
-              await db.update(links).set({ 
-                snmpInterfaceIndex: null,
-                ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
-              }).where(eq(links.id, link.id));
+              if (isCiscoViInterface) {
+                // Cisco Vi interfaces: clear immediately — different Vi slots can serve different clients
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch (Cisco Vi)! Expected "${link.snmpInterfaceName}", found "${verification.actualName}". Clearing ifIndex.`);
+                trafficDataSuccess = false;
+                previousTrafficData.delete(link.id);
+                trafficSourceIfIndex = null;
+                await db.update(links).set({ 
+                  snmpInterfaceIndex: null,
+                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
+                }).where(eq(links.id, link.id));
+              } else {
+                // Non-Vi interfaces (BDI, sub-interfaces, GPON VLANs): name mismatch is usually
+                // a format difference (stored alias vs actual ifName). Traffic data IS valid.
+                // Increment mismatch counter but KEEP previousTrafficData so delta can be calculated.
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch (warning) — expected "${link.snmpInterfaceName}", found "${verification.actualName}" (alias: "${verification.actualAlias || 'none'}"). Keeping traffic data and incrementing mismatch counter.`);
+                trafficDataSuccess = false; // will increment mismatch counter via auto-discovery handler
+                // Do NOT delete previousTrafficData — delta calculation must proceed
+                // Do NOT clear snmpInterfaceIndex — let the mismatch threshold decide
+              }
             } else if (verification.matches) {
               console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" matches "${link.snmpInterfaceName}"${verification.actualAlias ? ` (alias: "${verification.actualAlias}")` : ''}`);
             }
