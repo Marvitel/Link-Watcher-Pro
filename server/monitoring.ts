@@ -920,9 +920,18 @@ async function verifyInterfaceAtIndex(
 
         const normalizedExpected = expectedName.toLowerCase().trim();
         const normalizedActual = actualName.toLowerCase().trim();
-        const matches = normalizedActual === normalizedExpected || 
-                       normalizedActual.includes(normalizedExpected) ||
-                       normalizedExpected.includes(normalizedActual);
+        const normalizedAlias = actualAlias ? actualAlias.toLowerCase().trim() : null;
+
+        // Check against ifName/ifDescr AND ifAlias — some links store the alias as snmpInterfaceName
+        // (e.g. Cisco BDI sub-interfaces where description/alias contains the full circuit ID)
+        const nameMatches = normalizedActual === normalizedExpected ||
+                            normalizedActual.includes(normalizedExpected) ||
+                            normalizedExpected.includes(normalizedActual);
+        const aliasMatches = normalizedAlias !== null && (
+                            normalizedAlias === normalizedExpected ||
+                            normalizedAlias.includes(normalizedExpected) ||
+                            normalizedExpected.includes(normalizedAlias));
+        const matches = nameMatches || aliasMatches;
         resolve({ matches, actualName, actualAlias });
       });
 

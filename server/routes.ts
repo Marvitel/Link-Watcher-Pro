@@ -1169,6 +1169,18 @@ export async function registerRoutes(
         }
         console.log(`[Link] Link ${linkId}: Interface manually changed (ifIndex: ${previousLink?.snmpInterfaceIndex} -> ${filteredBody.snmpInterfaceIndex}, name: ${previousLink?.snmpInterfaceName} -> ${filteredBody.snmpInterfaceName}). Reset auto-discovery state.`);
       }
+
+      // When concentrator changes, clear the stored ifIndex — it's from the old concentrator
+      // and will point to a completely different (or nonexistent) interface on the new one.
+      // Auto-discovery will find the correct ifIndex on the new concentrator.
+      const concentratorChanged = 'concentratorId' in filteredBody &&
+        String(filteredBody.concentratorId) !== String(previousLink?.concentratorId);
+      if (concentratorChanged && !interfaceManuallyChanged) {
+        filteredBody.snmpInterfaceIndex = null;
+        filteredBody.ifIndexMismatchCount = 0;
+        filteredBody.lastIfIndexValidation = null;
+        console.log(`[Link] Link ${linkId}: Concentrator changed (${previousLink?.concentratorId} -> ${filteredBody.concentratorId}). Cleared snmpInterfaceIndex to force re-discovery on new concentrator.`);
+      }
       
       await storage.updateLink(linkId, filteredBody);
       const updatedLink = await storage.getLink(linkId);
