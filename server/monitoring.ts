@@ -3340,9 +3340,16 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       updateData.lastFailureSource = link.failureSource;
     }
     
-    await db.update(links).set(updateData).where(eq(links.id, link.id));
+    try {
+      await db.update(links).set(updateData).where(eq(links.id, link.id));
+    } catch (updateErr) {
+      console.error(`[Monitor] CRITICAL: db.update(links) FAILED for ${link.name} (id=${link.id}):`, updateErr);
+      console.error(`[Monitor] updateData keys: ${Object.keys(updateData).join(', ')}`);
+      throw updateErr;
+    }
 
-    await db.insert(metrics).values({
+    try {
+      await db.insert(metrics).values({
       linkId: link.id,
       clientId: link.clientId,
       timestamp: new Date(),
@@ -3361,7 +3368,11 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       opticalStatus: collectedMetrics.opticalSignal 
         ? getOpticalStatus(collectedMetrics.opticalSignal.rxPower, link.opticalRxBaseline, link.opticalDeltaThreshold ?? 3)
         : null,
-    });
+      });
+    } catch (metricsErr) {
+      console.error(`[Monitor] CRITICAL: db.insert(metrics) FAILED for ${link.name} (id=${link.id}):`, metricsErr);
+      throw metricsErr;
+    }
 
     // Coletar métricas de interfaces de tráfego adicionais
     try {

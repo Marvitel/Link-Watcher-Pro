@@ -10585,6 +10585,43 @@ export async function registerRoutes(
     }
   });
 
+  // Verifica colunas faltando no schema do banco de dados (útil para diagnóstico de migração)
+  app.get("/api/admin/diagnostics/schema-check", requireDiagnosticsAccess, async (_req, res) => {
+    try {
+      const expectedColumns: Record<string, string[]> = {
+        links: [
+          "last_failure_reason", "last_failure_source", "monitored_ip_locked",
+          "original_if_name", "snmp_interface_alias", "snmp_interface_descr",
+          "if_index_mismatch_count", "last_if_index_validation",
+          "main_graph_mode", "main_graph_interface_ids",
+          "auth_type", "vlan_interface", "onu_search_string", "onu_id", "slot_olt", "port_olt",
+          "is_l2_link", "access_point_id", "access_point_interface_index",
+          "traffic_source_type", "concentrator_id", "snmp_profile_id",
+        ],
+        events: ["resolved_at"],
+        metrics: ["optical_rx_power", "optical_tx_power", "optical_olt_rx_power", "optical_status"],
+        link_monitoring_state: ["link_id", "packet_loss_window", "packet_loss_avg", "consecutive_loss_breaches", "last_alert_at", "updated_at"],
+      };
+
+      const results: Record<string, { existing: string[]; missing: string[] }> = {};
+
+      for (const [table, cols] of Object.entries(expectedColumns)) {
+        const rows = await db.execute(sql`
+          SELECT column_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = ${table}
+        `);
+        const existing = ((rows as any).rows || []).map((r: any) => r.column_name as string);
+        const missing = cols.filter(c => !existing.includes(c));
+        results[table] = { existing: existing.filter(c => cols.includes(c)), missing };
+      }
+
+      const hasMissing = Object.values(results).some(r => r.missing.length > 0);
+      res.json({ ok: !hasMissing, results });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao verificar schema", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post("/api/admin/diagnostics/reset-metrics", requireDiagnosticsAccess, async (_req, res) => {
     try {
       const { resetMetrics } = await import("./metrics");
