@@ -3212,11 +3212,11 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
           clientId: link.clientId,
           type: eventType,
           title: `Sinal óptico ${statusLabel.toLowerCase()} em ${link.name}`,
-          description: `Potência RX: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm (limite normal: ≥${OPTICAL_THRESHOLDS.rxNormalMin} dBm)`,
+          description: `Potência RX: ${Number(collectedMetrics.opticalSignal.rxPower).toFixed(1)} dBm (limite normal: ≥${OPTICAL_THRESHOLDS.rxNormalMin} dBm)`,
           timestamp: new Date(),
           resolved: false,
         });
-        console.log(`[Monitor] ${link.name}: Created optical signal ${opticalStatus} event (RX: ${collectedMetrics.opticalSignal.rxPower.toFixed(1)} dBm)`);
+        console.log(`[Monitor] ${link.name}: Created optical signal ${opticalStatus} event (RX: ${Number(collectedMetrics.opticalSignal.rxPower).toFixed(1)} dBm)`);
       } else if ((opticalStatus === 'critical' || opticalStatus === 'warning') && (hasRecentOpticalEvent || hasActiveOpticalEvent)) {
         // Suprimiu evento por debounce ou evento ativo existente
         // Não logamos para evitar spam no log

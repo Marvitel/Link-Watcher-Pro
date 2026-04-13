@@ -548,9 +548,11 @@ export async function queryZabbixOpticalMetrics(olt: Olt, serial: string): Promi
     const onu = results[0];
     console.log(`[OLT Zabbix Optical] ONU ${serial} encontrada: RX=${onu.ONURX}dBm TX=${onu.ONUTX}dBm OLT_RX=${onu.OLTRX}dBm`);
 
-    const sanitizeOptical = (val: number | null): number | null => {
-      if (val === null || val === 0) return null;
-      return val;
+    const sanitizeOptical = (val: any): number | null => {
+      if (val === null || val === undefined) return null;
+      const num = typeof val === 'number' ? val : parseFloat(String(val));
+      if (isNaN(num) || num === 0) return null;
+      return num;
     };
 
     return {

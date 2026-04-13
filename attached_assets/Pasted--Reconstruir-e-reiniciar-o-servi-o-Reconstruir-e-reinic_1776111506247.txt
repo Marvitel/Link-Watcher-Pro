@@ -1,0 +1,73 @@
+ Reconstruir e reiniciar o serviço  # Reconstruir e reiniciar o serviço
+cd /opt/link-monitor
+npm run build && systemctl restart link-monitor
+
+# Aguardar 30 segundos e monitorar logs específicos do PRIME-OFFICE
+sleep 30 && journalctl -u link-monitor -f --no-pager | grep -E "PRIME-OFFICE|Error collecting" &
+
+# Aguardar 2 minutos e parar o monitoramento
+sleep 120
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+building client...
+vite v7.3.0 building client environment for production...
+transforming (1) src/main.tsxBrowserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+abr 13 17:16:52 link-monitor npm[675819]: [Monitor] Error collecting APS-BCK: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+transforming (5) ../node_modules/@tanstack/react-query/build/modern/index.js
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+transforming (2665) ../node_modules/@babel/runtime/helpers/esm/unsupportedIterableToArray.jsabr 13 17:17:04 link-monitor npm[675819]: [Monitor] Error collecting VIDAM-HOTEL: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+transforming (2875) ../node_modules/iobuffer/lib-esm/text.jsabr 13 17:17:05 link-monitor npm[675819]: [Monitor] Error collecting HOTEL-GO-INN - LINK PRINCIPAL: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU: ifIndex 143 verified OK - "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU" matches "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU"
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40.00dBm
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] PRIME-OFFICE-ARACAJU: Creating event with description: "O link voltou ao desempenho normal. Latência: 0.4ms, Perda de pacotes: 0.0%"
+abr 13 17:17:08 link-monitor npm[675819]: [Monitor] Error collecting PRIME-OFFICE-ARACAJU: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:17:17 link-monitor npm[675819]: [Monitor] Error collecting CLINICA DE REPOUSO SÃO MARCELLO - 100MB: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:17:18 link-monitor npm[675819]: [Monitor] Error collecting PETROX_TANCREDO=== FIOG540058D9: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+✓ 3482 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.48 kB
+../dist/public/assets/index-DG1r5FSm.css              95.78 kB │ gzip:  15.56 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-CIBMEELJ.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-DAJLhla2.js            2,389.89 kB │ gzip: 642.26 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 32.46s
+building server...
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
+
+    server/snmp.ts:1198:19:
+      1198 │     const result = eval(formula);
+           ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+1 warning
+
+  dist/index.cjs  2.0mb ⚠️
+
+⚡ Done in 498ms
+[2] 678002
+abr 13 17:17:30 link-monitor npm[678018]: [Monitor] Error collecting HOSPITAL CIRURGIA: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU: Using concentrator (CE: AJU-MVT-BORDA-OSPF) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.2, ifIndex: 143, profileId: 7
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU: First traffic reading stored (need 2 readings to calculate bandwidth). inOctets=14181801381482, outOctets=27298487750588
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU: ifIndex 143 verified OK - "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU" matches "sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.1-vlan.3038-PRIME-OFFICE-ARACAJU"
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=6 onu=1
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico: tentando fallback completo Zabbix por serial 191201000331...
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU - Óptico Zabbix OK: RX=-25.85dBm TX=2.41dBm OLT_RX=-40.00dBm
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] PRIME-OFFICE-ARACAJU: Creating event with description: "O link voltou ao desempenho normal. Latência: 1.4ms, Perda de pacotes: 0.0%"
+abr 13 17:17:45 link-monitor npm[678018]: [Monitor] Error collecting PRIME-OFFICE-ARACAJU: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:18:05 link-monitor npm[678018]: [Monitor] Error collecting AJC-24HS===XPON23030526: TypeError: e.opticalSignal.rxPower.toFixed is not a function
+abr 13 17:18:05 link-monitor npm[678018]: [Monitor] Error collecting AJC-24HS===XPON23030526: TypeError: e.opticalSignal.rxPower.toFixed is not a function
