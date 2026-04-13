@@ -1,0 +1,51 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+
+# Confirma qual commit está rodando em produção
+git log --oneline -3
+
+# Vê os logs recentes do link 761 sem filtro
+journalctl -u link-monitor --since "5 minutes ago" --no-pager | grep -i "761\|PRIME\|normaliz\|degraded\|metric\|monitor\|CRITICAL" | tail -40
+5523c26 (HEAD -> main, origin/main, origin/HEAD) Add detailed error logging and database schema validation
+e73937c Add screenshot of troubleshooting data loading issues
+7afd59e Update screenshot for interface name mismatch clarification
+abr 13 16:52:47 link-monitor npm[662941]:     at async cu.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:382:26460)
+abr 13 16:52:47 link-monitor npm[662941]:     at async Timeout.r [as _onTimeout] (/opt/link-monitor/dist/index.cjs:382:29123)
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=0.0.0.158&exact_target=true&type=ipv4
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] Error 503: <html>
+abr 13 16:52:47 link-monitor npm[662941]: <head><title>503 Service Temporarily Unavailable</title></head>
+abr 13 16:52:47 link-monitor npm[662941]: <body>
+abr 13 16:52:47 link-monitor npm[662941]: <center><h1>503 Service Temporarily Unavailable</h1></center>
+abr 13 16:52:47 link-monitor npm[662941]: <hr><center>nginx</center>
+abr 13 16:52:47 link-monitor npm[662941]: </body>
+abr 13 16:52:47 link-monitor npm[662941]: </html>
+abr 13 16:52:47 link-monitor npm[662941]: [BlacklistAutoCheck] Error checking IP 0.0.0.158: Error: HetrixTools API error: 503 Service Unavailable
+abr 13 16:52:47 link-monitor npm[662941]:     at cu.request (/opt/link-monitor/dist/index.cjs:382:25904)
+abr 13 16:52:47 link-monitor npm[662941]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+abr 13 16:52:47 link-monitor npm[662941]:     at async cu.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:382:26460)
+abr 13 16:52:47 link-monitor npm[662941]:     at async Timeout.r [as _onTimeout] (/opt/link-monitor/dist/index.cjs:382:29123)
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=0.0.0.159&exact_target=true&type=ipv4
+abr 13 16:52:47 link-monitor npm[662941]: [OZmap Auto-Sync] Link rede.ltda: Tag "AJUMVTBAJEY85A" não encontrada (HTTP 404)
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] Error 503: <html>
+abr 13 16:52:47 link-monitor npm[662941]: <head><title>503 Service Temporarily Unavailable</title></head>
+abr 13 16:52:47 link-monitor npm[662941]: <body>
+abr 13 16:52:47 link-monitor npm[662941]: <center><h1>503 Service Temporarily Unavailable</h1></center>
+abr 13 16:52:47 link-monitor npm[662941]: <hr><center>nginx</center>
+abr 13 16:52:47 link-monitor npm[662941]: </body>
+abr 13 16:52:47 link-monitor npm[662941]: </html>
+abr 13 16:52:47 link-monitor npm[662941]: [BlacklistAutoCheck] Error checking IP 0.0.0.159: Error: HetrixTools API error: 503 Service Unavailable
+abr 13 16:52:47 link-monitor npm[662941]:     at cu.request (/opt/link-monitor/dist/index.cjs:382:25904)
+abr 13 16:52:47 link-monitor npm[662941]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+abr 13 16:52:47 link-monitor npm[662941]:     at async cu.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:382:26460)
+abr 13 16:52:47 link-monitor npm[662941]:     at async Timeout.r [as _onTimeout] (/opt/link-monitor/dist/index.cjs:382:29123)
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=0.0.0.160&exact_target=true&type=ipv4
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+abr 13 16:52:47 link-monitor npm[662941]: [BlacklistAutoCheck] Error checking IP 0.0.0.160: Error: HetrixTools API error: 429 Too Many Requests
+abr 13 16:52:47 link-monitor npm[662941]:     at cu.request (/opt/link-monitor/dist/index.cjs:382:25904)
+abr 13 16:52:47 link-monitor npm[662941]:     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+abr 13 16:52:47 link-monitor npm[662941]:     at async cu.getBlacklistMonitors (/opt/link-monitor/dist/index.cjs:382:26460)
+abr 13 16:52:47 link-monitor npm[662941]:     at async Timeout.r [as _onTimeout] (/opt/link-monitor/dist/index.cjs:382:29123)
+abr 13 16:52:47 link-monitor npm[662941]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=0.0.0.161&exact_target=true&type=ipv4
+abr 13 16:52:47 link-monitor npm[662941]: [OZmap Auto-Sync] Link 172.26.96.44: 15 elementos na rota
+abr 13 16:52:47 link-monitor npm[662941]: [OZmap Auto-Sync] Link 172.26.96.44: Splitter: MAIKAI - CEO6 - RUA 10D, Porta: 1
+abr 13 16:52:47 link-monitor npm[662941]: [OZmap Auto-Sync] Link 172.26.96.44: Splitter: CTO1 MAIKAI 08D, Porta: 1
+root@link-monitor:/opt/link-monitor# 
