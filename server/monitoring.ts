@@ -1384,7 +1384,74 @@ async function handleIfIndexAutoDiscovery(
       console.log(`[Monitor] ${link.name}: Derived effectivePppoeUser "${effectivePppoeUser}" from link name. Candidates: [${derivedPppoeCandidates.join(', ')}]`);
     }
   }
-  
+
+  // Cisco Vi auto-heal: se ainda não temos effectivePppoeUser mas temos ifIndex armazenado,
+  // busca o ifAlias diretamente do concentrador via SNMP para recuperar o login PPPoE.
+  // Corrige links criados automaticamente (ex: webhook Voalle) sem snmpInterfaceAlias salvo.
+  if (!effectivePppoeUser &&
+      /^Vi\d+\.\d+$/i.test(link.snmpInterfaceName || '') &&
+      link.snmpInterfaceIndex &&
+      link.concentratorId) {
+    try {
+      const ciscoConc = await getConcentrator(link.concentratorId);
+      if (ciscoConc && ciscoConc.ipAddress) {
+        let ciscoProfile: SnmpProfileType = {
+          id: 0, version: '2c', port: 161, community: 'public',
+          securityLevel: null, authProtocol: null, authPassword: null,
+          privProtocol: null, privPassword: null, username: null,
+          timeout: 5000, retries: 1,
+        };
+        if (ciscoConc.snmpProfileId) {
+          const [concProfileRow] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, ciscoConc.snmpProfileId));
+          if (concProfileRow) {
+            ciscoProfile = {
+              id: concProfileRow.id,
+              version: concProfileRow.version || '2c',
+              port: concProfileRow.port || 161,
+              community: concProfileRow.community,
+              securityLevel: concProfileRow.securityLevel,
+              authProtocol: concProfileRow.authProtocol,
+              authPassword: concProfileRow.authPassword,
+              privProtocol: concProfileRow.privProtocol,
+              privPassword: concProfileRow.privPassword,
+              username: concProfileRow.username,
+              timeout: concProfileRow.timeout || 5000,
+              retries: concProfileRow.retries || 1,
+            };
+          }
+        }
+
+        const ifAliasOid = `1.3.6.1.2.1.31.1.1.1.18.${link.snmpInterfaceIndex}`;
+        const discoveredAlias = await new Promise<string | null>((resolve) => {
+          const sess = createSnmpSession(ciscoConc.ipAddress, ciscoProfile);
+          let done = false;
+          const finish = (val: string | null) => { if (!done) { done = true; resolve(val); } };
+          setTimeout(() => { try { sess.close(); } catch {} finish(null); }, 8000);
+          (sess as any).get([ifAliasOid], (err: any, varbinds: any[]) => {
+            try { sess.close(); } catch {}
+            if (err || !varbinds || !varbinds[0] || (snmp as any).isVarbindError(varbinds[0])) {
+              finish(null);
+              return;
+            }
+            const raw = varbinds[0].value;
+            const str = Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw);
+            finish(str.trim() || null);
+          });
+        });
+
+        if (discoveredAlias && !/^Virtual-Access/i.test(discoveredAlias)) {
+          effectivePppoeUser = discoveredAlias;
+          console.log(`[Monitor] ${link.name}: Cisco Vi auto-heal: ifAlias="${discoveredAlias}" descoberto via SNMP (ifIndex=${link.snmpInterfaceIndex}). Salvando como snmpInterfaceAlias.`);
+          await db.update(links).set({ snmpInterfaceAlias: discoveredAlias }).where(eq(links.id, link.id));
+        } else {
+          console.log(`[Monitor] ${link.name}: Cisco Vi auto-heal: ifAlias="${discoveredAlias ?? 'null'}" inválido ou Virtual-Access — não pode ser usado como PPPoE user.`);
+        }
+      }
+    } catch (autoHealErr: any) {
+      console.error(`[Monitor] ${link.name}: Cisco Vi ifAlias auto-heal falhou:`, autoHealErr?.message);
+    }
+  }
+
   // Usar concentrador se: trafficSourceType='concentrator' OU (concentratorId existe e temos pppoeUser ou vlanInterface)
   const useConcentratorPppoe = (link.trafficSourceType === 'concentrator' || link.concentratorId) && link.concentratorId && effectivePppoeUser;
   const useConcentratorCorporate = link.authType === 'corporate' && link.concentratorId && link.vlanInterface;
