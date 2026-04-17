@@ -1023,10 +1023,25 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
 // =====================================================================
 
 let isProcessing = false;
+let isProcessingSince: number | null = null;
+const PROCESS_LOCK_TIMEOUT_MS = 10 * 60 * 1000; // 10 min — auto-libera se travou
+
+export function forceReleaseProcessingLock(reason: string): void {
+  if (isProcessing) {
+    console.warn(`[AiAnalyst] forçando liberação do mutex de processamento: ${reason}`);
+  }
+  isProcessing = false;
+  isProcessingSince = null;
+}
 
 export async function processNextTask(): Promise<{ processed: boolean; proposalId?: number; error?: string }> {
+  // Auto-recovery: se o mutex está preso há mais que o timeout, libera
+  if (isProcessing && isProcessingSince && Date.now() - isProcessingSince > PROCESS_LOCK_TIMEOUT_MS) {
+    forceReleaseProcessingLock(`travado há ${Math.round((Date.now() - isProcessingSince) / 60000)}min`);
+  }
   if (isProcessing) return { processed: false, error: "another task already in progress" };
   isProcessing = true;
+  isProcessingSince = Date.now();
   try {
     const task = await storage.getNextPendingAiAnalystTask();
     if (!task) return { processed: false };
@@ -1099,6 +1114,7 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
     return { processed: true, proposalId: proposal.id };
   } finally {
     isProcessing = false;
+    isProcessingSince = null;
   }
 }
 
@@ -1304,6 +1320,9 @@ export function startBatch(count: number): { started: boolean; reason?: string }
   batchState.lastError = null;
   batchState.lastProposalId = null;
 
+  // O lote é dono do lock — libera qualquer mutex preso de execução anterior
+  forceReleaseProcessingLock("início de novo lote");
+
   // Loop assíncrono em background — não bloqueia o request
   (async () => {
     for (let i = 0; i < total; i++) {
@@ -1312,8 +1331,11 @@ export function startBatch(count: number): { started: boolean; reason?: string }
         const r = await processNextTask();
         if (!r.processed) {
           batchState.skipped++;
-          // Sem mais tasks pendentes — encerra o lote antecipadamente
-          if (!r.error) break;
+          // Sem mais tasks pendentes (sem erro) OU mutex travado — encerra
+          if (!r.error || r.error === "another task already in progress") {
+            batchState.lastError = r.error || null;
+            break;
+          }
           batchState.lastError = r.error;
         } else if (r.error) {
           batchState.failed++;
