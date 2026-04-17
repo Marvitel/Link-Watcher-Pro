@@ -920,22 +920,37 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   let totalInput = 0;
   let totalOutput = 0;
   let finalProposal: any = null;
-  const MAX_ITERATIONS = 6;
+  let lastAssistantText = "";
+  const MAX_ITERATIONS = 12;
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    const response = await client.messages.create({
+    const isLastIteration = iter === MAX_ITERATIONS - 1;
+    // Na última iteração, força o modelo a chamar submit_proposal (sem mais investigação)
+    const requestParams: any = {
       model,
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
+      system: isLastIteration
+        ? SYSTEM_PROMPT +
+          "\n\n⚠️ ATENÇÃO: esta é sua ÚLTIMA chance. Você JÁ NÃO PODE chamar mais ferramentas de investigação. Submeta a proposta final agora com submit_proposal, mesmo que seja 'inconclusive' com confidence baixa. Use o que você descobriu até aqui."
+        : SYSTEM_PROMPT,
       tools: TOOLS as any,
       messages,
-    });
+    };
+    if (isLastIteration) {
+      requestParams.tool_choice = { type: "tool", name: "submit_proposal" };
+    }
+    const response = await client.messages.create(requestParams);
 
     totalInput += response.usage?.input_tokens || 0;
     totalOutput += response.usage?.output_tokens || 0;
 
-    // Encontra blocos tool_use; ignora text intermediário
+    // Encontra blocos tool_use; preserva text intermediário pra fallback
     const toolUses = response.content.filter((b: any) => b.type === "tool_use") as any[];
+    const textNow = (response.content.filter((b: any) => b.type === "text") as any[])
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+    if (textNow) lastAssistantText = textNow;
 
     if (toolUses.length === 0) {
       // Modelo parou sem chamar submit_proposal — encerra com inconclusive
@@ -984,10 +999,18 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   }
 
   if (!finalProposal) {
+    const toolsSummary = toolCalls.length > 0
+      ? `\n\nFerramentas chamadas (${toolCalls.length}): ${toolCalls.map((t) => t.tool).join(", ")}`
+      : "";
+    const reasoningParts = [
+      `Limite de ${MAX_ITERATIONS} iterações atingido sem submit_proposal.`,
+      lastAssistantText ? `\n\nÚltimo raciocínio do modelo:\n${lastAssistantText}` : "",
+      toolsSummary,
+    ].filter(Boolean).join("");
     finalProposal = {
       classification: "inconclusive",
       proposedFields: {},
-      reasoning: `Limite de ${MAX_ITERATIONS} iterações atingido sem submit_proposal.`,
+      reasoning: reasoningParts,
       confidence: 0,
     };
   }
