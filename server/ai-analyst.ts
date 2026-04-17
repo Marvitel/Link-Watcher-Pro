@@ -564,6 +564,20 @@ const TOOLS = [
     },
   },
 
+  // -------------------- VOALLE (CONEXÃO DETALHADA POR LINK) --------------------
+  {
+    name: "voalle_get_link_connection",
+    description:
+      "Consulta a API do Voalle (mesmo endpoint do painel 'divergências com Voalle' do cadastro de link) e retorna TODOS os dados da conexão deste link no ERP: serial do equipamento, slot/porta da OLT, splitter+porta, nome da OLT/Ponto de Acesso, concentrador, IP de autenticação (= monitoredIp), endereço técnico, contractId, status. Use SEMPRE como primeira tentativa para descobrir equipmentSerialNumber, slotOlt, portOlt, oltId, monitoredIp, voalleContractTagId. Resolve por voalleConnectionId, voalleContractTagServiceTag ou voalleContractTagId — qualquer um basta.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        linkId: { type: "number", description: "ID do link no Link Monitor" },
+      },
+      required: ["linkId"],
+    },
+  },
+
   // -------------------- OLT (CLI via SSH/Telnet) --------------------
   {
     name: "olt_search_onu_by_serial",
@@ -841,6 +855,96 @@ async function executeTool(name: string, input: any): Promise<unknown> {
       return { count: tags.length, contractTags: tags.slice(0, 30) };
     } catch (e: any) {
       return { error: `Voalle: ${e?.message || e}` };
+    }
+  }
+
+  // -------------------- VOALLE (CONEXÃO DETALHADA POR LINK) --------------------
+  if (name === "voalle_get_link_connection") {
+    const linkId = Number(input?.linkId);
+    if (!Number.isFinite(linkId)) return { error: "linkId obrigatório" };
+    try {
+      const link = await storage.getLink(linkId);
+      if (!link) return { error: `link ${linkId} não encontrado` };
+      if (!link.voalleConnectionId && !(link as any).voalleContractTagServiceTag && !link.voalleContractTagId) {
+        return { available: false, message: "link sem voalleConnectionId/serviceTag/contractTagId — não há como localizar a conexão no Voalle" };
+      }
+      const client = await storage.getClient(link.clientId);
+      if (!client) return { available: false, message: "cliente não encontrado" };
+      const voalleIntegration = await storage.getErpIntegrationByProvider("voalle");
+      if (!voalleIntegration || !(voalleIntegration as any).isActive) {
+        return { available: false, message: "integração Voalle não configurada" };
+      }
+      const { configureErpAdapter } = await import("./erp");
+      const { decrypt } = await import("./crypto");
+      const adapter = configureErpAdapter(voalleIntegration as any) as any;
+      const voalleCustomerId = (client as any).voalleCustomerId ? String((client as any).voalleCustomerId) : null;
+      const portalUsername = (client as any).voallePortalUsername || null;
+      let portalPassword: string | null = null;
+      try {
+        portalPassword = (client as any).voallePortalPassword ? decrypt((client as any).voallePortalPassword) : null;
+      } catch {
+        portalPassword = null;
+      }
+      if (!voalleCustomerId || !portalUsername || !portalPassword) {
+        return { available: false, message: "cliente sem credenciais do portal Voalle" };
+      }
+      const result = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+      if (!result.success || !result.connections?.length) {
+        return { available: false, message: result.message || "API Voalle não retornou conexões" };
+      }
+      let conn: any = null;
+      if (link.voalleConnectionId) {
+        conn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
+      }
+      if (!conn && (link as any).voalleContractTagServiceTag) {
+        conn = result.connections.find(
+          (c: any) => c.contractServiceTag?.serviceTag === (link as any).voalleContractTagServiceTag
+        );
+      }
+      if (!conn && link.voalleContractTagId) {
+        conn = result.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
+      }
+      if (!conn) {
+        return {
+          available: false,
+          message: `conexão não localizada (connectionId=${link.voalleConnectionId ?? "—"}, serviceTag=${(link as any).voalleContractTagServiceTag ?? "—"}, contractTagId=${link.voalleContractTagId ?? "—"})`,
+          totalConnectionsForCustomer: result.connections.length,
+        };
+      }
+      // Resolve oltId local a partir do nome do ponto de acesso (se possível)
+      let resolvedOltId: number | null = null;
+      const accessPointName: string | null = conn.accessPoint?.title || conn.accessPointTitle || null;
+      if (accessPointName) {
+        try {
+          const olts = await storage.getOlts();
+          const match = olts.find(
+            (o: any) => o.name && accessPointName && o.name.trim().toLowerCase() === accessPointName.trim().toLowerCase()
+          );
+          if (match) resolvedOltId = match.id;
+        } catch {
+          /* ignore */
+        }
+      }
+      return {
+        available: true,
+        voalleConnectionId: conn.id,
+        contractId: conn.contractId ?? conn.contract?.id ?? null,
+        active: conn.active ?? null,
+        equipmentSerialNumber: conn.equipmentSerialNumber ?? null,
+        slotOlt: conn.slotOlt ?? null,
+        portOlt: conn.portOlt ?? null,
+        accessPointName,
+        resolvedOltId,
+        splitterName: conn.authenticationSplitter?.title ?? null,
+        splitterPort: conn.authenticationSplitter?.port ?? null,
+        concentratorName: conn.concentrator?.title ?? conn.concentratorTitle ?? null,
+        monitoredIp: conn.authenticationIp ?? conn.ipAddress ?? null,
+        contractServiceTagId: conn.contractServiceTag?.id ?? null,
+        contractServiceTag: conn.contractServiceTag?.serviceTag ?? null,
+        address: [conn.streetType, conn.street, conn.number, conn.neighborhood].filter(Boolean).join(" "),
+      };
+    } catch (e: any) {
+      return { error: `voalle_get_link_connection: ${e?.message || e}` };
     }
   }
 
@@ -1508,16 +1612,16 @@ export async function enqueueDegradedLinks(enqueuedByUserId?: number): Promise<{
 // =====================================================================
 
 const FIELD_HINTS: Record<string, string> = {
-  monitoredIp: "IP de gerência do equipamento (Mikrotik/Cisco/etc) que será pingado pelo monitor. Buscar no Voalle (contrato/conexão), no concentrador (sessão PPPoE ativa via tool get_pppoe_session) ou em links similares do mesmo cliente.",
+  monitoredIp: "IP de gerência do equipamento (Mikrotik/Cisco/etc). **Sempre tente voalle_get_link_connection PRIMEIRO** — o campo authenticationIp da conexão Voalle é o monitoredIp. Fallback: mikrotik_pppoe_active (sessão PPPoE ativa retorna o IP atribuído) ou mikrotik_arp_by_interface no nome do PPPoE.",
   pppoeUser: "Usuário PPPoE (login) cadastrado no Voalle/RADIUS. Buscar via get_voalle_data, get_pppoe_session, ou inferir por padrão de nomenclatura observado em links similares do mesmo cliente.",
   concentratorId: "ID numérico do concentrador PPPoE (do banco snmp_concentrators) onde a sessão deste usuário está ativa. Use mikrotik_pppoe_active pra descobrir em qual concentrador a sessão está ativa. Muitos links estão com concentrador errado — confira sempre começando pelos concentradores OSPF, OSPF2 e HSP.",
   snmpInterfaceIndex: "ifIndex SNMP da interface do concentrador onde o tráfego deste link passa (pra coleta correta de bandwidth). Descoberta: (1) se é PPPoE, a interface é o próprio login PPPoE — use mikrotik_pppoe_active pra confirmar sessão ativa e pegar o ifIndex; (2) se é corporativo (L2/L3), busque no concentrador uma interface cujo nome/comment coincida com o nome do cliente ou do link (ex: ether1, vlan-abc, bonding-clienteX) — use mikrotik_arp_by_interface pra validar que o IP do cliente passa por ali. Comece sempre pelos concentradores OSPF, OSPF2 e HSP.",
-  oltId: "ID numérico da OLT (do banco olts) à qual a ONU/CPE deste link está conectada. Buscar nos links similares do mesmo cliente, ou na localização do contrato no OZmap.",
+  oltId: "ID numérico da OLT (do banco olts) à qual a ONU/CPE deste link está conectada. **Sempre tente voalle_get_link_connection PRIMEIRO** — o campo accessPointName/resolvedOltId da conexão Voalle aponta a OLT (já resolvida pelo nome quando bate com o cadastro). Fallbacks: links similares do mesmo cliente, OZmap.",
   slotOlt: "Slot da OLT onde a ONU está plugada (número 1..N). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro** — essa é a mesma ferramenta do botão 'Descobrir ONU' do cadastro de link. Fallback: OZmap.",
   portOlt: "Porta PON da OLT (1-indexed). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro.** Fallback: OZmap.",
   onuId: "ID da ONU dentro da porta PON (igual ao ID exibido na CLI da OLT). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro** — a tool faz SSH/Telnet na OLT e retorna onuId+slotOlt+portOlt de uma vez. Só desista se todas as OLTs responderem 'não encontrada'.",
-  equipmentSerialNumber: "Serial alfanumérico da ONU/CPE. Buscar via OZmap (potencyData) ou no Voalle (campo do contrato).",
-  voalleContractTagId: "ID numérico da tag de serviço no Voalle (contract_service_tags). Buscar via get_voalle_data com o CNPJ/CPF do cliente, ou via tabela voalle_service_tags.",
+  equipmentSerialNumber: "Serial alfanumérico da ONU/CPE. **Sempre tente voalle_get_link_connection PRIMEIRO** — retorna direto o campo equipmentSerialNumber da conexão. Fallback: OZmap (potencyData).",
+  voalleContractTagId: "ID numérico da tag de serviço no Voalle (contract_service_tags). **Sempre tente voalle_get_link_connection PRIMEIRO** — retorna contractServiceTagId. Fallback: voalle_get_contracts pelo CNPJ.",
 };
 
 interface FieldInvestigationResult {
