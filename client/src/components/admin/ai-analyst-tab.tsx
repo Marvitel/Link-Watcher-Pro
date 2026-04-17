@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -55,6 +55,20 @@ interface AiAnalystProposal {
   reviewerNote: string | null;
   reviewedAt: string | null;
   createdAt: string;
+}
+
+interface BatchStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  stopRequested: boolean;
+  lastError: string | null;
+  lastProposalId: number | null;
 }
 
 interface AiAnalystRule {
@@ -188,6 +202,56 @@ export function AiAnalystTab() {
       else toast({ title: "Nenhuma task pendente" });
     },
   });
+
+  // Status do lote (polling a cada 2s só enquanto está rodando)
+  const { data: batchStatus } = useQuery<BatchStatus>({
+    queryKey: ["/api/admin/ai-analyst/batch/status"],
+    refetchInterval: (q) => ((q.state.data as BatchStatus | undefined)?.running ? 2000 : false),
+  });
+
+  const [batchCount, setBatchCount] = useState<number>(10);
+
+  const startBatch = useMutation({
+    mutationFn: async (count: number) => {
+      const res = await apiRequest("POST", "/api/admin/ai-analyst/batch/start", { count });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.started) {
+        toast({ title: "Lote iniciado", description: `Processando até ${data.status.total} task(s) em segundo plano…` });
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/ai-analyst/batch/status"] });
+      } else {
+        toast({ title: "Não foi possível iniciar", description: data.reason || "tente novamente", variant: "destructive" });
+      }
+    },
+    onError: (err: any) => toast({ title: "Erro ao iniciar lote", description: err.message, variant: "destructive" }),
+  });
+
+  const stopBatch = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/ai-analyst/batch/stop");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Solicitado parar lote", description: "Vai concluir a task atual e parar." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/ai-analyst/batch/status"] });
+    },
+  });
+
+  // Quando o lote terminar (running passa de true→false), atualizar listas de propostas e fila
+  const lastRunningRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!batchStatus) return;
+    if (lastRunningRef.current === true && batchStatus.running === false) {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/ai-analyst/queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/ai-analyst/proposals"] });
+      toast({
+        title: "Lote concluído",
+        description: `${batchStatus.succeeded} ok · ${batchStatus.failed} falhas · ${batchStatus.skipped} puladas`,
+      });
+    }
+    lastRunningRef.current = batchStatus.running;
+  }, [batchStatus, toast]);
 
   const approveProposal = useMutation({
     mutationFn: async ({ id, overrideFields, note }: { id: number; overrideFields?: Record<string, unknown>; note?: string }) => {
@@ -365,12 +429,97 @@ export function AiAnalystTab() {
               <Button
                 variant="outline"
                 onClick={() => processNext.mutate()}
-                disabled={processNext.isPending}
+                disabled={processNext.isPending || batchStatus?.running}
                 data-testid="button-process-next"
               >
                 <Play className="w-4 h-4 mr-1" />
                 Processar próxima task
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Processamento em lote */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Processar em lote</CardTitle>
+              <CardDescription>
+                Processa N tasks em sequência (uma por vez), em segundo plano. Use isto para conciliar a fila inteira sem clicar task a task.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {batchStatus?.running ? (
+                <>
+                  <div className="text-sm font-medium">
+                    Em andamento: {batchStatus.processed} / {batchStatus.total}
+                    {" · "}
+                    <span className="text-green-600">{batchStatus.succeeded} ok</span>
+                    {batchStatus.failed > 0 && <> · <span className="text-red-600">{batchStatus.failed} falhas</span></>}
+                    {batchStatus.skipped > 0 && <> · <span className="text-muted-foreground">{batchStatus.skipped} puladas</span></>}
+                  </div>
+                  <div className="w-full bg-muted rounded h-2 overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${(batchStatus.processed / Math.max(1, batchStatus.total)) * 100}%` }}
+                      data-testid="progress-batch"
+                    />
+                  </div>
+                  {batchStatus.lastError && (
+                    <p className="text-xs text-muted-foreground">Último aviso: {batchStatus.lastError}</p>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => stopBatch.mutate()}
+                    disabled={stopBatch.isPending || batchStatus.stopRequested}
+                    data-testid="button-stop-batch"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    {batchStatus.stopRequested ? "Parando…" : "Parar lote"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-end gap-2 flex-wrap">
+                    <div>
+                      <Label htmlFor="batch-count" className="text-xs">Quantas tasks</Label>
+                      <Input
+                        id="batch-count"
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={batchCount}
+                        onChange={(e) => setBatchCount(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+                        className="w-28"
+                        data-testid="input-batch-count"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => startBatch.mutate(batchCount)}
+                      disabled={startBatch.isPending || queue.length === 0}
+                      data-testid="button-start-batch"
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Processar {Math.min(batchCount, queue.length)} task(s)
+                    </Button>
+                    {queue.length > 0 && batchCount < queue.length && (
+                      <Button
+                        variant="outline"
+                        onClick={() => { setBatchCount(queue.length); startBatch.mutate(queue.length); }}
+                        disabled={startBatch.isPending}
+                        data-testid="button-start-batch-all"
+                      >
+                        Processar fila inteira ({queue.length})
+                      </Button>
+                    )}
+                  </div>
+                  {batchStatus && batchStatus.processed > 0 && batchStatus.finishedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Último lote: {batchStatus.succeeded} ok · {batchStatus.failed} falhas · {batchStatus.skipped} puladas
+                      {batchStatus.lastError ? ` · ${batchStatus.lastError}` : ""}
+                    </p>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 

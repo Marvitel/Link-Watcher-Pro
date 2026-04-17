@@ -800,6 +800,100 @@ export async function rejectProposal(
 // Helpers para gatilhos automáticos (offline/degradados)
 // =====================================================================
 
+// =====================================================================
+// Processamento em lote (background loop com progresso polável)
+// =====================================================================
+
+interface BatchState {
+  running: boolean;
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  stopRequested: boolean;
+  lastError: string | null;
+  lastProposalId: number | null;
+}
+
+const batchState: BatchState = {
+  running: false,
+  total: 0,
+  processed: 0,
+  succeeded: 0,
+  failed: 0,
+  skipped: 0,
+  startedAt: null,
+  finishedAt: null,
+  stopRequested: false,
+  lastError: null,
+  lastProposalId: null,
+};
+
+export function getBatchStatus(): BatchState {
+  return { ...batchState };
+}
+
+export function requestBatchStop(): void {
+  if (batchState.running) batchState.stopRequested = true;
+}
+
+export function startBatch(count: number): { started: boolean; reason?: string } {
+  if (batchState.running) return { started: false, reason: "já existe um lote em andamento" };
+  const total = Math.max(1, Math.min(500, Math.floor(count)));
+
+  batchState.running = true;
+  batchState.total = total;
+  batchState.processed = 0;
+  batchState.succeeded = 0;
+  batchState.failed = 0;
+  batchState.skipped = 0;
+  batchState.startedAt = new Date();
+  batchState.finishedAt = null;
+  batchState.stopRequested = false;
+  batchState.lastError = null;
+  batchState.lastProposalId = null;
+
+  // Loop assíncrono em background — não bloqueia o request
+  (async () => {
+    for (let i = 0; i < total; i++) {
+      if (batchState.stopRequested) break;
+      try {
+        const r = await processNextTask();
+        if (!r.processed) {
+          batchState.skipped++;
+          // Sem mais tasks pendentes — encerra o lote antecipadamente
+          if (!r.error) break;
+          batchState.lastError = r.error;
+        } else if (r.error) {
+          batchState.failed++;
+          batchState.lastError = r.error;
+        } else {
+          batchState.succeeded++;
+          if (r.proposalId) batchState.lastProposalId = r.proposalId;
+        }
+      } catch (err: any) {
+        batchState.failed++;
+        batchState.lastError = err?.message || String(err);
+      } finally {
+        batchState.processed++;
+      }
+      // Pequena pausa para não saturar a API da Anthropic
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    batchState.running = false;
+    batchState.finishedAt = new Date();
+  })().catch((err) => {
+    batchState.running = false;
+    batchState.finishedAt = new Date();
+    batchState.lastError = err?.message || String(err);
+  });
+
+  return { started: true };
+}
+
 export async function enqueueOfflineLinks(enqueuedByUserId?: number): Promise<{ enqueued: number; skipped: number }> {
   const offlineLinks = await db
     .select({ id: links.id })

@@ -15479,6 +15479,30 @@ export async function registerRoutes(
       }
     });
 
+    // POST iniciar processamento em lote (background) — count = quantas tasks processar (máx 500)
+    app.post("/api/admin/ai-analyst/batch/start", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({ count: z.number().int().min(1).max(500) });
+        const { count } = schema.parse(req.body || {});
+        const result = ai.startBatch(count);
+        if (!result.started) return res.status(409).json(result);
+        res.json({ ...result, status: ai.getBatchStatus() });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // GET status do lote (polling pela UI)
+    app.get("/api/admin/ai-analyst/batch/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      res.json(ai.getBatchStatus());
+    });
+
+    // POST parar lote em andamento
+    app.post("/api/admin/ai-analyst/batch/stop", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      ai.requestBatchStop();
+      res.json({ ok: true, status: ai.getBatchStatus() });
+    });
+
     // GET propostas
     app.get("/api/admin/ai-analyst/proposals", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
       try {
