@@ -2463,7 +2463,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                     <CommandEmpty>Nenhum equipamento encontrado.</CommandEmpty>
                     <CommandGroup heading="Equipamentos disponíveis">
                       {allCpes
-                        .filter((cpe) => cpe.isStandard || !selectedCpes.some((s) => s.cpeId === cpe.id))
+                        .filter((cpe) => cpe.isStandard && !selectedCpes.some((s) => s.cpeId === cpe.id))
                         .map((cpe) => (
                           <CommandItem
                             key={cpe.id}
