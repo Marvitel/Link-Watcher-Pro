@@ -20,6 +20,7 @@ import {
   metrics,
   snmpConcentrators,
   olts,
+  clients,
   type Link,
   type AiAnalystTask,
   type AiAnalystProposal,
@@ -27,6 +28,15 @@ import {
 } from "@shared/schema";
 import { decrypt } from "./crypto";
 import { logAuditEvent } from "./audit";
+import { pingHost, checkTcpPort } from "./monitoring";
+import { executeMikrotikQuery } from "./concentrator";
+import { queryFlashmanOpticalMetrics } from "./flashman";
+import { voalleService } from "./voalle";
+import {
+  getRadiusSessionByUsername,
+  getRadiusSessionByIp,
+  getMacFromRadiusByUsername,
+} from "./radius";
 
 // Campos que a IA tem permissão de propor alteração. Whitelist explícita por segurança.
 const ALLOWED_FIELDS = new Set<string>([
@@ -119,6 +129,7 @@ export async function enqueueLinksBulk(
 
 interface LinkContext {
   link: Link;
+  client: { id: number; name: string; cnpj: string | null } | null;
   recentEvents: Array<{ type: string; description: string; createdAt: Date }>;
   recentMetricsSummary: {
     samples: number;
@@ -127,6 +138,9 @@ interface LinkContext {
     avgDownload: number;
     avgUpload: number;
     lastStatus: string | null;
+    lastOpticalRx: number | null;
+    lastOpticalTx: number | null;
+    lastOpticalOltRx: number | null;
   };
   concentrator: { id: number; name: string; ipAddress: string; vendor: string | null } | null;
   olt: { id: number; name: string; vendor: string | null } | null;
@@ -153,9 +167,14 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
       download: metrics.download,
       upload: metrics.upload,
       status: metrics.status,
+      opticalRxPower: metrics.opticalRxPower,
+      opticalTxPower: metrics.opticalTxPower,
+      opticalOltRxPower: metrics.opticalOltRxPower,
+      timestamp: metrics.timestamp,
     })
     .from(metrics)
     .where(and(eq(metrics.linkId, link.id), sql`${metrics.timestamp} >= ${since}`))
+    .orderBy(desc(metrics.timestamp))
     .limit(500);
 
   const samples = metricsRows.length;
@@ -168,6 +187,11 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
     }),
     { latency: 0, packetLoss: 0, download: 0, upload: 0 }
   );
+
+  // Cliente (precisa do CNPJ para consultas Voalle)
+  let client: LinkContext["client"] = null;
+  const [cli] = await db.select().from(clients).where(eq(clients.id, link.clientId));
+  if (cli) client = { id: cli.id, name: cli.name, cnpj: (cli as any).cnpj || null };
 
   // Concentrador
   let concentrator: LinkContext["concentrator"] = null;
@@ -216,8 +240,14 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
     userNote: c.userNote,
   }));
 
+  // Última leitura óptica conhecida (qualquer dos 3 campos)
+  const lastOpticalRow = metricsRows.find(
+    (r) => r.opticalRxPower != null || r.opticalTxPower != null || r.opticalOltRxPower != null
+  );
+
   return {
     link,
+    client,
     recentEvents: recentEventsRaw.map((e) => ({ type: e.type, description: e.description, createdAt: e.timestamp })),
     recentMetricsSummary: {
       samples,
@@ -226,6 +256,9 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
       avgDownload: samples ? sum.download / samples : 0,
       avgUpload: samples ? sum.upload / samples : 0,
       lastStatus: metricsRows[0]?.status ?? null,
+      lastOpticalRx: lastOpticalRow?.opticalRxPower ?? null,
+      lastOpticalTx: lastOpticalRow?.opticalTxPower ?? null,
+      lastOpticalOltRx: lastOpticalRow?.opticalOltRxPower ?? null,
     },
     concentrator,
     olt,
@@ -270,52 +303,242 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
-const SYSTEM_PROMPT = `Você é o Analista de IA da Marvitel Telecomunicações. Sua função é investigar links de fibra que estão offline ou degradados e propor correções de cadastro quando o problema for por causa disso (e não por falha real de rede).
+const SYSTEM_PROMPT = `Você é o Analista de IA da Marvitel Telecomunicações. Sua função é investigar links de fibra (PPPoE GPON e corporativos L2/L3) que estão offline ou degradados, identificar a causa e propor correções de cadastro quando o problema for por causa disso (e não por falha real de rede).
 
-Você recebe o contexto do link (campos atuais, eventos recentes, métricas, concentrador, OLT, links similares, regras escritas pelos analistas e correções recentes que humanos fizeram nas suas propostas anteriores).
+# Contexto do sistema Link Monitor
 
-Use as ferramentas para buscar dados adicionais quando precisar. Quando estiver pronto, chame OBRIGATORIAMENTE a ferramenta "submit_proposal" com:
+O sistema integra-se com várias fontes de dados — você tem ferramentas para consultar todas elas. Use-as ATIVAMENTE; não chute. Antes de classificar como "network_issue" ou "inconclusive", confira se realmente esgotou as opções de investigação.
+
+Fontes disponíveis (resumo):
+- **Banco interno**: links, eventos, métricas, concentradores, OLTs, clientes, sessões, regras
+- **Mikrotik (concentradores PPPoE)**: ARP, rotas, sessões PPPoE ativas — via API binária
+- **Voalle ERP**: contratos, etiquetas de serviço, clientes (CPF/CNPJ), protocolos abertos
+- **Flashman/ACS (TR-069)**: dados ópticos e de gerência de CPEs por serial ou usuário PPPoE
+- **FreeRADIUS**: sessões de autenticação ativas, MAC addresses por usuário/IP
+- **Ping/TCP**: testar conectividade direta a IPs e portas
+
+# Ordem sugerida de investigação
+
+1. **Leia o contexto** (link, cliente, eventos, métricas, sinal óptico, links similares, regras, correções).
+2. **Confirme o problema**: ping_link para ver se realmente está fora.
+3. **Se for PPPoE e não tem sessão ativa**: chame radius_session_by_pppoe e mikrotik_pppoe_active para ver se o usuário está logado em outro lugar (PPPoE duplicado), com outra senha, ou se nunca autenticou.
+4. **Se a sessão PPPoE existe mas o IP não responde**: o IP pode ter mudado — use mikrotik_arp_by_interface ou radius_session_by_pppoe (campo framedip) para descobrir o IP real, depois ping_ip nele.
+5. **Se a OLT não tem leitura óptica recente**: chame get_flashman_cpe pra pegar via ACS (fallback). Se trouxer rxPower, pode incluir essa info no reasoning. Se a CPE não responde nem no ACS, é problema físico (network_issue).
+6. **Se o link é corporativo L2/L3 (sem PPPoE)**: use mikrotik_route_by_gateway e mikrotik_arp_by_interface no concentrador pra confirmar se o bloco IP roteado e o IP do gateway estão corretos.
+7. **Confronte com links similares**: se o cliente tem 5 outros links com PPPoE no padrão "abc-cli-001..005" e este está cadastrado como "abc-cli-99", provável erro de cadastro.
+8. **Voalle**: se o link parece "deslocado" do contrato, voalle_get_contracts pelo CNPJ do cliente confirma quais conexões/etiquetas o cliente realmente tem.
+
+# Saída obrigatória
+
+Quando terminar, chame OBRIGATORIAMENTE submit_proposal com:
 - classification:
-    "config_error" → o link está mal cadastrado (ex.: PPPoE user errado, concentrador errado, IP errado)
-    "network_issue" → cadastro está OK, problema é de rede/operacional (ex.: ONU desligada, SLA do upstream)
-    "inconclusive" → não há evidência suficiente para decidir
-- proposedFields: objeto JSON com os campos a alterar (somente os campos da whitelist serão aceitos pelo backend)
-- reasoning: explicação curta (2-4 linhas) em português do que você encontrou e por que essa é a correção
-- confidence: número de 0 a 100 indicando quão certo você está
+    "config_error"  → o link está mal cadastrado (ex.: PPPoE errado, concentrador errado, IP errado, OLT/ONU errada)
+    "network_issue" → cadastro está OK, problema é físico/operacional (ONU desligada, fibra cortada, queda de upstream)
+    "inconclusive"  → não há evidência suficiente
+- proposedFields: objeto JSON apenas com os campos a alterar (whitelist abaixo). Vazio se inconclusive ou network_issue puro.
+- reasoning: explicação curta (3-6 linhas) em português, citando que ferramentas chamou e o que cada uma retornou
+- confidence: 0-100
 
 IMPORTANTE:
-- Se não tiver evidência forte, classifique como "inconclusive" e proposedFields={}
-- Respeite TODAS as regras escritas pelos analistas no contexto
-- Aprenda com as "correções recentes" — elas mostram onde sua proposta anterior estava errada
+- Se não tiver evidência forte, "inconclusive" + proposedFields={}
+- Respeite TODAS as regras dos analistas
+- Aprenda com as "correções recentes" — mostram onde você errou antes
 - NÃO invente dados; só use o que veio do contexto ou das ferramentas
-- NÃO proponha mudar campos que não estão claramente errados`;
+- NÃO proponha mudar campos que não estão claramente errados — analista vai aprovar item-a-item
+- Quando descobrir IP novo via ARP/RADIUS, proponha mudar monitoredIp; quando descobrir PPPoE certo, proponha mudar pppoeUser; etc.`;
 
 const ALLOWED_FIELDS_LIST = Array.from(ALLOWED_FIELDS).sort().join(", ");
 
 const TOOLS = [
+  // -------------------- META --------------------
+  {
+    name: "list_capabilities",
+    description: "Lista todas as ferramentas disponíveis com descrição e exemplos de uso. Útil pra você lembrar o que pode chamar. Sem parâmetros.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+
+  // -------------------- BANCO INTERNO --------------------
   {
     name: "search_similar_links",
-    description: "Busca links similares no banco para servir de referência. Útil para descobrir padrões de PPPoE/alias usados em links análogos do mesmo cliente ou concentrador.",
+    description: "Busca links similares no banco. Útil pra descobrir padrões de PPPoE/alias/IP usados em links análogos do mesmo cliente ou concentrador.",
     input_schema: {
       type: "object" as const,
       properties: {
-        clientId: { type: "number", description: "Filtra pelo cliente (opcional)" },
-        concentratorId: { type: "number", description: "Filtra pelo concentrador (opcional)" },
-        pppoeUserPrefix: { type: "string", description: "Filtra por prefixo do PPPoE user (opcional)" },
-        snmpAliasPrefix: { type: "string", description: "Filtra por prefixo do alias SNMP (opcional)" },
+        clientId: { type: "number" },
+        concentratorId: { type: "number" },
+        pppoeUserPrefix: { type: "string" },
+        snmpAliasPrefix: { type: "string" },
         limit: { type: "number", description: "Máx. 20 (default 10)" },
       },
     },
   },
   {
     name: "get_link_by_id",
-    description: "Retorna o registro completo de um link específico por ID.",
+    description: "Retorna o registro completo de um link por ID.",
     input_schema: {
       type: "object" as const,
       properties: { linkId: { type: "number" } },
       required: ["linkId"],
     },
   },
+  {
+    name: "find_link_by_ip",
+    description: "Procura outros links que usem o mesmo monitoredIp. Detecta IP duplicado em cadastro.",
+    input_schema: {
+      type: "object" as const,
+      properties: { ipAddress: { type: "string" } },
+      required: ["ipAddress"],
+    },
+  },
+  {
+    name: "find_link_by_pppoe",
+    description: "Procura outros links que usem o mesmo PPPoE user. Detecta cadastro duplicado.",
+    input_schema: {
+      type: "object" as const,
+      properties: { pppoeUser: { type: "string" } },
+      required: ["pppoeUser"],
+    },
+  },
+  {
+    name: "get_recent_events",
+    description: "Eventos recentes do link (mais que os 15 já no contexto).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        linkId: { type: "number" },
+        limit: { type: "number", description: "Máx. 100 (default 50)" },
+      },
+      required: ["linkId"],
+    },
+  },
+
+  // -------------------- PING / TCP --------------------
+  {
+    name: "ping_link",
+    description: "Pinga o monitoredIp do link sob investigação (5 pacotes). Retorna { latency, packetLoss, success }.",
+    input_schema: {
+      type: "object" as const,
+      properties: { linkId: { type: "number" } },
+      required: ["linkId"],
+    },
+  },
+  {
+    name: "ping_ip",
+    description: "Pinga um IP arbitrário (testa IP alternativo, gateway, IP de gerência da ONU, etc).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ipAddress: { type: "string" },
+        count: { type: "number", description: "default 5, máx 10" },
+      },
+      required: ["ipAddress"],
+    },
+  },
+  {
+    name: "tcp_port_check",
+    description: "Testa conectividade TCP em uma porta específica (ex: 80, 443, 22, 8728). Útil quando ICMP está bloqueado mas a porta de gerência responde.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ipAddress: { type: "string" },
+        port: { type: "number" },
+      },
+      required: ["ipAddress", "port"],
+    },
+  },
+
+  // -------------------- MIKROTIK (CONCENTRADOR) --------------------
+  {
+    name: "mikrotik_arp_by_interface",
+    description: "Lista entradas ARP de uma interface no concentrador Mikrotik. Equivale a: /ip arp print where interface=<INTERFACE>. Use pra descobrir IPs ativos atrás de uma interface.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        concentratorId: { type: "number" },
+        interface: { type: "string", description: 'Nome da interface, ex: "ether1", "<pppoe-user>"' },
+      },
+      required: ["concentratorId", "interface"],
+    },
+  },
+  {
+    name: "mikrotik_route_by_gateway",
+    description: "Lista rotas no Mikrotik que apontam para um gateway específico. Equivale a: /ip route print where gateway=<IP>. Use pra descobrir blocos roteados pra um cliente.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        concentratorId: { type: "number" },
+        gatewayIp: { type: "string" },
+      },
+      required: ["concentratorId", "gatewayIp"],
+    },
+  },
+  {
+    name: "mikrotik_pppoe_active",
+    description: "Lista sessões PPPoE ativas no concentrador, opcionalmente filtradas por usuário ou IP. Mostra address, caller-id (MAC), uptime.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        concentratorId: { type: "number" },
+        username: { type: "string", description: "Filtrar por nome do usuário PPPoE (opcional)" },
+        ipAddress: { type: "string", description: "Filtrar por IP atribuído (opcional)" },
+      },
+      required: ["concentratorId"],
+    },
+  },
+  // -------------------- RADIUS --------------------
+  {
+    name: "radius_session_by_pppoe",
+    description: "Busca a sessão RADIUS ativa do usuário PPPoE no FreeRADIUS. Retorna framedipaddress, callingstationid (MAC), nasipaddress, acctstarttime. Confirma se usuário está realmente autenticado e em qual concentrador.",
+    input_schema: {
+      type: "object" as const,
+      properties: { pppoeUser: { type: "string" } },
+      required: ["pppoeUser"],
+    },
+  },
+  {
+    name: "radius_session_by_ip",
+    description: "Busca no FreeRADIUS a sessão ativa que tem aquele IP atribuído. Retorna o usuário PPPoE dono do IP. Útil pra cruzar IP→usuário.",
+    input_schema: {
+      type: "object" as const,
+      properties: { ipAddress: { type: "string" } },
+      required: ["ipAddress"],
+    },
+  },
+
+  // -------------------- ACS / FLASHMAN --------------------
+  {
+    name: "get_flashman_cpe",
+    description: "Consulta o ACS Flashman (TR-069) por serial da CPE OU usuário PPPoE. Retorna rxPower e txPower ópticos (fallback quando OLT não tem coleta). Pelo menos um dos parâmetros é obrigatório.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        serial: { type: "string", description: "Serial da CPE/ONU" },
+        pppoeUser: { type: "string", description: "Usuário PPPoE como alternativa" },
+      },
+    },
+  },
+
+  // -------------------- VOALLE --------------------
+  {
+    name: "voalle_search_customer",
+    description: "Busca um cliente no Voalle ERP por nome, CPF ou CNPJ. Retorna os dados do cliente (id, código, documento).",
+    input_schema: {
+      type: "object" as const,
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    },
+  },
+  {
+    name: "voalle_get_contracts",
+    description: "Lista contratos/etiquetas de serviço do cliente no Voalle pelo CPF/CNPJ. Mostra quais conexões o cliente realmente tem cadastradas no ERP, útil pra cruzar com o que está no Link Monitor.",
+    input_schema: {
+      type: "object" as const,
+      properties: { cnpj: { type: "string", description: "CPF ou CNPJ (somente números ou formatado)" } },
+      required: ["cnpj"],
+    },
+  },
+
+  // -------------------- TERMINAL --------------------
   {
     name: "submit_proposal",
     description: "Termina a investigação. DEVE ser chamada ao final com a proposta estruturada.",
@@ -335,10 +558,58 @@ const TOOLS = [
   },
 ];
 
-async function executeTool(
-  name: string,
-  input: any
-): Promise<unknown> {
+// Helper: resolve concentrator com decrypt embutido
+async function loadConcentrator(concentratorId: number) {
+  const [c] = await db.select().from(snmpConcentrators).where(eq(snmpConcentrators.id, concentratorId));
+  return c || null;
+}
+
+// Validação estrita de IP (anti-injection — pingHost interpola string em shell)
+const IPV4_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+const IPV6_RE = /^[0-9a-fA-F:]+$/; // permissivo mas sem espaços/shell metacaracteres
+function isValidIp(ip: string): boolean {
+  if (!ip || ip.length > 45) return false;
+  if (/[\s;|&`$()<>"'\\]/.test(ip)) return false; // bloqueia metacaracteres
+  return IPV4_RE.test(ip) || (ip.includes(":") && IPV6_RE.test(ip));
+}
+
+// Sanitiza nome de interface Mikrotik (filtros que vão pra API binária — sem injeção de shell, mas evita lixo)
+function sanitizeMikrotikIdentifier(s: string): string {
+  return String(s || "").replace(/[^A-Za-z0-9_.\-:<>]/g, "").slice(0, 64);
+}
+
+// Trunca strings/buffers profundos no resultado Mikrotik antes de mandar pro LLM
+function truncateMikrotikOutput(rows: any[]): any[] {
+  return rows.map((r) => {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (Buffer.isBuffer(v)) out[k] = `<buffer ${v.length}b>`;
+      else if (typeof v === "string" && v.length > 200) out[k] = v.slice(0, 200) + "…";
+      else out[k] = v;
+    }
+    return out;
+  });
+}
+
+async function executeTool(name: string, input: any): Promise<unknown> {
+  // -------------------- META --------------------
+  if (name === "list_capabilities") {
+    return {
+      tools: TOOLS.filter((t) => t.name !== "submit_proposal" && t.name !== "list_capabilities").map((t) => ({
+        name: t.name,
+        description: t.description,
+        params: Object.keys((t.input_schema as any).properties || {}),
+      })),
+      observations: [
+        "Use ping_link primeiro pra confirmar problema, depois investigue.",
+        "Pra PPPoE, sempre cruze radius_session_by_pppoe + mikrotik_pppoe_active.",
+        "Quando OLT não tem leitura óptica, tente get_flashman_cpe (ACS).",
+        "Se monitoredIp não responde, descubra o IP real via mikrotik_arp_by_interface (interface = nome do PPPoE) ou radius_session_by_pppoe.framedipaddress.",
+      ],
+    };
+  }
+
+  // -------------------- BANCO INTERNO --------------------
   if (name === "search_similar_links") {
     const limit = Math.min(20, Math.max(1, Number(input?.limit) || 10));
     const conditions: any[] = [];
@@ -365,11 +636,173 @@ async function executeTool(
       .limit(limit);
     return rows;
   }
+
   if (name === "get_link_by_id") {
     const link = await storage.getLink(Number(input?.linkId));
     if (!link) return { error: "link não encontrado" };
     return link;
   }
+
+  if (name === "find_link_by_ip") {
+    const ip = String(input?.ipAddress || "").trim();
+    if (!ip) return { error: "ipAddress obrigatório" };
+    const rows = await db
+      .select({ id: links.id, name: links.name, clientId: links.clientId, monitoredIp: links.monitoredIp })
+      .from(links)
+      .where(eq(links.monitoredIp, ip))
+      .limit(20);
+    return { matches: rows };
+  }
+
+  if (name === "find_link_by_pppoe") {
+    const u = String(input?.pppoeUser || "").trim();
+    if (!u) return { error: "pppoeUser obrigatório" };
+    const rows = await db
+      .select({ id: links.id, name: links.name, clientId: links.clientId, concentratorId: links.concentratorId, pppoeUser: links.pppoeUser })
+      .from(links)
+      .where(eq(links.pppoeUser, u))
+      .limit(20);
+    return { matches: rows };
+  }
+
+  if (name === "get_recent_events") {
+    const limit = Math.min(100, Math.max(1, Number(input?.limit) || 50));
+    const rows = await db
+      .select()
+      .from(events)
+      .where(eq(events.linkId, Number(input?.linkId)))
+      .orderBy(desc(events.timestamp))
+      .limit(limit);
+    return rows;
+  }
+
+  // -------------------- PING / TCP --------------------
+  if (name === "ping_link") {
+    const link = await storage.getLink(Number(input?.linkId));
+    if (!link) return { error: "link não encontrado" };
+    if (!link.monitoredIp) return { error: "link sem monitoredIp cadastrado" };
+    const r = await pingHost(link.monitoredIp, 5);
+    return { ipAddress: link.monitoredIp, ...r };
+  }
+
+  if (name === "ping_ip") {
+    const ip = String(input?.ipAddress || "").trim();
+    if (!isValidIp(ip)) return { error: "ipAddress inválido (precisa ser IPv4/IPv6 sem caracteres especiais)" };
+    const count = Math.min(10, Math.max(1, Number(input?.count) || 5));
+    const r = await pingHost(ip, count);
+    return { ipAddress: ip, ...r };
+  }
+
+  if (name === "tcp_port_check") {
+    const ip = String(input?.ipAddress || "").trim();
+    const port = Number(input?.port);
+    if (!isValidIp(ip)) return { error: "ipAddress inválido" };
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return { error: "port inválido (1-65535)" };
+    const r = await checkTcpPort(ip, port, 3000);
+    return { ipAddress: ip, port, ...r };
+  }
+
+  // -------------------- MIKROTIK --------------------
+  if (name === "mikrotik_arp_by_interface") {
+    const c = await loadConcentrator(Number(input?.concentratorId));
+    if (!c) return { error: "concentrador não encontrado" };
+    const iface = sanitizeMikrotikIdentifier(input?.interface);
+    if (!iface) return { error: "interface obrigatória" };
+    const res = await executeMikrotikQuery(c, "/ip/arp", { interface: iface }, 50);
+    return { rows: truncateMikrotikOutput(res.rows), error: res.error };
+  }
+
+  if (name === "mikrotik_route_by_gateway") {
+    const c = await loadConcentrator(Number(input?.concentratorId));
+    if (!c) return { error: "concentrador não encontrado" };
+    const gw = String(input?.gatewayIp || "").trim();
+    if (!isValidIp(gw)) return { error: "gatewayIp inválido" };
+    const res = await executeMikrotikQuery(c, "/ip/route", { gateway: gw }, 50);
+    return { rows: truncateMikrotikOutput(res.rows), error: res.error };
+  }
+
+  if (name === "mikrotik_pppoe_active") {
+    const c = await loadConcentrator(Number(input?.concentratorId));
+    if (!c) return { error: "concentrador não encontrado" };
+    const filters: Record<string, string> = {};
+    if (input?.username) {
+      const u = sanitizeMikrotikIdentifier(input.username);
+      if (u) filters.name = u;
+    }
+    if (input?.ipAddress) {
+      const ip = String(input.ipAddress).trim();
+      if (!isValidIp(ip)) return { error: "ipAddress inválido" };
+      filters.address = ip;
+    }
+    const res = await executeMikrotikQuery(c, "/ppp/active", filters, 50);
+    return { rows: truncateMikrotikOutput(res.rows), error: res.error };
+  }
+
+  // -------------------- RADIUS --------------------
+  if (name === "radius_session_by_pppoe") {
+    const u = String(input?.pppoeUser || "").trim();
+    if (!u) return { error: "pppoeUser obrigatório" };
+    try {
+      const session = await getRadiusSessionByUsername(u);
+      const mac = session ? null : await getMacFromRadiusByUsername(u);
+      if (!session && !mac) return { found: false, message: "nenhuma sessão ativa nem histórico de MAC" };
+      return { found: !!session, session, lastKnownMac: mac };
+    } catch (e: any) {
+      return { error: `RADIUS indisponível: ${e?.message || e}` };
+    }
+  }
+
+  if (name === "radius_session_by_ip") {
+    const ip = String(input?.ipAddress || "").trim();
+    if (!ip) return { error: "ipAddress obrigatório" };
+    try {
+      const session = await getRadiusSessionByIp(ip);
+      if (!session) return { found: false };
+      return { found: true, session };
+    } catch (e: any) {
+      return { error: `RADIUS indisponível: ${e?.message || e}` };
+    }
+  }
+
+  // -------------------- ACS / FLASHMAN --------------------
+  if (name === "get_flashman_cpe") {
+    const serial = input?.serial ? String(input.serial) : "";
+    const pppoe = input?.pppoeUser ? String(input.pppoeUser) : "";
+    if (!serial && !pppoe) return { error: "informe serial ou pppoeUser" };
+    try {
+      const r = await queryFlashmanOpticalMetrics(serial || "", pppoe || null);
+      if (!r) return { found: false, message: "CPE não encontrada no ACS / sem leitura" };
+      return { found: true, rxPower: r.rxPower, txPower: r.txPower };
+    } catch (e: any) {
+      return { error: `Flashman indisponível: ${e?.message || e}` };
+    }
+  }
+
+  // -------------------- VOALLE --------------------
+  if (name === "voalle_search_customer") {
+    const q = String(input?.query || "").trim();
+    if (!q) return { error: "query obrigatória" };
+    try {
+      if (!voalleService.isConfigured()) return { error: "Voalle não configurado" };
+      const customers = await voalleService.searchCustomers(q);
+      return { count: customers.length, customers: customers.slice(0, 10) };
+    } catch (e: any) {
+      return { error: `Voalle: ${e?.message || e}` };
+    }
+  }
+
+  if (name === "voalle_get_contracts") {
+    const cnpj = String(input?.cnpj || "").replace(/\D/g, "");
+    if (!cnpj) return { error: "cnpj obrigatório" };
+    try {
+      if (!voalleService.isConfigured()) return { error: "Voalle não configurado" };
+      const tags = await voalleService.getContractTags(cnpj);
+      return { count: tags.length, contractTags: tags.slice(0, 30) };
+    } catch (e: any) {
+      return { error: `Voalle: ${e?.message || e}` };
+    }
+  }
+
   return { error: `ferramenta desconhecida: ${name}` };
 }
 
@@ -392,16 +825,30 @@ function buildUserPrompt(ctx: LinkContext): string {
     slotOlt: link.slotOlt,
     portOlt: link.portOlt,
     onuId: link.onuId,
+    equipmentSerialNumber: (link as any).equipmentSerialNumber ?? null,
+    equipmentVendorId: (link as any).equipmentVendorId ?? null,
+    equipmentModel: (link as any).equipmentModel ?? null,
     voalleContractTagId: link.voalleContractTagId,
     contractStatus: (link as any).contractStatus,
     monitoringEnabled: (link as any).monitoringEnabled,
   };
+
+  const opticalLine = (() => {
+    const o = ctx.recentMetricsSummary;
+    if (o.lastOpticalRx == null && o.lastOpticalTx == null && o.lastOpticalOltRx == null) {
+      return "sem leitura óptica recente (OLT pode não estar coletando — considere fallback ACS via get_flashman_cpe)";
+    }
+    return `RX=${o.lastOpticalRx ?? "—"}dBm, TX=${o.lastOpticalTx ?? "—"}dBm, OLT_RX=${o.lastOpticalOltRx ?? "—"}dBm`;
+  })();
 
   return [
     "## LINK SOB INVESTIGAÇÃO",
     "```json",
     JSON.stringify(linkSummary, null, 2),
     "```",
+    "",
+    "## CLIENTE",
+    ctx.client ? `${ctx.client.name} (id=${ctx.client.id}, cnpj=${ctx.client.cnpj || "não cadastrado"})` : "_não encontrado_",
     "",
     "## EVENTOS RECENTES (últimos 15)",
     ctx.recentEvents.length === 0
@@ -410,6 +857,7 @@ function buildUserPrompt(ctx: LinkContext): string {
     "",
     "## MÉTRICAS — ÚLTIMAS 24h",
     `samples=${ctx.recentMetricsSummary.samples}, avgLatency=${ctx.recentMetricsSummary.avgLatency.toFixed(1)}ms, avgPacketLoss=${ctx.recentMetricsSummary.avgPacketLoss.toFixed(2)}%, lastStatus=${ctx.recentMetricsSummary.lastStatus}`,
+    `Última leitura óptica: ${opticalLine}`,
     "",
     "## CONCENTRADOR",
     ctx.concentrator ? JSON.stringify(ctx.concentrator) : "_não associado_",

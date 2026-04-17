@@ -123,6 +123,65 @@ export async function lookupMacViaMikrotikApi(
   }
 }
 
+/**
+ * Executa uma consulta arbitrária no Mikrotik via API binária.
+ * Suporta menus /ip/arp, /ip/route, /ppp/active, /interface, etc.
+ * Os filtros são pares chave→valor que viram cláusulas .where(k,v).
+ * Retorna no máximo `limit` linhas para evitar payloads gigantes.
+ *
+ * Exemplo: executeMikrotikQuery(conc, "/ip/arp", { interface: "ether1" })
+ *          equivale a: /ip arp print where interface=ether1
+ */
+export async function executeMikrotikQuery(
+  concentrator: SnmpConcentrator,
+  menu: string,
+  filters: Record<string, string> = {},
+  limit: number = 50
+): Promise<{ rows: Array<Record<string, any>>; error?: string }> {
+  const username = concentrator.sshUser;
+  let password = concentrator.sshPassword;
+  if (!username || !password) {
+    return { rows: [], error: "concentrador sem credenciais SSH/API cadastradas" };
+  }
+  if (password && isEncrypted(password)) {
+    try {
+      password = decrypt(password);
+    } catch {
+      return { rows: [], error: "falha ao descriptografar senha do concentrador" };
+    }
+  }
+
+  const port = 8728; // API binária padrão (não TLS)
+  let api: any = null;
+  try {
+    api = new RouterOSClient({
+      host: concentrator.ipAddress,
+      user: username,
+      password: password!,
+      port,
+      timeout: 10000,
+    });
+    const client: any = await api.connect();
+    if (client && typeof client.on === "function") {
+      client.on("error", () => {});
+    }
+    let menuQuery: any = client.menu(menu);
+    for (const [k, v] of Object.entries(filters)) {
+      if (v !== undefined && v !== null && String(v).length > 0) {
+        menuQuery = menuQuery.where(k, String(v));
+      }
+    }
+    const rows: any[] = await menuQuery.get();
+    return { rows: Array.isArray(rows) ? rows.slice(0, limit) : [] };
+  } catch (err: any) {
+    return { rows: [], error: err?.message || String(err) };
+  } finally {
+    if (api) {
+      try { await api.close(); } catch {}
+    }
+  }
+}
+
 // Mapa OUI (primeiros 3 bytes do MAC) -> Vendor slug
 // OUI identifica o fabricante do dispositivo
 const OUI_VENDOR_MAP: Record<string, string> = {
