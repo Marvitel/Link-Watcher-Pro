@@ -564,6 +564,21 @@ const TOOLS = [
     },
   },
 
+  // -------------------- OLT (CLI via SSH/Telnet) --------------------
+  {
+    name: "olt_search_onu_by_serial",
+    description:
+      "Busca uma ONU nas OLTs cadastradas pelo número de serial (ou por substring). Retorna onuId (CLI), slotOlt, portOlt e qual OLT respondeu. É a mesma ferramenta usada no cadastro de link (botão 'Descobrir ONU'). Suporta Datacom, Huawei, ZTE, Fiberhome, Nokia. Use sempre que precisar preencher onuId/slotOlt/portOlt e você souber o serial da CPE (campo equipmentSerialNumber). Se oltId for omitido, varre todas as OLTs ativas até encontrar.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        serial: { type: "string", description: "Serial da ONU (ex: 'DACM916CF591' ou apenas '916CF591')" },
+        oltId: { type: "number", description: "Opcional: ID da OLT específica pra consultar. Se omitido, tenta todas." },
+      },
+      required: ["serial"],
+    },
+  },
+
   // -------------------- TERMINAL --------------------
   {
     name: "submit_proposal",
@@ -826,6 +841,51 @@ async function executeTool(name: string, input: any): Promise<unknown> {
       return { count: tags.length, contractTags: tags.slice(0, 30) };
     } catch (e: any) {
       return { error: `Voalle: ${e?.message || e}` };
+    }
+  }
+
+  // -------------------- OLT (CLI via SSH/Telnet) --------------------
+  if (name === "olt_search_onu_by_serial") {
+    const serial = String(input?.serial || "").trim();
+    if (!serial) return { error: "serial obrigatório" };
+    const oltIdHint = input?.oltId ? Number(input.oltId) : null;
+    try {
+      const { searchOnuBySerial } = await import("./olt");
+      // Lista de OLTs candidatas
+      const allOlts = await storage.getOlts();
+      const candidates = oltIdHint
+        ? allOlts.filter((o: any) => o.id === oltIdHint)
+        : allOlts.filter((o: any) => o.isActive !== false);
+      if (candidates.length === 0) {
+        return { found: false, message: oltIdHint ? `OLT ${oltIdHint} não encontrada` : "nenhuma OLT ativa cadastrada" };
+      }
+      const attempts: Array<{ oltId: number; oltName: string; message: string }> = [];
+      for (const olt of candidates) {
+        try {
+          const r = await searchOnuBySerial(olt as any, serial);
+          if (r.success && r.onuId) {
+            return {
+              found: true,
+              oltId: olt.id,
+              oltName: olt.name,
+              onuId: r.onuId,
+              slotOlt: r.slotOlt ?? null,
+              portOlt: r.portOlt ?? null,
+              message: r.message,
+            };
+          }
+          attempts.push({ oltId: olt.id, oltName: olt.name, message: r.message || "não encontrada" });
+        } catch (e: any) {
+          attempts.push({ oltId: olt.id, oltName: olt.name, message: `erro: ${e?.message || e}` });
+        }
+      }
+      return {
+        found: false,
+        message: `serial "${serial}" não encontrado em ${candidates.length} OLT(s)`,
+        attempts: attempts.slice(0, 10),
+      };
+    } catch (e: any) {
+      return { error: `olt_search_onu_by_serial: ${e?.message || e}` };
     }
   }
 
@@ -1452,9 +1512,9 @@ const FIELD_HINTS: Record<string, string> = {
   pppoeUser: "Usuário PPPoE (login) cadastrado no Voalle/RADIUS. Buscar via get_voalle_data, get_pppoe_session, ou inferir por padrão de nomenclatura observado em links similares do mesmo cliente.",
   concentratorId: "ID numérico do concentrador PPPoE (do banco snmp_concentrators) onde a sessão deste usuário está ativa. Use get_pppoe_session para descobrir em qual concentrador está ativa.",
   oltId: "ID numérico da OLT (do banco olts) à qual a ONU/CPE deste link está conectada. Buscar nos links similares do mesmo cliente, ou na localização do contrato no OZmap.",
-  slotOlt: "Slot da OLT onde a ONU está plugada (número 1..N). Descobrir via SNMP da OLT ou via OZmap.",
-  portOlt: "Porta PON da OLT (1-indexed) onde a ONU está plugada. Descobrir via SNMP da OLT ou via OZmap.",
-  onuId: "ID da ONU dentro da porta PON (igual ao ID exibido na CLI da OLT). Descobrir via SNMP da OLT.",
+  slotOlt: "Slot da OLT onde a ONU está plugada (número 1..N). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro** — essa é a mesma ferramenta do botão 'Descobrir ONU' do cadastro de link. Fallback: OZmap.",
+  portOlt: "Porta PON da OLT (1-indexed). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro.** Fallback: OZmap.",
+  onuId: "ID da ONU dentro da porta PON (igual ao ID exibido na CLI da OLT). **Se o link tem equipmentSerialNumber, SEMPRE chame olt_search_onu_by_serial primeiro** — a tool faz SSH/Telnet na OLT e retorna onuId+slotOlt+portOlt de uma vez. Só desista se todas as OLTs responderem 'não encontrada'.",
   equipmentSerialNumber: "Serial alfanumérico da ONU/CPE. Buscar via OZmap (potencyData) ou no Voalle (campo do contrato).",
   voalleContractTagId: "ID numérico da tag de serviço no Voalle (contract_service_tags). Buscar via get_voalle_data com o CNPJ/CPF do cliente, ou via tabela voalle_service_tags.",
 };
