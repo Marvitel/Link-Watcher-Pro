@@ -348,8 +348,9 @@ Fontes disponíveis (resumo):
 1. **Leia o contexto** (link, cliente, eventos, métricas, sinal óptico, links similares, regras, correções).
 2. **Confirme o problema**: ping_link para ver se realmente está fora.
 3. **Se for PPPoE e não tem sessão ativa**: chame radius_session_by_pppoe e mikrotik_pppoe_active para ver se o usuário está logado em outro lugar (PPPoE duplicado), com outra senha, ou se nunca autenticou.
-4. **Se a sessão PPPoE existe mas o IP não responde**: o IP pode ter mudado — use mikrotik_arp_by_interface ou radius_session_by_pppoe (campo framedip) para descobrir o IP real, depois ping_ip nele.
+4. **Se a sessão PPPoE existe mas o IP não responde**: o IP pode ter mudado — use radius_session_by_pppoe (campo framedip) ou o próprio campo "address" da sessão em mikrotik_pppoe_active para descobrir o IP real, depois ping_ip nele. **NÃO use mikrotik_arp_by_interface em interfaces PPPoE** — links PPPoE são ponto-a-ponto e nunca aparecem na tabela ARP, então vazio aqui é o esperado, não evidência de problema.
 5. **Se a OLT não tem leitura óptica recente**: chame get_flashman_cpe pra pegar via ACS (fallback). Se trouxer rxPower, pode incluir essa info no reasoning. Se a CPE não responde nem no ACS, é problema físico (network_issue).
+   - **IMPORTANTE — sinais que NÃO são problema**: tcp_port_check vazio em portas de gerência (22/80/443/8728) é normal — a maioria dos CPEs corporativos bloqueia gerência pela WAN; isso não prova queda. get_flashman_cpe sem retorno só significa que o cliente não usa Flashman/ACS, não que está offline. Sessão PPPoE ATIVA há horas no Mikrotik é evidência FORTE de que o link camada 2 está vivo, mesmo que ICMP não responda — nesse caso prefira "inconclusive" a "network_issue" se o ping foi o único sinal negativo.
 6. **Se o link é corporativo L2/L3 (sem PPPoE)**: use mikrotik_route_by_gateway e mikrotik_arp_by_interface no concentrador pra confirmar se o bloco IP roteado e o IP do gateway estão corretos.
 7. **Confronte com links similares**: se o cliente tem 5 outros links com PPPoE no padrão "abc-cli-001..005" e este está cadastrado como "abc-cli-99", provável erro de cadastro.
 8. **Voalle**: se o link parece "deslocado" do contrato, voalle_get_contracts pelo CNPJ do cliente confirma quais conexões/etiquetas o cliente realmente tem.
@@ -736,8 +737,21 @@ async function executeTool(name: string, input: any): Promise<unknown> {
     const link = await storage.getLink(Number(input?.linkId));
     if (!link) return { error: "link não encontrado" };
     if (!link.monitoredIp) return { error: "link sem monitoredIp cadastrado" };
-    const r = await pingHost(link.monitoredIp, 5);
-    return { ipAddress: link.monitoredIp, ...r };
+    // Faz até 3 rodadas se a primeira falhar — evita falso-negativo transiente
+    const attempts: Array<{ latency: number; packetLoss: number; success: boolean }> = [];
+    for (let i = 0; i < 3; i++) {
+      const r = await pingHost(link.monitoredIp, 5);
+      attempts.push(r);
+      if (r.success && r.packetLoss < 100) break;
+      if (i < 2) await new Promise((res) => setTimeout(res, 1500));
+    }
+    const best = attempts.reduce((a, b) => (b.packetLoss < a.packetLoss ? b : a));
+    return {
+      ipAddress: link.monitoredIp,
+      ...best,
+      attempts: attempts.length,
+      note: best.success ? undefined : "3 tentativas executadas — todas falharam",
+    };
   }
 
   if (name === "ping_ip") {
