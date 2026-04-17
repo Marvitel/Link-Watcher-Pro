@@ -489,3 +489,110 @@ export async function snoozePendingItem(
   } as any);
   return { ok: true };
 }
+
+// =====================================================================
+// Investigação por IA: descobre o valor faltante e atualiza a pendência
+// =====================================================================
+
+// Campos que a IA sabe investigar (subset do APPLIABLE_FIELDS — exclui meta-pendências `_metrics_stale` etc.)
+const AI_INVESTIGABLE_FIELDS = new Set([
+  "monitoredIp",
+  "pppoeUser",
+  "concentratorId",
+  "oltId",
+  "slotOlt",
+  "portOlt",
+  "onuId",
+  "equipmentSerialNumber",
+  "voalleContractTagId",
+]);
+
+export async function investigatePendingItem(
+  itemId: number
+): Promise<{ ok: boolean; updated?: boolean; suggestedValue?: string | null; nextStep?: string; confidence?: number; reasoning?: string; toolsUsed?: string[]; error?: string }> {
+  const item = await storage.getLinkPendingItem(itemId);
+  if (!item) return { ok: false, error: "pendência não encontrada" };
+  if (item.status !== "pending" && item.status !== "snoozed") {
+    return { ok: false, error: `pendência já está em status "${item.status}", não cabe investigar` };
+  }
+  if (!AI_INVESTIGABLE_FIELDS.has(item.field)) {
+    return { ok: false, error: `campo "${item.field}" não é investigável pela IA` };
+  }
+
+  const ai = await import("./ai-analyst");
+  const result = await ai.investigateField(item.linkId, item.field);
+
+  // Atualiza a pendência com o que a IA descobriu (mesmo que seja null — registra o reasoning)
+  const updates: any = {
+    suggestedValue: result.value,
+    nextStep: result.nextStep,
+    reason: `[IA ${result.confidence}%] ${result.reasoning}`.slice(0, 1000),
+    source: "ai",
+  };
+  // Se estava snoozed e a IA conseguiu algo, volta para pending
+  if (item.status === "snoozed" && result.value !== null) {
+    updates.status = "pending";
+    updates.snoozedUntil = null;
+  }
+  await storage.updateLinkPendingItem(itemId, updates);
+
+  return {
+    ok: true,
+    updated: true,
+    suggestedValue: result.value,
+    nextStep: result.nextStep,
+    confidence: result.confidence,
+    reasoning: result.reasoning,
+    toolsUsed: result.toolsUsed,
+  };
+}
+
+let isBatchInvestigating = false;
+export function isInvestigationBatchRunning(): boolean {
+  return isBatchInvestigating;
+}
+
+interface BatchInvestigationStats {
+  total: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  durationMs: number;
+}
+
+export async function investigateAllPendingWithoutValue(
+  limit: number = 50
+): Promise<BatchInvestigationStats> {
+  if (isBatchInvestigating) {
+    throw new Error("já existe uma investigação em batch em andamento");
+  }
+  isBatchInvestigating = true;
+  const t0 = Date.now();
+  const stats: BatchInvestigationStats = { total: 0, updated: 0, skipped: 0, errors: 0, durationMs: 0 };
+  try {
+    const items = await storage.getLinkPendingItems({
+      status: ["pending"],
+      limit: Math.min(500, limit),
+    });
+    const candidates = items.filter(
+      (it) => AI_INVESTIGABLE_FIELDS.has(it.field) && (it.suggestedValue == null || it.suggestedValue === "")
+    );
+    stats.total = candidates.length;
+    for (const it of candidates) {
+      try {
+        const r = await investigatePendingItem(it.id);
+        if (r.ok && r.updated) stats.updated += 1;
+        else stats.skipped += 1;
+      } catch (err: any) {
+        stats.errors += 1;
+        console.error(`[LinkAudit][AI] erro em pendência ${it.id} (${it.field}):`, err?.message || err);
+      }
+      // Pausa curta para não saturar API/tools externas
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  } finally {
+    isBatchInvestigating = false;
+    stats.durationMs = Date.now() - t0;
+  }
+  return stats;
+}

@@ -15713,6 +15713,45 @@ export async function registerRoutes(
       }
     });
 
+    // POST investigar UMA pendência com IA (descobre suggestedValue via tools)
+    app.post("/api/admin/link-audit/items/:id/investigate", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const result = await audit.investigatePendingItem(id);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err?.message || String(err) });
+      }
+    });
+
+    // POST investigar EM LOTE todas as pendências sem suggestedValue (background)
+    app.post("/api/admin/link-audit/investigate-batch", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        if (audit.isInvestigationBatchRunning()) {
+          return res.status(409).json({ error: "Já existe uma investigação em batch em andamento" });
+        }
+        const limit = req.body?.limit ? Math.min(200, Math.max(1, Number(req.body.limit))) : 50;
+        // Background — responde imediato
+        audit
+          .investigateAllPendingWithoutValue(limit)
+          .then((s) =>
+            console.log(
+              `[LinkAudit][AI batch] ${s.updated}/${s.total} atualizadas, ${s.errors} erros em ${s.durationMs}ms`
+            )
+          )
+          .catch((err) => console.error("[LinkAudit][AI batch] erro:", err));
+        res.json({ started: true, limit });
+      } catch (err: any) {
+        res.status(500).json({ error: err?.message || String(err) });
+      }
+    });
+
+    // GET status do batch de investigação
+    app.get("/api/admin/link-audit/investigate-status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      res.json({ running: audit.isInvestigationBatchRunning() });
+    });
+
     // PATCH política de ação por campo
     app.patch("/api/admin/link-audit/policy", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
       try {

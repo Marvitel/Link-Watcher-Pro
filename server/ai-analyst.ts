@@ -1442,3 +1442,275 @@ export async function enqueueDegradedLinks(enqueuedByUserId?: number): Promise<{
     .where(and(eq(links.status, "degraded"), eq(links.monitoringEnabled, true), sql`${links.deletedAt} IS NULL`));
   return enqueueLinksBulk(degradedLinks.map((l) => l.id), "degraded_link", enqueuedByUserId);
 }
+
+// =====================================================================
+// Investigação de UM CAMPO específico (preenchimento automático de cadastro)
+// =====================================================================
+
+const FIELD_HINTS: Record<string, string> = {
+  monitoredIp: "IP de gerência do equipamento (Mikrotik/Cisco/etc) que será pingado pelo monitor. Buscar no Voalle (contrato/conexão), no concentrador (sessão PPPoE ativa via tool get_pppoe_session) ou em links similares do mesmo cliente.",
+  pppoeUser: "Usuário PPPoE (login) cadastrado no Voalle/RADIUS. Buscar via get_voalle_data, get_pppoe_session, ou inferir por padrão de nomenclatura observado em links similares do mesmo cliente.",
+  concentratorId: "ID numérico do concentrador PPPoE (do banco snmp_concentrators) onde a sessão deste usuário está ativa. Use get_pppoe_session para descobrir em qual concentrador está ativa.",
+  oltId: "ID numérico da OLT (do banco olts) à qual a ONU/CPE deste link está conectada. Buscar nos links similares do mesmo cliente, ou na localização do contrato no OZmap.",
+  slotOlt: "Slot da OLT onde a ONU está plugada (número 1..N). Descobrir via SNMP da OLT ou via OZmap.",
+  portOlt: "Porta PON da OLT (1-indexed) onde a ONU está plugada. Descobrir via SNMP da OLT ou via OZmap.",
+  onuId: "ID da ONU dentro da porta PON (igual ao ID exibido na CLI da OLT). Descobrir via SNMP da OLT.",
+  equipmentSerialNumber: "Serial alfanumérico da ONU/CPE. Buscar via OZmap (potencyData) ou no Voalle (campo do contrato).",
+  voalleContractTagId: "ID numérico da tag de serviço no Voalle (contract_service_tags). Buscar via get_voalle_data com o CNPJ/CPF do cliente, ou via tabela voalle_service_tags.",
+};
+
+interface FieldInvestigationResult {
+  value: string | null;
+  nextStep: "apply_now" | "needs_voalle_change" | "needs_field_visit" | "wait_voalle_sync" | "manual_investigation";
+  reasoning: string;
+  confidence: number;
+  modelUsed: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  toolsUsed: string[];
+}
+
+const SUBMIT_FIELD_TOOL = {
+  name: "submit_field_value",
+  description: "Termina a investigação. DEVE ser chamada ao final com o valor descoberto (ou null se não conseguiu descobrir).",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      value: {
+        type: ["string", "null"] as any,
+        description: "Valor descoberto para o campo (string serializada — números viram string). null se não foi possível determinar.",
+      },
+      nextStep: {
+        type: "string",
+        enum: ["apply_now", "needs_voalle_change", "needs_field_visit", "wait_voalle_sync", "manual_investigation"],
+        description: "apply_now = valor pronto pra aplicar; needs_voalle_change = precisa alterar no Voalle primeiro; needs_field_visit = precisa visita técnica (ex: descobrir serial físico); wait_voalle_sync = aguardar próxima sincronização; manual_investigation = inconclusivo.",
+      },
+      reasoning: { type: "string", description: "Explicação curta de como chegou ao valor (cite as fontes/tools que usou)." },
+      confidence: { type: "number", minimum: 0, maximum: 100 },
+    },
+    required: ["value", "nextStep", "reasoning", "confidence"],
+  },
+};
+
+export async function investigateField(
+  linkId: number,
+  field: string,
+  hint?: string
+): Promise<FieldInvestigationResult> {
+  if (!ALLOWED_FIELDS.has(field)) {
+    return {
+      value: null,
+      nextStep: "manual_investigation",
+      reasoning: `Campo "${field}" não está na whitelist de campos preenchíveis pela IA.`,
+      confidence: 0,
+      modelUsed: "guard",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      toolsUsed: [],
+    };
+  }
+
+  const [link] = await db.select().from(links).where(eq(links.id, linkId));
+  if (!link) {
+    return {
+      value: null,
+      nextStep: "manual_investigation",
+      reasoning: `Link ${linkId} não encontrado.`,
+      confidence: 0,
+      modelUsed: "guard",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      toolsUsed: [],
+    };
+  }
+
+  const settings = await storage.getAiAnalystSettings();
+  const apiKey = resolveAnthropicApiKey(settings.apiKeyEncrypted);
+  const model = settings.model || DEFAULT_MODEL;
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL];
+
+  if (!apiKey) {
+    return {
+      value: null,
+      nextStep: "manual_investigation",
+      reasoning: "Chave da Anthropic não configurada (defina ANTHROPIC_API_KEY ou cadastre na aba Analista IA).",
+      confidence: 0,
+      modelUsed: "stub-no-key",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+      toolsUsed: [],
+    };
+  }
+
+  const ctx = await buildLinkContext(link as Link);
+
+  const fieldHint = hint || FIELD_HINTS[field] || `Descobrir o valor adequado para o campo "${field}".`;
+
+  const focusedPrompt = [
+    `# MISSÃO`,
+    `Descobrir o valor correto do campo "${field}" para o link #${linkId} (${link.name || "sem nome"}).`,
+    ``,
+    `## O QUE É ESTE CAMPO`,
+    fieldHint,
+    ``,
+    `## VALOR ATUAL DESTE CAMPO NO LINK`,
+    JSON.stringify((link as any)[field] ?? null),
+    ``,
+    `## CONTEXTO DO LINK`,
+    `- Cliente ID: ${link.clientId} (${ctx.client?.name ?? "?"})`,
+    `- IP monitorado atual: ${link.monitoredIp ?? "—"}`,
+    `- PPPoE atual: ${link.pppoeUser ?? "—"}`,
+    `- Concentrador atual: ${ctx.concentrator?.name ?? link.concentratorId ?? "—"}`,
+    `- OLT atual: ${ctx.olt?.name ?? link.oltId ?? "—"}`,
+    `- Serial equip.: ${(link as any).equipmentSerialNumber ?? "—"}`,
+    `- Status: ${link.status}, monitoramento: ${link.monitoringEnabled ? "on" : "off"}`,
+    ``,
+    `## LINKS SIMILARES (mesmo cliente — útil para inferir padrões)`,
+    ctx.similarLinks.length === 0
+      ? "_nenhum_"
+      : ctx.similarLinks
+          .slice(0, 8)
+          .map((s) => `- #${s.id} ${s.name} (pppoe=${s.pppoeUser ?? "—"}, conc=${s.concentratorId ?? "—"})`)
+          .join("\n"),
+    ``,
+    `## CORREÇÕES RECENTES (humanos editaram propostas anteriores — aprenda)`,
+    ctx.recentCorrections.length === 0
+      ? "_nenhuma_"
+      : ctx.recentCorrections
+          .filter((c) => c.fieldName === field)
+          .slice(0, 5)
+          .map((c) => `- propôs ${JSON.stringify(c.aiValue)}, humano corrigiu para ${JSON.stringify(c.userValue)}${c.userNote ? ` (${c.userNote})` : ""}`)
+          .join("\n") || "_nenhuma para este campo_",
+    ``,
+    `## DISPENSAS RECENTES PELO OPERADOR (se semelhante ao caso atual, considere antes de propor)`,
+    ctx.recentDismissals.length === 0
+      ? "_nenhuma_"
+      : ctx.recentDismissals
+          .filter((d) => d.field === field)
+          .slice(0, 5)
+          .map((d) => `- "${d.dismissalNote}"`)
+          .join("\n") || "_nenhuma para este campo_",
+    ``,
+    `## REGRAS ATIVAS`,
+    ctx.rules.length === 0 ? "_nenhuma_" : ctx.rules.map((r) => `- ${r.ruleText}`).join("\n"),
+    ``,
+    `# COMO TRABALHAR`,
+    `1. Use as ferramentas (get_voalle_data, get_pppoe_session, get_ozmap_data, query_concentrator_*, etc) para BUSCAR o valor real.`,
+    `2. Cruze fontes: se Voalle diz X e a sessão PPPoE ativa diz Y, prefira a fonte mais autoritativa para o tipo de campo.`,
+    `3. Se descobrir o valor com confiança, use nextStep="apply_now". Se precisar de mudança no Voalle ou visita, escolha o nextStep apropriado.`,
+    `4. Ao final OBRIGATORIAMENTE chame submit_field_value (não use submit_proposal).`,
+    `5. Você tem no máximo 8 iterações. Seja eficiente.`,
+  ].join("\n");
+
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic({ apiKey });
+
+  const tools = [...TOOLS.filter((t) => t.name !== "submit_proposal"), SUBMIT_FIELD_TOOL];
+  const messages: any[] = [{ role: "user", content: focusedPrompt }];
+  const toolsUsed: string[] = [];
+  let totalInput = 0;
+  let totalOutput = 0;
+  let result: any = null;
+  const MAX_ITER = 8;
+
+  for (let iter = 0; iter < MAX_ITER; iter++) {
+    const isLast = iter === MAX_ITER - 1;
+    const reqParams: any = {
+      model,
+      max_tokens: 1536,
+      system:
+        "Você é um agente que descobre valores faltantes do cadastro de links de fibra óptica. Use as ferramentas disponíveis para BUSCAR informações reais. Termine sempre chamando submit_field_value." +
+        (isLast ? "\n\n⚠️ ÚLTIMA iteração — chame submit_field_value AGORA, mesmo que com value=null." : ""),
+      tools: tools as any,
+      messages,
+    };
+    if (isLast) reqParams.tool_choice = { type: "tool", name: "submit_field_value" };
+
+    const response = await client.messages.create(reqParams);
+    totalInput += response.usage?.input_tokens || 0;
+    totalOutput += response.usage?.output_tokens || 0;
+
+    const toolUses = response.content.filter((b: any) => b.type === "tool_use") as any[];
+    if (toolUses.length === 0) {
+      // sem tool_use — encerra
+      break;
+    }
+
+    messages.push({ role: "assistant", content: response.content });
+    const toolResults: any[] = [];
+    for (const tu of toolUses) {
+      toolsUsed.push(tu.name);
+      if (tu.name === "submit_field_value") {
+        result = tu.input;
+        toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: "ok" });
+      } else {
+        try {
+          const out = await executeTool(tu.name, tu.input);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tu.id,
+            content: JSON.stringify(out).slice(0, 8000),
+          });
+        } catch (err: any) {
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tu.id,
+            content: `erro: ${err?.message || String(err)}`,
+            is_error: true,
+          });
+        }
+      }
+    }
+    messages.push({ role: "user", content: toolResults });
+
+    if (result) break;
+  }
+
+  const costUsd =
+    (totalInput / 1_000_000) * (pricing?.input ?? 0) + (totalOutput / 1_000_000) * (pricing?.output ?? 0);
+
+  // Acumula custos no settings (aproveita a métrica existente)
+  try {
+    await storage.updateAiAnalystSettings({
+      totalInputTokens: (settings.totalInputTokens || 0) + totalInput,
+      totalOutputTokens: (settings.totalOutputTokens || 0) + totalOutput,
+      totalCostUsd: Number(((Number(settings.totalCostUsd) || 0) + costUsd).toFixed(6)),
+    } as any);
+  } catch {}
+
+  if (!result) {
+    return {
+      value: null,
+      nextStep: "manual_investigation",
+      reasoning: "IA não retornou submit_field_value dentro do limite de iterações.",
+      confidence: 0,
+      modelUsed: model,
+      inputTokens: totalInput,
+      outputTokens: totalOutput,
+      costUsd,
+      toolsUsed,
+    };
+  }
+
+  // Normaliza valor para string (DB armazena como text)
+  let normalizedValue: string | null = null;
+  if (result.value !== null && result.value !== undefined && String(result.value).trim() !== "") {
+    normalizedValue = String(result.value).trim();
+  }
+
+  return {
+    value: normalizedValue,
+    nextStep: result.nextStep || "manual_investigation",
+    reasoning: String(result.reasoning || "").slice(0, 2000),
+    confidence: Math.max(0, Math.min(100, Number(result.confidence) || 0)),
+    modelUsed: model,
+    inputTokens: totalInput,
+    outputTokens: totalOutput,
+    costUsd,
+    toolsUsed,
+  };
+}

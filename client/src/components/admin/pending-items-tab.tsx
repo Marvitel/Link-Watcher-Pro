@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Play, CheckCircle2, XCircle, Clock, RefreshCw, Settings, Filter } from "lucide-react";
+import { ClipboardList, Play, CheckCircle2, XCircle, Clock, RefreshCw, Settings, Filter, Sparkles, Bot } from "lucide-react";
 import { Link as WouterLink } from "wouter";
 
 interface PendingItem {
@@ -172,6 +172,40 @@ export function PendingItemsTab() {
     onError: (err: any) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
   });
 
+  const investigateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/admin/link-audit/items/${id}/investigate`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      const valor = data.suggestedValue ?? "—";
+      const conf = data.confidence ?? 0;
+      toast({
+        title: data.suggestedValue ? "IA encontrou um valor" : "IA não conseguiu determinar",
+        description: `Valor: ${valor} (confiança ${conf}%)`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/link-audit/pending"] });
+    },
+    onError: (err: any) => toast({ title: "Erro na investigação", description: err.message, variant: "destructive" }),
+  });
+
+  const investigateBatchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/link-audit/investigate-batch", { limit: 50 });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Investigação em lote iniciada",
+        description: "A IA está descobrindo os valores. Atualize em alguns segundos.",
+      });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/link-audit/pending"] });
+      }, 5000);
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
+  });
+
   const policyMutation = useMutation({
     mutationFn: async (vars: { actionPolicy?: Record<string, string>; dailyAuditEnabled?: boolean; dailyAuditHourUtc?: number }) => {
       const res = await apiRequest("PATCH", "/api/admin/link-audit/policy", vars);
@@ -243,6 +277,17 @@ export function PendingItemsTab() {
               >
                 <Play className="h-4 w-4 mr-1" />
                 {summary?.isRunning ? "Rodando…" : "Auditoria completa"}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => investigateBatchMutation.mutate()}
+                disabled={investigateBatchMutation.isPending}
+                data-testid="button-investigate-batch"
+                title="A IA vai buscar os valores faltantes (IPs, PPPoE, OLT etc) usando Voalle, Mikrotik, OZmap e RADIUS"
+              >
+                <Sparkles className="h-4 w-4 mr-1" />
+                IA preencher pendências
               </Button>
             </div>
           </div>
@@ -366,6 +411,8 @@ export function PendingItemsTab() {
                 {items.map((it) => {
                   const cls = CLASSIFICATION_BADGE[it.classification] ?? CLASSIFICATION_BADGE.missing;
                   const isApplicable = APPLIABLE_FIELDS.includes(it.field) && it.nextStep === "apply_now";
+                  const canInvestigate =
+                    !it.field.startsWith("_") && (it.suggestedValue == null || it.suggestedValue === "");
                   return (
                     <TableRow key={it.id} data-testid={`row-pending-${it.id}`}>
                       <TableCell>
@@ -401,6 +448,19 @@ export function PendingItemsTab() {
                               >
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                                 Autorizar
+                              </Button>
+                            )}
+                            {canInvestigate && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => investigateMutation.mutate(it.id)}
+                                disabled={investigateMutation.isPending}
+                                data-testid={`button-investigate-${it.id}`}
+                                title="IA descobre o valor"
+                              >
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                IA
                               </Button>
                             )}
                             <Button
