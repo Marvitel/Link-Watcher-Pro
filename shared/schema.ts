@@ -1415,6 +1415,49 @@ export const aiAnalystSettings = pgTable("ai_analyst_settings", {
   // Contador de tokens consumidos
   totalInputTokens: bigint("total_input_tokens", { mode: "number" }).notNull().default(0),
   totalOutputTokens: bigint("total_output_tokens", { mode: "number" }).notNull().default(0),
+  // Política de ação por campo: { fieldName: 'immediate' | 'authorize_only' }
+  // 'immediate' = ao autorizar, aplica direto no link
+  // 'authorize_only' = só marca como autorizada; aplicação manual em lote depois
+  actionPolicy: jsonb("action_policy").notNull().default({}),
+  // Auditoria diária automática
+  dailyAuditEnabled: boolean("daily_audit_enabled").notNull().default(true),
+  // Hora UTC da auditoria diária (0-23)
+  dailyAuditHourUtc: integer("daily_audit_hour_utc").notNull().default(6),
+  lastAuditAt: timestamp("last_audit_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Pendências de cadastro detectadas em links (auditoria + IA)
+export const linkPendingItems = pgTable("link_pending_items", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  // Campo do link com pendência (ex: 'monitoredIp', 'pppoeUser', 'concentratorId')
+  field: varchar("field", { length: 100 }).notNull(),
+  // Valor atual (texto serializado) — null se vazio
+  currentValue: text("current_value"),
+  // Valor sugerido pela auditoria/IA (texto serializado) — null se ainda a investigar
+  suggestedValue: text("suggested_value"),
+  // Origem: 'audit' (checador automático), 'ai' (proposta da IA), 'rule' (regra explícita), 'manual'
+  source: varchar("source", { length: 20 }).notNull().default("audit"),
+  // Classificação: 'missing', 'inconsistent', 'optimization', 'urgent'
+  classification: varchar("classification", { length: 20 }).notNull(),
+  // Status: 'pending', 'authorized', 'applied', 'dismissed', 'snoozed'
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  // Próximo passo: 'apply_now', 'needs_voalle_change', 'needs_field_visit', 'wait_voalle_sync', 'manual_investigation'
+  nextStep: varchar("next_step", { length: 30 }).notNull().default("apply_now"),
+  // Descrição curta da ação ("Trocar pppoeUser para joao-002")
+  suggestedAction: text("suggested_action").notNull(),
+  // Razão/diagnóstico da pendência (ex: "RADIUS retornou usuário diferente do cadastrado")
+  reason: text("reason"),
+  // Referência opcional à proposta da IA que gerou (se source='ai')
+  proposalId: integer("proposal_id"),
+  // Resolução
+  resolvedAt: timestamp("resolved_at"),
+  resolvedByUserId: integer("resolved_by_user_id"),
+  resolutionNote: text("resolution_note"),
+  // Snooze: quando voltar a aparecer
+  snoozedUntil: timestamp("snoozed_until"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -1504,6 +1547,10 @@ export const insertAiAnalystTaskSchema = createInsertSchema(aiAnalystTasks).omit
 export const insertAiAnalystProposalSchema = createInsertSchema(aiAnalystProposals).omit({ id: true, createdAt: true, reviewedAt: true });
 export const insertAiAnalystCorrectionSchema = createInsertSchema(aiAnalystCorrections).omit({ id: true, createdAt: true });
 export const insertAiAnalystRuleSchema = createInsertSchema(aiAnalystRules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLinkPendingItemSchema = createInsertSchema(linkPendingItems).omit({ id: true, createdAt: true, updatedAt: true, resolvedAt: true });
+
+export type LinkPendingItem = typeof linkPendingItems.$inferSelect;
+export type InsertLinkPendingItem = z.infer<typeof insertLinkPendingItemSchema>;
 
 export type AiAnalystSettings = typeof aiAnalystSettings.$inferSelect;
 export type InsertAiAnalystSettings = z.infer<typeof insertAiAnalystSettingsSchema>;

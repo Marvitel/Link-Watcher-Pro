@@ -207,6 +207,14 @@ app.use((req, res, next) => {
     setupTerminalWebSocket(adminHttpServer);
   }
 
+  // Scheduler diário de auditoria de pendências de cadastro dos links
+  try {
+    const { startDailyAuditScheduler } = await import("./link-audit");
+    startDailyAuditScheduler();
+  } catch (err) {
+    console.error("[index] falha ao iniciar scheduler de auditoria:", err);
+  }
+
   // Error handlers
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

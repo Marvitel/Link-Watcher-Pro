@@ -129,6 +129,7 @@ import {
   aiAnalystProposals,
   aiAnalystCorrections,
   aiAnalystRules,
+  linkPendingItems,
   type AiAnalystSettings,
   type InsertAiAnalystSettings,
   type AiAnalystTask,
@@ -139,6 +140,8 @@ import {
   type InsertAiAnalystCorrection,
   type AiAnalystRule,
   type InsertAiAnalystRule,
+  type LinkPendingItem,
+  type InsertLinkPendingItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
@@ -3312,6 +3315,165 @@ export class DatabaseStorage {
 
   async deleteAiAnalystRule(id: number): Promise<void> {
     await db.delete(aiAnalystRules).where(eq(aiAnalystRules.id, id));
+  }
+
+  // ============ Link Pending Items (audit + AI) ============
+
+  async getLinkPendingItem(id: number): Promise<LinkPendingItem | undefined> {
+    const rows = await db.select().from(linkPendingItems).where(eq(linkPendingItems.id, id));
+    return rows[0];
+  }
+
+  async findLinkPendingItem(linkId: number, field: string): Promise<LinkPendingItem | undefined> {
+    const rows = await db
+      .select()
+      .from(linkPendingItems)
+      .where(and(eq(linkPendingItems.linkId, linkId), eq(linkPendingItems.field, field)))
+      .orderBy(desc(linkPendingItems.createdAt))
+      .limit(1);
+    return rows[0];
+  }
+
+  async createLinkPendingItem(data: InsertLinkPendingItem): Promise<LinkPendingItem> {
+    const [row] = await db.insert(linkPendingItems).values(data).returning();
+    return row;
+  }
+
+  async upsertLinkPendingItem(data: InsertLinkPendingItem): Promise<LinkPendingItem> {
+    // Se já existe um item ativo (pending/snoozed) para o mesmo linkId+field, atualiza; senão cria novo
+    const existing = await db
+      .select()
+      .from(linkPendingItems)
+      .where(
+        and(
+          eq(linkPendingItems.linkId, data.linkId),
+          eq(linkPendingItems.field, data.field),
+          inArray(linkPendingItems.status, ["pending", "snoozed"])
+        )
+      )
+      .limit(1);
+
+    if (existing[0]) {
+      const [updated] = await db
+        .update(linkPendingItems)
+        .set({
+          currentValue: data.currentValue ?? null,
+          suggestedValue: data.suggestedValue ?? null,
+          source: data.source ?? existing[0].source,
+          classification: data.classification,
+          nextStep: data.nextStep ?? existing[0].nextStep,
+          suggestedAction: data.suggestedAction,
+          reason: data.reason ?? null,
+          proposalId: data.proposalId ?? existing[0].proposalId,
+          updatedAt: new Date(),
+        })
+        .where(eq(linkPendingItems.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+    return this.createLinkPendingItem(data);
+  }
+
+  async getLinkPendingItems(filter?: {
+    status?: string | string[];
+    classification?: string;
+    linkId?: number;
+    clientId?: number;
+    onlyProblematic?: boolean;
+    limit?: number;
+  }): Promise<Array<LinkPendingItem & { link?: { name: string; clientId: number; status: string } }>> {
+    const limit = filter?.limit ?? 500;
+    const conditions = [] as any[];
+    if (filter?.status) {
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      conditions.push(inArray(linkPendingItems.status, statuses));
+    }
+    if (filter?.classification) conditions.push(eq(linkPendingItems.classification, filter.classification));
+    if (filter?.linkId) conditions.push(eq(linkPendingItems.linkId, filter.linkId));
+
+    const baseQuery = db
+      .select({
+        id: linkPendingItems.id,
+        linkId: linkPendingItems.linkId,
+        field: linkPendingItems.field,
+        currentValue: linkPendingItems.currentValue,
+        suggestedValue: linkPendingItems.suggestedValue,
+        source: linkPendingItems.source,
+        classification: linkPendingItems.classification,
+        status: linkPendingItems.status,
+        nextStep: linkPendingItems.nextStep,
+        suggestedAction: linkPendingItems.suggestedAction,
+        reason: linkPendingItems.reason,
+        proposalId: linkPendingItems.proposalId,
+        resolvedAt: linkPendingItems.resolvedAt,
+        resolvedByUserId: linkPendingItems.resolvedByUserId,
+        resolutionNote: linkPendingItems.resolutionNote,
+        snoozedUntil: linkPendingItems.snoozedUntil,
+        createdAt: linkPendingItems.createdAt,
+        updatedAt: linkPendingItems.updatedAt,
+        linkName: links.name,
+        linkClientId: links.clientId,
+        linkStatus: links.status,
+      })
+      .from(linkPendingItems)
+      .innerJoin(links, eq(linkPendingItems.linkId, links.id));
+
+    const allConds = [...conditions];
+    if (filter?.clientId) allConds.push(eq(links.clientId, filter.clientId));
+    if (filter?.onlyProblematic) allConds.push(inArray(links.status, ["offline", "degraded"]));
+
+    const filtered = allConds.length > 0 ? baseQuery.where(and(...allConds)) : baseQuery;
+    const rows = await filtered.orderBy(desc(linkPendingItems.createdAt)).limit(limit);
+
+    return rows.map((r) => ({
+      id: r.id,
+      linkId: r.linkId,
+      field: r.field,
+      currentValue: r.currentValue,
+      suggestedValue: r.suggestedValue,
+      source: r.source,
+      classification: r.classification,
+      status: r.status,
+      nextStep: r.nextStep,
+      suggestedAction: r.suggestedAction,
+      reason: r.reason,
+      proposalId: r.proposalId,
+      resolvedAt: r.resolvedAt,
+      resolvedByUserId: r.resolvedByUserId,
+      resolutionNote: r.resolutionNote,
+      snoozedUntil: r.snoozedUntil,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      link: { name: r.linkName, clientId: r.linkClientId, status: r.linkStatus },
+    }));
+  }
+
+  async updateLinkPendingItem(id: number, data: Partial<LinkPendingItem>): Promise<LinkPendingItem | undefined> {
+    const [updated] = await db
+      .update(linkPendingItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(linkPendingItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getRecentDismissedPendingItems(limit: number = 30): Promise<LinkPendingItem[]> {
+    return db
+      .select()
+      .from(linkPendingItems)
+      .where(eq(linkPendingItems.status, "dismissed"))
+      .orderBy(desc(linkPendingItems.resolvedAt))
+      .limit(limit);
+  }
+
+  async countLinkPendingItemsByStatus(): Promise<Record<string, number>> {
+    const rows = await db
+      .select({ status: linkPendingItems.status, count: sql<number>`count(*)::int` })
+      .from(linkPendingItems)
+      .groupBy(linkPendingItems.status);
+    const out: Record<string, number> = {};
+    for (const r of rows) out[r.status] = r.count;
+    return out;
   }
 }
 

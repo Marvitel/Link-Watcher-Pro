@@ -89,6 +89,7 @@ import { DiagnosticTargetsTab } from "@/components/admin/diagnostic-targets-tab"
 import { VoalleImportTab } from "@/components/admin/voalle-import-tab";
 import { LinkDiagnosticsTab } from "@/components/admin/link-diagnostics-tab";
 import { AiAnalystTab } from "@/components/admin/ai-analyst-tab";
+import { PendingItemsTab } from "@/components/admin/pending-items-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
@@ -5501,6 +5502,10 @@ export default function Admin() {
             <Bot className="w-4 h-4" />
             Analista IA
           </TabsTrigger>
+          <TabsTrigger value="pending-items" className="gap-2" data-testid="tab-pending-items">
+            <Bot className="w-4 h-4" />
+            Pendências
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -6195,6 +6200,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="ai-analyst" className="space-y-4">
           <AiAnalystTab />
+        </TabsContent>
+        <TabsContent value="pending-items" className="space-y-4">
+          <PendingItemsTab />
         </TabsContent>
       </Tabs>
     </div>

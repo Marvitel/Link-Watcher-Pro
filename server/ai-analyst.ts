@@ -147,6 +147,8 @@ interface LinkContext {
   similarLinks: Array<{ id: number; name: string; concentratorId: number | null; pppoeUser: string | null; snmpInterfaceAlias: string | null }>;
   rules: Array<{ ruleText: string; priority: number }>;
   recentCorrections: Array<{ fieldName: string; aiValue: string | null; userValue: string | null; userNote: string | null }>;
+  recentRejections: Array<{ classification: string; proposedFields: any; reasoning: string; reviewerNote: string | null }>;
+  recentDismissals: Array<{ field: string; suggestedAction: string; reason: string | null; dismissalNote: string | null }>;
 }
 
 async function buildLinkContext(link: Link): Promise<LinkContext> {
@@ -240,6 +242,28 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
     userNote: c.userNote,
   }));
 
+  // Rejeições recentes da IA (aprendizado por feedback negativo)
+  const rejectedRows = await storage.getAiAnalystProposals({ status: "rejected", limit: 10 });
+  const recentRejections = rejectedRows
+    .filter((p) => p.reviewerNote && p.reviewerNote.trim().length > 0)
+    .map((p) => ({
+      classification: p.classification,
+      proposedFields: p.proposedFields,
+      reasoning: String(p.reasoning || "").slice(0, 300),
+      reviewerNote: p.reviewerNote,
+    }));
+
+  // Pendências dispensadas pelo operador (aprendizado: motivo da dispensa)
+  const dismissedRows = await storage.getRecentDismissedPendingItems(15);
+  const recentDismissals = dismissedRows
+    .filter((d) => d.resolutionNote && d.resolutionNote.trim().length > 0)
+    .map((d) => ({
+      field: d.field,
+      suggestedAction: d.suggestedAction,
+      reason: d.reason,
+      dismissalNote: d.resolutionNote,
+    }));
+
   // Última leitura óptica conhecida (qualquer dos 3 campos)
   const lastOpticalRow = metricsRows.find(
     (r) => r.opticalRxPower != null || r.opticalTxPower != null || r.opticalOltRxPower != null
@@ -265,6 +289,8 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
     similarLinks,
     rules,
     recentCorrections,
+    recentRejections,
+    recentDismissals,
   };
 }
 
@@ -885,7 +911,21 @@ function buildUserPrompt(ctx: LinkContext): string {
           .map((c) => `- campo "${c.fieldName}": IA propôs ${JSON.stringify(c.aiValue)}, humano corrigiu para ${JSON.stringify(c.userValue)}${c.userNote ? ` (nota: ${c.userNote})` : ""}`)
           .join("\n"),
     "",
-    "Investigue e ao final chame submit_proposal com sua decisão.",
+    "## PROPOSTAS REJEITADAS RECENTES (humanos rejeitaram — entenda o motivo e NÃO repita o mesmo erro)",
+    ctx.recentRejections.length === 0
+      ? "_nenhuma_"
+      : ctx.recentRejections
+          .map((r) => `- ${r.classification} (campos: ${JSON.stringify(r.proposedFields)}) — motivo da rejeição: "${r.reviewerNote}"`)
+          .join("\n"),
+    "",
+    "## PENDÊNCIAS DISPENSADAS PELO OPERADOR (auditoria automática sugeriu, humano disse NÃO se aplica)",
+    ctx.recentDismissals.length === 0
+      ? "_nenhuma_"
+      : ctx.recentDismissals
+          .map((d) => `- campo "${d.field}" (sugestão "${d.suggestedAction}"): operador dispensou — "${d.dismissalNote}"`)
+          .join("\n"),
+    "",
+    "Investigue e ao final chame submit_proposal com sua decisão. Se houver rejeições/dispensas semelhantes ao caso atual, considere fortemente o motivo informado pelo operador antes de propor algo similar.",
   ].join("\n");
 }
 

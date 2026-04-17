@@ -15603,6 +15603,135 @@ export async function registerRoutes(
         res.status(500).json({ error: err.message });
       }
     });
+
+    // ==================== Auditoria de Pendências ====================
+    const audit = await import("./link-audit");
+
+    // GET listar pendências
+    app.get("/api/admin/link-audit/pending", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const status = (req.query.status as string) || "pending";
+        const items = await storage.getLinkPendingItems({
+          status: status === "all" ? undefined : status.split(","),
+          classification: (req.query.classification as string) || undefined,
+          linkId: req.query.linkId ? Number(req.query.linkId) : undefined,
+          clientId: req.query.clientId ? Number(req.query.clientId) : undefined,
+          onlyProblematic: req.query.onlyProblematic === "true",
+          limit: req.query.limit ? Math.min(2000, Number(req.query.limit)) : 500,
+        });
+        res.json(items);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET resumo (counts por status)
+    app.get("/api/admin/link-audit/summary", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        const counts = await storage.countLinkPendingItemsByStatus();
+        const settings = await storage.getAiAnalystSettings();
+        res.json({
+          counts,
+          lastAuditAt: (settings as any).lastAuditAt ?? null,
+          dailyAuditEnabled: (settings as any).dailyAuditEnabled ?? true,
+          dailyAuditHourUtc: (settings as any).dailyAuditHourUtc ?? 6,
+          actionPolicy: (settings as any).actionPolicy ?? {},
+          isRunning: audit.isAuditRunning(),
+        });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // POST rodar auditoria sob demanda (background)
+    app.post("/api/admin/link-audit/run", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        if (audit.isAuditRunning()) {
+          return res.status(409).json({ error: "Auditoria já em andamento" });
+        }
+        const onlyProblematic = req.body?.onlyProblematic === true;
+        // Roda em background para não bloquear o request
+        audit
+          .runFullAudit({ onlyProblematic })
+          .then((s) =>
+            console.log(
+              `[LinkAudit] manual: ${s.scannedLinks} links, ${s.generatedItems} novas, ${s.updatedItems} atualizadas, ${s.resolvedItems} resolvidas em ${s.durationMs}ms`
+            )
+          )
+          .catch((err) => console.error("[LinkAudit] erro na execução manual:", err));
+        res.json({ started: true });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // POST autorizar pendência
+    app.post("/api/admin/link-audit/items/:id/authorize", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const schema = z.object({
+          overrideValue: z.string().optional(),
+          note: z.string().optional(),
+        });
+        const { overrideValue, note } = schema.parse(req.body || {});
+        const userId = (req as any).user?.id;
+        const result = await audit.authorizePendingItem(id, userId, overrideValue, note);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // POST dispensar pendência (com motivo — alimenta aprendizado da IA)
+    app.post("/api/admin/link-audit/items/:id/dismiss", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const schema = z.object({ reason: z.string().min(3, "informe o motivo da dispensa") });
+        const { reason } = schema.parse(req.body || {});
+        const userId = (req as any).user?.id;
+        const result = await audit.dismissPendingItem(id, userId, reason);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // POST adiar pendência
+    app.post("/api/admin/link-audit/items/:id/snooze", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const schema = z.object({ hours: z.number().int().min(1).max(720).default(24) });
+        const { hours } = schema.parse(req.body || {});
+        const userId = (req as any).user?.id;
+        const result = await audit.snoozePendingItem(id, userId, hours);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // PATCH política de ação por campo
+    app.patch("/api/admin/link-audit/policy", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({
+          actionPolicy: z.record(z.enum(["immediate", "authorize_only"])).optional(),
+          dailyAuditEnabled: z.boolean().optional(),
+          dailyAuditHourUtc: z.number().int().min(0).max(23).optional(),
+        });
+        const data = schema.parse(req.body);
+        const updated = await storage.updateAiAnalystSettings(data as any);
+        res.json({
+          actionPolicy: (updated as any).actionPolicy,
+          dailyAuditEnabled: (updated as any).dailyAuditEnabled,
+          dailyAuditHourUtc: (updated as any).dailyAuditHourUtc,
+        });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
   }
 
   return httpServer;
