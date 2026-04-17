@@ -136,12 +136,12 @@ interface LinkContext {
 }
 
 async function buildLinkContext(link: Link): Promise<LinkContext> {
-  // Eventos recentes
+  // Eventos recentes (a tabela events usa coluna "timestamp", não "createdAt")
   const recentEventsRaw = await db
     .select()
     .from(events)
     .where(eq(events.linkId, link.id))
-    .orderBy(desc(events.createdAt))
+    .orderBy(desc(events.timestamp))
     .limit(15);
 
   // Métricas das últimas 24h (resumo)
@@ -218,7 +218,7 @@ async function buildLinkContext(link: Link): Promise<LinkContext> {
 
   return {
     link,
-    recentEvents: recentEventsRaw.map((e) => ({ type: e.type, description: e.description, createdAt: e.createdAt })),
+    recentEvents: recentEventsRaw.map((e) => ({ type: e.type, description: e.description, createdAt: e.timestamp })),
     recentMetricsSummary: {
       samples,
       avgLatency: samples ? sum.latency / samples : 0,
