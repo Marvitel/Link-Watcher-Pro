@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 import {
   WifiOff,
   Network,
@@ -32,6 +33,7 @@ import {
   Link2,
   UploadCloud,
   Database,
+  Bot,
 } from "lucide-react";
 
 interface DiagnosticCategory {
@@ -127,6 +129,7 @@ interface ReconcileProgress {
 }
 
 export function LinkDiagnosticsTab() {
+  const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [downloadingMissing, setDownloadingMissing] = useState(false);
@@ -226,6 +229,21 @@ export function LinkDiagnosticsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/links/enrich/status"] });
     },
+  });
+
+  const aiTriageMutation = useMutation({
+    mutationFn: async (autoSelect: "offline" | "degraded") => {
+      const res = await apiRequest("POST", "/api/admin/ai-analyst/enqueue", { autoSelect });
+      return res.json() as Promise<{ enqueued: number; skipped: number }>;
+    },
+    onSuccess: (data, autoSelect) => {
+      const tipo = autoSelect === "offline" ? "offline" : "degradados";
+      toast({
+        title: `Triagem IA enfileirada (${tipo})`,
+        description: `${data.enqueued} novos · ${data.skipped} já estavam na fila. Vá em Admin → Analista IA para revisar.`,
+      });
+    },
+    onError: (e: any) => toast({ title: "Erro ao enfileirar", description: e.message, variant: "destructive" }),
   });
 
   const reconcileMutation = useMutation({
@@ -396,6 +414,28 @@ export function LinkDiagnosticsTab() {
               <Play className="h-4 w-4 mr-1" />
             )}
             Enriquecer Tudo
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => aiTriageMutation.mutate("offline")}
+            disabled={aiTriageMutation.isPending}
+            data-testid="btn-ai-triage-offline"
+            title="Envia todos os links offline para a fila do Analista IA"
+          >
+            <Bot className="h-4 w-4 mr-1" />
+            Triagem IA (offline)
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => aiTriageMutation.mutate("degraded")}
+            disabled={aiTriageMutation.isPending}
+            data-testid="btn-ai-triage-degraded"
+            title="Envia links degradados para a fila do Analista IA"
+          >
+            <Bot className="h-4 w-4 mr-1" />
+            Triagem IA (degradados)
           </Button>
         </div>
       </div>

@@ -81,13 +81,14 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import type { Link, Client, User, Olt, ErpIntegration, ClientErpMapping, ExternalIntegration, BlacklistCheck, Cpe, EquipmentVendor } from "@shared/schema";
-import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3, Map } from "lucide-react";
+import { Database, Globe, Plug, Server, Layers, Router, Monitor, ShieldCheck, BarChart3, Map, Bot } from "lucide-react";
 import { formatBandwidth } from "@/lib/export-utils";
 import { CpesTab } from "@/components/admin/cpes-tab";
 import { CommandTemplatesTab } from "@/components/admin/command-templates-tab";
 import { DiagnosticTargetsTab } from "@/components/admin/diagnostic-targets-tab";
 import { VoalleImportTab } from "@/components/admin/voalle-import-tab";
 import { LinkDiagnosticsTab } from "@/components/admin/link-diagnostics-tab";
+import { AiAnalystTab } from "@/components/admin/ai-analyst-tab";
 import { FirewallManager } from "@/components/firewall-manager";
 import { TrafficInterfacesManager } from "@/components/traffic-interfaces-manager";
 
@@ -5496,6 +5497,10 @@ export default function Admin() {
             <Activity className="w-4 h-4" />
             Diagnóstico de Links
           </TabsTrigger>
+          <TabsTrigger value="ai-analyst" className="gap-2" data-testid="tab-ai-analyst">
+            <Bot className="w-4 h-4" />
+            Analista IA
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="links" className="space-y-4">
@@ -6187,6 +6192,9 @@ export default function Admin() {
         </TabsContent>
         <TabsContent value="link-diagnostics" className="space-y-4">
           <LinkDiagnosticsTab />
+        </TabsContent>
+        <TabsContent value="ai-analyst" className="space-y-4">
+          <AiAnalystTab />
         </TabsContent>
       </Tabs>
     </div>

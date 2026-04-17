@@ -15367,6 +15367,215 @@ export async function registerRoutes(
     })();
   });
 
+  // =====================================================================
+  // AI Analyst — fila, propostas, regras, configurações
+  // =====================================================================
+  {
+    const ai = await import("./ai-analyst");
+    const z = (await import("zod")).z;
+
+    // GET settings (chave nunca em claro)
+    app.get("/api/admin/ai-analyst/settings", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        const s = await storage.getAiAnalystSettings();
+        const { apiKeyEncrypted, ...safe } = s as any;
+        res.json({ ...safe, hasApiKey: !!apiKeyEncrypted });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // PATCH settings (sem chave — usar endpoint próprio)
+    app.patch("/api/admin/ai-analyst/settings", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({
+          provider: z.string().optional(),
+          model: z.string().optional(),
+          autonomyMode: z.enum(["suggestion", "hybrid", "auto"]).optional(),
+          autoApplyConfidenceThreshold: z.number().int().min(0).max(100).optional(),
+          processingEnabled: z.boolean().optional(),
+          maxTasksPerMinute: z.number().int().min(1).max(60).optional(),
+        });
+        const data = schema.parse(req.body);
+        const updated = await storage.updateAiAnalystSettings(data);
+        const { apiKeyEncrypted, ...safe } = updated as any;
+        res.json({ ...safe, hasApiKey: !!apiKeyEncrypted });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // POST chave (criptografada)
+    app.post("/api/admin/ai-analyst/api-key", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const { apiKey } = z.object({ apiKey: z.string().min(10) }).parse(req.body);
+        await storage.setAiAnalystApiKey(apiKey);
+        res.json({ ok: true });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // DELETE chave
+    app.delete("/api/admin/ai-analyst/api-key", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        await storage.updateAiAnalystSettings({ apiKeyEncrypted: null } as any);
+        res.json({ ok: true });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET fila de tasks
+    app.get("/api/admin/ai-analyst/queue", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const status = typeof req.query.status === "string" ? req.query.status : undefined;
+        const limit = req.query.limit ? Math.min(500, Number(req.query.limit)) : 100;
+        const tasks = await storage.getAiAnalystTasks({ status, limit });
+        res.json(tasks);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // POST enfileirar links
+    app.post("/api/admin/ai-analyst/enqueue", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({
+          linkIds: z.array(z.number().int()).optional(),
+          autoSelect: z.enum(["offline", "degraded"]).optional(),
+          reason: z.string().min(1).default("manual"),
+        });
+        const { linkIds, autoSelect, reason } = schema.parse(req.body);
+        const userId = (req as any).user?.id;
+        let result: { enqueued: number; skipped: number };
+        if (autoSelect === "offline") {
+          result = await ai.enqueueOfflineLinks(userId);
+        } else if (autoSelect === "degraded") {
+          result = await ai.enqueueDegradedLinks(userId);
+        } else if (linkIds && linkIds.length > 0) {
+          result = await ai.enqueueLinksBulk(linkIds, reason, userId);
+        } else {
+          return res.status(400).json({ error: "informe linkIds ou autoSelect" });
+        }
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // POST trigger manual de processamento (1 task)
+    app.post("/api/admin/ai-analyst/process-next", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        const result = await ai.processNextTask();
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET propostas
+    app.get("/api/admin/ai-analyst/proposals", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const status = typeof req.query.status === "string" ? req.query.status : undefined;
+        const linkId = req.query.linkId ? Number(req.query.linkId) : undefined;
+        const limit = req.query.limit ? Math.min(500, Number(req.query.limit)) : 100;
+        const proposals = await storage.getAiAnalystProposals({ status, linkId, limit });
+        res.json(proposals);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // POST aprovar (com possibilidade de editar campos)
+    app.post("/api/admin/ai-analyst/proposals/:id/approve", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const schema = z.object({
+          overrideFields: z.record(z.unknown()).optional(),
+          reviewerNote: z.string().optional(),
+        });
+        const { overrideFields, reviewerNote } = schema.parse(req.body || {});
+        const userId = (req as any).user?.id;
+        const result = await ai.applyProposal(id, userId, "manual", overrideFields, reviewerNote);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // POST rejeitar
+    app.post("/api/admin/ai-analyst/proposals/:id/reject", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const reviewerNote = typeof req.body?.reviewerNote === "string" ? req.body.reviewerNote : undefined;
+        const userId = (req as any).user?.id;
+        const result = await ai.rejectProposal(id, userId, reviewerNote);
+        if (!result.ok) return res.status(400).json(result);
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // RULES — CRUD
+    app.get("/api/admin/ai-analyst/rules", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const activeOnly = req.query.activeOnly !== "false";
+        const rules = await storage.getAiAnalystRules(activeOnly);
+        res.json(rules);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    app.post("/api/admin/ai-analyst/rules", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({
+          ruleText: z.string().min(3),
+          scope: z.record(z.unknown()).optional(),
+          priority: z.number().int().optional(),
+          isActive: z.boolean().optional(),
+        });
+        const data = schema.parse(req.body);
+        const userId = (req as any).user?.id;
+        const rule = await storage.createAiAnalystRule({ ...data, createdByUserId: userId } as any);
+        res.json(rule);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    app.patch("/api/admin/ai-analyst/rules/:id", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        const schema = z.object({
+          ruleText: z.string().min(3).optional(),
+          scope: z.record(z.unknown()).optional(),
+          priority: z.number().int().optional(),
+          isActive: z.boolean().optional(),
+        });
+        const data = schema.parse(req.body);
+        const rule = await storage.updateAiAnalystRule(id, data as any);
+        if (!rule) return res.status(404).json({ error: "regra não encontrada" });
+        res.json(rule);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    app.delete("/api/admin/ai-analyst/rules/:id", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const id = Number(req.params.id);
+        await storage.deleteAiAnalystRule(id);
+        res.json({ ok: true });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+  }
+
   return httpServer;
 }
 

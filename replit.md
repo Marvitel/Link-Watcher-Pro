@@ -69,6 +69,22 @@ The system supports grouping links for redundancy (Active/Passive), aggregation 
 ### Batch Link Diagnostics & Enrichment
 An admin tool provides batch diagnostics and enrichment for links, categorizing missing data (e.g., `missingVoalleLogin`, `missingIp`, `missingOzmapData`) and offering actions like `discover_voalle_login`, `discover_ips`, `assign_concentrators`, and `sync_ozmap`. It includes progress tracking and a RADIUS connection test.
 
+### Analista de IA (Triagem Agêntica de Links)
+Sistema de triagem automática de links com problema usando LLM (Anthropic Claude — chave ainda não configurada, módulo em modo stub).
+
+**Tabelas** (`shared/schema.ts`):
+- `ai_analyst_settings` — singleton com chave criptografada, modelo, modo de autonomia (`suggestion`/`hybrid`/`auto`), limiar de confiança e métricas de uso.
+- `ai_analyst_tasks` — fila de investigação (`linkId`, `triggerReason`, `status`, `priority`).
+- `ai_analyst_proposals` — proposta da IA (`classification`, `proposedFields` jsonb, `reasoning`, `confidence`, `modelUsed`).
+- `ai_analyst_corrections` — registra divergências entre o que a IA propôs e o que o humano efetivamente aplicou (aprendizado).
+- `ai_analyst_rules` — regras explícitas em português livre, com escopo opcional e ativação por toggle.
+
+**Módulo** (`server/ai-analyst.ts`): `enqueueLink`, `enqueueLinksBulk`, `enqueueOfflineLinks`, `enqueueDegradedLinks`, `processNextTask`, `applyProposal`, `rejectProposal`. Whitelist `ALLOWED_FIELDS` restringe os campos editáveis (ex.: `monitoredIp`, `pppoeUser`, `concentratorId`, `oltId`, `voalleContractTagId`). `runLlmInvestigation` é stub enquanto não há chave; quando ligado, basta trocar pelo SDK Anthropic com function-calling. Approve e reject geram `logAuditEvent` com `metadata.source="ai_analyst"`.
+
+**Endpoints** (`/api/admin/ai-analyst/*`): settings (GET/PATCH), api-key (POST/DELETE — chave nunca em claro), queue, enqueue (`autoSelect: 'offline'|'degraded'` ou `linkIds[]`), process-next, proposals (GET/approve/reject), rules (CRUD). Todas as rotas exigem `requireSuperAdmin`.
+
+**UI** (`client/src/components/admin/ai-analyst-tab.tsx`): nova aba "Analista IA" no admin com sub-seções Triagem (revisar/aprovar/editar/rejeitar propostas), Fila, Regras (CRUD em texto livre) e Configurações. Botões "Triagem IA (offline)" e "Triagem IA (degradados)" também no topo da aba "Diagnóstico de Links".
+
 ### Voalle Service Tag Mapping
 A dedicated table `voalle_service_tags` stores the mapping between numeric Voalle tag IDs and alphanumeric OZmap codes (e.g., 3401 → "JW37Y8NA"), populated by importing a CSV exported directly from the Voalle database (`contract_service_tags`). The admin UI (Diagnostics tab) includes a CSV upload button that sends the file as text to `POST /api/admin/voalle-service-tags/import`. The reconciliation engine uses this table as Fonte 3 (after the API and links table) to resolve service tags of deleted connections that could not be resolved from the API alone.
 

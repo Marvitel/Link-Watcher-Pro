@@ -124,6 +124,21 @@ import {
   type InsertExternalIntegration,
   type BlacklistCheck,
   type InsertBlacklistCheck,
+  aiAnalystSettings,
+  aiAnalystTasks,
+  aiAnalystProposals,
+  aiAnalystCorrections,
+  aiAnalystRules,
+  type AiAnalystSettings,
+  type InsertAiAnalystSettings,
+  type AiAnalystTask,
+  type InsertAiAnalystTask,
+  type AiAnalystProposal,
+  type InsertAiAnalystProposal,
+  type AiAnalystCorrection,
+  type InsertAiAnalystCorrection,
+  type AiAnalystRule,
+  type InsertAiAnalystRule,
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
@@ -3137,6 +3152,166 @@ export class DatabaseStorage {
       const toDelete = allBackups.slice(keepCount).map(b => b.id);
       await db.delete(cpeBackups).where(inArray(cpeBackups.id, toDelete));
     }
+  }
+
+  // ============ AI Analyst — Settings (singleton) ============
+
+  async getAiAnalystSettings(): Promise<AiAnalystSettings> {
+    const rows = await db.select().from(aiAnalystSettings).where(eq(aiAnalystSettings.id, 1));
+    if (rows[0]) return rows[0];
+    const [created] = await db.insert(aiAnalystSettings).values({ id: 1 } as any).returning();
+    return created;
+  }
+
+  async updateAiAnalystSettings(data: Partial<InsertAiAnalystSettings>): Promise<AiAnalystSettings> {
+    await this.getAiAnalystSettings(); // ensure row exists
+    const [updated] = await db
+      .update(aiAnalystSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(aiAnalystSettings.id, 1))
+      .returning();
+    return updated;
+  }
+
+  async setAiAnalystApiKey(plainKey: string): Promise<void> {
+    await this.getAiAnalystSettings();
+    const enc = encrypt(plainKey);
+    await db.update(aiAnalystSettings).set({ apiKeyEncrypted: enc, updatedAt: new Date() }).where(eq(aiAnalystSettings.id, 1));
+  }
+
+  async incrementAiAnalystUsage(inputTokens: number, outputTokens: number, costUsd: number): Promise<void> {
+    await db
+      .update(aiAnalystSettings)
+      .set({
+        totalInputTokens: sql`${aiAnalystSettings.totalInputTokens} + ${inputTokens}`,
+        totalOutputTokens: sql`${aiAnalystSettings.totalOutputTokens} + ${outputTokens}`,
+        totalCostUsd: sql`${aiAnalystSettings.totalCostUsd} + ${costUsd}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(aiAnalystSettings.id, 1));
+  }
+
+  // ============ AI Analyst — Tasks ============
+
+  async createAiAnalystTask(data: InsertAiAnalystTask): Promise<AiAnalystTask> {
+    const [row] = await db.insert(aiAnalystTasks).values(data).returning();
+    return row;
+  }
+
+  async createAiAnalystTasksBulk(rows: InsertAiAnalystTask[]): Promise<AiAnalystTask[]> {
+    if (rows.length === 0) return [];
+    return db.insert(aiAnalystTasks).values(rows).returning();
+  }
+
+  async getAiAnalystTask(id: number): Promise<AiAnalystTask | undefined> {
+    const rows = await db.select().from(aiAnalystTasks).where(eq(aiAnalystTasks.id, id));
+    return rows[0];
+  }
+
+  async getAiAnalystTasks(filter?: { status?: string; limit?: number }): Promise<AiAnalystTask[]> {
+    const limit = filter?.limit ?? 100;
+    const where = filter?.status ? eq(aiAnalystTasks.status, filter.status) : undefined;
+    const q = db.select().from(aiAnalystTasks);
+    const ordered = where ? q.where(where) : q;
+    return ordered.orderBy(desc(aiAnalystTasks.priority), desc(aiAnalystTasks.createdAt)).limit(limit);
+  }
+
+  async getNextPendingAiAnalystTask(): Promise<AiAnalystTask | undefined> {
+    const rows = await db
+      .select()
+      .from(aiAnalystTasks)
+      .where(eq(aiAnalystTasks.status, "pending"))
+      .orderBy(desc(aiAnalystTasks.priority), aiAnalystTasks.createdAt)
+      .limit(1);
+    return rows[0];
+  }
+
+  async updateAiAnalystTask(id: number, data: Partial<AiAnalystTask>): Promise<AiAnalystTask | undefined> {
+    const [updated] = await db.update(aiAnalystTasks).set(data).where(eq(aiAnalystTasks.id, id)).returning();
+    return updated;
+  }
+
+  async hasOpenAiAnalystTaskForLink(linkId: number): Promise<boolean> {
+    const rows = await db
+      .select({ id: aiAnalystTasks.id })
+      .from(aiAnalystTasks)
+      .where(and(eq(aiAnalystTasks.linkId, linkId), inArray(aiAnalystTasks.status, ["pending", "investigating", "proposed"])))
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  // ============ AI Analyst — Proposals ============
+
+  async createAiAnalystProposal(data: InsertAiAnalystProposal): Promise<AiAnalystProposal> {
+    const [row] = await db.insert(aiAnalystProposals).values(data).returning();
+    return row;
+  }
+
+  async getAiAnalystProposal(id: number): Promise<AiAnalystProposal | undefined> {
+    const rows = await db.select().from(aiAnalystProposals).where(eq(aiAnalystProposals.id, id));
+    return rows[0];
+  }
+
+  async getAiAnalystProposals(filter?: { status?: string; linkId?: number; limit?: number }): Promise<AiAnalystProposal[]> {
+    const limit = filter?.limit ?? 100;
+    const conditions = [];
+    if (filter?.status) conditions.push(eq(aiAnalystProposals.status, filter.status));
+    if (filter?.linkId) conditions.push(eq(aiAnalystProposals.linkId, filter.linkId));
+    const q = db.select().from(aiAnalystProposals);
+    const filtered = conditions.length > 0 ? q.where(and(...conditions)) : q;
+    return filtered.orderBy(desc(aiAnalystProposals.createdAt)).limit(limit);
+  }
+
+  async updateAiAnalystProposal(id: number, data: Partial<AiAnalystProposal>): Promise<AiAnalystProposal | undefined> {
+    const [updated] = await db.update(aiAnalystProposals).set(data).where(eq(aiAnalystProposals.id, id)).returning();
+    return updated;
+  }
+
+  // ============ AI Analyst — Corrections (learning) ============
+
+  async createAiAnalystCorrection(data: InsertAiAnalystCorrection): Promise<AiAnalystCorrection> {
+    const [row] = await db.insert(aiAnalystCorrections).values(data).returning();
+    return row;
+  }
+
+  async createAiAnalystCorrectionsBulk(rows: InsertAiAnalystCorrection[]): Promise<void> {
+    if (rows.length === 0) return;
+    await db.insert(aiAnalystCorrections).values(rows);
+  }
+
+  async getRecentAiAnalystCorrections(limit: number = 30): Promise<AiAnalystCorrection[]> {
+    return db.select().from(aiAnalystCorrections).orderBy(desc(aiAnalystCorrections.createdAt)).limit(limit);
+  }
+
+  // ============ AI Analyst — Rules ============
+
+  async getAiAnalystRules(activeOnly: boolean = true): Promise<AiAnalystRule[]> {
+    const q = db.select().from(aiAnalystRules);
+    const filtered = activeOnly ? q.where(eq(aiAnalystRules.isActive, true)) : q;
+    return filtered.orderBy(desc(aiAnalystRules.priority), desc(aiAnalystRules.createdAt));
+  }
+
+  async getAiAnalystRule(id: number): Promise<AiAnalystRule | undefined> {
+    const rows = await db.select().from(aiAnalystRules).where(eq(aiAnalystRules.id, id));
+    return rows[0];
+  }
+
+  async createAiAnalystRule(data: InsertAiAnalystRule): Promise<AiAnalystRule> {
+    const [row] = await db.insert(aiAnalystRules).values(data).returning();
+    return row;
+  }
+
+  async updateAiAnalystRule(id: number, data: Partial<InsertAiAnalystRule>): Promise<AiAnalystRule | undefined> {
+    const [updated] = await db
+      .update(aiAnalystRules)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(aiAnalystRules.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiAnalystRule(id: number): Promise<void> {
+    await db.delete(aiAnalystRules).where(eq(aiAnalystRules.id, id));
   }
 }
 

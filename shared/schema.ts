@@ -1389,6 +1389,133 @@ export const cpeBackups = pgTable("cpe_backups", {
 export type CpeBackup = typeof cpeBackups.$inferSelect;
 export type InsertCpeBackup = typeof cpeBackups.$inferInsert;
 
+// =====================================================================
+// Analista de IA — sistema agêntico para triagem/correção de links
+// =====================================================================
+
+// Configuração singleton (sempre id=1)
+export const aiAnalystSettings = pgTable("ai_analyst_settings", {
+  id: serial("id").primaryKey(),
+  // Provedor LLM ('anthropic', 'openai', 'google')
+  provider: varchar("provider", { length: 30 }).notNull().default("anthropic"),
+  // Modelo (ex: 'claude-sonnet-4-5')
+  model: varchar("model", { length: 100 }).notNull().default("claude-sonnet-4-5"),
+  // Chave de API criptografada (server/crypto.ts)
+  apiKeyEncrypted: text("api_key_encrypted"),
+  // Modo de autonomia: 'suggestion' (aprova tudo), 'hybrid' (auto se confiança >= threshold), 'auto'
+  autonomyMode: varchar("autonomy_mode", { length: 20 }).notNull().default("suggestion"),
+  // Limiar de confiança para auto-aplicar (0-100) quando autonomyMode='hybrid'
+  autoApplyConfidenceThreshold: integer("auto_apply_confidence_threshold").notNull().default(90),
+  // Habilita o loop de processamento em background
+  processingEnabled: boolean("processing_enabled").notNull().default(false),
+  // Limite de tasks processadas por minuto (rate limit)
+  maxTasksPerMinute: integer("max_tasks_per_minute").notNull().default(5),
+  // Custo estimado acumulado (USD) — controle financeiro
+  totalCostUsd: real("total_cost_usd").notNull().default(0),
+  // Contador de tokens consumidos
+  totalInputTokens: bigint("total_input_tokens", { mode: "number" }).notNull().default(0),
+  totalOutputTokens: bigint("total_output_tokens", { mode: "number" }).notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Fila de tarefas para o analista
+export const aiAnalystTasks = pgTable("ai_analyst_tasks", {
+  id: serial("id").primaryKey(),
+  linkId: integer("link_id").notNull(),
+  // Por que entrou na fila: 'manual', 'offline_link', 'degraded_link', 'voalle_webhook_new', 'batch_diagnostic'
+  triggerReason: varchar("trigger_reason", { length: 50 }).notNull(),
+  // Status: 'pending', 'investigating', 'proposed', 'approved', 'rejected', 'applied', 'failed', 'cancelled'
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  // Prioridade (maior número = mais prioritário). Offline=100, degraded=50, manual=200
+  priority: integer("priority").notNull().default(50),
+  // Mensagem de erro caso status='failed'
+  errorMessage: text("error_message"),
+  // Quem enfileirou (null = sistema)
+  enqueuedByUserId: integer("enqueued_by_user_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+// Proposta da IA para um link
+export const aiAnalystProposals = pgTable("ai_analyst_proposals", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").notNull(),
+  linkId: integer("link_id").notNull(),
+  // Classificação da IA: 'config_error', 'network_issue', 'inconclusive'
+  classification: varchar("classification", { length: 30 }).notNull(),
+  // Campos propostos para alterar no link (ex: { snmpInterfaceAlias: "x", concentratorId: 4 })
+  proposedFields: jsonb("proposed_fields").notNull().default({}),
+  // Diagnóstico em linguagem natural (português) explicando o raciocínio
+  reasoning: text("reasoning").notNull(),
+  // Confiança 0-100
+  confidence: integer("confidence").notNull().default(0),
+  // Modelo usado
+  modelUsed: varchar("model_used", { length: 100 }),
+  // Tokens consumidos nesta proposta
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  costUsd: real("cost_usd").notNull().default(0),
+  // Trace das ferramentas chamadas (jsonb array: [{ tool, input, output, durationMs }])
+  toolCalls: jsonb("tool_calls").notNull().default([]),
+  // Status: 'pending_review', 'approved', 'rejected', 'auto_applied', 'applied'
+  status: varchar("status", { length: 30 }).notNull().default("pending_review"),
+  // Quem revisou
+  reviewedByUserId: integer("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at"),
+  // Nota opcional do revisor
+  reviewerNote: text("reviewer_note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Correções feitas pelo usuário (alimenta o aprendizado)
+export const aiAnalystCorrections = pgTable("ai_analyst_corrections", {
+  id: serial("id").primaryKey(),
+  proposalId: integer("proposal_id").notNull(),
+  linkId: integer("link_id").notNull(),
+  fieldName: varchar("field_name", { length: 100 }).notNull(),
+  // Valores como texto pra simplicidade (qualquer tipo serializado)
+  aiValue: text("ai_value"),
+  userValue: text("user_value"),
+  // Anotação opcional do usuário explicando a correção
+  userNote: text("user_note"),
+  correctedByUserId: integer("corrected_by_user_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Regras explícitas em português ensinadas pelo operador
+export const aiAnalystRules = pgTable("ai_analyst_rules", {
+  id: serial("id").primaryKey(),
+  // Texto da regra em português (ex: "Clientes da região X sempre vão no concentrador BNG-Norte")
+  ruleText: text("rule_text").notNull(),
+  // Escopo opcional para filtrar quando a regra se aplica (ex: { authType: 'pppoe', triggerReason: 'offline_link' })
+  scope: jsonb("scope").default({}),
+  // Prioridade (regras com maior prioridade são aplicadas primeiro)
+  priority: integer("priority").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Schemas Zod e tipos
+export const insertAiAnalystSettingsSchema = createInsertSchema(aiAnalystSettings).omit({ id: true, updatedAt: true });
+export const insertAiAnalystTaskSchema = createInsertSchema(aiAnalystTasks).omit({ id: true, createdAt: true, startedAt: true, completedAt: true });
+export const insertAiAnalystProposalSchema = createInsertSchema(aiAnalystProposals).omit({ id: true, createdAt: true, reviewedAt: true });
+export const insertAiAnalystCorrectionSchema = createInsertSchema(aiAnalystCorrections).omit({ id: true, createdAt: true });
+export const insertAiAnalystRuleSchema = createInsertSchema(aiAnalystRules).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type AiAnalystSettings = typeof aiAnalystSettings.$inferSelect;
+export type InsertAiAnalystSettings = z.infer<typeof insertAiAnalystSettingsSchema>;
+export type AiAnalystTask = typeof aiAnalystTasks.$inferSelect;
+export type InsertAiAnalystTask = z.infer<typeof insertAiAnalystTaskSchema>;
+export type AiAnalystProposal = typeof aiAnalystProposals.$inferSelect;
+export type InsertAiAnalystProposal = z.infer<typeof insertAiAnalystProposalSchema>;
+export type AiAnalystCorrection = typeof aiAnalystCorrections.$inferSelect;
+export type InsertAiAnalystCorrection = z.infer<typeof insertAiAnalystCorrectionSchema>;
+export type AiAnalystRule = typeof aiAnalystRules.$inferSelect;
+export type InsertAiAnalystRule = z.infer<typeof insertAiAnalystRuleSchema>;
+
 export interface LinkDashboardResponse {
   items: LinkDashboardItem[];
   summary: LinkDashboardSummary;
