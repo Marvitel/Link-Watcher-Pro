@@ -49,6 +49,7 @@ const APPLIABLE_FIELDS = [
   "monitoredIp",
   "pppoeUser",
   "concentratorId",
+  "snmpInterfaceIndex",
   "oltId",
   "slotOlt",
   "portOlt",

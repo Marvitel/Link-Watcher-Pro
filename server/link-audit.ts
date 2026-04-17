@@ -80,6 +80,21 @@ async function auditLinkFields(link: Link): Promise<AuditCheck[]> {
     });
   }
 
+  // 3b) Interface SNMP de coleta faltando (concentrador atribuído mas sem ifIndex)
+  // Aplica para todos os tipos de link que coletam tráfego via SNMP no concentrador.
+  if (link.concentratorId && (link as any).snmpInterfaceIndex == null) {
+    checks.push({
+      field: "snmpInterfaceIndex",
+      classification: "missing",
+      nextStep: "manual_investigation",
+      suggestedAction: "Descobrir e cadastrar o ifIndex da interface correta no concentrador",
+      reason:
+        "Concentrador atribuído mas sem ifIndex SNMP — a coleta de tráfego pode estar indo pra interface errada (ou nem acontecendo).",
+      currentValue: null,
+      suggestedValue: null,
+    });
+  }
+
   // 4) GPON (tem oltId): slot/port/onu faltando
   if (link.oltId) {
     if (link.slotOlt == null) {
@@ -128,6 +143,26 @@ async function auditLinkFields(link: Link): Promise<AuditCheck[]> {
       currentValue: null,
       suggestedValue: null,
     });
+  }
+
+  // 5b) CPE não cadastrado (link sem associação em link_cpes)
+  // A CPE é o equipamento físico do cliente (Mikrotik/router) com IP próprio — normalmente igual ao monitoredIp.
+  try {
+    const cpes = await storage.getLinkCpes(link.id);
+    if (!cpes || cpes.length === 0) {
+      checks.push({
+        field: "_cpe_missing",
+        classification: "optimization",
+        nextStep: "manual_investigation",
+        suggestedAction: "Cadastrar a CPE deste link (com o mesmo IP de monitoramento)",
+        reason:
+          "Link sem CPE associada — sem cadastro, backup de config e comandos SSH não funcionam. O IP da CPE é geralmente igual ao monitoredIp; o fabricante pode ser inferido pelo MAC na ARP do concentrador.",
+        currentValue: "sem CPE cadastrada",
+        suggestedValue: link.monitoredIp ?? null,
+      });
+    }
+  } catch {
+    /* não bloquear auditoria se storage de CPE falhar */
   }
 
   // 6) Voalle contract tag — necessário para webhooks e abertura de chamados
@@ -368,6 +403,7 @@ const APPLIABLE_FIELDS = new Set([
   "monitoredIp",
   "pppoeUser",
   "concentratorId",
+  "snmpInterfaceIndex",
   "oltId",
   "slotOlt",
   "portOlt",
@@ -430,7 +466,9 @@ export async function authorizePendingItem(
   // Coage o valor para o tipo certo (campos numéricos / booleanos)
   let coerced: any = valueToApply;
   if (
-    ["concentratorId", "oltId", "slotOlt", "portOlt", "onuId", "voalleContractTagId"].includes(item.field)
+    ["concentratorId", "snmpInterfaceIndex", "oltId", "slotOlt", "portOlt", "onuId", "voalleContractTagId"].includes(
+      item.field
+    )
   ) {
     const n = Number(valueToApply);
     coerced = Number.isFinite(n) ? n : null;
@@ -499,6 +537,7 @@ const AI_INVESTIGABLE_FIELDS = new Set([
   "monitoredIp",
   "pppoeUser",
   "concentratorId",
+  "snmpInterfaceIndex",
   "oltId",
   "slotOlt",
   "portOlt",
