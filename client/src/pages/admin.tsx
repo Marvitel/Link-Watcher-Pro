@@ -622,6 +622,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
   const [discoveredInterfaces, setDiscoveredInterfaces] = useState<SnmpInterface[]>([]);
   const [interfaceSearchTerm, setInterfaceSearchTerm] = useState("");
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isDiscoveringIp, setIsDiscoveringIp] = useState(false);
   const [showNewProfileForm, setShowNewProfileForm] = useState(false);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [newProfileData, setNewProfileData] = useState({
@@ -2184,35 +2185,80 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                 type="button"
                 variant="outline"
                 size="icon"
-                disabled={isLoadingTags || !formData.voalleContractTagId}
-                title={formData.voalleContractTagId ? "Atualizar IP da etiqueta vinculada" : "Selecione uma etiqueta primeiro"}
-                onClick={() => {
-                  if (!formData.voalleContractTagId) {
+                disabled={isLoadingTags || isDiscoveringIp || !link?.id}
+                title={
+                  !link?.id
+                    ? "Salve o link antes de descobrir o IP"
+                    : "Descobrir IP (RADIUS para PPPoE → ARP da interface para PTP → etiqueta Voalle)"
+                }
+                onClick={async () => {
+                  if (!link?.id) {
                     toast({
-                      title: "Nenhuma etiqueta vinculada",
-                      description: "Selecione uma etiqueta de contrato primeiro",
+                      title: "Salve o link primeiro",
+                      description: "A descoberta consulta RADIUS/ARP usando os dados já salvos.",
                       variant: "destructive",
                     });
                     return;
                   }
-                  const tag = voalleContractTags?.tags?.find(t => t.id === formData.voalleContractTagId);
-                  if (tag?.ip) {
-                    setFormData({ ...formData, monitoredIp: tag.ip });
-                    toast({
-                      title: "IP atualizado",
-                      description: `IP ${tag.ip} da etiqueta ${tag.serviceTag || tag.description || `#${tag.id}`}`,
-                    });
-                  } else {
+                  setIsDiscoveringIp(true);
+                  try {
+                    const res = await apiRequest("POST", `/api/links/${link.id}/discover-monitored-ip`, {});
+                    const data = await res.json();
+                    if (data?.success && data.ip) {
+                      setFormData({ ...formData, monitoredIp: data.ip });
+                      const sourceLabel =
+                        data.source === "radius"
+                          ? `RADIUS (sessão PPPoE de ${data.pppoeUser})`
+                          : data.source === "mikrotik_arp"
+                          ? `ARP do concentrador na interface ${data.interface}${data.mac ? ` — MAC ${data.mac}` : ""}`
+                          : data.source;
+                      toast({
+                        title: "IP descoberto",
+                        description: `${data.ip} via ${sourceLabel}`,
+                      });
+                      return;
+                    }
+                    if (data?.ambiguous && Array.isArray(data.candidates) && data.candidates.length > 0) {
+                      toast({
+                        title: `${data.candidates.length} IPs na interface`,
+                        description: `ARP retornou: ${data.candidates.map((c: any) => c.ip).join(", ")}. Preencha manualmente.`,
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    // Fallback: IP da etiqueta Voalle (comportamento antigo)
+                    const tag = formData.voalleContractTagId
+                      ? voalleContractTags?.tags?.find((t) => t.id === formData.voalleContractTagId)
+                      : null;
+                    if (tag?.ip) {
+                      setFormData({ ...formData, monitoredIp: tag.ip });
+                      toast({
+                        title: "IP da etiqueta Voalle",
+                        description: `RADIUS/ARP sem resultado. Usando ${tag.ip} da etiqueta ${tag.serviceTag || tag.description || `#${tag.id}`}.`,
+                      });
+                      return;
+                    }
+                    const triedSummary = Array.isArray(data?.tried)
+                      ? data.tried.map((t: any) => `${t.source}: ${t.detail || (t.ok ? "ok" : "—")}`).join(" | ")
+                      : data?.message || "Nenhuma fonte respondeu";
                     toast({
                       title: "IP não encontrado",
-                      description: "A etiqueta vinculada não possui IP cadastrado no Voalle",
+                      description: triedSummary,
                       variant: "destructive",
                     });
+                  } catch (err: any) {
+                    toast({
+                      title: "Erro na descoberta",
+                      description: String(err?.message || err).slice(0, 200),
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsDiscoveringIp(false);
                   }
                 }}
                 data-testid="button-refresh-voalle-ip"
               >
-                {isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                {isDiscoveringIp || isLoadingTags ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
           </div>

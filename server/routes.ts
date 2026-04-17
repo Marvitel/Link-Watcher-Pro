@@ -1639,6 +1639,87 @@ export async function registerRoutes(
     }
   });
 
+  // Descoberta automática de IP de monitoramento (cascata: Voalle tag → RADIUS → ARP via interface)
+  app.post("/api/links/:id/discover-monitored-ip", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Acesso restrito a Super Admin" });
+      }
+      const linkId = parseInt(req.params.id, 10);
+      if (Number.isNaN(linkId)) return res.status(400).json({ error: "linkId inválido" });
+
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado" });
+
+      const tried: Array<{ source: string; ok: boolean; detail?: string }> = [];
+      const IPV4_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+      const isValidIp = (ip: string | null | undefined) =>
+        !!ip && IPV4_RE.test(String(ip).trim()) && !/[\s;|&`$()<>"'\\]/.test(String(ip));
+      const sanitizeIface = (s: string) => String(s || "").replace(/[^A-Za-z0-9_.\-:<>]/g, "").slice(0, 64);
+
+      // 1) RADIUS por PPPoE (PPPoE links)
+      if ((link as any).pppoeUser) {
+        try {
+          const { getRadiusSessionByUsername } = await import("./radius");
+          const session = await getRadiusSessionByUsername((link as any).pppoeUser);
+          if (session?.framedIpAddress && isValidIp(session.framedIpAddress)) {
+            const ip = String(session.framedIpAddress).trim();
+            tried.push({ source: "radius", ok: true, detail: `sessão ativa de ${(link as any).pppoeUser}` });
+            return res.json({ success: true, ip, source: "radius", pppoeUser: (link as any).pppoeUser, tried });
+          }
+          tried.push({ source: "radius", ok: false, detail: session ? "sessão sem framedipaddress" : "nenhuma sessão ativa" });
+        } catch (err: any) {
+          tried.push({ source: "radius", ok: false, detail: String(err?.message || err).slice(0, 200) });
+        }
+      } else {
+        tried.push({ source: "radius", ok: false, detail: "link sem pppoeUser" });
+      }
+
+      // 2) Mikrotik ARP via interface (PTP/L2 com concentrador + interface SNMP)
+      if ((link as any).concentratorId && (link as any).snmpInterfaceName) {
+        try {
+          const concentrator = await storage.getConcentrator((link as any).concentratorId);
+          if (!concentrator) {
+            tried.push({ source: "mikrotik_arp", ok: false, detail: "concentrador não encontrado" });
+          } else {
+            const { executeMikrotikQuery } = await import("./concentrator");
+            const iface = sanitizeIface((link as any).snmpInterfaceName);
+            const arpRes = await executeMikrotikQuery(concentrator as any, "/ip/arp", { interface: iface }, 50);
+            const candidates: Array<{ address?: string; "mac-address"?: string; complete?: string }> = (arpRes as any).rows || [];
+            const valid = candidates.filter((r) => isValidIp(r.address) && r["mac-address"]);
+            if (valid.length === 1) {
+              const ip = String(valid[0].address).trim();
+              tried.push({ source: "mikrotik_arp", ok: true, detail: `1 entrada ARP em ${iface}` });
+              return res.json({ success: true, ip, source: "mikrotik_arp", interface: iface, mac: valid[0]["mac-address"], tried });
+            }
+            if (valid.length > 1) {
+              tried.push({ source: "mikrotik_arp", ok: false, detail: `${valid.length} IPs na interface ${iface} — ambíguo` });
+              return res.json({
+                success: false,
+                source: "mikrotik_arp",
+                ambiguous: true,
+                candidates: valid.map((r) => ({ ip: r.address, mac: r["mac-address"] })),
+                interface: iface,
+                tried,
+              });
+            }
+            tried.push({ source: "mikrotik_arp", ok: false, detail: arpRes.error || `nenhuma entrada ARP em ${iface}` });
+          }
+        } catch (err: any) {
+          tried.push({ source: "mikrotik_arp", ok: false, detail: String(err?.message || err).slice(0, 200) });
+        }
+      } else {
+        tried.push({ source: "mikrotik_arp", ok: false, detail: "link sem concentrador ou snmpInterfaceName" });
+      }
+
+      return res.json({ success: false, ip: null, tried, message: "Nenhuma fonte retornou um IP válido (RADIUS/ARP). Tente o IP da etiqueta Voalle." });
+    } catch (error: any) {
+      console.error("[discover-monitored-ip] erro:", error);
+      return res.status(500).json({ error: error?.message || "Erro inesperado" });
+    }
+  });
+
   // Endpoint de traceroute para diagnóstico (Super Admin only)
   app.post("/api/links/:id/tools/traceroute", requireAuth, async (req, res) => {
     try {
