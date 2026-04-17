@@ -251,44 +251,322 @@ interface LlmResult {
   toolCalls: Array<{ tool: string; input: unknown; output: unknown; durationMs: number }>;
 }
 
+// Resolve a chave a partir do env (preferido — sem dependência de SESSION_SECRET) ou do BD criptografado
+function resolveAnthropicApiKey(settingsEncrypted: string | null): string | null {
+  const envKey = process.env.ANTHROPIC_API_KEY;
+  if (envKey && envKey.length > 10) return envKey;
+  if (settingsEncrypted) {
+    try { return decrypt(settingsEncrypted); } catch { return null; }
+  }
+  return null;
+}
+
+// Pricing aproximado (USD por 1M tokens) para registrar custo cumulativo. Atualizar conforme necessário.
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-sonnet-4-5": { input: 3, output: 15 },
+  "claude-sonnet-4-5-20250929": { input: 3, output: 15 },
+  "claude-3-5-sonnet-latest": { input: 3, output: 15 },
+};
+
+const DEFAULT_MODEL = "claude-sonnet-4-5";
+
+const SYSTEM_PROMPT = `Você é o Analista de IA da Marvitel Telecomunicações. Sua função é investigar links de fibra que estão offline ou degradados e propor correções de cadastro quando o problema for por causa disso (e não por falha real de rede).
+
+Você recebe o contexto do link (campos atuais, eventos recentes, métricas, concentrador, OLT, links similares, regras escritas pelos analistas e correções recentes que humanos fizeram nas suas propostas anteriores).
+
+Use as ferramentas para buscar dados adicionais quando precisar. Quando estiver pronto, chame OBRIGATORIAMENTE a ferramenta "submit_proposal" com:
+- classification:
+    "config_error" → o link está mal cadastrado (ex.: PPPoE user errado, concentrador errado, IP errado)
+    "network_issue" → cadastro está OK, problema é de rede/operacional (ex.: ONU desligada, SLA do upstream)
+    "inconclusive" → não há evidência suficiente para decidir
+- proposedFields: objeto JSON com os campos a alterar (somente os campos da whitelist serão aceitos pelo backend)
+- reasoning: explicação curta (2-4 linhas) em português do que você encontrou e por que essa é a correção
+- confidence: número de 0 a 100 indicando quão certo você está
+
+IMPORTANTE:
+- Se não tiver evidência forte, classifique como "inconclusive" e proposedFields={}
+- Respeite TODAS as regras escritas pelos analistas no contexto
+- Aprenda com as "correções recentes" — elas mostram onde sua proposta anterior estava errada
+- NÃO invente dados; só use o que veio do contexto ou das ferramentas
+- NÃO proponha mudar campos que não estão claramente errados`;
+
+const ALLOWED_FIELDS_LIST = Array.from(ALLOWED_FIELDS).sort().join(", ");
+
+const TOOLS = [
+  {
+    name: "search_similar_links",
+    description: "Busca links similares no banco para servir de referência. Útil para descobrir padrões de PPPoE/alias usados em links análogos do mesmo cliente ou concentrador.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        clientId: { type: "number", description: "Filtra pelo cliente (opcional)" },
+        concentratorId: { type: "number", description: "Filtra pelo concentrador (opcional)" },
+        pppoeUserPrefix: { type: "string", description: "Filtra por prefixo do PPPoE user (opcional)" },
+        snmpAliasPrefix: { type: "string", description: "Filtra por prefixo do alias SNMP (opcional)" },
+        limit: { type: "number", description: "Máx. 20 (default 10)" },
+      },
+    },
+  },
+  {
+    name: "get_link_by_id",
+    description: "Retorna o registro completo de um link específico por ID.",
+    input_schema: {
+      type: "object" as const,
+      properties: { linkId: { type: "number" } },
+      required: ["linkId"],
+    },
+  },
+  {
+    name: "submit_proposal",
+    description: "Termina a investigação. DEVE ser chamada ao final com a proposta estruturada.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        classification: { type: "string", enum: ["config_error", "network_issue", "inconclusive"] },
+        proposedFields: {
+          type: "object",
+          description: `Mapa campo→valor. Campos permitidos: ${ALLOWED_FIELDS_LIST}. Vazio se inconclusive.`,
+        },
+        reasoning: { type: "string" },
+        confidence: { type: "number", minimum: 0, maximum: 100 },
+      },
+      required: ["classification", "proposedFields", "reasoning", "confidence"],
+    },
+  },
+];
+
+async function executeTool(
+  name: string,
+  input: any
+): Promise<unknown> {
+  if (name === "search_similar_links") {
+    const limit = Math.min(20, Math.max(1, Number(input?.limit) || 10));
+    const conditions: any[] = [];
+    if (input?.clientId) conditions.push(eq(links.clientId, Number(input.clientId)));
+    if (input?.concentratorId) conditions.push(eq(links.concentratorId, Number(input.concentratorId)));
+    if (input?.pppoeUserPrefix) conditions.push(sql`${links.pppoeUser} ILIKE ${input.pppoeUserPrefix + "%"}`);
+    if (input?.snmpAliasPrefix) conditions.push(sql`${links.snmpInterfaceAlias} ILIKE ${input.snmpAliasPrefix + "%"}`);
+    const rows = await db
+      .select({
+        id: links.id,
+        name: links.name,
+        clientId: links.clientId,
+        concentratorId: links.concentratorId,
+        pppoeUser: links.pppoeUser,
+        snmpInterfaceAlias: links.snmpInterfaceAlias,
+        snmpInterfaceIndex: links.snmpInterfaceIndex,
+        monitoredIp: links.monitoredIp,
+        oltId: links.oltId,
+        slotOlt: links.slotOlt,
+        portOlt: links.portOlt,
+      })
+      .from(links)
+      .where(conditions.length > 0 ? and(...conditions) : sql`true`)
+      .limit(limit);
+    return rows;
+  }
+  if (name === "get_link_by_id") {
+    const link = await storage.getLink(Number(input?.linkId));
+    if (!link) return { error: "link não encontrado" };
+    return link;
+  }
+  return { error: `ferramenta desconhecida: ${name}` };
+}
+
+function buildUserPrompt(ctx: LinkContext): string {
+  const link = ctx.link;
+  const linkSummary = {
+    id: link.id,
+    name: link.name,
+    clientId: link.clientId,
+    linkType: link.linkType,
+    authType: link.authType,
+    monitoredIp: link.monitoredIp,
+    pppoeUser: link.pppoeUser,
+    concentratorId: link.concentratorId,
+    snmpInterfaceIndex: link.snmpInterfaceIndex,
+    snmpInterfaceAlias: link.snmpInterfaceAlias,
+    snmpInterfaceName: link.snmpInterfaceName,
+    snmpProfileId: link.snmpProfileId,
+    oltId: link.oltId,
+    slotOlt: link.slotOlt,
+    portOlt: link.portOlt,
+    onuId: link.onuId,
+    voalleContractTagId: link.voalleContractTagId,
+    contractStatus: (link as any).contractStatus,
+    monitoringEnabled: (link as any).monitoringEnabled,
+  };
+
+  return [
+    "## LINK SOB INVESTIGAÇÃO",
+    "```json",
+    JSON.stringify(linkSummary, null, 2),
+    "```",
+    "",
+    "## EVENTOS RECENTES (últimos 15)",
+    ctx.recentEvents.length === 0
+      ? "_nenhum_"
+      : ctx.recentEvents.map((e) => `- [${e.createdAt.toISOString()}] ${e.type}: ${e.description}`).join("\n"),
+    "",
+    "## MÉTRICAS — ÚLTIMAS 24h",
+    `samples=${ctx.recentMetricsSummary.samples}, avgLatency=${ctx.recentMetricsSummary.avgLatency.toFixed(1)}ms, avgPacketLoss=${ctx.recentMetricsSummary.avgPacketLoss.toFixed(2)}%, lastStatus=${ctx.recentMetricsSummary.lastStatus}`,
+    "",
+    "## CONCENTRADOR",
+    ctx.concentrator ? JSON.stringify(ctx.concentrator) : "_não associado_",
+    "",
+    "## OLT",
+    ctx.olt ? JSON.stringify(ctx.olt) : "_não associada_",
+    "",
+    "## LINKS SIMILARES (mesmo cliente/concentrador, com PPPoE ou alias preenchido)",
+    ctx.similarLinks.length === 0
+      ? "_nenhum_"
+      : "```json\n" + JSON.stringify(ctx.similarLinks, null, 2) + "\n```",
+    "",
+    "## REGRAS ATIVAS DOS ANALISTAS (siga estritamente)",
+    ctx.rules.length === 0
+      ? "_nenhuma cadastrada_"
+      : ctx.rules
+          .sort((a, b) => b.priority - a.priority)
+          .map((r, i) => `${i + 1}. (prio ${r.priority}) ${r.ruleText}`)
+          .join("\n"),
+    "",
+    "## CORREÇÕES RECENTES (humanos editaram suas propostas anteriores — aprenda com isso)",
+    ctx.recentCorrections.length === 0
+      ? "_nenhuma_"
+      : ctx.recentCorrections
+          .map((c) => `- campo "${c.fieldName}": IA propôs ${JSON.stringify(c.aiValue)}, humano corrigiu para ${JSON.stringify(c.userValue)}${c.userNote ? ` (nota: ${c.userNote})` : ""}`)
+          .join("\n"),
+    "",
+    "Investigue e ao final chame submit_proposal com sua decisão.",
+  ].join("\n");
+}
+
 async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   const settings = await storage.getAiAnalystSettings();
+  const apiKey = resolveAnthropicApiKey(settings.apiKeyEncrypted);
 
-  // Sem chave: retorna stub coerente para validar UI/fluxo
-  if (!settings.apiKeyEncrypted) {
+  if (!apiKey) {
     return {
       classification: "inconclusive",
       proposedFields: {},
       reasoning:
-        "Analista de IA ainda não está conectado: configure a chave da API (Anthropic) na aba 'Analista IA → Configurações'. " +
-        `Contexto coletado: ${ctx.recentEvents.length} eventos recentes, ` +
-        `${ctx.recentMetricsSummary.samples} amostras de métricas nas últimas 24h, ` +
-        `${ctx.similarLinks.length} links similares, ${ctx.rules.length} regras ativas.`,
+        "Chave da Anthropic não configurada (defina ANTHROPIC_API_KEY no ambiente ou cadastre via aba Analista IA → Configurações). " +
+        `Contexto coletado: ${ctx.recentEvents.length} eventos, ${ctx.recentMetricsSummary.samples} métricas, ` +
+        `${ctx.similarLinks.length} links similares, ${ctx.rules.length} regras.`,
       confidence: 0,
       inputTokens: 0,
       outputTokens: 0,
       costUsd: 0,
-      modelUsed: "stub",
+      modelUsed: "stub-no-key",
       toolCalls: [],
     };
   }
 
-  // TODO (próxima etapa, quando a chave chegar): implementar chamada real Anthropic
-  //   - Importar @anthropic-ai/sdk dinamicamente
-  //   - Decrypt apiKey: const apiKey = decrypt(settings.apiKeyEncrypted)
-  //   - Definir tools (function-calling) que invocam funções reais do sistema
-  //   - Loop: messages.create → if tool_use → executar tool → enviar tool_result → repetir
-  //   - Parsear JSON final estruturado e retornar
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const client = new Anthropic({ apiKey });
+  const model = settings.model || DEFAULT_MODEL;
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL];
+
+  const messages: any[] = [{ role: "user", content: buildUserPrompt(ctx) }];
+  const toolCalls: LlmResult["toolCalls"] = [];
+  let totalInput = 0;
+  let totalOutput = 0;
+  let finalProposal: any = null;
+  const MAX_ITERATIONS = 6;
+
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    const response = await client.messages.create({
+      model,
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      tools: TOOLS as any,
+      messages,
+    });
+
+    totalInput += response.usage?.input_tokens || 0;
+    totalOutput += response.usage?.output_tokens || 0;
+
+    // Encontra blocos tool_use; ignora text intermediário
+    const toolUses = response.content.filter((b: any) => b.type === "tool_use") as any[];
+
+    if (toolUses.length === 0) {
+      // Modelo parou sem chamar submit_proposal — encerra com inconclusive
+      const textBlocks = response.content.filter((b: any) => b.type === "text") as any[];
+      const text = textBlocks.map((b) => b.text).join("\n").slice(0, 800);
+      finalProposal = {
+        classification: "inconclusive",
+        proposedFields: {},
+        reasoning: text || "Modelo encerrou sem submeter proposta estruturada.",
+        confidence: 0,
+      };
+      break;
+    }
+
+    // Adiciona resposta do assistant ao histórico
+    messages.push({ role: "assistant", content: response.content });
+
+    const toolResults: any[] = [];
+    let stopAfterTools = false;
+
+    for (const tu of toolUses) {
+      if (tu.name === "submit_proposal") {
+        finalProposal = tu.input;
+        toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: "ok" });
+        stopAfterTools = true;
+      } else {
+        const start = Date.now();
+        let output: unknown;
+        try {
+          output = await executeTool(tu.name, tu.input);
+        } catch (err: any) {
+          output = { error: err.message };
+        }
+        const durationMs = Date.now() - start;
+        toolCalls.push({ tool: tu.name, input: tu.input, output, durationMs });
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: tu.id,
+          content: JSON.stringify(output).slice(0, 8000),
+        });
+      }
+    }
+
+    messages.push({ role: "user", content: toolResults });
+    if (stopAfterTools) break;
+  }
+
+  if (!finalProposal) {
+    finalProposal = {
+      classification: "inconclusive",
+      proposedFields: {},
+      reasoning: `Limite de ${MAX_ITERATIONS} iterações atingido sem submit_proposal.`,
+      confidence: 0,
+    };
+  }
+
+  // Sanitiza proposedFields contra a whitelist (defesa em profundidade — applyProposal também filtra)
+  const cleanFields: Record<string, unknown> = {};
+  if (finalProposal.proposedFields && typeof finalProposal.proposedFields === "object") {
+    for (const [k, v] of Object.entries(finalProposal.proposedFields)) {
+      if (ALLOWED_FIELDS.has(k)) cleanFields[k] = v;
+    }
+  }
+
+  const costUsd =
+    (totalInput / 1_000_000) * pricing.input + (totalOutput / 1_000_000) * pricing.output;
+
   return {
-    classification: "inconclusive",
-    proposedFields: {},
-    reasoning: "[stub] Chave configurada mas integração real ainda não implementada nesta versão.",
-    confidence: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    costUsd: 0,
-    modelUsed: settings.model,
-    toolCalls: [],
+    classification: ["config_error", "network_issue", "inconclusive"].includes(finalProposal.classification)
+      ? finalProposal.classification
+      : "inconclusive",
+    proposedFields: cleanFields,
+    reasoning: String(finalProposal.reasoning || "").slice(0, 4000),
+    confidence: Math.max(0, Math.min(100, Math.round(Number(finalProposal.confidence) || 0))),
+    inputTokens: totalInput,
+    outputTokens: totalOutput,
+    costUsd,
+    modelUsed: model,
+    toolCalls,
   };
 }
 

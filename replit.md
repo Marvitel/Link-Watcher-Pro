@@ -70,7 +70,7 @@ The system supports grouping links for redundancy (Active/Passive), aggregation 
 An admin tool provides batch diagnostics and enrichment for links, categorizing missing data (e.g., `missingVoalleLogin`, `missingIp`, `missingOzmapData`) and offering actions like `discover_voalle_login`, `discover_ips`, `assign_concentrators`, and `sync_ozmap`. It includes progress tracking and a RADIUS connection test.
 
 ### Analista de IA (Triagem Agêntica de Links)
-Sistema de triagem automática de links com problema usando LLM (Anthropic Claude — chave ainda não configurada, módulo em modo stub).
+Sistema de triagem automática de links com problema usando Anthropic Claude (modelo padrão `claude-sonnet-4-5`) com function-calling.
 
 **Tabelas** (`shared/schema.ts`):
 - `ai_analyst_settings` — singleton com chave criptografada, modelo, modo de autonomia (`suggestion`/`hybrid`/`auto`), limiar de confiança e métricas de uso.
@@ -79,7 +79,15 @@ Sistema de triagem automática de links com problema usando LLM (Anthropic Claud
 - `ai_analyst_corrections` — registra divergências entre o que a IA propôs e o que o humano efetivamente aplicou (aprendizado).
 - `ai_analyst_rules` — regras explícitas em português livre, com escopo opcional e ativação por toggle.
 
-**Módulo** (`server/ai-analyst.ts`): `enqueueLink`, `enqueueLinksBulk`, `enqueueOfflineLinks`, `enqueueDegradedLinks`, `processNextTask`, `applyProposal`, `rejectProposal`. Whitelist `ALLOWED_FIELDS` restringe os campos editáveis (ex.: `monitoredIp`, `pppoeUser`, `concentratorId`, `oltId`, `voalleContractTagId`). `runLlmInvestigation` é stub enquanto não há chave; quando ligado, basta trocar pelo SDK Anthropic com function-calling. Approve e reject geram `logAuditEvent` com `metadata.source="ai_analyst"`.
+**Chave da Anthropic**: resolvida em `server/ai-analyst.ts → resolveAnthropicApiKey()` com prioridade para `process.env.ANTHROPIC_API_KEY` (mais seguro, não depende de `SESSION_SECRET`); se ausente, faz fallback para a chave criptografada no banco. Endpoint de settings expõe `apiKeySource: "env" | "database" | null` para a UI mostrar a origem.
+
+**Módulo** (`server/ai-analyst.ts`):
+- Funções de fluxo: `enqueueLink`, `enqueueLinksBulk`, `enqueueOfflineLinks`, `enqueueDegradedLinks`, `processNextTask`, `applyProposal`, `rejectProposal`.
+- `buildLinkContext()` monta o contexto enviado à IA: campos do link, eventos recentes, resumo de métricas 24h, concentrador, OLT, links similares, regras ativas e correções recentes (memória de aprendizado).
+- `runLlmInvestigation()` chama o Claude em loop de até 6 iterações com tool-use. Tools disponíveis: `search_similar_links` (filtro por cliente/concentrador/prefixo PPPoE/alias), `get_link_by_id`, e `submit_proposal` (terminal, força saída estruturada com `classification`/`proposedFields`/`reasoning`/`confidence`).
+- Whitelist `ALLOWED_FIELDS` restringe os campos editáveis (ex.: `monitoredIp`, `pppoeUser`, `concentratorId`, `oltId`, `voalleContractTagId`) — aplicada tanto na sanitização da resposta quanto no `applyProposal`.
+- Custos por chamada calculados via `MODEL_PRICING` e acumulados em `ai_analyst_settings.totalCostUsd`.
+- Approve e reject geram `logAuditEvent` com `metadata.source="ai_analyst"`.
 
 **Endpoints** (`/api/admin/ai-analyst/*`): settings (GET/PATCH), api-key (POST/DELETE — chave nunca em claro), queue, enqueue (`autoSelect: 'offline'|'degraded'` ou `linkIds[]`), process-next, proposals (GET/approve/reject), rules (CRUD). Todas as rotas exigem `requireSuperAdmin`.
 

@@ -26,6 +26,7 @@ interface AiAnalystSettings {
   totalInputTokens: number;
   totalOutputTokens: number;
   hasApiKey: boolean;
+  apiKeySource: "env" | "database" | null;
   updatedAt: string;
 }
 
@@ -491,14 +492,28 @@ export function AiAnalystTab() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2 text-sm flex-wrap">
                 Status:{" "}
                 {settings?.hasApiKey ? (
                   <Badge variant="default">Configurada</Badge>
                 ) : (
                   <Badge variant="outline">Não configurada</Badge>
                 )}
+                {settings?.apiKeySource === "env" && (
+                  <Badge variant="secondary" data-testid="badge-key-source-env">
+                    via variável de ambiente (ANTHROPIC_API_KEY)
+                  </Badge>
+                )}
+                {settings?.apiKeySource === "database" && (
+                  <Badge variant="secondary">via banco (criptografada)</Badge>
+                )}
               </div>
+              {settings?.apiKeySource === "env" && (
+                <p className="text-xs text-muted-foreground">
+                  A chave já está configurada como variável de ambiente. Você não precisa cadastrar uma chave abaixo —
+                  ela tem prioridade sobre qualquer chave salva no banco.
+                </p>
+              )}
               <div className="flex gap-2">
                 <Input
                   type="password"

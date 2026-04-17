@@ -15379,7 +15379,12 @@ export async function registerRoutes(
       try {
         const s = await storage.getAiAnalystSettings();
         const { apiKeyEncrypted, ...safe } = s as any;
-        res.json({ ...safe, hasApiKey: !!apiKeyEncrypted });
+        const hasEnvKey = !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.length > 10);
+        res.json({
+          ...safe,
+          hasApiKey: hasEnvKey || !!apiKeyEncrypted,
+          apiKeySource: hasEnvKey ? "env" : (apiKeyEncrypted ? "database" : null),
+        });
       } catch (err: any) {
         res.status(500).json({ error: err.message });
       }
