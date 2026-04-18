@@ -1159,27 +1159,49 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   const model = settings.model || DEFAULT_MODEL;
   const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL];
 
-  const messages: any[] = [{ role: "user", content: buildUserPrompt(ctx) }];
+  // Prompt caching: marca o user prompt inicial (contexto pesado do link) como cacheable.
+  // O cache da Anthropic é "ephemeral" (~5min), perfeito para reutilizar entre as iterações
+  // da MESMA task. Reads de cache custam ~10% do preço normal de input.
+  const messages: any[] = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: buildUserPrompt(ctx), cache_control: { type: "ephemeral" } },
+      ],
+    },
+  ];
+  // Tools também são grandes (schemas) — cacheia o último bloco para cobrir todas
+  const toolsWithCache: any[] = TOOLS.map((t, i) =>
+    i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t,
+  );
   const toolCalls: LlmResult["toolCalls"] = [];
   let totalInput = 0;
   let totalOutput = 0;
+  let totalCacheCreate = 0;
+  let totalCacheRead = 0;
   let finalProposal: any = null;
   let lastAssistantText = "";
   const MAX_ITERATIONS = 12;
 
-  console.log(`[AiAnalyst] LLM start link=${ctx.link.id} model=${model} (timeout=90s, maxIter=${MAX_ITERATIONS})`);
+  console.log(`[AiAnalyst] LLM start link=${ctx.link.id} model=${model} (timeout=90s, maxIter=${MAX_ITERATIONS}, cache=on)`);
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const isLastIteration = iter === MAX_ITERATIONS - 1;
-    // Na última iteração, força o modelo a chamar submit_proposal (sem mais investigação)
+    // System como array de blocos com cache_control no SYSTEM_PROMPT (estático, alto hit rate)
+    const systemBlocks: any[] = [
+      { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+    ];
+    if (isLastIteration) {
+      systemBlocks.push({
+        type: "text",
+        text: "\n\n⚠️ ATENÇÃO: esta é sua ÚLTIMA chance. Você JÁ NÃO PODE chamar mais ferramentas de investigação. Submeta a proposta final agora com submit_proposal, mesmo que seja 'inconclusive' com confidence baixa. Use o que você descobriu até aqui.",
+      });
+    }
     const requestParams: any = {
       model,
       max_tokens: 2048,
-      system: isLastIteration
-        ? SYSTEM_PROMPT +
-          "\n\n⚠️ ATENÇÃO: esta é sua ÚLTIMA chance. Você JÁ NÃO PODE chamar mais ferramentas de investigação. Submeta a proposta final agora com submit_proposal, mesmo que seja 'inconclusive' com confidence baixa. Use o que você descobriu até aqui."
-        : SYSTEM_PROMPT,
-      tools: TOOLS as any,
+      system: systemBlocks,
+      tools: toolsWithCache,
       messages,
     };
     if (isLastIteration) {
@@ -1187,7 +1209,11 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
     }
     const iterStart = Date.now();
     const response = await client.messages.create(requestParams);
-    console.log(`[AiAnalyst] LLM iter=${iter + 1}/${MAX_ITERATIONS} link=${ctx.link.id} latency=${Date.now() - iterStart}ms in=${response.usage?.input_tokens || 0} out=${response.usage?.output_tokens || 0}`);
+    const cacheCreate = (response.usage as any)?.cache_creation_input_tokens || 0;
+    const cacheRead = (response.usage as any)?.cache_read_input_tokens || 0;
+    totalCacheCreate += cacheCreate;
+    totalCacheRead += cacheRead;
+    console.log(`[AiAnalyst] LLM iter=${iter + 1}/${MAX_ITERATIONS} link=${ctx.link.id} latency=${Date.now() - iterStart}ms in=${response.usage?.input_tokens || 0} out=${response.usage?.output_tokens || 0} cacheW=${cacheCreate} cacheR=${cacheRead}`);
 
     totalInput += response.usage?.input_tokens || 0;
     totalOutput += response.usage?.output_tokens || 0;
@@ -1826,8 +1852,19 @@ export async function investigateField(
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey, timeout: 90_000, maxRetries: 2 });
 
-  const tools = [...TOOLS.filter((t) => t.name !== "submit_proposal"), SUBMIT_FIELD_TOOL];
-  const messages: any[] = [{ role: "user", content: focusedPrompt }];
+  const baseTools = [...TOOLS.filter((t) => t.name !== "submit_proposal"), SUBMIT_FIELD_TOOL];
+  // Cacheia o último tool block para cobrir todos os schemas de tools
+  const tools: any[] = baseTools.map((t, i) =>
+    i === baseTools.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t,
+  );
+  const messages: any[] = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: focusedPrompt, cache_control: { type: "ephemeral" } },
+      ],
+    },
+  ];
   const toolsUsed: string[] = [];
   let totalInput = 0;
   let totalOutput = 0;
