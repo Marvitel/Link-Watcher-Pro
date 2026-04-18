@@ -1,5 +1,34 @@
 import { ExternalIntegration, BlacklistCheck, Link } from "@shared/schema";
 
+/**
+ * Retorna true se o IP é um endereço público válido para checar em blacklists.
+ * Rejeita IPs reservados, privados, placeholder ou inválidos.
+ */
+export function isPublicRoutableIp(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return false;
+  const [a, b] = parts;
+  // 0.x.x.x — reservado / placeholder
+  if (a === 0) return false;
+  // 127.x.x.x — loopback
+  if (a === 127) return false;
+  // 10.x.x.x — RFC1918 privado
+  if (a === 10) return false;
+  // 172.16-31.x.x — RFC1918 privado
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  // 192.168.x.x — RFC1918 privado
+  if (a === 192 && b === 168) return false;
+  // 169.254.x.x — link-local APIPA
+  if (a === 169 && b === 254) return false;
+  // 100.64-127.x.x — shared address space (RFC6598)
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  // 198.18-19.x.x — benchmark testing (RFC2544)
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  // 240-255.x.x.x — reservado classe E
+  if (a >= 240) return false;
+  return true;
+}
+
 export function expandCidrToIps(cidr: string): string[] {
   const cidrMatch = cidr.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
   
@@ -315,7 +344,7 @@ export async function startBlacklistAutoCheck(
 
       const adapter = new HetrixToolsAdapter(hetrixIntegration);
       const links = await storage.getLinks();
-      const linksWithIp = links.filter((link: any) => link.ipBlock || link.ipAddress);
+      const linksWithIp = links.filter((link: any) => link.ipBlock || link.monitoredIp);
       
       console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP/blocks`);
 
@@ -323,17 +352,22 @@ export async function startBlacklistAutoCheck(
       let listedCount = 0;
       let notMonitoredCount = 0;
 
+      // Delay entre requests para respeitar rate limit da HetrixTools
+      const REQUEST_DELAY_MS = 1200; // ~50 req/min, bem abaixo do limite
+      let consecutive429 = 0;
+
       for (const link of linksWithIp) {
         try {
           const ipsToCheck: string[] = [];
           
           if (link.ipBlock) {
             const expandedIps = expandCidrToIps(link.ipBlock);
-            ipsToCheck.push(...expandedIps);
+            // Filtrar apenas IPs roteáveis públicos (ignora 0.x.x.x, privados, etc.)
+            ipsToCheck.push(...expandedIps.filter(isPublicRoutableIp));
           }
           
-          if (link.ipAddress && !ipsToCheck.includes(link.ipAddress)) {
-            ipsToCheck.push(link.ipAddress);
+          if (link.monitoredIp && isPublicRoutableIp(link.monitoredIp) && !ipsToCheck.includes(link.monitoredIp)) {
+            ipsToCheck.push(link.monitoredIp);
           }
           
           if (ipsToCheck.length === 0) continue;
@@ -343,10 +377,14 @@ export async function startBlacklistAutoCheck(
           let linkCheckedCount = 0;
           let notMonitoredForLink = 0;
           
-          // Buscar cada IP individualmente (1 requisição por IP)
+          // Buscar cada IP individualmente (1 requisição por IP) com rate-limiting
           for (const ip of ipsToCheck) {
+            // Pausa antes de cada request para não estourar o rate limit
+            await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS + consecutive429 * 5000));
+
             try {
               const monitors = await adapter.getBlacklistMonitors({ target: ip, type: "ipv4" });
+              consecutive429 = 0; // reset backoff em sucesso
               const monitor = monitors[0];
               
               if (!monitor) {
@@ -385,8 +423,14 @@ export async function startBlacklistAutoCheck(
               await storage.upsertBlacklistCheck(checkResult);
               checkedCount++;
               linkCheckedCount++;
-            } catch (err) {
-              console.error(`[BlacklistAutoCheck] Error checking IP ${ip}:`, err);
+            } catch (err: any) {
+              const msg = err?.message || String(err);
+              if (msg.includes("429") || msg.includes("503")) {
+                consecutive429++;
+                console.warn(`[BlacklistAutoCheck] Rate limited on IP ${ip} (${msg}) — backoff #${consecutive429}, aguardando ${consecutive429 * 5}s`);
+              } else {
+                console.error(`[BlacklistAutoCheck] Error checking IP ${ip}:`, err);
+              }
               notMonitoredCount++;
               notMonitoredForLink++;
             }
@@ -461,15 +505,15 @@ export async function checkBlacklistForLink(
   
   if (link.ipBlock) {
     const expandedIps = expandCidrToIps(link.ipBlock);
-    ipsToCheck.push(...expandedIps);
+    ipsToCheck.push(...expandedIps.filter(isPublicRoutableIp));
   }
   
-  if (link.ipAddress && !ipsToCheck.includes(link.ipAddress)) {
+  if (link.ipAddress && isPublicRoutableIp(link.ipAddress) && !ipsToCheck.includes(link.ipAddress)) {
     ipsToCheck.push(link.ipAddress);
   }
   
   if (ipsToCheck.length === 0) {
-    console.log(`[BlacklistCheck] Link ${link.id} has no IPs to check`);
+    console.log(`[BlacklistCheck] Link ${link.id} has no IPs to check (ou apenas IPs inválidos/privados)`);
     return { checked: 0, listed: 0, notMonitored: 0 };
   }
 
