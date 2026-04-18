@@ -1,0 +1,69 @@
+root@link-monitor:/opt/link-monitor# # 1. Ver se o auto-resume rodou no boot
+journalctl -u link-monitor --since "1 hour ago" --no-pager | grep -iE "AiAnalyst|Auto-resume|startBatch|reclaim"
+
+# 2. Status do batch agora (precisa estar logado como superadmin no navegador, mas vai pelo curl-with-cookie)
+curl -s -b /tmp/cookies.txt http://localhost:5001/api/admin/ai-analyst/batch-status
+
+# 3. Última atividade dos workers
+journalctl -u link-monitor --since "30 min ago" --no-pager | tail -50
+abr 18 18:19:35 link-monitor npm[3546568]: [AiAnalyst] Recovery: 2 task(s) reenfileirada(s), 0 falhada(s) definitivamente. IDs: 31, 28
+abr 18 18:19:35 link-monitor npm[3546568]: [AiAnalyst] forçando liberação do mutex de processamento: reclaim-stuck endpoint
+<html>
+<head><title>400 The plain HTTP request was sent to HTTPS port</title></head>
+<body>
+<center><h1>400 Bad Request</h1></center>
+<center>The plain HTTP request was sent to HTTPS port</center>
+<hr><center>nginx/1.22.1</center>
+</body>
+</html>
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link PETROX_13===FIOG08009D7D: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.1454228832384843
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONU-BRIDGE: 13 elementos na rota
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONU-BRIDGE: Splitter: MAIKAI - CEO1 - RUA 1D-2D, Porta: 2
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONU-BRIDGE: Splitter: TA70, Porta: 1
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONU-BRIDGE: Salvo - Splitter: TA70, Porta: 1, Potência: -24.400947521418615
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: 9 elementos na rota
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: Splitter: CEO-DEPOSITO, Porta: 2
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: Splitter: CEO-DEPOSITO, Porta: 1
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: Splitter: CEO MVT 257, Porta: 1
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: Splitter: CEO MVT 257, Porta: 8
+abr 18 18:27:09 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REAL-INVEST: Salvo - Splitter: CEO MVT 257, Porta: 8, Potência: -18.334376778607393
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REDE-PRESIDENTE-CASA LUCIANA: 16 elementos na rota
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REDE-PRESIDENTE-CASA LUCIANA: Splitter: CEO MVT 101, Porta: 1
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REDE-PRESIDENTE-CASA LUCIANA: Splitter: CEO MVT 101, Porta: 2
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REDE-PRESIDENTE-CASA LUCIANA: Splitter: CTO MVT 06, Porta: 5
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link REDE-PRESIDENTE-CASA LUCIANA: Salvo - Splitter: CTO MVT 06, Porta: 5, Potência: -21.59115661556894
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CONTABILIZAR-LINK-PRINCIPAL: 14 elementos na rota
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CONTABILIZAR-LINK-PRINCIPAL: Splitter: CEO MVT 176, Porta: 4
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CONTABILIZAR-LINK-PRINCIPAL: Splitter: CEO MVT 176, Porta: 6
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CONTABILIZAR-LINK-PRINCIPAL: Salvo - Splitter: CEO MVT 176, Porta: 6, Potência: -17.946101160863666
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link POSTO_ALPHA06_SANTA_MARIA: Tag "3EKR18N8" não encontrada (HTTP 404)
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link alexandre.ramos-MAIKAI_Q03E08: Tag "MVBT171Z" não encontrada (HTTP 404)
+abr 18 18:27:10 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CLUBE: Tag "5ZM7FEHW" não encontrada (HTTP 404)
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CAROLINA-BARRETO-GARCEZ: 6 elementos na rota
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CAROLINA-BARRETO-GARCEZ: Splitter: JARDIM EUROPA, Porta: 4
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CAROLINA-BARRETO-GARCEZ: Splitter: JARDIM EUROPA, Porta: 3
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link CAROLINA-BARRETO-GARCEZ: Salvo - Splitter: JARDIM EUROPA, Porta: 3, Potência: -20.20715596086299
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link LUPINACCI: 6 elementos na rota
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link LUPINACCI: Splitter: JARDIM EUROPA, Porta: 8
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link LUPINACCI: Splitter: JARDIM EUROPA, Porta: 1
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link LUPINACCI: Salvo - Splitter: JARDIM EUROPA, Porta: 1, Potência: -20.20715596086299
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: 15 elementos na rota
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: Splitter: CEO-DEPOSITO, Porta: 1
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: Splitter: CEO MVT 192, Porta: 2
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: Splitter: CEO MVT 194, Porta: 2
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: Splitter: LES ALPES TORRE 1 | GC27, Porta: 1
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link JOAO.NETO: Salvo - Splitter: LES ALPES TORRE 1 | GC27, Porta: 1, Potência: -22.056486067216106
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONCORADIUM_HOSPITAL (ONU BRIDGE): 17 elementos na rota
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONCORADIUM_HOSPITAL (ONU BRIDGE): Splitter: CEO MVT 31, Porta: 4
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONCORADIUM_HOSPITAL (ONU BRIDGE): Splitter: CEO ATD MVT 31, Porta: 1
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ONCORADIUM_HOSPITAL (ONU BRIDGE): Salvo - Splitter: CEO ATD MVT 31, Porta: 1, Potência: -18.067961977518824
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link XINGOBKP: 9 elementos na rota
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link XINGOBKP: Splitter: CEO MVT 174, Porta: 4
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link XINGOBKP: Splitter: CONDOMINIO EMPRESARIAL JFC TRADE CENTER, Porta: 1
+abr 18 18:27:11 link-monitor npm[3546568]: [OZmap Auto-Sync] Link XINGOBKP: Salvo - Splitter: CONDOMINIO EMPRESARIAL JFC TRADE CENTER, Porta: 1, Potência: -13.745391453370026
+abr 18 18:27:12 link-monitor npm[3546568]: [OZmap Auto-Sync] Link INSTITUTO_ASPASIA: 38 elementos na rota
+abr 18 18:27:12 link-monitor npm[3546568]: [OZmap Auto-Sync] Link INSTITUTO_ASPASIA: Splitter: CEO MVT 150, Porta: 1
+abr 18 18:27:12 link-monitor npm[3546568]: [OZmap Auto-Sync] Link INSTITUTO_ASPASIA: Splitter: CEO MVT 150, Porta: 2
+abr 18 18:27:12 link-monitor npm[3546568]: [OZmap Auto-Sync] Link INSTITUTO_ASPASIA: Salvo - Splitter: CEO MVT 150, Porta: 2, Potência: -19.733414096178585
+abr 18 18:27:12 link-monitor npm[3546568]: [OZmap Auto-Sync] Link ALINE.QUEIROZ: Tag "1QJ72WKA" não encontrada (HTTP 404)
+root@link-monitor:/opt/link-monitor# 
