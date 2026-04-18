@@ -203,6 +203,27 @@ export function AiAnalystTab() {
     },
   });
 
+  const reclaimStuck = useMutation({
+    mutationFn: async (force: boolean) => {
+      const res = await apiRequest("POST", "/api/admin/ai-analyst/reclaim-stuck", { force });
+      return res.json();
+    },
+    onSuccess: (data: { requeued: number; failed: number; ids: number[] }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/ai-analyst/queue"] });
+      if (data.requeued === 0 && data.failed === 0) {
+        toast({ title: "Nenhuma task travada", description: "A fila está saudável." });
+      } else {
+        toast({
+          title: "Recovery executado",
+          description: `${data.requeued} reenfileirada(s), ${data.failed} marcada(s) como falha. IDs: ${data.ids.join(", ")}`,
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro no recovery", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Status do lote (polling a cada 2s só enquanto está rodando)
   const { data: batchStatus } = useQuery<BatchStatus>({
     queryKey: ["/api/admin/ai-analyst/batch/status"],
@@ -434,6 +455,16 @@ export function AiAnalystTab() {
               >
                 <Play className="w-4 h-4 mr-1" />
                 Processar próxima task
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => reclaimStuck.mutate(true)}
+                disabled={reclaimStuck.isPending}
+                data-testid="button-reclaim-stuck"
+                title="Destrava tasks que ficaram presas em 'investigating' (após restart, crash ou loop preso)"
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${reclaimStuck.isPending ? "animate-spin" : ""}`} />
+                Destravar tasks presas
               </Button>
             </CardContent>
           </Card>

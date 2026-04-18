@@ -15584,6 +15584,26 @@ export async function registerRoutes(
       }
     });
 
+    // POST destravar tasks órfãs em "investigating" (recovery manual)
+    app.post("/api/admin/ai-analyst/reclaim-stuck", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const schema = z.object({
+          staleMinutes: z.number().int().min(1).max(1440).optional(),
+          maxRetries: z.number().int().min(0).max(10).optional(),
+          force: z.boolean().optional(),
+        });
+        const { staleMinutes, maxRetries, force } = schema.parse(req.body || {});
+        // Se force=true, libera tudo (staleMinutes=0)
+        const stale = force ? 0 : (staleMinutes ?? 15);
+        const result = await storage.reclaimStuckAiAnalystTasks(stale, maxRetries ?? 2);
+        // Também libera o mutex em memória (caso o serviço atual esteja preso)
+        ai.forceReleaseProcessingLock("reclaim-stuck endpoint");
+        res.json(result);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
     // POST trigger manual de processamento (1 task)
     app.post("/api/admin/ai-analyst/process-next", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
       try {

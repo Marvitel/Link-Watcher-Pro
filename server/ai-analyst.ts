@@ -1284,6 +1284,13 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
   isProcessing = true;
   isProcessingSince = Date.now();
   try {
+    // Recovery cross-restart: se houver tasks órfãs em "investigating" há > 15min,
+    // reenvia pra fila antes de pegar a próxima
+    try {
+      await storage.reclaimStuckAiAnalystTasks(15, 2);
+    } catch (err: any) {
+      console.warn(`[AiAnalyst] reclaimStuckAiAnalystTasks falhou: ${err?.message || err}`);
+    }
     const task = await storage.getNextPendingAiAnalystTask();
     if (!task) return { processed: false };
 

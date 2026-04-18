@@ -3229,6 +3229,66 @@ export class DatabaseStorage {
     return rows[0];
   }
 
+  /**
+   * Recupera tasks órfãs em "investigating" há mais de N minutos (provavelmente travadas
+   * por restart do serviço, crash ou loop preso). Volta para "pending" para serem
+   * reprocessadas, ou marca como "failed" se já tentou demais.
+   */
+  async reclaimStuckAiAnalystTasks(staleMinutes = 15, maxRetries = 2): Promise<{
+    requeued: number;
+    failed: number;
+    ids: number[];
+  }> {
+    const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+    const stuck = await db
+      .select()
+      .from(aiAnalystTasks)
+      .where(
+        and(
+          eq(aiAnalystTasks.status, "investigating"),
+          lt(aiAnalystTasks.startedAt, cutoff),
+        ),
+      );
+    if (stuck.length === 0) return { requeued: 0, failed: 0, ids: [] };
+
+    let requeued = 0;
+    let failed = 0;
+    const ids: number[] = [];
+    for (const task of stuck) {
+      const retries = (task as any).retries ?? 0;
+      const ageMin = task.startedAt
+        ? Math.round((Date.now() - new Date(task.startedAt).getTime()) / 60000)
+        : staleMinutes;
+      if (retries >= maxRetries) {
+        await db
+          .update(aiAnalystTasks)
+          .set({
+            status: "failed",
+            errorMessage: `Travada em "investigating" por ${ageMin}min após ${retries} tentativa(s). Provável crash/restart.`,
+            completedAt: new Date(),
+          })
+          .where(eq(aiAnalystTasks.id, task.id));
+        failed++;
+      } else {
+        await db
+          .update(aiAnalystTasks)
+          .set({
+            status: "pending",
+            startedAt: null,
+            errorMessage: `Reprocessada após ${ageMin}min travada (tentativa ${retries + 1}).`,
+            ...(("retries" in (task as any)) ? { retries: retries + 1 } : {}),
+          } as any)
+          .where(eq(aiAnalystTasks.id, task.id));
+        requeued++;
+      }
+      ids.push(task.id);
+    }
+    console.log(
+      `[AiAnalyst] Recovery: ${requeued} task(s) reenfileirada(s), ${failed} falhada(s) definitivamente. IDs: ${ids.join(", ")}`,
+    );
+    return { requeued, failed, ids };
+  }
+
   async updateAiAnalystTask(id: number, data: Partial<AiAnalystTask>): Promise<AiAnalystTask | undefined> {
     const [updated] = await db.update(aiAnalystTasks).set(data).where(eq(aiAnalystTasks.id, id)).returning();
     return updated;
