@@ -29,6 +29,42 @@ export function isPublicRoutableIp(ip: string): boolean {
   return true;
 }
 
+/**
+ * Converte IP "a.b.c.d" para inteiro 32-bit unsigned. Retorna null se inválido.
+ */
+function ipToInt(ip: string): number | null {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+/**
+ * Verifica se um IP está dentro de qualquer CIDR da lista.
+ * Se a lista estiver vazia, retorna true (sem restrição).
+ * CIDRs inválidos são ignorados.
+ */
+export function isInAnyOwnedRange(ip: string, ranges: string[] | null | undefined): boolean {
+  if (!ranges || ranges.length === 0) return true;
+  const ipNum = ipToInt(ip);
+  if (ipNum === null) return false;
+  for (const cidr of ranges) {
+    const m = cidr.trim().match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
+    if (!m) {
+      // Aceita IP simples sem prefixo
+      const single = ipToInt(cidr.trim());
+      if (single !== null && single === ipNum) return true;
+      continue;
+    }
+    const baseNum = ipToInt(m[1]);
+    const prefix = parseInt(m[2], 10);
+    if (baseNum === null || prefix < 0 || prefix > 32) continue;
+    if (prefix === 0) return true;
+    const mask = (~((1 << (32 - prefix)) - 1)) >>> 0;
+    if ((ipNum & mask) === (baseNum & mask)) return true;
+  }
+  return false;
+}
+
 export function expandCidrToIps(cidr: string): string[] {
   const cidrMatch = cidr.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
   
@@ -343,9 +379,15 @@ export async function startBlacklistAutoCheck(
       }
 
       const adapter = new HetrixToolsAdapter(hetrixIntegration);
+      const ownedRanges: string[] = (hetrixIntegration.ownedIpRanges || []).filter((r: any) => typeof r === "string" && r.trim().length > 0);
       const links = await storage.getLinks();
       const linksWithIp = links.filter((link: any) => link.ipBlock || link.monitoredIp);
       
+      if (ownedRanges.length > 0) {
+        console.log(`[BlacklistAutoCheck] Restringindo consultas aos blocos próprios: ${ownedRanges.join(", ")}`);
+      } else {
+        console.log(`[BlacklistAutoCheck] Sem blocos próprios configurados — consultando todos os IPs públicos`);
+      }
       console.log(`[BlacklistAutoCheck] Checking ${linksWithIp.length} links with IP/blocks`);
 
       let checkedCount = 0;
@@ -363,10 +405,18 @@ export async function startBlacklistAutoCheck(
           if (link.ipBlock) {
             const expandedIps = expandCidrToIps(link.ipBlock);
             // Filtrar apenas IPs roteáveis públicos (ignora 0.x.x.x, privados, etc.)
-            ipsToCheck.push(...expandedIps.filter(isPublicRoutableIp));
+            // E, se houver blocos próprios configurados, restringir a esses ranges.
+            ipsToCheck.push(
+              ...expandedIps.filter((ip) => isPublicRoutableIp(ip) && isInAnyOwnedRange(ip, ownedRanges))
+            );
           }
           
-          if (link.monitoredIp && isPublicRoutableIp(link.monitoredIp) && !ipsToCheck.includes(link.monitoredIp)) {
+          if (
+            link.monitoredIp &&
+            isPublicRoutableIp(link.monitoredIp) &&
+            isInAnyOwnedRange(link.monitoredIp, ownedRanges) &&
+            !ipsToCheck.includes(link.monitoredIp)
+          ) {
             ipsToCheck.push(link.monitoredIp);
           }
           
@@ -503,23 +553,36 @@ export async function checkBlacklistForLink(
 ): Promise<{ checked: number; listed: number; notMonitored: number }> {
   const ipsToCheck: string[] = [];
   
+  const integrations = await storage.getExternalIntegrations();
+  const hetrixIntegrationForRanges = integrations.find(
+    (i: any) => i.provider === "hetrixtools"
+  );
+  const ownedRanges: string[] = (hetrixIntegrationForRanges?.ownedIpRanges || []).filter(
+    (r: any) => typeof r === "string" && r.trim().length > 0
+  );
+
   if (link.ipBlock) {
     const expandedIps = expandCidrToIps(link.ipBlock);
-    ipsToCheck.push(...expandedIps.filter(isPublicRoutableIp));
+    ipsToCheck.push(
+      ...expandedIps.filter((ip) => isPublicRoutableIp(ip) && isInAnyOwnedRange(ip, ownedRanges))
+    );
   }
   
-  if (link.ipAddress && isPublicRoutableIp(link.ipAddress) && !ipsToCheck.includes(link.ipAddress)) {
+  if (
+    link.ipAddress &&
+    isPublicRoutableIp(link.ipAddress) &&
+    isInAnyOwnedRange(link.ipAddress, ownedRanges) &&
+    !ipsToCheck.includes(link.ipAddress)
+  ) {
     ipsToCheck.push(link.ipAddress);
   }
   
   if (ipsToCheck.length === 0) {
-    console.log(`[BlacklistCheck] Link ${link.id} has no IPs to check (ou apenas IPs inválidos/privados)`);
+    console.log(`[BlacklistCheck] Link ${link.id} has no IPs to check (privados, inválidos ou fora dos blocos próprios)`);
     return { checked: 0, listed: 0, notMonitored: 0 };
   }
 
   console.log(`[BlacklistCheck] Checking ${ipsToCheck.length} IPs for link ${link.id}`);
-
-  const integrations = await storage.getExternalIntegrations();
   console.log(`[BlacklistCheck] Found ${integrations.length} integrations`);
   for (const i of integrations) {
     console.log(`[BlacklistCheck] Integration: provider=${i.provider}, isActive=${i.isActive}, hasApiKey=${!!i.apiKey}`);

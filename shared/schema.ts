@@ -1,4 +1,5 @@
 import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb, bigint } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1300,6 +1301,7 @@ export const externalIntegrations = pgTable("external_integrations", {
   apiUrl: text("api_url"),
   checkIntervalHours: integer("check_interval_hours").notNull().default(12), // Intervalo de verificação automática em horas (HetrixTools)
   syncIntervalMinutes: integer("sync_interval_minutes").notNull().default(5), // Intervalo de sincronização em minutos (OZmap)
+  ownedIpRanges: text("owned_ip_ranges").array().default(sql`ARRAY[]::text[]`), // Blocos próprios (CIDR) — só consulta IPs dentro destes (HetrixTools)
   lastTestedAt: timestamp("last_tested_at"),
   lastTestStatus: varchar("last_test_status", { length: 20 }),
   lastTestError: text("last_test_error"),

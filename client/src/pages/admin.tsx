@@ -69,6 +69,7 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -3486,6 +3487,7 @@ function HetrixToolsIntegration() {
     isActive: true,
     apiKey: "",
     checkIntervalHours: 12,
+    ownedIpRangesText: "",
   });
 
   useEffect(() => {
@@ -3496,6 +3498,7 @@ function HetrixToolsIntegration() {
         isActive: hetrixIntegration.isActive,
         apiKey: "",
         checkIntervalHours: hetrixIntegration.checkIntervalHours || 12,
+        ownedIpRangesText: ((hetrixIntegration as any).ownedIpRanges || []).join("\n"),
       });
     }
   }, [hetrixIntegration]);
@@ -3555,18 +3558,24 @@ function HetrixToolsIntegration() {
       return;
     }
     
+    const ownedIpRanges = formData.ownedIpRangesText
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
     if (hetrixIntegration) {
-      const updateData: Partial<typeof formData> = {
+      const updateData: Partial<typeof formData> & { ownedIpRanges?: string[] } = {
         name: formData.name,
         isActive: formData.isActive,
         checkIntervalHours: formData.checkIntervalHours,
+        ownedIpRanges,
       };
       if (formData.apiKey) {
         updateData.apiKey = formData.apiKey;
       }
       updateMutation.mutate({ id: hetrixIntegration.id, data: updateData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate({ ...formData, ownedIpRanges } as any);
     }
   };
   
@@ -3645,6 +3654,24 @@ function HetrixToolsIntegration() {
               Frequência da verificação automática de blacklist para todos os links
             </p>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="hetrix-owned-ranges">Blocos próprios (CIDR) — restringir consultas</Label>
+          <Textarea
+            id="hetrix-owned-ranges"
+            value={formData.ownedIpRangesText}
+            onChange={(e) => setFormData({ ...formData, ownedIpRangesText: e.target.value })}
+            placeholder={"Um por linha. Ex.:\n191.52.248.0/21\n200.10.0.0/24"}
+            rows={4}
+            className="font-mono text-sm"
+            data-testid="textarea-hetrix-owned-ranges"
+          />
+          <p className="text-xs text-muted-foreground">
+            Quando preenchido, apenas IPs dentro desses blocos serão consultados na HetrixTools.
+            Útil para evitar requisições para IPs de clientes que não pertencem à sua faixa AS.
+            Deixe vazio para consultar todos os IPs públicos roteáveis.
+          </p>
         </div>
 
         <div className="flex items-center space-x-2">
