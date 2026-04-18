@@ -215,6 +215,26 @@ app.use((req, res, next) => {
     console.error("[index] falha ao iniciar scheduler de auditoria:", err);
   }
 
+  // Auto-resume do Analista IA: se havia tasks pendentes antes do restart, retoma o lote
+  setTimeout(async () => {
+    try {
+      const { storage } = await import("./storage");
+      const ai = await import("./ai-analyst");
+
+      // 1. Recupera órfãs em "investigating" (travadas por crash/restart anterior)
+      await storage.reclaimStuckAiAnalystTasks(15, 2);
+
+      // 2. Se há tasks pending e nenhum lote ativo, inicia automaticamente
+      const pending = await storage.getAiAnalystTasks({ status: "pending", limit: 1 });
+      if (pending.length > 0 && !ai.getBatchStatus().running) {
+        console.log(`[AiAnalyst] Auto-resume: ${pending.length > 0 ? "tasks pendentes detectadas" : ""} — iniciando processamento em lote`);
+        ai.startBatch(500); // processa até 500 de uma vez
+      }
+    } catch (err: any) {
+      console.error("[AiAnalyst] Auto-resume falhou:", err?.message || err);
+    }
+  }, 10_000); // aguarda 10s para o servidor estar estável
+
   // Error handlers
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
