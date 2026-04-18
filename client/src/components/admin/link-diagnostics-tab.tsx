@@ -34,6 +34,8 @@ import {
   UploadCloud,
   Database,
   Bot,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 
 interface DiagnosticCategory {
@@ -63,6 +65,8 @@ interface DiagnosticsData {
   healthyLinks: number;
   categories: Record<string, DiagnosticCategory>;
   contractStatusSummary?: ContractStatusSummary;
+  noConnectionData?: { count: number; ids: number[] };
+  disabledMonitoring?: { count: number; ids: number[] };
 }
 
 interface EnrichStatus {
@@ -529,6 +533,90 @@ export function LinkDiagnosticsTab() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* Card: Links sem dados de conexão / monitoramento desativado */}
+      {((diagnostics.noConnectionData?.count ?? 0) > 0 || (diagnostics.disabledMonitoring?.count ?? 0) > 0) && (
+        <Card className="border-yellow-300 dark:border-yellow-700" data-testid="card-monitoring-control">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <EyeOff className="h-4 w-4 text-yellow-500" />
+              Controle de Monitoramento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(diagnostics.noConnectionData?.count ?? 0) > 0 && (
+              <div className="flex items-center justify-between rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
+                    {diagnostics.noConnectionData!.count} link(s) sem nenhum dado de conexão
+                  </p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                    Sem IP, sem usuário PPPoE e sem concentrador — provável roteador mesh/residencial importado do Voalle
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-yellow-400 text-yellow-800 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900"
+                  data-testid="btn-disable-no-connection"
+                  onClick={async () => {
+                    try {
+                      const res = await apiRequest("PATCH", "/api/admin/links/bulk-monitoring", {
+                        linkIds: diagnostics.noConnectionData!.ids,
+                        monitoringEnabled: false,
+                      });
+                      const data = await res.json();
+                      toast({ title: "Monitoramento desativado", description: `${data.updated} links atualizados.` });
+                      refetch();
+                      queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+                    } catch (e: any) {
+                      toast({ title: "Erro", description: e.message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  <EyeOff className="h-3.5 w-3.5 mr-1" />
+                  Inativar todos
+                </Button>
+              </div>
+            )}
+            {(diagnostics.disabledMonitoring?.count ?? 0) > 0 && (
+              <div className="flex items-center justify-between rounded-md bg-muted/50 border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {diagnostics.disabledMonitoring!.count} link(s) com monitoramento inativo
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Não são pingados, não geram alertas e não aparecem no dashboard
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  data-testid="btn-reactivate-monitoring"
+                  onClick={async () => {
+                    try {
+                      const res = await apiRequest("PATCH", "/api/admin/links/bulk-monitoring", {
+                        linkIds: diagnostics.disabledMonitoring!.ids,
+                        monitoringEnabled: true,
+                      });
+                      const data = await res.json();
+                      toast({ title: "Monitoramento reativado", description: `${data.updated} links atualizados.` });
+                      refetch();
+                      queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+                    } catch (e: any) {
+                      toast({ title: "Erro", description: e.message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" />
+                  Reativar todos
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {enrichStatus?.running && (

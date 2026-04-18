@@ -13385,6 +13385,14 @@ export async function registerRoutes(
 
       const criticalIssues = new Set([...missingIp, ...missingInterface, ...missingConcentrator].map(l => l.id));
 
+      // Links sem nenhum dado de conexão (sem IP + sem PPPoE + sem concentrador = provavelmente roteadores mesh/residencial)
+      const noConnectionData = allLinks.filter(l =>
+        !l.monitoredIp && !l.pppoeUser && !l.concentratorId && l.monitoringEnabled !== false
+      );
+
+      // Links com monitoramento desativado
+      const disabledMonitoring = allLinks.filter(l => l.monitoringEnabled === false);
+
       const contractStatusSummary = {
         active: allLinks.filter(l => l.contractStatus === "active" || !l.contractStatus).length,
         blocked: allLinks.filter(l => l.contractStatus === "blocked").length,
@@ -13398,6 +13406,8 @@ export async function registerRoutes(
         healthyLinks: allLinks.length - criticalIssues.size,
         categories,
         contractStatusSummary,
+        noConnectionData: { count: noConnectionData.length, ids: noConnectionData.map(l => l.id) },
+        disabledMonitoring: { count: disabledMonitoring.length, ids: disabledMonitoring.map(l => l.id) },
       });
     } catch (error: any) {
       console.error("[Diagnostics] Error:", error);
@@ -14771,6 +14781,30 @@ export async function registerRoutes(
 
   app.get("/api/admin/links/enrich/status", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
     res.json(enrichmentProgress);
+  });
+
+  // Ativar/desativar monitoramento em lote
+  app.patch("/api/admin/links/bulk-monitoring", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+    try {
+      const { linkIds, monitoringEnabled } = req.body as { linkIds: number[]; monitoringEnabled: boolean };
+      if (!Array.isArray(linkIds) || linkIds.length === 0) {
+        return res.status(400).json({ error: "linkIds deve ser array não vazio" });
+      }
+      if (typeof monitoringEnabled !== "boolean") {
+        return res.status(400).json({ error: "monitoringEnabled deve ser boolean" });
+      }
+      const updated: number[] = [];
+      for (const id of linkIds) {
+        const link = await storage.getLink(id);
+        if (!link) continue;
+        await storage.updateLink(id, { monitoringEnabled });
+        updated.push(id);
+      }
+      return res.json({ updated: updated.length, monitoringEnabled });
+    } catch (error: any) {
+      console.error("[bulk-monitoring] erro:", error);
+      return res.status(500).json({ error: error?.message || "Erro inesperado" });
+    }
   });
 
   app.post("/api/admin/links/enrich", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ExternalLink, FileSpreadsheet, Copy, ChevronLeft, ChevronRight, Globe, ArrowDown, ArrowUp } from "lucide-react";
+import { ExternalLink, FileSpreadsheet, Copy, ChevronLeft, ChevronRight, Globe, ArrowDown, ArrowUp, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Link, Metric } from "@shared/schema";
 import { formatBandwidth } from "@/lib/export-utils";
@@ -123,14 +123,27 @@ export function LinksTable({
                 const latencyColor = isDown ? "text-muted-foreground" : 
                   latency > 80 ? "text-red-500" : latency > 50 ? "text-yellow-500" : "text-green-500";
 
+                const monitoringDisabled = link.monitoringEnabled === false;
+
                 return (
-                  <TableRow key={link.id} className="hover-elevate" data-testid={`row-link-${link.id}`}>
+                  <TableRow key={link.id} className={`hover-elevate ${monitoringDisabled ? "opacity-50" : ""}`} data-testid={`row-link-${link.id}`}>
                     <TableCell>
-                      <StatusDot status={link.status} size="md" />
+                      {monitoringDisabled ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted">
+                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>Monitoramento inativo</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <StatusDot status={link.status} size="md" />
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{link.name}</span>
+                        <span className={`font-medium ${monitoringDisabled ? "text-muted-foreground" : ""}`}>{link.name}</span>
                         {link.location && (
                           <span className="text-xs text-muted-foreground">{link.location}</span>
                         )}

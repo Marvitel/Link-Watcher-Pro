@@ -2165,11 +2165,29 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
       </div>
 
       <div className="border-t pt-4 mt-4">
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <Activity className="w-4 h-4 text-red-500" />
-          Monitoramento de Conectividade
-        </h4>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-medium flex items-center gap-2">
+            <Activity className="w-4 h-4 text-red-500" />
+            Monitoramento de Conectividade
+          </h4>
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-medium ${formData.monitoringEnabled ? "text-green-600 dark:text-green-400" : "text-muted-foreground line-through"}`}>
+              {formData.monitoringEnabled ? "Ativo" : "Inativo"}
+            </span>
+            <Switch
+              checked={formData.monitoringEnabled}
+              onCheckedChange={(checked) => setFormData({ ...formData, monitoringEnabled: checked })}
+              data-testid="switch-monitoring-enabled"
+            />
+          </div>
+        </div>
+        {!formData.monitoringEnabled && (
+          <div className="mb-3 flex items-center gap-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-300">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard.
+          </div>
+        )}
+        <div className={`grid grid-cols-3 gap-4 ${!formData.monitoringEnabled ? "opacity-50 pointer-events-none" : ""}`}>
           <div className="space-y-2">
             <Label htmlFor="monitoredIp">IP para Monitoramento</Label>
             <div className="flex gap-2">
