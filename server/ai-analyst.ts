@@ -647,6 +647,30 @@ function truncateMikrotikOutput(rows: any[]): any[] {
   });
 }
 
+const TOOL_TIMEOUT_MS = 60_000;
+
+async function executeToolSafe(name: string, input: any): Promise<unknown> {
+  const start = Date.now();
+  try {
+    const result = await Promise.race([
+      executeTool(name, input),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`tool "${name}" timeout após ${TOOL_TIMEOUT_MS / 1000}s`)),
+          TOOL_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+    const dur = Date.now() - start;
+    if (dur > 5000) console.log(`[AiAnalyst] tool ${name} demorou ${dur}ms`);
+    return result;
+  } catch (err: any) {
+    const dur = Date.now() - start;
+    console.warn(`[AiAnalyst] tool ${name} falhou em ${dur}ms: ${err?.message || err}`);
+    throw err;
+  }
+}
+
 async function executeTool(name: string, input: any): Promise<unknown> {
   // -------------------- META --------------------
   if (name === "list_capabilities") {
@@ -1204,7 +1228,7 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
         const start = Date.now();
         let output: unknown;
         try {
-          output = await executeTool(tu.name, tu.input);
+          output = await executeToolSafe(tu.name, tu.input);
         } catch (err: any) {
           output = { error: err.message };
         }
@@ -1842,7 +1866,7 @@ export async function investigateField(
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: "ok" });
       } else {
         try {
-          const out = await executeTool(tu.name, tu.input);
+          const out = await executeToolSafe(tu.name, tu.input);
           toolResults.push({
             type: "tool_result",
             tool_use_id: tu.id,
