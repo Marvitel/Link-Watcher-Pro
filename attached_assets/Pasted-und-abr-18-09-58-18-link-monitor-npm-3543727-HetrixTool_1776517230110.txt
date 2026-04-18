@@ -1,0 +1,86 @@
+und"}
+abr 18 09:58:18 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.249.46&exact_target=true&type=ipv4
+abr 18 09:58:18 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:18 link-monitor npm[3543727]: [Flashman] Error getting device by serial ITBSCFC1B84C: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:18 link-monitor npm[3543727]: [Flashman] Error getting device by serial ITBS5FFE4EB0: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:19 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.249.47&exact_target=true&type=ipv4
+abr 18 09:58:20 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:20 link-monitor npm[3543727]: [Flashman] Error getting device by serial ITBSCFE3FF22: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:21 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.97&exact_target=true&type=ipv4
+abr 18 09:58:21 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:22 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.254.156&exact_target=true&type=ipv4
+abr 18 09:58:22 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:23 link-monitor npm[3543727]: [Monitor] MNET: ifIndex 15772014 verification skipped - SNMP timeout/unreachable on 191.52.248.10. Keeping current interface settings.
+abr 18 09:58:24 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.254.157&exact_target=true&type=ipv4
+abr 18 09:58:24 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:25 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.254.158&exact_target=true&type=ipv4
+abr 18 09:58:26 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:27 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.254.159&exact_target=true&type=ipv4
+abr 18 09:58:27 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:27 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:27 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:27 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:27 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:28 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:28 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:28 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:28 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:29 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.254.112&exact_target=true&type=ipv4
+abr 18 09:58:29 link-monitor npm[3543727]: [Monitor] POSTO-PRESID-MARANHAO: ifIndex 15731172 verification skipped - SNMP timeout/unreachable on 191.52.248.2. Keeping current interface settings.
+abr 18 09:58:29 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:29 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:29 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:29 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:29 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:30 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.26&exact_target=true&type=ipv4
+abr 18 09:58:30 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:31 link-monitor npm[3543727]: [Flashman] Error getting device by serial TPLGD2A54148: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:32 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.253.223&exact_target=true&type=ipv4
+abr 18 09:58:32 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:33 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.253.193&exact_target=true&type=ipv4
+abr 18 09:58:33 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:35 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.120&exact_target=true&type=ipv4
+abr 18 09:58:35 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:35 link-monitor npm[3543727]: [SNMP Walk] Error on 1.3.6.1.4.1.14988.1.1.5.2.1.1: Request timed out
+abr 18 09:58:35 link-monitor npm[3543727]: [SNMP Walk] Error on 1.3.6.1.4.1.14988.1.1.5.2.1.3: Request timed out
+abr 18 09:58:35 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:35 link-monitor npm[3543727]: [Monitor] mpse.cedro: ifIndex 15763775 verification skipped - SNMP timeout/unreachable on 191.52.248.22. Keeping current interface settings.
+abr 18 09:58:35 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:35 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:35 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:35 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:36 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.121&exact_target=true&type=ipv4
+abr 18 09:58:37 link-monitor npm[3543727]: [Flashman] Error getting device by serial DACM91781238: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:37 link-monitor npm[3543727]: [Monitor] UNIMED - IP LINK BKP - Óptico PTP: usando OIDs do fabricante Mikrotik (RouterOS) (divisor: 1000)
+abr 18 09:58:37 link-monitor npm[3543727]: [HetrixTools] Page 1: fetched 1 monitors (total: 1)
+abr 18 09:58:37 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:37 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:37 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:37 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:39 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.122&exact_target=true&type=ipv4
+abr 18 09:58:39 link-monitor npm[3543727]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+abr 18 09:58:39 link-monitor npm[3543727]: [BlacklistAutoCheck] Rate limited on IP 191.52.252.122 (HetrixTools API error: 429 Too Many Requests) — backoff #1, aguardando 5s
+abr 18 09:58:41 link-monitor npm[3543727]: [Monitor] IVN ESTANCIA FIBRA - Óptico PTP: usando OIDs do fabricante Mikrotik (RouterOS) (divisor: 1000)
+abr 18 09:58:41 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:41 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:41 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:41 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:41 link-monitor npm[3543727]: [Flashman] Error getting device by serial TPLG7971B917: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:42 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:42 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:42 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:42 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:45 link-monitor npm[3543727]: [HetrixTools] GET https://api.hetrixtools.com/v3/blacklist-monitors?per_page=200&page=1&target=191.52.252.123&exact_target=true&type=ipv4
+abr 18 09:58:45 link-monitor npm[3543727]: [HetrixTools] Error 429: {"status":"too_many_requests","message":"endpoint api rate limit exceeded"}
+abr 18 09:58:45 link-monitor npm[3543727]: [BlacklistAutoCheck] Rate limited on IP 191.52.252.123 (HetrixTools API error: 429 Too Many Requests) — backoff #2, aguardando 10s
+abr 18 09:58:45 link-monitor npm[3543727]: [Flashman] Error getting device by serial ITBS0DC55F27: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:46 link-monitor npm[3543727]: [SNMP 32-bit Error] 191.52.255.254: Socket forcibly closed
+abr 18 09:58:49 link-monitor npm[3543727]: [Flashman] Error getting device by serial ITBS5FFDB316: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:49 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 18 09:58:49 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Active: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:49 link-monitor npm[3543727]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Secret
+abr 18 09:58:49 link-monitor npm[3543727]: [PPPoE SNMP] Mikrotik PPP Secret: 0 usuários, 0 IPs, 0 MACs
+abr 18 09:58:51 link-monitor npm[3543727]: [Flashman] Error getting device by serial DACM916C86F0: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 09:58:53 link-monitor npm[3543727]: [Flashman] Error getting device by serial TPLGCE001AF0: Flashman API error 404: {"success":false,"message":"Device not found"}
+root@link-monitor:/opt/link-monitor# sudo -u postgres psql link_monitor -c "SELECT id, link_id, status, started_at, EXTRACT(EPOCH FROM (NOW() - started_at))/60 AS min_travada FROM ai_analyst_tasks WHERE status IN ('investigating','pending') ORDER BY started_at;"
+root@link-monitor:/opt/link-monitor# 

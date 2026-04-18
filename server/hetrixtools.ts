@@ -394,8 +394,12 @@ export async function startBlacklistAutoCheck(
       let listedCount = 0;
       let notMonitoredCount = 0;
 
-      // Delay entre requests para respeitar rate limit da HetrixTools
-      const REQUEST_DELAY_MS = 1200; // ~50 req/min, bem abaixo do limite
+      // Delay entre requests para respeitar rate limit da HetrixTools.
+      // O endpoint /blacklist-monitors tem limite de ~10 req/min — mantemos 7s
+      // entre requests (~8.5/min) para folga. Backoff cresce 15s por 429 consecutivo.
+      const REQUEST_DELAY_MS = 7000;
+      const BACKOFF_PER_429_MS = 15000;
+      const MAX_CONSECUTIVE_429 = 5; // após 5 seguidos, aborta o ciclo
       let consecutive429 = 0;
 
       for (const link of linksWithIp) {
@@ -429,8 +433,12 @@ export async function startBlacklistAutoCheck(
           
           // Buscar cada IP individualmente (1 requisição por IP) com rate-limiting
           for (const ip of ipsToCheck) {
+            if (consecutive429 >= MAX_CONSECUTIVE_429) {
+              console.warn(`[BlacklistAutoCheck] ${MAX_CONSECUTIVE_429} 429 consecutivos — abortando ciclo. Próxima execução agendada respeitará o intervalo.`);
+              return;
+            }
             // Pausa antes de cada request para não estourar o rate limit
-            await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS + consecutive429 * 5000));
+            await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS + consecutive429 * BACKOFF_PER_429_MS));
 
             try {
               const monitors = await adapter.getBlacklistMonitors({ target: ip, type: "ipv4" });
