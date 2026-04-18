@@ -1,0 +1,90 @@
+C
+root@link-monitor:/opt/link-monitor# # Qual task e há quanto tempo está investigating
+sudo -u postgres psql link_monitor -c "SELECT id, link_id, started_at, EXTRACT(EPOCH FROM (NOW() - started_at))/60 AS min_em_execucao, retry_count FROM ai_analyst_tasks WHERE status='investigating';"
+
+# Últimos 80 logs do serviço (incluindo tool calls da IA)
+journalctl -u link-monitor --since "10 min ago" --no-pager | tail -80
+ERROR:  column "retry_count" does not exist
+LINE 1: ...FROM (NOW() - started_at))/60 AS min_em_execucao, retry_coun...
+                                                             ^
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM91926FB8 (variantes: DACM91926FB8, 4441434D91926FB8)...
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] ONU DACM91926FB8 encontrada: RX=-16.67dBm TX=2.61dBm OLT_RX=-21.37dBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] PKV-CASA_02 - Óptico Zabbix: OLT_RX=-21.37dBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] BRUNA-NUNES===TPLGCE000DD0: lat=2.8ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] jose.junior: lat=3.1ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] Link 162 - Splitter atualizado: (vazio) porta (vazio) dist 0
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] Link 189 - Splitter atualizado: (vazio) porta (vazio) dist 0
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] GBIC XPON: lat=0.0ms, loss=100.0%, status=degraded
+abr 18 19:05:03 link-monitor npm[3763750]: Ping failed for 191.52.252.87: Command failed: ping -c 5 -W 3 -i 0.3 191.52.252.87 2>&1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] TRIBUNAL DE JUSTIÇA - LARANJEIRAS: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 15751132, profileId: 7
+abr 18 19:05:03 link-monitor npm[3763750]: Ping failed for 100.80.2.139: Command failed: ping -c 5 -W 3 -i 0.3 100.80.2.139 2>&1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA: Using concentrator (CE: AJU-PKV-RB-1009) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.251.102, ifIndex: 15747929, profileId: 7
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] TRIBUNAL DE JUSTIÇA - LARANJEIRAS: ifIndex 15751132 verified OK - "<pppoe-tjse.laranjeiras>" matches "<pppoe-tjse.laranjeiras>"
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] tahaa-casa16: lat=3.0ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] TRIBUNAL DE JUSTIÇA - LARANJEIRAS - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=tjse.laranjeiras)...
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA: ifIndex 15747929 verified OK - "<pppoe-casa_70>" matches "<pppoe-casa_70>"
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=4 onu=7
+abr 18 19:05:03 link-monitor npm[3763750]: [SNMP Optical] Índice calculado para datacom: slot=1, port=4, onuId=7 -> index=16779011
+abr 18 19:05:03 link-monitor npm[3763750]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16779011, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16779011
+abr 18 19:05:03 link-monitor npm[3763750]: Ping failed for 100.80.8.141: Command failed: ping -c 5 -W 3 -i 0.3 100.80.8.141 2>&1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] GBIC  User PPPoE (casa_08) senha: (casa_08): Using concentrator (CE: AJU-PKV-RB-1009) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.251.102, ifIndex: 15748320, profileId: 7
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/full/tjse.laranjeiras/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/Full] Endpoint /full/ not available for tjse.laranjeiras: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] GBIC  User PPPoE (casa_08) senha: (casa_08): ifIndex 15748320 verified OK - "<pppoe-casa_08>" matches "<pppoe-casa_08>"
+abr 18 19:05:03 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: 19 elementos na rota
+abr 18 19:05:03 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: MAIKAI - CEO10 - RUA 16D, Porta: 3
+abr 18 19:05:03 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: CTO MAIKAI 17D, Porta: 2
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/pppoe-username/tjse.laranjeiras/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman] Optical lookup by PPPoE "tjse.laranjeiras" failed: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] TRIBUNAL DE JUSTIÇA - LARANJEIRAS - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA - Óptico OK: RX=-20.9dBm TX=2.2dBm OLT_RX=nulldBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM917803C0...
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM917803C0 (variantes: DACM917803C0, 4441434D917803C0)...
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] ONU DACM917803C0 encontrada: RX=-20.86dBm TX=2.30dBm OLT_RX=-25.69dBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA - Óptico Zabbix: OLT_RX=-25.69dBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] yolanda.borges: lat=3.0ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] Link 200 - Splitter atualizado: (vazio) porta (vazio) dist 1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA: Ping failed but optical signal OK (RX=-20.9dBm) and SNMP traffic active (DL=0.00Mbps) - overriding to OPERATIONAL
+abr 18 19:05:03 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Salvo - Splitter: CTO MAIKAI 17D, Porta: 2, Potência: -21.34249888677173
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] PIZZAHUT: lat=0.9ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: Ping failed for 100.80.3.133: Command failed: ping -c 5 -W 3 -i 0.3 100.80.3.133 2>&1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER: Using concentrator (CE2: BCQ-MVT-CLT-COND-MAIKAI) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.255.192, ifIndex: 46, profileId: 7
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] TRIBUNAL DE JUSTIÇA - LARANJEIRAS: lat=0.0ms, loss=100.0%, status=offline
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER: ifIndex 46 verified OK - "sfp-sfpplus1-vlan.50-OSPF-CEs" matches "sfp-sfpplus1-vlan.50-OSPF-CEs"
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER - Óptico: coletando via OLT OLT-DATACOM-MAIKAI (datacom) slot=1 port=6 onu=54
+abr 18 19:05:03 link-monitor npm[3763750]: [SNMP Optical] Índice calculado para datacom: slot=1, port=6, onuId=54 -> index=16791045
+abr 18 19:05:03 link-monitor npm[3763750]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16791045, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16791045
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU ROUTER - User PPPoE (casa_61) senha: (casa_61): lat=3.9ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] PKV-CASA_02: lat=3.2ms, loss=0.0%, status=operational
+abr 18 19:05:03 link-monitor npm[3763750]: Ping failed for Rodovia Engenheiro Edilson Tavora, 6500, Luar da Barra: Command failed: ping -c 5 -W 3 -i 0.3 Rodovia Engenheiro Edilson Tavora, 6500, Luar da Barra 2>&1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] enikson.souza: Using concentrator (CE: BCQ-MVT-CLT-COND-MAIKAI) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.255.96, ifIndex: null, profileId: 7
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] enikson.souza - Óptico: falta ONU params (slot=1, port=3, onuId=null, parsed=NaN)
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] enikson.souza - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=2827eniksonsouza)...
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER - Óptico OK: RX=-17.6dBm TX=2.7dBm OLT_RX=nulldBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM9170CFD8...
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM9170CFD8 (variantes: DACM9170CFD8, 4441434D9170CFD8)...
+abr 18 19:05:03 link-monitor npm[3763750]: [OLT Zabbix Optical] ONU DACM9170CFD8 encontrada: RX=nulldBm TX=nulldBm OLT_RX=nulldBm
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/full/2827eniksonsouza/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/Full] Endpoint /full/ not available for 2827eniksonsouza: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/pppoe-username/2827eniksonsouza/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Flashman] Optical lookup by PPPoE "2827eniksonsouza" failed: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] enikson.souza - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] Link 1280 - Splitter atualizado: SPLITER MAIKAI 13D porta 4 dist 1
+abr 18 19:05:03 link-monitor npm[3763750]: [Monitor] ONU-ROUTER: Ping failed but optical signal OK (RX=-17.6dBm) and SNMP traffic active (DL=58.38Mbps) - overriding to OPERATIONAL
+abr 18 19:05:04 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: 13 elementos na rota
+abr 18 19:05:04 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: MAIKAI - CEO1 - RUA 1D-2D, Porta: 2
+abr 18 19:05:04 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: TA70, Porta: 5
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] mpse.pirambu: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 15742681, profileId: 7
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] mpse.pirambu: ifIndex 15742681 verified OK - "<pppoe-mpse.pirambu>" matches "<pppoe-mpse.pirambu>"
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] mpse.pirambu - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=mpse.pirambu)...
+abr 18 19:05:04 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/full/mpse.pirambu/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:04 link-monitor npm[3763750]: [Flashman/Full] Endpoint /full/ not available for mpse.pirambu: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:04 link-monitor npm[3763750]: [Flashman/API] GET /api/v3/device/pppoe-username/mpse.pirambu/ -> 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:04 link-monitor npm[3763750]: [Flashman] Optical lookup by PPPoE "mpse.pirambu" failed: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] mpse.pirambu - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 18 19:05:04 link-monitor npm[3763750]: [OZmap Auto-Sync] Link ONU-ROUTER: Salvo - Splitter: TA70, Porta: 5, Potência: -24.397762371166912
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] CASA ESTA EM REFORMA: lat=0.0ms, loss=0.0%, status=operational
+abr 18 19:05:04 link-monitor npm[3763750]: [Monitor] enikson.souza: lat=0.0ms, loss=100.0%, status=offline
+abr 18 19:05:04 link-monitor npm[3763750]: [PPPoE SNMP] Conectividade OK - Cisco IOS Software, ASR1000 Software (PPC_LINUX_IOSD-ADVIPSERVICESK9-M), Version...
+abr 18 19:05:04 link-monitor npm[3763750]: [PPPoE SNMP] Tentando OIDs: Cisco Subscriber
+root@link-monitor:/opt/link-monitor# 

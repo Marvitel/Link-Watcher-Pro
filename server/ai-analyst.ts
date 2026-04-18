@@ -1129,7 +1129,9 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   }
 
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey });
+  // Timeout de 90s por request — evita task ficar pendurada infinitamente
+  // se a API da Anthropic engasgar. SDK fará 2 retries automáticos.
+  const client = new Anthropic({ apiKey, timeout: 90_000, maxRetries: 2 });
   const model = settings.model || DEFAULT_MODEL;
   const pricing = MODEL_PRICING[model] || MODEL_PRICING[DEFAULT_MODEL];
 
@@ -1140,6 +1142,8 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   let finalProposal: any = null;
   let lastAssistantText = "";
   const MAX_ITERATIONS = 12;
+
+  console.log(`[AiAnalyst] LLM start link=${ctx.link.id} model=${model} (timeout=90s, maxIter=${MAX_ITERATIONS})`);
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const isLastIteration = iter === MAX_ITERATIONS - 1;
@@ -1157,7 +1161,9 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
     if (isLastIteration) {
       requestParams.tool_choice = { type: "tool", name: "submit_proposal" };
     }
+    const iterStart = Date.now();
     const response = await client.messages.create(requestParams);
+    console.log(`[AiAnalyst] LLM iter=${iter + 1}/${MAX_ITERATIONS} link=${ctx.link.id} latency=${Date.now() - iterStart}ms in=${response.usage?.input_tokens || 0} out=${response.usage?.output_tokens || 0}`);
 
     totalInput += response.usage?.input_tokens || 0;
     totalOutput += response.usage?.output_tokens || 0;
@@ -1296,6 +1302,7 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
 
     // Marca como em investigação
     await storage.updateAiAnalystTask(task.id, { status: "investigating", startedAt: new Date() });
+    console.log(`[AiAnalyst] Iniciando task ${task.id} (link=${task.linkId}, motivo=${task.triggerReason}, prio=${task.priority})`);
 
     const link = await storage.getLink(task.linkId);
     if (!link) {
@@ -1793,7 +1800,7 @@ export async function investigateField(
   ].join("\n");
 
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: 90_000, maxRetries: 2 });
 
   const tools = [...TOOLS.filter((t) => t.name !== "submit_proposal"), SUBMIT_FIELD_TOOL];
   const messages: any[] = [{ role: "user", content: focusedPrompt }];
