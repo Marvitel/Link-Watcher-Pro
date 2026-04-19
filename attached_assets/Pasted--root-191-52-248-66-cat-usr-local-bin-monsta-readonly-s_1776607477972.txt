@@ -1,0 +1,56 @@
+[root@191-52-248-66 ~]# cat > /usr/local/bin/monsta-readonly.sh <<'EOF'
+#!/bin/bash
+case "$SSH_ORIGINAL_COMMAND" in
+  "sqlite-monsta5 "*)
+    QUERY="${SSH_ORIGINAL_COMMAND#sqlite-monsta5 }"
+    QUERY="${QUERY#\"}"; QUERY="${QUERY%\"}"
+    exec sqlite3 -readonly -json /var/monsta/data/monsta5.db "$QUERY"
+    ;;
+  "sqlite-events "*)
+    QUERY="${SSH_ORIGINAL_COMMAND#sqlite-events }"
+    QUERY="${QUERY#\"}"; QUERY="${QUERY%\"}"
+    exec sqlite3 -readonly -json /var/monsta/data/events.db "$QUERY"
+    ;;
+  "monstadb "*)
+    Q="${SSH_ORIGINAL_COMMAND#monstadb }"
+    exec curl -s --max-time 10 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=$Q"
+    ;;
+  *)
+    echo "ERROR: command not allowed: $SSH_ORIGINAL_COMMAND" >&2
+    exit 1
+    ;;
+esac
+EOF
+chmod 755 /usr/local/bin/monsta-readonly.sh
+
+# Re-roda os 4 testes
+echo "=== TESTE 1 (direto) ==="
+sudo -u monstaro sqlite3 -readonly -json /var/monsta/data/monsta5.db "SELECT id,name FROM groups WHERE kind='Device' LIMIT 2;"
+
+echo "=== TESTE 2 (sqlite-monsta5 via SSH) ==="
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  monstaro@127.0.0.1 'sqlite-monsta5 "SELECT id,name FROM groups WHERE kind='\''Device'\'' LIMIT 2;"'
+
+echo "=== TESTE 3 (monstadb) ==="
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  monstaro@127.0.0.1 'monstadb list+series' | head -c 200; echo
+
+echo "=== TESTE 4 (events) ==="
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  monstaro@127.0.0.1 'sqlite-events "SELECT COUNT(*) FROM events WHERE closed=0;"'
+=== TESTE 1 (direto) ===
+[{"id":30,"name":"Alpha-Matriz - RB - Contrato - 2111 (SEDE)"},
+{"id":37,"name":"PRIMAVERA PE: OLT DATACOM"}]
+=== TESTE 2 (sqlite-monsta5 via SSH) ===
+Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+[{"id":30,"name":"Alpha-Matriz - RB - Contrato - 2111 (SEDE)"},
+{"id":37,"name":"PRIMAVERA PE: OLT DATACOM"}]
+=== TESTE 3 (monstadb) ===
+Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+[{"name":"list_series_result","columns":["time","name"],"points":[[0,"device10"],[0,"device1000"],[0,"device1001"],[0,"device1002"],[0,"device1003"],[0,"device1004"],[0,"device1005"],[0,"device1006"],
+=== TESTE 4 (events) ===
+Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+[{"COUNT(*)":16077}]
+[root@191-52-248-66 ~]# 
