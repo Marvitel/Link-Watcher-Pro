@@ -21,6 +21,9 @@ import {
   snmpConcentrators,
   olts,
   clients,
+  cpes,
+  linkCpes,
+  equipmentVendors,
   type Link,
   type AiAnalystTask,
   type AiAnalystProposal,
@@ -636,6 +639,20 @@ const TOOLS = [
     },
   },
 
+  // -------------------- MAC / FABRICANTE --------------------
+  {
+    name: "mac_oui_lookup",
+    description:
+      "Identifica o fabricante de um equipamento a partir do MAC address (OUI = primeiros 3 octetos). Útil pra propor `cpeVendor` com base em evidência real (sessão PPPoE ou ARP devolvem o MAC do CPE). Retorna { vendor: 'mikrotik'|'huawei'|... ou null, oui: 'aabbcc', source: 'local'|'unknown' }. Use depois de obter o MAC via mikrotik_pppoe_active.caller-id, radius_session_by_pppoe.callingstationid ou mikrotik_arp_by_interface.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        mac: { type: "string", description: "MAC em qualquer formato (ex: 'AA:BB:CC:11:22:33', 'aabbcc112233', 'AA-BB-CC-11-22-33')" },
+      },
+      required: ["mac"],
+    },
+  },
+
   // -------------------- TERMINAL --------------------
   {
     name: "submit_proposal",
@@ -646,7 +663,7 @@ const TOOLS = [
         classification: { type: "string", enum: ["config_error", "network_issue", "inconclusive"] },
         proposedFields: {
           type: "object",
-          description: `Mapa campo→valor. Campos permitidos: ${ALLOWED_FIELDS_LIST}. Vazio se inconclusive.`,
+          description: `Mapa campo→valor. Campos permitidos: ${ALLOWED_FIELDS_LIST}. Adicionalmente, o campo virtual "defaultCpe" aceita um objeto { ip: string, vendor?: string, mac?: string, replaceExisting?: boolean } e, quando aprovado, cria/atualiza a CPE padrão associada ao link (ip vai pra link_cpes.ipOverride; vendor é o slug em minúsculo, ex: 'mikrotik','huawei','ubiquiti'). Use defaultCpe sempre que tiver descoberto IP de monitoramento + MAC + fabricante consistentes e o link não tiver CPE padrão associada — ou quando o ipOverride atual estiver desatualizado (nesse caso passe replaceExisting=true). Vazio se inconclusive.`,
         },
         reasoning: { type: "string" },
         confidence: { type: "number", minimum: 0, maximum: 100 },
@@ -655,6 +672,83 @@ const TOOLS = [
     },
   },
 ];
+
+// Tabela OUI local — vendors mais comuns no parque Marvitel.
+// Slug bate com o que o sistema usa em equipment_vendors (lowercase).
+const OUI_TABLE: Record<string, string> = {
+  // Mikrotik / Routerboard
+  "4c5e0c": "mikrotik", "6c3b6b": "mikrotik", "b869f4": "mikrotik", "c4ad34": "mikrotik",
+  "d4ca6d": "mikrotik", "e48d8c": "mikrotik", "08557c": "mikrotik", "2cc81b": "mikrotik",
+  "744d28": "mikrotik", "4860bc": "mikrotik", "c4938a": "mikrotik", "dca632": "mikrotik",
+  "18fd74": "mikrotik", "ccfd17": "mikrotik", "184806": "mikrotik", "780cb8": "mikrotik",
+  // Ubiquiti
+  "0418d6": "ubiquiti", "0c8268": "ubiquiti", "245a4c": "ubiquiti", "4418fd": "ubiquiti",
+  "68725f": "ubiquiti", "78458c": "ubiquiti", "78a351": "ubiquiti", "802aa8": "ubiquiti",
+  "9803a3": "ubiquiti", "b4fbe4": "ubiquiti", "dc9fdb": "ubiquiti", "e063da": "ubiquiti",
+  "f09fc2": "ubiquiti", "fc7c02": "ubiquiti", "0027220": "ubiquiti", "44d9e7": "ubiquiti",
+  "788a20": "ubiquiti", "ac8bce": "ubiquiti", "e438b8": "ubiquiti",
+  // Huawei
+  "001882": "huawei", "00259e": "huawei", "00464b": "huawei", "00e0fc": "huawei",
+  "0c37dc": "huawei", "1c1d67": "huawei", "203db2": "huawei", "283cf4": "huawei",
+  "30877d": "huawei", "346bd3": "huawei", "4c5499": "huawei", "504dee": "huawei",
+  "6478ba": "huawei", "688f84": "huawei", "70723c": "huawei", "78d752": "huawei",
+  "8038bc": "huawei", "84a8e4": "huawei", "9c281c": "huawei", "a4be61": "huawei",
+  "b4cd27": "huawei", "c0bfc0": "huawei", "d4946f": "huawei", "e0247f": "huawei",
+  "f4c714": "huawei", "f898b9": "huawei",
+  // ZTE
+  "00191b": "zte", "00224a": "zte", "00d0d0": "zte", "047503": "zte",
+  "1083d2": "zte", "2c26c5": "zte", "344b50": "zte", "4ca56d": "zte",
+  "70b3d5": "zte", "8c7a15": "zte", "a0ec80": "zte", "ec172f": "zte",
+  "f4e9d4": "zte", "fcc897": "zte",
+  // Fiberhome
+  "001cf0": "fiberhome", "002233": "fiberhome", "0876ff": "fiberhome", "286ed4": "fiberhome",
+  "44e9dd": "fiberhome", "5cab4d": "fiberhome", "8403d6": "fiberhome", "ccc198": "fiberhome",
+  "f8a45f": "fiberhome",
+  // Datacom
+  "001e9a": "datacom", "002662": "datacom", "00a058": "datacom", "00d0a3": "datacom",
+  "20b0f7": "datacom",
+  // Nokia / Alcatel-Lucent
+  "001bff": "nokia", "001cd8": "nokia", "002048": "nokia", "0024d4": "nokia",
+  "1454c2": "nokia", "201d03": "nokia", "344b3d": "nokia", "ec308b": "nokia",
+  "fcc23d": "nokia",
+  // Intelbras
+  "0004f5": "intelbras", "00197c": "intelbras", "0021d4": "intelbras", "002418": "intelbras",
+  "00f48d": "intelbras", "049eee": "intelbras", "08bfb8": "intelbras", "1cd6bf": "intelbras",
+  "2c4cc6": "intelbras", "3018cf": "intelbras", "44352f": "intelbras", "5089a4": "intelbras",
+  "5c87e0": "intelbras", "78d294": "intelbras", "84d81b": "intelbras", "ac8fcc": "intelbras",
+  "c80e77": "intelbras", "e8cd2d": "intelbras",
+  // TP-Link
+  "002586": "tplink", "0c80b8": "tplink", "1027f5": "tplink", "1837eb": "tplink",
+  "1c61b4": "tplink", "243676": "tplink", "30b5c2": "tplink", "5081be": "tplink",
+  "60e327": "tplink", "8478ac": "tplink", "ac84c6": "tplink", "b0487a": "tplink",
+  "b8a386": "tplink", "c46e1f": "tplink", "d8eb97": "tplink", "ec888f": "tplink",
+  "f0a731": "tplink",
+  // D-Link
+  "00055d": "dlink", "00179a": "dlink", "001bc7": "dlink", "001e58": "dlink",
+  "002191": "dlink", "0026f3": "dlink", "0801f2": "dlink", "1cbdb9": "dlink",
+  "28107b": "dlink", "5cd998": "dlink", "78321b": "dlink", "84c9b2": "dlink",
+  "9094e4": "dlink", "c8be19": "dlink", "ccb255": "dlink", "fcce41": "dlink",
+  // Cisco
+  "00000c": "cisco", "000142": "cisco", "001120": "cisco", "0013c4": "cisco",
+  "00164e": "cisco", "001b54": "cisco", "0024c4": "cisco", "0026cb": "cisco",
+  "00c0eb": "cisco", "10f311": "cisco", "1ce85d": "cisco", "2c542d": "cisco",
+  "344232": "cisco", "4c00821": "cisco", "78da6e": "cisco", "885a92": "cisco",
+  "a04a5e": "cisco", "b07d47": "cisco", "c067af": "cisco", "f8c288": "cisco",
+};
+
+function normalizeMac(mac: string): string | null {
+  const cleaned = mac.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+  if (cleaned.length !== 12) return null;
+  return cleaned;
+}
+
+function macOuiLookup(mac: string): { vendor: string | null; oui: string | null; source: "local" | "unknown" | "invalid" } {
+  const normalized = normalizeMac(mac);
+  if (!normalized) return { vendor: null, oui: null, source: "invalid" };
+  const oui = normalized.slice(0, 6);
+  const vendor = OUI_TABLE[oui] ?? null;
+  return { vendor, oui, source: vendor ? "local" : "unknown" };
+}
 
 // Helper: resolve concentrator com decrypt embutido
 async function loadConcentrator(concentratorId: number) {
@@ -1096,6 +1190,12 @@ async function executeTool(name: string, input: any): Promise<unknown> {
     return await monsta.getRecentEvents(ip, hours, limit);
   }
 
+  if (name === "mac_oui_lookup") {
+    const mac = String(input?.mac || "").trim();
+    if (!mac) return { error: "mac inválido" };
+    return macOuiLookup(mac);
+  }
+
   return { error: `ferramenta desconhecida: ${name}` };
 }
 
@@ -1358,7 +1458,12 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
   const cleanFields: Record<string, unknown> = {};
   if (finalProposal.proposedFields && typeof finalProposal.proposedFields === "object") {
     for (const [k, v] of Object.entries(finalProposal.proposedFields)) {
-      if (ALLOWED_FIELDS.has(k)) cleanFields[k] = v;
+      if (ALLOWED_FIELDS.has(k)) {
+        cleanFields[k] = v;
+      } else if (k === "defaultCpe") {
+        const sanitized = sanitizeDefaultCpe(v);
+        if (sanitized) cleanFields[k] = sanitized;
+      }
     }
   }
 
@@ -1442,10 +1547,15 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
       return { processed: true, error: err?.message || String(err) };
     }
 
-    // Sanitiza proposedFields: só campos da whitelist
+    // Sanitiza proposedFields: só campos da whitelist + campo virtual defaultCpe
     const sanitizedFields: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(llmResult.proposedFields)) {
-      if (ALLOWED_FIELDS.has(k)) sanitizedFields[k] = v;
+      if (ALLOWED_FIELDS.has(k)) {
+        sanitizedFields[k] = v;
+      } else if (k === "defaultCpe") {
+        const sanitized = sanitizeDefaultCpe(v);
+        if (sanitized) sanitizedFields[k] = sanitized;
+      }
     }
 
     const proposal = await storage.createAiAnalystProposal({
@@ -1492,6 +1602,121 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
 // Aplicar proposta (com possibilidade de edição manual antes)
 // =====================================================================
 
+// Sanitiza um payload de defaultCpe vindo da IA ou do humano.
+// Retorna null se inválido ou se nada útil foi passado.
+function sanitizeDefaultCpe(raw: unknown): {
+  ip: string;
+  vendor?: string;
+  mac?: string;
+  replaceExisting?: boolean;
+} | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const ip = typeof r.ip === "string" ? r.ip.trim() : "";
+  if (!isValidIp(ip)) return null;
+  const out: any = { ip };
+  if (typeof r.vendor === "string" && r.vendor.trim()) {
+    const v = r.vendor.trim().toLowerCase();
+    if (/^[a-z0-9_\-]{2,40}$/.test(v)) out.vendor = v;
+  }
+  if (typeof r.mac === "string" && r.mac.trim()) {
+    const normalized = normalizeMac(r.mac);
+    if (normalized) {
+      out.mac = normalized.match(/.{2}/g)!.join(":").toUpperCase();
+    }
+  }
+  if (r.replaceExisting === true) out.replaceExisting = true;
+  return out;
+}
+
+// Aplica a ação especial defaultCpe: cria/atualiza CPE padrão associada ao link.
+// Idempotente — se já existir CPE padrão associada e replaceExisting != true,
+// só atualiza o ipOverride/macAddress sem mexer na CPE em si.
+async function applyDefaultCpe(
+  link: Link,
+  rawPayload: unknown,
+  reviewerUserId?: number,
+): Promise<{ action: string; cpeId?: number; linkCpeId?: number; vendorSlug?: string }> {
+  const payload = sanitizeDefaultCpe(rawPayload);
+  if (!payload) return { action: "skipped_invalid_payload" };
+
+  // Resolve vendor: tenta achar por slug; se não existir, segue sem vendorId.
+  let vendorId: number | undefined = undefined;
+  let resolvedVendorSlug: string | undefined = undefined;
+  if (payload.vendor) {
+    const v = await storage.getEquipmentVendorBySlug(payload.vendor);
+    if (v) {
+      vendorId = v.id;
+      resolvedVendorSlug = v.slug;
+    } else {
+      resolvedVendorSlug = payload.vendor; // não existe ainda, mas devolvemos pra audit
+    }
+  }
+
+  // Verifica CPEs já associadas ao link.
+  const existingAssocs = await storage.getLinkCpes(link.id);
+  // Procura primeiro por CPE padrão (isStandard=true). Se não tiver, usa qualquer CPE primária.
+  const standardAssoc = existingAssocs.find((a) => a.cpe.isStandard);
+  const primaryAssoc = standardAssoc || existingAssocs.find((a) => a.role === "primary") || existingAssocs[0];
+
+  // Caso 1: já existe CPE associada
+  if (primaryAssoc) {
+    // Atualiza ipOverride e mac (sem trocar a CPE) — comportamento padrão e seguro
+    const updates: any = { ipOverride: payload.ip };
+    if (payload.mac) updates.macAddress = payload.mac;
+    await storage.updateLinkCpe(primaryAssoc.id, updates);
+
+    // Atualiza vendorId da CPE só se a CPE for padrão e estiver sem vendor — não sobrescreve cadastro existente
+    if (primaryAssoc.cpe.isStandard && vendorId && !primaryAssoc.cpe.vendorId) {
+      await storage.updateCpe(primaryAssoc.cpe.id, { vendorId });
+    }
+    return {
+      action: "updated_existing",
+      cpeId: primaryAssoc.cpe.id,
+      linkCpeId: primaryAssoc.id,
+      vendorSlug: resolvedVendorSlug,
+    };
+  }
+
+  // Caso 2: não existe associação — cria CPE padrão e associa ao link
+  // Se houver vendor, tenta reusar uma CPE padrão existente do mesmo fabricante (evita duplicar)
+  let cpeId: number | undefined;
+  if (vendorId) {
+    const existing = await storage.getStandardCpeByVendor(vendorId);
+    if (existing) cpeId = existing.id;
+  }
+  if (!cpeId) {
+    const cpeName = vendorId
+      ? `CPE padrão ${resolvedVendorSlug}`
+      : `CPE padrão (auto)`;
+    const newCpe = await storage.createCpe({
+      name: cpeName,
+      type: "cpe",
+      vendorId: vendorId ?? null,
+      isStandard: true,
+      hasAccess: true,
+      ownership: "marvitel",
+    } as any);
+    cpeId = newCpe.id;
+  }
+
+  const assoc = await storage.addCpeToLink({
+    linkId: link.id,
+    cpeId: cpeId!,
+    role: "primary",
+    ipOverride: payload.ip,
+    macAddress: payload.mac ?? null,
+    showInEquipmentTab: true,
+  } as any);
+
+  return {
+    action: "created",
+    cpeId,
+    linkCpeId: assoc.id,
+    vendorSlug: resolvedVendorSlug,
+  };
+}
+
 export async function applyProposal(
   proposalId: number,
   reviewerUserId?: number,
@@ -1511,7 +1736,7 @@ export async function applyProposal(
   const aiFields = (proposal.proposedFields || {}) as Record<string, unknown>;
   const finalFields = overrideFields ? { ...aiFields, ...overrideFields } : aiFields;
 
-  // Filtra novamente pela whitelist (defesa em profundidade)
+  // Separa: campos da whitelist vão pro update do link; defaultCpe é ação especial.
   const safeFields: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(finalFields)) {
     if (ALLOWED_FIELDS.has(k)) safeFields[k] = v;
@@ -1521,15 +1746,15 @@ export async function applyProposal(
   const corrections: InsertAiAnalystCorrection[] = [];
   if (overrideFields) {
     for (const [k, userVal] of Object.entries(overrideFields)) {
-      if (!ALLOWED_FIELDS.has(k)) continue;
+      if (!ALLOWED_FIELDS.has(k) && k !== "defaultCpe") continue;
       const aiVal = aiFields[k];
       if (JSON.stringify(aiVal) !== JSON.stringify(userVal)) {
         corrections.push({
           proposalId: proposal.id,
           linkId: link.id,
           fieldName: k,
-          aiValue: aiVal != null ? String(aiVal) : null,
-          userValue: userVal != null ? String(userVal) : null,
+          aiValue: aiVal != null ? (typeof aiVal === "object" ? JSON.stringify(aiVal) : String(aiVal)) : null,
+          userValue: userVal != null ? (typeof userVal === "object" ? JSON.stringify(userVal) : String(userVal)) : null,
           userNote: reviewerNote ?? null,
           correctedByUserId: reviewerUserId ?? null,
         } as any);
@@ -1540,6 +1765,18 @@ export async function applyProposal(
   // Aplica os campos
   if (Object.keys(safeFields).length > 0) {
     await storage.updateLink(link.id, safeFields as any);
+  }
+
+  // Ação especial: defaultCpe (cria/atualiza CPE padrão associada ao link)
+  let cpeAction: { action: string; cpeId?: number; linkCpeId?: number; vendorSlug?: string } | null = null;
+  const defaultCpeRaw = (finalFields as any).defaultCpe;
+  if (defaultCpeRaw && typeof defaultCpeRaw === "object") {
+    try {
+      cpeAction = await applyDefaultCpe(link, defaultCpeRaw, reviewerUserId);
+    } catch (err: any) {
+      console.error("[ai-analyst] applyDefaultCpe falhou:", err?.message);
+      cpeAction = { action: "error", vendorSlug: err?.message };
+    }
   }
 
   // Grava correções
@@ -1576,6 +1813,7 @@ export async function applyProposal(
         corrections: corrections.length,
         confidence: proposal.confidence,
         classification: proposal.classification,
+        ...(cpeAction ? { cpeAction } : {}),
       },
     });
   } catch {

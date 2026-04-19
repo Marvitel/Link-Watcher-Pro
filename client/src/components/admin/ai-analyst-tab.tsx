@@ -1243,6 +1243,7 @@ const ALLOWED_EDIT_FIELDS = [
   "equipmentModel", "equipmentSerialNumber", "oltId", "slotOlt", "portOlt",
   "onuSearchString", "onuId", "switchId", "switchPort", "cpeVendor", "ozmapTag",
   "invertBandwidth", "isL2Link", "icmpBlocked", "linkType", "authType",
+  "defaultCpe", // virtual: cria/atualiza CPE padrão {ip, vendor?, mac?}
 ].sort();
 
 function ProposalCard({
