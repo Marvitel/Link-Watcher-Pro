@@ -37,6 +37,7 @@ import {
   getRadiusSessionByIp,
   getMacFromRadiusByUsername,
 } from "./radius";
+import * as monsta from "./monsta";
 
 // Campos que a IA tem permissão de propor alteração. Whitelist explícita por segurança.
 const ALLOWED_FIELDS = new Set<string>([
@@ -594,6 +595,47 @@ const TOOLS = [
     },
   },
 
+  // -------------------- MONSTA (sistema legado de monitoramento) --------------------
+  {
+    name: "monsta_lookup_ip",
+    description:
+      "Consulta o servidor Monsta (sistema legado de monitoramento da Marvitel) para obter status, IP de monitoramento e dados SNMP de um device. **Esta é a fonte mais fiel para descobrir/validar o IP de monitoramento de um cliente** — quando IP em Voalle/OZmap divergir do Monsta, considere o Monsta como verdade. Aceita IP exato. Retorna: nome cadastrado no Monsta (pode divergir do nome em Voalle/Link Monitor pois o cadastro foi sem critério), status atual (DeviceUp/DeviceDown), comunidade SNMP, versão SNMP, porta SNMP e contagem de eventos abertos. Útil quando precisar validar `monitoredIp`, `snmpCommunity` ou suspeitar que o link tem problema de cadastro de IP.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ip: { type: "string", description: "IP exato do device (ex: '191.52.249.162')" },
+      },
+      required: ["ip"],
+    },
+  },
+  {
+    name: "monsta_search",
+    description:
+      "Busca devices no Monsta por padrão de nome OU IP parcial (LIKE %padrão%). Retorna até `limit` devices com id, nome, IP, status. **Importante**: nomes no Monsta divergem dos nomes em Voalle/OZmap/Link Monitor (cadastro sem critério ao longo dos anos). Tente várias estratégias: número de contrato (ex: '2111'), prefixo do PPPoE, fragmento do nome do cliente, octetos do IP. Use quando precisar localizar o device certo no Monsta sem ter o IP exato — depois use monsta_lookup_ip pra detalhes.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        pattern: { type: "string", description: "Padrão pra LIKE (ex: '2111', 'Alpha-Matriz', '249.162')" },
+        limit: { type: "number", description: "Máximo de resultados (default 10, máx 50)" },
+      },
+      required: ["pattern"],
+    },
+  },
+  {
+    name: "monsta_get_events",
+    description:
+      "Retorna eventos recentes (últimas N horas) de um device no Monsta, identificado pelo IP. Útil para entender histórico de quedas/recuperações registradas pelo sistema legado e correlacionar com o problema atual visto no Link Monitor.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ip: { type: "string", description: "IP exato do device" },
+        hours: { type: "number", description: "Janela em horas (default 24, máx 168)" },
+        limit: { type: "number", description: "Máximo de eventos (default 50, máx 200)" },
+      },
+      required: ["ip"],
+    },
+  },
+
   // -------------------- TERMINAL --------------------
   {
     name: "submit_proposal",
@@ -685,6 +727,7 @@ async function executeTool(name: string, input: any): Promise<unknown> {
         "Pra PPPoE, sempre cruze radius_session_by_pppoe + mikrotik_pppoe_active.",
         "Quando OLT não tem leitura óptica, tente get_flashman_cpe (ACS).",
         "Se monitoredIp não responde, descubra o IP real via mikrotik_arp_by_interface (interface = nome do PPPoE) ou radius_session_by_pppoe.framedipaddress.",
+        "Monsta é a fonte mais fiel para IP de monitoramento de cliente — quando IP/SNMP em Voalle/OZmap divergir do Monsta, considere o Monsta como verdade. Use monsta_lookup_ip pra validar o IP atual e monsta_search pra localizar o device por contrato/nome (nomes divergem entre sistemas pois o cadastro foi sem critério).",
       ],
     };
   }
@@ -1029,6 +1072,28 @@ async function executeTool(name: string, input: any): Promise<unknown> {
     } catch (e: any) {
       return { error: `olt_search_onu_by_serial: ${e?.message || e}` };
     }
+  }
+
+  // -------------------- MONSTA --------------------
+  if (name === "monsta_lookup_ip") {
+    const ip = String(input?.ip || "").trim();
+    if (!isValidIp(ip)) return { error: "ip inválido" };
+    return await monsta.getDeviceStatus(ip);
+  }
+
+  if (name === "monsta_search") {
+    const pattern = String(input?.pattern || "").trim();
+    if (!pattern) return { error: "pattern obrigatório" };
+    const limit = Math.min(50, Math.max(1, Number(input?.limit) || 10));
+    return await monsta.searchDevices(pattern, limit);
+  }
+
+  if (name === "monsta_get_events") {
+    const ip = String(input?.ip || "").trim();
+    if (!isValidIp(ip)) return { error: "ip inválido" };
+    const hours = Math.min(168, Math.max(1, Number(input?.hours) || 24));
+    const limit = Math.min(200, Math.max(1, Number(input?.limit) || 50));
+    return await monsta.getRecentEvents(ip, hours, limit);
   }
 
   return { error: `ferramenta desconhecida: ${name}` };
