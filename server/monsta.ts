@@ -188,7 +188,7 @@ async function getClient(): Promise<SshClient> {
   if (cachedClient && cachedClientReady) return cachedClient;
   if (connectingPromise) return connectingPromise;
 
-  const cfg = getConfig();
+  const cfg = await getConfig();
   connectingPromise = new Promise<SshClient>((resolve, reject) => {
     const conn = new SshClient();
     const timer = setTimeout(() => {
