@@ -663,7 +663,7 @@ const TOOLS = [
         classification: { type: "string", enum: ["config_error", "network_issue", "inconclusive"] },
         proposedFields: {
           type: "object",
-          description: `Mapa campo→valor. Campos permitidos: ${ALLOWED_FIELDS_LIST}. Adicionalmente, o campo virtual "defaultCpe" aceita um objeto { ip: string, vendor?: string, mac?: string, replaceExisting?: boolean } e, quando aprovado, cria/atualiza a CPE padrão associada ao link (ip vai pra link_cpes.ipOverride; vendor é o slug em minúsculo, ex: 'mikrotik','huawei','ubiquiti'). Use defaultCpe sempre que tiver descoberto IP de monitoramento + MAC + fabricante consistentes e o link não tiver CPE padrão associada — ou quando o ipOverride atual estiver desatualizado (nesse caso passe replaceExisting=true). Vazio se inconclusive.`,
+          description: `Mapa campo→valor. Campos permitidos: ${ALLOWED_FIELDS_LIST}. Campos virtuais adicionais:\n- "defaultCpe" { ip, vendor?, mac?, replaceExisting? }: cria/atualiza a CPE padrão do link (ip vai pra link_cpes.ipOverride). Use quando descobrir IP de monitoramento + MAC + fabricante consistentes.\n- "oltSnmpEnable" { enable: true, chassis?: number }: agenda execução SSH na OLT Datacom para habilitar 'snmp all' no provisionamento da ONU (entra em config, executa "interface gpon <chassis>/<slot>/<port> onu <onuId>", "snmp all", "top", "commit"). Slot, port e onuId são lidos automaticamente do link.slotOlt/portOlt/onuId. Use SOMENTE quando o link é uma ONU Datacom (link.oltId aponta pra OLT vendor='datacom'), o link.onuId está preenchido (ONU já provisionada), e a coleta de sinal óptico está falhando ou retornando vazio (sintoma típico: link em OLT Datacom sem dados ópticos no histórico recente E ONU registrada). NÃO use para ONUs sem onuId, OLTs de outros fabricantes, ou links offline por outras razões. Vazio se inconclusive.`,
         },
         reasoning: { type: "string" },
         confidence: { type: "number", minimum: 0, maximum: 100 },
@@ -1470,6 +1470,9 @@ async function runLlmInvestigation(ctx: LinkContext): Promise<LlmResult> {
       } else if (k === "defaultCpe") {
         const sanitized = sanitizeDefaultCpe(v);
         if (sanitized) cleanFields[k] = sanitized;
+      } else if (k === "oltSnmpEnable") {
+        const sanitized = sanitizeOltSnmpEnable(v);
+        if (sanitized) cleanFields[k] = sanitized;
       }
     }
   }
@@ -1562,6 +1565,9 @@ export async function processNextTask(): Promise<{ processed: boolean; proposalI
       } else if (k === "defaultCpe") {
         const sanitized = sanitizeDefaultCpe(v);
         if (sanitized) sanitizedFields[k] = sanitized;
+      } else if (k === "oltSnmpEnable") {
+        const sanitized = sanitizeOltSnmpEnable(v);
+        if (sanitized) sanitizedFields[k] = sanitized;
       }
     }
 
@@ -1634,6 +1640,51 @@ function sanitizeDefaultCpe(raw: unknown): {
   }
   if (r.replaceExisting === true) out.replaceExisting = true;
   return out;
+}
+
+// Sanitiza um payload de oltSnmpEnable.
+// Retorna null se inválido. chassis é opcional (default 1).
+function sanitizeOltSnmpEnable(raw: unknown): { enable: true; chassis?: number } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (r.enable !== true) return null;
+  const out: { enable: true; chassis?: number } = { enable: true };
+  if (typeof r.chassis === "number" && Number.isInteger(r.chassis) && r.chassis >= 1 && r.chassis <= 8) {
+    out.chassis = r.chassis;
+  }
+  return out;
+}
+
+// Aplica a ação especial oltSnmpEnable: roda SSH na OLT Datacom para habilitar
+// "snmp all" no provisionamento da ONU. Lê slot/port/onuId direto do link.
+async function applyOltSnmpEnable(
+  link: Link,
+  rawPayload: unknown,
+): Promise<{ action: string; ok?: boolean; chassis?: number; slot?: number; port?: number; onuId?: string; error?: string; rawTail?: string }> {
+  const payload = sanitizeOltSnmpEnable(rawPayload);
+  if (!payload) return { action: "skipped_invalid_payload" };
+  if (!link.oltId) return { action: "skipped_no_olt", error: "link.oltId vazio" };
+  if (link.slotOlt == null || link.portOlt == null || !link.onuId) {
+    return { action: "skipped_missing_position", error: "link.slotOlt/portOlt/onuId não preenchidos" };
+  }
+
+  const olt = await storage.getOlt(link.oltId);
+  if (!olt) return { action: "skipped_olt_not_found", error: `OLT id=${link.oltId} não existe` };
+
+  const { enableDatacomOnuSnmpAll } = await import("./olt");
+  const chassis = payload.chassis ?? 1;
+  const result = await enableDatacomOnuSnmpAll(olt, link.slotOlt, link.portOlt, link.onuId, chassis);
+
+  return {
+    action: result.ok ? "executed" : "failed",
+    ok: result.ok,
+    chassis,
+    slot: link.slotOlt,
+    port: link.portOlt,
+    onuId: link.onuId,
+    error: result.errorReason,
+    rawTail: result.rawOutput?.slice(-800),
+  };
 }
 
 // Aplica a ação especial defaultCpe: cria/atualiza CPE padrão associada ao link.
@@ -1753,7 +1804,7 @@ export async function applyProposal(
   const corrections: InsertAiAnalystCorrection[] = [];
   if (overrideFields) {
     for (const [k, userVal] of Object.entries(overrideFields)) {
-      if (!ALLOWED_FIELDS.has(k) && k !== "defaultCpe") continue;
+      if (!ALLOWED_FIELDS.has(k) && k !== "defaultCpe" && k !== "oltSnmpEnable") continue;
       const aiVal = aiFields[k];
       if (JSON.stringify(aiVal) !== JSON.stringify(userVal)) {
         corrections.push({
@@ -1783,6 +1834,18 @@ export async function applyProposal(
     } catch (err: any) {
       console.error("[ai-analyst] applyDefaultCpe falhou:", err?.message);
       cpeAction = { action: "error", vendorSlug: err?.message };
+    }
+  }
+
+  // Ação especial: oltSnmpEnable (executa SSH na OLT Datacom para habilitar snmp all na ONU)
+  let oltSnmpAction: any = null;
+  const oltSnmpRaw = (finalFields as any).oltSnmpEnable;
+  if (oltSnmpRaw && typeof oltSnmpRaw === "object") {
+    try {
+      oltSnmpAction = await applyOltSnmpEnable(link, oltSnmpRaw);
+    } catch (err: any) {
+      console.error("[ai-analyst] applyOltSnmpEnable falhou:", err?.message);
+      oltSnmpAction = { action: "error", error: err?.message };
     }
   }
 
@@ -1821,6 +1884,7 @@ export async function applyProposal(
         confidence: proposal.confidence,
         classification: proposal.classification,
         ...(cpeAction ? { cpeAction } : {}),
+        ...(oltSnmpAction ? { oltSnmpAction } : {}),
       },
     });
   } catch {

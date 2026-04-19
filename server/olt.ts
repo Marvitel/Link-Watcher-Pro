@@ -879,6 +879,165 @@ async function connectSSH(olt: Olt, command: string, options: SSHOptions = {}): 
   });
 }
 
+// Executa uma sequência de comandos CLI numa OLT via SSH usando um único shell.
+// Foi feito para Datacom DmOS (sem "enable"), mas funciona em qualquer CLI que aceite
+// comandos sequenciais terminados por newline e finalize prompt antes do próximo.
+// Cada comando é enviado com 700ms de espera; ao final, espera 5s de inatividade e sai.
+export async function executeOltShellCommands(
+  olt: Olt,
+  commands: string[],
+  options: { interCommandDelayMs?: number; idleTimeoutMs?: number; totalTimeoutMs?: number } = {},
+): Promise<string> {
+  const interDelay = options.interCommandDelayMs ?? 800;
+  const idleTimeoutMs = options.idleTimeoutMs ?? 5000;
+  const totalTimeoutMs = options.totalTimeoutMs ?? 90000;
+
+  return new Promise((resolve, reject) => {
+    const conn = new SSHClient();
+    let output = "";
+    let finished = false;
+
+    const totalTimer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      try { conn.end(); } catch {}
+      reject(new Error("SSH multi-cmd: timeout total atingido"));
+    }, totalTimeoutMs);
+
+    conn.on("ready", () => {
+      console.log(`[OLT SSH multi] Ready ${olt.ipAddress}, enviando ${commands.length} comando(s)`);
+      conn.shell((err, stream) => {
+        if (err) {
+          if (finished) return;
+          finished = true;
+          clearTimeout(totalTimer);
+          conn.end();
+          return reject(err);
+        }
+
+        let idleTimer: NodeJS.Timeout | null = null;
+        const resetIdle = () => {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (finished) return;
+            finished = true;
+            console.log(`[OLT SSH multi] Idle timeout em ${olt.ipAddress}, finalizando`);
+            try { stream.write("exit\n"); stream.end(); } catch {}
+            clearTimeout(totalTimer);
+            conn.end();
+            resolve(output);
+          }, idleTimeoutMs);
+        };
+
+        stream.on("data", (data: Buffer) => {
+          const s = data.toString();
+          output += s;
+          resetIdle();
+        });
+        stream.on("close", () => {
+          if (finished) return;
+          finished = true;
+          if (idleTimer) clearTimeout(idleTimer);
+          clearTimeout(totalTimer);
+          conn.end();
+          resolve(output);
+        });
+
+        // Aguarda 800ms pelo banner/prompt inicial e dispara comandos sequenciais.
+        setTimeout(async () => {
+          for (const cmd of commands) {
+            console.log(`[OLT SSH multi] ${olt.ipAddress} -> ${cmd}`);
+            try { stream.write(cmd + "\r\n"); } catch (e) { console.error("[OLT SSH multi] write erro", e); break; }
+            await new Promise((r) => setTimeout(r, interDelay));
+          }
+          resetIdle();
+        }, 800);
+      });
+    });
+
+    conn.on("error", (err) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(totalTimer);
+      reject(err);
+    });
+
+    conn.on("keyboard-interactive", (_n, _i, _l, _p, finish) => finish([olt.password]));
+
+    conn.connect({
+      host: olt.ipAddress,
+      port: olt.port,
+      username: olt.username,
+      password: olt.password,
+      tryKeyboard: true,
+      readyTimeout: 40000,
+    });
+  });
+}
+
+// Habilita "snmp all" no provisionamento de uma ONU Datacom (DmOS).
+// Reproduz exatamente a sequência manual:
+//   config
+//   interface gpon <chassis>/<slot>/<port> onu <onuId>
+//   snmp all
+//   top
+//   commit
+// Retorna { ok, rawOutput, errorReason? }.
+export async function enableDatacomOnuSnmpAll(
+  olt: Olt,
+  slot: number,
+  port: number,
+  onuId: number | string,
+  chassis: number = 1,
+): Promise<{ ok: boolean; rawOutput: string; errorReason?: string }> {
+  if (olt.connectionType !== "ssh") {
+    return { ok: false, rawOutput: "", errorReason: "OLT não está em modo SSH" };
+  }
+  if ((olt.vendor || "").toLowerCase() !== "datacom") {
+    return { ok: false, rawOutput: "", errorReason: `Vendor não suportado: ${olt.vendor}` };
+  }
+  if (!Number.isInteger(slot) || slot < 1 || slot > 32) {
+    return { ok: false, rawOutput: "", errorReason: `Slot inválido: ${slot}` };
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 64) {
+    return { ok: false, rawOutput: "", errorReason: `Port inválido: ${port}` };
+  }
+  const onuIdNum = typeof onuId === "string" ? parseInt(onuId, 10) : onuId;
+  if (!Number.isInteger(onuIdNum) || onuIdNum < 1 || onuIdNum > 256) {
+    return { ok: false, rawOutput: "", errorReason: `onuId inválido: ${onuId}` };
+  }
+
+  const commands = [
+    "config",
+    `interface gpon ${chassis}/${slot}/${port} onu ${onuIdNum}`,
+    "snmp all",
+    "top",
+    "commit",
+    "end",
+    "exit",
+  ];
+
+  try {
+    const raw = await executeOltShellCommands(olt, commands, { interCommandDelayMs: 900, idleTimeoutMs: 6000, totalTimeoutMs: 60000 });
+    const lower = raw.toLowerCase();
+    // Sinais de erro comuns em DmOS
+    const failedTokens = [
+      "error", "invalid", "incomplete", "unknown command", "syntax error",
+      "% ", "aborted", "denied",
+    ];
+    const looksFailed = failedTokens.some((t) => lower.includes(t));
+    // Sinais positivos
+    const looksOk = lower.includes("commit complete") || lower.includes("commit ok") || (!looksFailed && raw.length > 0);
+    return {
+      ok: looksOk && !looksFailed,
+      rawOutput: raw.slice(-4000), // últimos 4KB (suficiente pra auditoria)
+      errorReason: looksFailed ? "saída CLI indica erro/comando inválido — revisar log" : undefined,
+    };
+  } catch (err: any) {
+    return { ok: false, rawOutput: "", errorReason: err?.message || String(err) };
+  }
+}
+
 // Extrai apenas os números de slot/port/pon/onu de um ID para comparação normalizada
 // Exemplos de entrada: "gpon-olt_1/1/1:14", "gpon-1/1/1/14", "1/1/1/14", "gpon-olt_1/1/3:116"
 // Retorna: "1/1/1/14", "1/1/1/14", "1/1/1/14", "1/1/3/116"
