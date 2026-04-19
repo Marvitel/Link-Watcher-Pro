@@ -1,0 +1,35 @@
+[root@191-52-248-66 ~]# # Resolve permissões (sem ACL): adiciona monstaro ao grupo monsta + garante leitura
+usermod -aG monsta monstaro
+chmod g+rx /var/monsta /var/monsta/data
+chmod g+r /var/monsta/data/*.db /var/monsta/data/*.db-wal /var/monsta/data/*.db-shm 2>/dev/null
+
+# Teste 1: leitura direta como monstaro (sem SSH ainda)
+sudo -u monstaro sqlite3 -readonly -json /var/monsta/data/monsta5.db \
+  "SELECT id,kind,name,json_extract(config,'\$.\"net.address\"') AS ip FROM groups WHERE kind='Device' LIMIT 2;"
+
+# Teste 2: via SSH na porta 2266 (a porta correta)
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  monstaro@127.0.0.1 'sqlite-monsta5 "SELECT id,name FROM groups WHERE kind='\''Device'\'' LIMIT 2;"'
+
+# Teste 3: monstadb via SSH
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  monstaro@127.0.0.1 'monstadb list+series' | head -c 300
+
+# Teste 4: events via SSH
+sudo -u monstaro ssh -p 2266 -i /home/monstaro/.ssh/id_ed25519 \
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  monstaro@127.0.0.1 'sqlite-events "SELECT COUNT(*) FROM events WHERE closed=0;"'
+[{"id":30,"kind":"Device","name":"Alpha-Matriz - RB - Contrato - 2111 (SEDE)","ip":"191.52.249.162"},
+{"id":37,"kind":"Device","name":"PRIMAVERA PE: OLT DATACOM","ip":"172.26.240.254"}]
+Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+Error: in prepare, near ""SELECT id,name FROM groups WHERE kind='Device' LIMIT 2;"": syntax error
+  "SELECT id,name FROM groups WHERE kind='Device' LIMIT 2;"
+  ^--- error here
+Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+[{"name":"list_series_result","columns":["time","name"],"points":[[0,"device10"],[0,"device1000"],[0,"device1001"],[0,"device1002"],[0,"device1003"],[0,"device1004"],[0,"device1005"],[0,"device1006"],[0,"device1007"],[0,"device1008"],[0,"device1009"],[0,"device1010"],[0,"device1011"],[0,"device1012"Warning: Permanently added '[127.0.0.1]:2266' (ED25519) to the list of known hosts.
+Error: in prepare, near ""SELECT COUNT(*) FROM events WHERE closed=0;"": syntax error
+  "SELECT COUNT(*) FROM events WHERE closed=0;"
+  ^--- error here
+[root@191-52-248-66 ~]# 

@@ -1,0 +1,63 @@
+[root@191-52-248-66 ~]# # 1. Cria usuário dedicado, sem shell (só pra rodar comandos restritos)
+useradd -r -m -d /home/monstaro -s /bin/bash monstaro
+
+# 2. Gera par de chaves (Ed25519 — moderno, curto, rápido)
+sudo -u monstaro mkdir -p /home/monstaro/.ssh
+sudo -u monstaro ssh-keygen -t ed25519 -N '' \
+  -C 'linkmonitor-readonly' \
+  -f /home/monstaro/.ssh/id_ed25519
+
+# 3. Cria wrapper que SÓ permite os comandos exatos que precisamos
+cat > /usr/local/bin/monsta-readonly.sh <<'EOF'
+#!/bin/bash
+# Wrapper restritivo — só executa comandos read-only do Monsta
+case "$SSH_ORIGINAL_COMMAND" in
+  "sqlite-monsta5 "*)
+    QUERY="${SSH_ORIGINAL_COMMAND#sqlite-monsta5 }"
+    exec sqlite3 -readonly -json /var/monsta/data/monsta5.db "$QUERY"
+    ;;
+  "sqlite-events "*)
+    QUERY="${SSH_ORIGINAL_COMMAND#sqlite-events }"
+    exec sqlite3 -readonly -json /var/monsta/data/events.db "$QUERY"
+    ;;
+  "monstadb "*)
+    Q="${SSH_ORIGINAL_COMMAND#monstadb }"
+    exec curl -s --max-time 10 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=$Q"
+    ;;
+  *)
+    echo "ERROR: command not allowed: $SSH_ORIGINAL_COMMAND" >&2
+    exit 1
+    ;;
+esac
+EOF
+chmod 755 /usr/local/bin/monsta-readonly.sh
+
+# 4. Permite que monstaro leia os bancos SQLite
+setfacl -R -m u:monstaro:rX /var/monsta/data/
+
+# 5. Vincula a chave pública ao wrapper (nada além disso pode rodar)
+PUBKEY=$(cat /home/monstaro/.ssh/id_ed25519.pub)
+mkdir -p /home/monstaro/.ssh
+cat > /home/monstaro/.ssh/authorized_keys <<EOF
+echo "================ FIM ================"cluindo BEGIN e END) ================"'Device'' LIMIT 1;"'o-pty $PUBKEY
+Generating public/private ed25519 key pair.
+Your identification has been saved in /home/monstaro/.ssh/id_ed25519
+Your public key has been saved in /home/monstaro/.ssh/id_ed25519.pub
+The key fingerprint is:
+SHA256:wg3SzxL9gsC8wLjGDAK1oYznbQS5GJLQjtNXk1ESeV8 linkmonitor-readonly
+The key's randomart image is:
++--[ED25519 256]--+
+|+++.  +*.        |
+|B+o* .=o.   E    |
+|BB=.*.+o.. .     |
+|O+++.= B ..      |
+|.=..+ = S .      |
+|.  .   o .       |
+|                 |
+|                 |
+|                 |
++----[SHA256]-----+
+-bash: setfacl: comando não encontrado
+ssh: connect to host 127.0.0.1 port 22: Connection refused
+================ COPIE TUDO ABAIXO (incluindo BEGIN e END) ================
+-----BEGIN OPENSSH PRIVATE KEY-----

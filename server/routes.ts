@@ -15739,6 +15739,58 @@ export async function registerRoutes(
       }
     });
 
+    // ==================== Monsta (servidor de monitoramento legado) ====================
+    const monsta = await import("./monsta");
+
+    // GET ping — testa conectividade SSH+SQLite com servidor Monsta
+    app.get("/api/admin/monsta/ping", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        const result = await monsta.ping();
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ ok: false, error: err.message });
+      }
+    });
+
+    // GET status do device por IP
+    app.get("/api/admin/monsta/device-status", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const ip = String(req.query.ip || "").trim();
+        if (!ip) return res.status(400).json({ error: "ip é obrigatório" });
+        const result = await monsta.getDeviceStatus(ip);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET eventos recentes do device por IP
+    app.get("/api/admin/monsta/events", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const ip = String(req.query.ip || "").trim();
+        if (!ip) return res.status(400).json({ error: "ip é obrigatório" });
+        const hours = Math.min(168, Math.max(1, Number(req.query.hours) || 24));
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const result = await monsta.getRecentEvents(ip, hours, limit);
+        res.json(result);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // GET busca devices por nome/IP parcial
+    app.get("/api/admin/monsta/search", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const pattern = String(req.query.q || "").trim();
+        if (!pattern) return res.status(400).json({ error: "q é obrigatório" });
+        const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+        const result = await monsta.searchDevices(pattern, limit);
+        res.json({ items: result });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // ==================== Auditoria de Pendências ====================
     const audit = await import("./link-audit");
 
