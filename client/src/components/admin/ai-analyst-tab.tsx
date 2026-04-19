@@ -833,6 +833,15 @@ export function AiAnalystTab() {
 // Painel de teste da integração Monsta (consulta status/eventos/busca)
 // =====================================================================
 
+interface MonstaSettings {
+  configured: boolean;
+  source: "db" | "env" | null;
+  host: string | null;
+  port: number | null;
+  username: string | null;
+  hasKey: boolean;
+}
+
 function MonstaTestPanel() {
   const { toast } = useToast();
   const [ip, setIp] = useState("");
@@ -841,6 +850,47 @@ function MonstaTestPanel() {
   const [statusResult, setStatusResult] = useState<any>(null);
   const [eventsResult, setEventsResult] = useState<any>(null);
   const [searchResult, setSearchResult] = useState<any>(null);
+
+  // ----- Configuração -----
+  const { data: settings } = useQuery<MonstaSettings>({
+    queryKey: ["/api/admin/monsta/settings"],
+  });
+  const [cfgHost, setCfgHost] = useState("");
+  const [cfgPort, setCfgPort] = useState(2266);
+  const [cfgUser, setCfgUser] = useState("monstaro");
+  const [cfgKey, setCfgKey] = useState("");
+  const [cfgActive, setCfgActive] = useState(true);
+
+  // Sincroniza form com dados carregados (1ª vez)
+  useEffect(() => {
+    if (settings) {
+      setCfgHost(settings.host ?? "");
+      setCfgPort(settings.port ?? 2266);
+      setCfgUser(settings.username ?? "monstaro");
+    }
+  }, [settings]);
+
+  const saveSettings = useMutation({
+    mutationFn: async () => {
+      const body: any = { host: cfgHost.trim(), port: cfgPort, username: cfgUser.trim(), isActive: cfgActive };
+      if (cfgKey.trim()) body.privateKey = cfgKey.trim();
+      const r = await fetch("/api/admin/monsta/settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json?.error || "erro");
+      return json;
+    },
+    onSuccess: () => {
+      setCfgKey("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/monsta/settings"] });
+      toast({ title: "Configuração salva", description: "Pronto pra testar a conexão." });
+    },
+    onError: (e: any) => toast({ title: "Erro ao salvar", description: String(e?.message || e), variant: "destructive" }),
+  });
 
   const ping = useMutation({
     mutationFn: () => fetch("/api/admin/monsta/ping", { credentials: "include" }).then((r) => r.json()),
@@ -898,20 +948,115 @@ function MonstaTestPanel() {
 
   return (
     <div className="space-y-4">
+      {/* ===== Configuração ===== */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Configuração da conexão SSH
+          </CardTitle>
+          <CardDescription>
+            Credenciais de acesso ao servidor Monsta. A chave é armazenada criptografada no banco. Se já houver `MONSTA_SSH_*` em variáveis de ambiente, elas são usadas como fallback (mas a configuração no banco tem prioridade).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Status:</span>
+            {settings?.configured ? (
+              <Badge variant="default" data-testid="badge-monsta-config-status">
+                Configurado · origem: {settings.source === "db" ? "banco" : "variável de ambiente"}
+              </Badge>
+            ) : (
+              <Badge variant="destructive" data-testid="badge-monsta-config-status">Não configurado</Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="cfg-host">Host / IP *</Label>
+              <Input
+                id="cfg-host"
+                placeholder="191.52.248.66"
+                value={cfgHost}
+                onChange={(e) => setCfgHost(e.target.value)}
+                data-testid="input-monsta-cfg-host"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cfg-port">Porta SSH</Label>
+              <Input
+                id="cfg-port"
+                type="number"
+                min={1}
+                max={65535}
+                value={cfgPort}
+                onChange={(e) => setCfgPort(Math.max(1, Math.min(65535, Number(e.target.value) || 2266)))}
+                data-testid="input-monsta-cfg-port"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cfg-user">Usuário SSH</Label>
+              <Input
+                id="cfg-user"
+                placeholder="monstaro"
+                value={cfgUser}
+                onChange={(e) => setCfgUser(e.target.value)}
+                data-testid="input-monsta-cfg-user"
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="cfg-key">
+              Chave privada (OpenSSH)
+              {settings?.hasKey && <span className="text-muted-foreground ml-2 text-xs">— deixe em branco para manter a atual</span>}
+            </Label>
+            <Textarea
+              id="cfg-key"
+              rows={4}
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----..."
+              value={cfgKey}
+              onChange={(e) => setCfgKey(e.target.value)}
+              className="font-mono text-xs"
+              data-testid="input-monsta-cfg-key"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Pode colar com ou sem quebras de linha — o servidor reconstrói o formato automaticamente.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={cfgActive}
+              onCheckedChange={setCfgActive}
+              data-testid="switch-monsta-cfg-active"
+            />
+            <Label className="text-sm">Integração ativa</Label>
+            <div className="flex-1" />
+            <Button
+              onClick={() => saveSettings.mutate()}
+              disabled={saveSettings.isPending || !cfgHost.trim() || (!settings?.hasKey && !cfgKey.trim())}
+              data-testid="button-monsta-save-config"
+            >
+              {saveSettings.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Salvar configuração
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ===== Ping ===== */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Server className="h-4 w-4" />
-            Teste de conexão Monsta
+            Teste de conexão
           </CardTitle>
           <CardDescription>
-            Valida o acesso SSH ao servidor Monsta (191.52.248.66) e exercita as 3 ferramentas que o Analista IA usa para enriquecer triagem.
+            Valida o acesso SSH ao servidor Monsta e exercita as 3 ferramentas que o Analista IA usa para enriquecer triagem.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
             onClick={() => ping.mutate()}
-            disabled={ping.isPending}
+            disabled={ping.isPending || !settings?.configured}
             variant="outline"
             data-testid="button-monsta-ping"
           >

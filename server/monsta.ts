@@ -14,25 +14,142 @@
  */
 
 import { Client as SshClient } from "ssh2";
+import { db } from "./db";
+import { externalIntegrations } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+import { decrypt } from "./crypto";
 
 const DEFAULT_PORT = 2266;
 const DEFAULT_USER = "monstaro";
 const SSH_TIMEOUT_MS = 20_000;
 const QUERY_TIMEOUT_MS = 30_000;
 
+export const MONSTA_PROVIDER = "monsta";
+
 let cachedClient: SshClient | null = null;
 let cachedClientReady = false;
 let connectingPromise: Promise<SshClient> | null = null;
+let cachedConfig: { host: string; port: number; username: string; privateKey: string; source: "db" | "env" } | null = null;
+let cachedConfigAt = 0;
+const CONFIG_CACHE_MS = 30_000;
 
-function getConfig() {
+interface MonstaConfigSummary {
+  configured: boolean;
+  source: "db" | "env" | null;
+  host: string | null;
+  port: number | null;
+  username: string | null;
+  hasKey: boolean;
+}
+
+/**
+ * Resumo da configuração atual — usado pela UI (não retorna a chave em claro).
+ */
+export async function getConfigSummary(): Promise<MonstaConfigSummary> {
+  // 1) Tenta DB
+  try {
+    const fromDb = await loadConfigFromDb();
+    if (fromDb) {
+      return {
+        configured: true,
+        source: "db",
+        host: fromDb.host,
+        port: fromDb.port,
+        username: fromDb.username,
+        hasKey: !!fromDb.privateKey,
+      };
+    }
+  } catch { /* ignora — tenta env */ }
+
+  // 2) Fallback env
+  const envHost = process.env.MONSTA_SSH_HOST?.trim() || null;
+  const envKey = process.env.MONSTA_SSH_KEY || "";
+  if (envHost && envKey) {
+    return {
+      configured: true,
+      source: "env",
+      host: envHost,
+      port: Number(process.env.MONSTA_SSH_PORT) || DEFAULT_PORT,
+      username: process.env.MONSTA_SSH_USER?.trim() || DEFAULT_USER,
+      hasKey: true,
+    };
+  }
+  return { configured: false, source: null, host: null, port: null, username: null, hasKey: false };
+}
+
+/**
+ * Limpa o cache do cliente SSH e da config. Chamar após salvar nova configuração.
+ */
+export function invalidateConfig() {
+  cachedConfig = null;
+  cachedConfigAt = 0;
+  disposeClient();
+}
+
+async function loadConfigFromDb() {
+  const rows = await db
+    .select()
+    .from(externalIntegrations)
+    .where(and(eq(externalIntegrations.provider, MONSTA_PROVIDER), eq(externalIntegrations.isActive, true)))
+    .limit(1);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (!row.apiKey) return null;
+  // apiUrl guarda JSON {host, port, username}
+  let meta: { host?: string; port?: number; username?: string } = {};
+  if (row.apiUrl) {
+    try { meta = JSON.parse(row.apiUrl); } catch { /* ignora */ }
+  }
+  if (!meta.host) return null;
+  let key: string;
+  try {
+    key = decrypt(row.apiKey);
+  } catch (e: any) {
+    throw new Error(`Falha ao descriptografar chave SSH do Monsta: ${e?.message || e}`);
+  }
+  return {
+    host: meta.host.trim(),
+    port: Number(meta.port) || DEFAULT_PORT,
+    username: (meta.username || DEFAULT_USER).trim(),
+    privateKey: normalizePemKey(key),
+  };
+}
+
+async function getConfig() {
+  if (cachedConfig && Date.now() - cachedConfigAt < CONFIG_CACHE_MS) {
+    return cachedConfig;
+  }
+
+  // 1) DB tem prioridade (configurável pela UI)
+  try {
+    const fromDb = await loadConfigFromDb();
+    if (fromDb) {
+      cachedConfig = { ...fromDb, source: "db" };
+      cachedConfigAt = Date.now();
+      return cachedConfig;
+    }
+  } catch (err) {
+    // Se DB falhou por outro motivo (não "ausente"), propaga
+    throw err;
+  }
+
+  // 2) Fallback env (compat. com instalações que já tinham os secrets)
   const host = process.env.MONSTA_SSH_HOST?.trim();
   const key = process.env.MONSTA_SSH_KEY;
   if (!host || !key) {
-    throw new Error("Monsta não configurado: defina MONSTA_SSH_HOST e MONSTA_SSH_KEY nos Secrets");
+    throw new Error(
+      "Monsta não configurado. Configure em Admin → Analista IA → Monsta (ou defina os secrets MONSTA_SSH_HOST e MONSTA_SSH_KEY).",
+    );
   }
-  const port = Number(process.env.MONSTA_SSH_PORT) || DEFAULT_PORT;
-  const username = process.env.MONSTA_SSH_USER?.trim() || DEFAULT_USER;
-  return { host, port, username, privateKey: normalizePemKey(key) };
+  cachedConfig = {
+    host,
+    port: Number(process.env.MONSTA_SSH_PORT) || DEFAULT_PORT,
+    username: process.env.MONSTA_SSH_USER?.trim() || DEFAULT_USER,
+    privateKey: normalizePemKey(key),
+    source: "env",
+  };
+  cachedConfigAt = Date.now();
+  return cachedConfig;
 }
 
 /**

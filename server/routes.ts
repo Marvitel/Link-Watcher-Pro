@@ -15741,6 +15741,71 @@ export async function registerRoutes(
 
     // ==================== Monsta (servidor de monitoramento legado) ====================
     const monsta = await import("./monsta");
+    const { encrypt: encryptMonsta } = await import("./crypto");
+
+    // GET configuração atual (sem chave em claro)
+    app.get("/api/admin/monsta/settings", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
+      try {
+        const summary = await monsta.getConfigSummary();
+        res.json(summary);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // PUT configuração — body: {host, port?, username?, privateKey?, isActive?}
+    // privateKey só obrigatória na primeira vez; em updates, mantém a anterior se omitida.
+    app.put("/api/admin/monsta/settings", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const host = String(req.body?.host || "").trim();
+        const port = Math.max(1, Math.min(65535, Number(req.body?.port) || 2266));
+        const username = String(req.body?.username || "").trim() || "monstaro";
+        const privateKey = typeof req.body?.privateKey === "string" ? req.body.privateKey : "";
+        const isActive = req.body?.isActive !== false;
+
+        if (!host) return res.status(400).json({ error: "host obrigatório" });
+
+        // Valida que o IP/host parece sane (sem metacaracteres)
+        if (/[\s;|&`$()<>"'\\]/.test(host)) {
+          return res.status(400).json({ error: "host contém caracteres inválidos" });
+        }
+
+        const apiUrl = JSON.stringify({ host, port, username });
+        const existing = await db
+          .select()
+          .from(externalIntegrations)
+          .where(eq(externalIntegrations.provider, monsta.MONSTA_PROVIDER))
+          .limit(1);
+
+        if (existing.length === 0) {
+          // Insert: chave obrigatória
+          if (!privateKey.trim()) {
+            return res.status(400).json({ error: "privateKey obrigatória na primeira configuração" });
+          }
+          await db.insert(externalIntegrations).values({
+            name: "Monsta (monitoramento legado)",
+            provider: monsta.MONSTA_PROVIDER,
+            isActive,
+            apiKey: encryptMonsta(privateKey.trim()),
+            apiUrl,
+          });
+        } else {
+          // Update: se privateKey vazia, mantém a anterior
+          const updates: any = { apiUrl, isActive, updatedAt: new Date() };
+          if (privateKey.trim()) updates.apiKey = encryptMonsta(privateKey.trim());
+          await db
+            .update(externalIntegrations)
+            .set(updates)
+            .where(eq(externalIntegrations.id, existing[0].id));
+        }
+
+        monsta.invalidateConfig();
+        const summary = await monsta.getConfigSummary();
+        res.json(summary);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
 
     // GET ping — testa conectividade SSH+SQLite com servidor Monsta
     app.get("/api/admin/monsta/ping", requireAuth, requireSuperAdmin, async (_req: Request, res: Response) => {
