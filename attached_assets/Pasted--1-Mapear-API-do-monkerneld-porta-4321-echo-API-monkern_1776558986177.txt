@@ -1,0 +1,95 @@
+# === 1. Mapear API do monkerneld (porta 4321) ===
+echo "=== API monkerneld - tentativas de endpoints comuns ==="
+for path in "/api/v1/devices" "/api/devices" "/devices" "/api/v1/monitors" "/api/v1/alerts" "/api/v1/me" "/api/v1/info" "/api"; do
+  echo "--- GET $path ---"
+  curl -s --max-time 5 -o /tmp/r.json -w "HTTP %{http_code}\n" \
+    -H "Authorization: Bearer $TOKEN" \
+    "http://127.0.0.1:4321$path"
+  head -c 400 /tmp/r.json; echo
+done
+=== API monkerneld - tentativas de endpoints comuns ===
+--- GET /api/v1/devices ---
+HTTP 404
+
+--- GET /api/devices ---
+HTTP 404
+
+--- GET /devices ---
+HTTP 404
+
+--- GET /api/v1/monitors ---
+HTTP 404
+
+--- GET /api/v1/alerts ---
+HTTP 404
+
+--- GET /api/v1/me ---
+HTTP 404
+
+--- GET /api/v1/info ---
+HTTP 404
+
+--- GET /api ---
+HTTP 404
+
+[root@191-52-248-66 ~]# # === 2. Mapear API do monstadb (porta 8086 — InfluxDB-like) ===
+echo "=== monstadb - listar databases ==="
+curl -s --max-time 5 "http://127.0.0.1:8086/db" -u "root:root"; echo
+curl -s --max-time 5 "http://127.0.0.1:8086/ping" -i; echo
+curl -s --max-time 5 "http://127.0.0.1:8086/query?u=root&p=root&q=SHOW+DATABASES"; echo
+curl -s --max-time 5 "http://127.0.0.1:8086/query?u=root&p=root&db=monsta&q=SHOW+SERIES+LIMIT+5"; echo
+curl -s --max-time 5 "http://127.0.0.1:8086/query?u=root&p=root&db=monsta&q=SHOW+MEASUREMENTS"; echo
+# === 3. Schema do SQLite principal ===
+echo "=== Tabelas em monsta5.db ==="
+sqlite3 /var/monsta/data/monsta5.db ".tables"
+echo "=== Schema das tabelas relevantes ==="
+sqlite3 /var/monsta/data/monsta5.db ".schema device" 2>/dev/null | head -30
+sqlite3 /var/monsta/data/monsta5.db ".schema monitor" 2>/dev/null | head -30
+echo "=== Amostra de 2 dispositivos (sem dados sensíveis) ==="
+sqlite3 -header /var/monsta/data/monsta5.db "SELECT * FROM device LIMIT 2;" 2>/dev/null
+echo "=== Tabelas em alerts.db ==="
+sqlite3 /var/monsta/data/alerts.db ".tables"
+sqlite3 /var/monsta/data/alerts.db ".schema" 2>/dev/null | head -40
+=== monstadb - listar databases ===
+[{"name":"monsta"}]
+HTTP/1.1 200 OK
+Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+Access-Control-Allow-Origin: *
+Access-Control-Max-Age: 2592000
+X-Influxdb-Version: MonstaDB v0.0.0-0fe9073 (leveldb: 1.18)
+Date: Sun, 19 Apr 2026 00:36:03 GMT
+Content-Length: 15
+Content-Type: text/plain; charset=utf-8
+
+{"status":"ok"}
+404 page not found
+
+404 page not found
+
+404 page not found
+
+=== Tabelas em monsta5.db ===
+actions                  item_errors              tags                   
+agents                   items                    triggers               
+events                   network_discovery_rules  units                  
+group_parents            objects                  user_policies          
+group_state              scripts                  users                  
+groups                   status_counts          
+item_discovery_rules     status_types           
+=== Schema das tabelas relevantes ===
+=== Amostra de 2 dispositivos (sem dados sensíveis) ===
+=== Tabelas em alerts.db ===
+alerts
+CREATE TABLE alerts (
+        id integer not null primary key,
+        uuid varchar not null,
+        alert_type varchar not null,
+        recipient varchar not null,
+        subject varchar,
+        body varchar not null,
+        status varchar not null,
+        created_at datetime,
+        updated_at datetime
+    );
+[root@191-52-248-66 ~]# 
