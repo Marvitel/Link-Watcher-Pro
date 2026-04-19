@@ -32,7 +32,31 @@ function getConfig() {
   }
   const port = Number(process.env.MONSTA_SSH_PORT) || DEFAULT_PORT;
   const username = process.env.MONSTA_SSH_USER?.trim() || DEFAULT_USER;
-  return { host, port, username, privateKey: key };
+  return { host, port, username, privateKey: normalizePemKey(key) };
+}
+
+/**
+ * Normaliza chave PEM/OpenSSH. Aceita chaves com ou sem newlines (alguns gerenciadores
+ * de secrets removem \n no paste). Re-injeta quebras de linha a cada 70 chars de base64.
+ */
+function normalizePemKey(raw: string): string {
+  const trimmed = raw.trim();
+  // Se já tem newlines, devolve como está (com newline final garantido)
+  if (trimmed.includes("\n")) return trimmed.endsWith("\n") ? trimmed : trimmed + "\n";
+
+  // Detecta marcadores comuns
+  const beginMatch = trimmed.match(/^(-----BEGIN [^-]+-----)/);
+  const endMatch = trimmed.match(/(-----END [^-]+-----)$/);
+  if (!beginMatch || !endMatch) return trimmed; // formato desconhecido — deixa o ssh2 reclamar
+
+  const begin = beginMatch[1];
+  const end = endMatch[1];
+  // Pega o miolo entre BEGIN e END, remove qualquer whitespace
+  const body = trimmed.slice(begin.length, trimmed.length - end.length).replace(/\s+/g, "");
+  // Quebra em linhas de 70 chars (padrão OpenSSH)
+  const chunks: string[] = [];
+  for (let i = 0; i < body.length; i += 70) chunks.push(body.slice(i, i + 70));
+  return [begin, ...chunks, end, ""].join("\n");
 }
 
 function disposeClient() {
@@ -196,17 +220,17 @@ export async function getDeviceStatus(ip: string): Promise<MonstaDeviceStatus> {
 
   const rows = await sqliteMain<any>(
     `SELECT id, kind, name, description, ` +
-    `json_extract(config, '$.\\\"net.address\\\"') AS ip, ` +
-    `json_extract(config, '$.\\\"snmp.community\\\"') AS snmp_community, ` +
-    `json_extract(config, '$.\\\"snmp.version\\\"') AS snmp_version, ` +
-    `json_extract(config, '$.\\\"snmp.port\\\"') AS snmp_port, ` +
+    `json_extract(config, '$."net.address"') AS ip, ` +
+    `json_extract(config, '$."snmp.community"') AS snmp_community, ` +
+    `json_extract(config, '$."snmp.version"') AS snmp_version, ` +
+    `json_extract(config, '$."snmp.port"') AS snmp_port, ` +
     `json_extract(data, '$.status') AS status, ` +
     `json_extract(data, '$.last_status_change_at') AS last_status_change_at, ` +
     `json_extract(data, '$.inactive') AS inactive, ` +
     `json_extract(data, '$.disable_alerts') AS disable_alerts, ` +
     `json_extract(data, '$.parents') AS parents_json ` +
     `FROM groups WHERE kind='Device' ` +
-    `AND json_extract(config, '$.\\\"net.address\\\"')='${ip}' LIMIT 1`,
+    `AND json_extract(config, '$."net.address"')='${ip}' LIMIT 1`,
   );
 
   if (rows.length === 0) {
@@ -278,7 +302,7 @@ export async function getRecentEvents(ip: string, hours = 24, limit = 50): Promi
   // 1. Acha device id pelo IP
   const dev = await sqliteMain<any>(
     `SELECT id, name FROM groups WHERE kind='Device' ` +
-    `AND json_extract(config, '$.\\\"net.address\\\"')='${ip}' LIMIT 1`,
+    `AND json_extract(config, '$."net.address"')='${ip}' LIMIT 1`,
   );
   if (dev.length === 0) {
     return { found: false, events: [], message: `Nenhum device com IP ${ip} no Monsta` };
@@ -332,11 +356,11 @@ export async function searchDevices(pattern: string, limit = 20): Promise<Monsta
 
   const rows = await sqliteMain<any>(
     `SELECT id, name, ` +
-    `json_extract(config, '$.\\\"net.address\\\"') AS ip, ` +
+    `json_extract(config, '$."net.address"') AS ip, ` +
     `json_extract(data, '$.status') AS status, ` +
     `json_extract(data, '$.last_status_change_at') AS last_status_change_at ` +
     `FROM groups WHERE kind='Device' ` +
-    `AND (name LIKE '%${clean}%' OR json_extract(config, '$.\\\"net.address\\\"') LIKE '%${clean}%') ` +
+    `AND (name LIKE '%${clean}%' OR json_extract(config, '$."net.address"') LIKE '%${clean}%') ` +
     `LIMIT ${safeLimit}`,
   );
 
