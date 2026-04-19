@@ -15431,34 +15431,58 @@ export async function registerRoutes(
           enrichmentProgress.total += linksNeedingCpe.length;
           console.log(`[Enrich] Starting CPE creation for ${linksNeedingCpe.length} links`);
 
-          const existingCpes = await db.select().from(cpes);
-          const cpeByIp = new Map(existingCpes.filter(c => c.ipAddress).map(c => [c.ipAddress, c]));
+          // Cache de CPE padrão por vendorId (reusa em vez de criar uma CPE por link)
+          const standardCpeByVendor = new Map<number, any>();
+          // Fallback genérico (sem vendor): uma única CPE padrão "CPE padrão (sem fabricante)"
+          let genericStandardCpe: any = null;
 
           for (const link of linksNeedingCpe) {
             try {
-              let cpe = cpeByIp.get(link.monitoredIp!);
+              const vendorId = link.equipmentVendorId ?? null;
+              let cpe: any = null;
+
+              if (vendorId) {
+                cpe = standardCpeByVendor.get(vendorId);
+                if (!cpe) {
+                  cpe = await storage.getStandardCpeByVendor(vendorId);
+                  if (cpe) standardCpeByVendor.set(vendorId, cpe);
+                }
+              }
 
               if (!cpe) {
-                const cpeName = `CPE - ${link.name}`;
-                const newCpe = await storage.createCpe({
-                  name: cpeName,
-                  ipAddress: link.monitoredIp!,
-                  model: link.equipmentModel || 'Auto-discovered',
-                  serialNumber: link.equipmentSerialNumber || null,
-                  macAddress: link.macAddress || null,
-                  snmpProfileId: link.snmpProfileId || null,
-                  vendorId: link.equipmentVendorId || null,
-                  isStandard: false,
-                });
-                cpe = newCpe;
-                cpeByIp.set(link.monitoredIp!, cpe);
+                let vendorName = "";
+                if (vendorId) {
+                  const vendor = await storage.getEquipmentVendor(vendorId);
+                  vendorName = vendor?.name?.toUpperCase() || "";
+                }
+                const cpeName = vendorName
+                  ? `ONT ${vendorName}`
+                  : `CPE padrão (sem fabricante)`;
+
+                if (!vendorId && genericStandardCpe) {
+                  cpe = genericStandardCpe;
+                } else {
+                  cpe = await storage.createCpe({
+                    name: cpeName,
+                    type: 'cpe',
+                    vendorId: vendorId,
+                    isStandard: true,
+                    hasAccess: true,
+                    ownership: 'marvitel',
+                  } as any);
+                  if (vendorId) standardCpeByVendor.set(vendorId, cpe);
+                  else genericStandardCpe = cpe;
+                }
               }
 
               await db.insert(linkCpes).values({
                 linkId: link.id,
                 cpeId: cpe.id,
                 role: 'primary',
-              });
+                ipOverride: link.monitoredIp!,
+                macAddress: link.macAddress || null,
+                showInEquipmentTab: true,
+              } as any);
 
               enrichmentProgress.success++;
             } catch (err: any) {
