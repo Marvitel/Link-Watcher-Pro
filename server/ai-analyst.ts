@@ -728,6 +728,13 @@ const OUI_TABLE: Record<string, string> = {
   "002191": "dlink", "0026f3": "dlink", "0801f2": "dlink", "1cbdb9": "dlink",
   "28107b": "dlink", "5cd998": "dlink", "78321b": "dlink", "84c9b2": "dlink",
   "9094e4": "dlink", "c8be19": "dlink", "ccb255": "dlink", "fcce41": "dlink",
+  // Ruijie Networks
+  "00749c": "ruijie", "300d9e": "ruijie", "58696c": "ruijie", "8cde52": "ruijie",
+  "c0b8e6": "ruijie", "ecb970": "ruijie", "800588": "ruijie", "8c736e": "ruijie",
+  "0cd2b5": "ruijie", "705a0f": "ruijie", "ec3886": "ruijie",
+  "00d0f8": "ruijie", "30856b": "ruijie",
+  // Grandstream (GWN7002, GWN7003, etc.)
+  "000b82": "grandstream", "c074ad": "grandstream", "ec74d7": "grandstream",
   // Cisco
   "00000c": "cisco", "000142": "cisco", "001120": "cisco", "0013c4": "cisco",
   "00164e": "cisco", "001b54": "cisco", "0024c4": "cisco", "0026cb": "cisco",
