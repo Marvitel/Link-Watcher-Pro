@@ -84,7 +84,7 @@ async function getClient(): Promise<SshClient> {
   return connectingPromise;
 }
 
-function execRemote(command: string): Promise<string> {
+function execRemote(command: string, stdinPayload?: string): Promise<string> {
   return new Promise(async (resolve, reject) => {
     let conn: SshClient;
     try {
@@ -116,24 +116,22 @@ function execRemote(command: string): Promise<string> {
           reject(new Error(`Monsta cmd exit=${code}: ${stderr.trim() || stdout.trim()}`));
         }
       });
+      if (stdinPayload != null) {
+        stream.end(stdinPayload);
+      } else {
+        stream.end();
+      }
     });
   });
 }
 
 // ---------- helpers de query ----------
-
-function escapeForShell(query: string): string {
-  // O wrapper usa "$SSH_ORIGINAL_COMMAND" e repassa pra sqlite3/curl. Aspas simples viram inválidas
-  // dentro de single-quoted command. Aceitamos só queries determinísticas controladas internamente.
-  if (/[`$\\;|&<>\n\r"]/.test(query)) {
-    throw new Error("query contém caracteres não permitidos");
-  }
-  return query;
-}
+// Queries vão pelo STDIN (zero escape de shell). O wrapper roda `sqlite3 db < stdin`.
+// O ; final é exigido pelo sqlite3 em modo batch.
 
 async function sqliteMain<T = any>(query: string): Promise<T[]> {
-  const safe = escapeForShell(query);
-  const out = await execRemote(`sqlite-monsta5 "${safe}"`);
+  const q = query.trim().endsWith(";") ? query : query + ";";
+  const out = await execRemote("sqlite-monsta5", q);
   if (!out.trim()) return [];
   try {
     return JSON.parse(out) as T[];
@@ -143,8 +141,8 @@ async function sqliteMain<T = any>(query: string): Promise<T[]> {
 }
 
 async function sqliteEvents<T = any>(query: string): Promise<T[]> {
-  const safe = escapeForShell(query);
-  const out = await execRemote(`sqlite-events "${safe}"`);
+  const q = query.trim().endsWith(";") ? query : query + ";";
+  const out = await execRemote("sqlite-events", q);
   if (!out.trim()) return [];
   try {
     return JSON.parse(out) as T[];
