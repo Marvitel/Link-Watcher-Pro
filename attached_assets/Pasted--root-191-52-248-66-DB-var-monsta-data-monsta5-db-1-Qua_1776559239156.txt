@@ -1,0 +1,89 @@
+[root@191-52-248-66 ~]# DB=/var/monsta/data/monsta5.db
+
+# 1) Quais "kinds" existem em objects? (achar o que representa Device)
+echo "=== Kinds e contagem ==="
+sqlite3 $DB "SELECT kind, COUNT(*) FROM objects GROUP BY kind ORDER BY 2 DESC;"
+
+# 2) Pegar 1 objeto de cada kind potencialmente "Device" pra ver o JSON.data
+echo "=== Amostra Device/Host/Endpoint (data JSON) ==="
+sqlite3 $DB "SELECT id, kind, substr(data,1,800) FROM objects WHERE kind IN ('Device','Host','Endpoint','Node','Monitor') LIMIT 3;"
+
+# 3) Que colunas tem uma série no monstadb? (pega a primeira série e busca 1 ponto)
+echo "=== Colunas de uma série device<X> ==="
+# pega o nome da primeira série
+SERIE=$(curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=list+series" | grep -oE 'device[0-9]+' | head -1)
+echo "Serie alvo: $SERIE"
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+*+from+$SERIE+limit+2" | head -c 1500; echo
+
+# 4) Schema events.db (eventos históricos)
+echo "=== events.db schema ==="
+sqlite3 /var/monsta/data/events.db ".schema" | head -50
+sqlite3 /var/monsta/data/events.db "SELECT name FROM sqlite_master WHERE type='table';"
+=== Kinds e contagem ===
+AutoMonitor|407
+Unit|132
+Dashboard|110
+Config|59
+Script|45
+AlertTemplate|3
+ReactFlowMap|1
+=== Amostra Device/Host/Endpoint (data JSON) ===
+=== Colunas de uma série device<X> ===
+Serie alvo: device10
+[]
+=== events.db schema ===
+CREATE TABLE events (
+        id integer not null primary key,
+        correlation_id varchar not null,
+        execution_id varchar not null,
+        source_event_id integer,
+        close_event_id integer,
+        container_id integer not null,
+        user_id varchar,
+        time datetime not null,
+        event_type varchar not null,
+        closed boolean not null,
+        duration_secs integer,
+        props varchar not null,
+        level integer not null,
+        acknowledged_by varchar,
+        action_count integer not null,
+        comment_count integer not null,
+        send_alerts boolean not null default 0
+    );
+CREATE INDEX idx_events_container_id on events(container_id);
+CREATE INDEX idx_events_correlation_id on events(correlation_id);
+CREATE INDEX idx_events_execution_id on events(execution_id);
+CREATE INDEX idx_events_closed on events(closed);
+CREATE INDEX idx_events_event_type on events(event_type);
+CREATE INDEX idx_events_time on events(time);
+CREATE INDEX idx_events_event_type_time on events(event_type, time);
+CREATE INDEX idx_events_container_id_event_type_time on events(container_id, event_type, time);
+CREATE TABLE actions (
+        id integer not null primary key,
+        event_id integer not null references events(id),
+        container_id integer,
+        action_uuid varchar not null,
+        time datetime not null,
+        status number not null,
+        props varchar not null,
+        script varchar,
+        result varchar,
+        error varchar,
+        output varchar
+    );
+CREATE INDEX idx_actions_event_id on actions(event_id);
+CREATE INDEX idx_actions_container_id on actions(container_id);
+CREATE TABLE comments (
+        id integer not null primary key,
+        event_id integer not null references events(id),
+        user varchar not null,
+        time datetime not null,
+        comment varchar not null
+    );
+CREATE INDEX idx_comments_event_id on comments(event_id);
+events
+actions
+comments
+container_props
+[root@191-52-248-66 ~]# 
