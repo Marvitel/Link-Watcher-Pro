@@ -1,0 +1,72 @@
+[root@191-52-248-66 ~]# DB=/var/monsta/data/monsta5.db
+
+# 1) Distribuição de kinds em groups (achar quais são "device")
+echo "=== Kinds de groups (top 15) ==="
+sqlite3 $DB "SELECT kind, COUNT(*) FROM groups GROUP BY kind ORDER BY 2 DESC LIMIT 15;"
+
+# 2) Pegar 1 group de cada kind importante e mostrar config + data
+echo "=== Amostra: Device/Endpoint/Host (config + data resumido) ==="
+sqlite3 $DB "SELECT id, kind, name, substr(config,1,400), substr(data,1,200) FROM groups WHERE kind IN ('Device','Endpoint','Host','Server','NetworkDevice') LIMIT 5;"
+
+# 3) Procurar IP em config (qualquer campo)
+echo "=== Groups com IP no config (pega 5 amostras) ==="
+sqlite3 $DB "SELECT id, kind, name, json_extract(config,'\$.address'), json_extract(config,'\$.ip'), json_extract(config,'\$.host'), json_extract(config,'\$.hostname') FROM groups WHERE config LIKE '%192.168%' OR config LIKE '%address%' OR config LIKE '%hostname%' LIMIT 10;"
+
+# 4) Tabela agents — talvez seja onde o IP fica
+echo "=== Schema agents ==="; sqlite3 $DB ".schema agents"
+echo "=== Amostra agents ==="; sqlite3 $DB "SELECT id, substr(data,1,300) FROM agents LIMIT 3;" 2>/dev/null
+
+# 5) Usar um event aberto pra confirmar fluxo: pegar um container_id real (19651) e ver o group correspondente
+echo "=== Group 19651 (do evento real) ==="
+sqlite3 $DB "SELECT id, kind, name, substr(config,1,500), substr(data,1,200) FROM groups WHERE id=19651;"
+echo "=== Group 19628 (outro evento real) ==="
+sqlite3 $DB "SELECT id, kind, name, substr(config,1,500), substr(data,1,200) FROM groups WHERE id=19628;"
+
+# 6) Série monstadb pra esses devices reais (devem ter dados)
+echo "=== Série device19651 ==="
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+*+from+device19651+limit+3" | head -c 1500; echo
+echo "=== Série device19628 ==="
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+*+from+device19628+limit+3" | head -c 1500; echo
+=== Kinds de groups (top 15) ===
+Monitor|13802
+Template|1937
+Device|1019
+PermissionSet|194
+TemplateGroup|130
+DeviceGroup|52
+AlertGroup|25
+Root|1
+=== Amostra: Device/Endpoint/Host (config + data resumido) ===
+30|Device|Alpha-Matriz - RB - Contrato - 2111 (SEDE)|{"snmp.community":"marvitel","snmp.version":2,"net.address":"191.52.249.162","snmp.port":161}|{"last_status_change_at":"2024-12-17T13:57:34.074482857-0000","parents":[209,198],"updated_at":"2025-01-24T12:42:42.699474580-0000","disable_alerts":false,"physical_agent_id":null,"logical_agent_id":n
+37|Device|PRIMAVERA PE: OLT DATACOM|{"net.address":"172.26.240.254","snmp.community":"marvitel","snmp.version":2,"snmp.port":161}|{"acknowledged_by":null,"name":"PRIMAVERA PE: OLT DATACOM","last_status_change_at":"2024-12-13T12:17:54.886764786-0000","id":209,"description":"","physical_agent_id":null,"metric_groups":[730,731,732,
+38|Device|POP Domani citta|{"snmp.port":161,"snmp.version":2,"snmp.community":"marvitel","net.address":"191.52.248.248"}|{"status":"DeviceUp","description":null,"last_alert_at":"2024-12-04T10:50:23.646053628-0000","templates":[76,36],"acknowledged_by":null,"created_at":"2019-03-19T13:59:08.216774312-0000","metric_groups
+41|Device|MPSE - RIACHUELO - VIANET - VLAN:3123/3124|{"snmp.community":"marvitel","snmp.port":161,"net.address":"100.96.0.102","snmp.version":1}|{"parents":[1017],"status":"DeviceUp","last_alert":"DeviceUp","deleted":false,"id":1000,"physical_agent_id":null,"logical_agent_id":null,"updated_at":"2025-01-24T12:42:42.736938237-0000","actions":[],
+43|Device|SW METRO PAULO FIG. PE (POP FASTNET)|{"snmp.version":2,"snmp.community":"marvitel","net.address":"172.26.240.234","alert.sound.Critical":"@blob:4f4fdbe8849e4c24a258d16a7ac3dd0f","snmp.port":161}|{"disable_alerts":false,"physical_agent_id":null,"parents":[504],"inactive":false,"templates":[76,139],"metric_groups":[369663,369665,369666,369669,369670,369671,369672,369673,369674,369675,369676,373
+=== Groups com IP no config (pega 5 amostras) ===
+1|Root|||||
+30|Device|Alpha-Matriz - RB - Contrato - 2111 (SEDE)||||
+37|Device|PRIMAVERA PE: OLT DATACOM||||
+38|Device|POP Domani citta||||
+41|Device|MPSE - RIACHUELO - VIANET - VLAN:3123/3124||||
+43|Device|SW METRO PAULO FIG. PE (POP FASTNET)||||
+49|Device|MPSE - PEDRINHAS - VIANET - VLAN: 3094/3095||||
+53|Device|MINISTERIO PUBLICO - JAPOATÃ||||
+55|Device|Link Embratel||||
+57|Device|MPSE - BOQUIM - VIANET - VLAN:3144/3065||||
+=== Schema agents ===
+CREATE TABLE agents (
+        id integer not null primary key autoincrement,
+        uuid text not null unique,
+        hostname text,
+        ip_address text
+, version TEXT, os_type TEXT, os_version TEXT, cpu_arch TEXT, status VARCHAR NOT NULL DEFAULT 'None', position INTEGER NOT NULL DEFAULT 0);
+=== Amostra agents ===
+=== Group 19651 (do evento real) ===
+19651|Monitor|Média de Disco|{"exec.instance":{"id":"Win32_PerfRawData_PerfDisk_PhysicalDisk|Name|_Total","name":"_Total"},"instance_enum.WMIClass":"Win32_PerfRawData_PerfDisk_PhysicalDisk","instance_enum.WMIProperty":"Name"}|{"attributes":{},"max_check_attempts":3,"original_id":482,"actions":[],"created_at":"2016-03-10T17:20:10.473000000-0000","instance_enumerator_params":{"WMIClass":{"StringValue":"Win32_PerfRawData_Perf
+=== Group 19628 (outro evento real) ===
+19628|Device|Servidor Dominio Marvitel - MVT-AD02|{"net.address":"100.66.128.77"}|{"name":"Servidor Dominio Marvitel - MVT-AD02","actions":[],"description":null,"template_groups":["@container:10897","@container:12085","@container:12391"],"isUptimeDeleted":false,"icon":"@blob:922a11
+=== Série device19651 ===
+Couldn't find series: device19651
+=== Série device19628 ===
+Couldn't find series: device19628
+[root@191-52-248-66 ~]# 
