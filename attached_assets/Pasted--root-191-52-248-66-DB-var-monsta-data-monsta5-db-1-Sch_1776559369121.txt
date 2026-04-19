@@ -1,0 +1,102 @@
+[root@191-52-248-66 ~]# DB=/var/monsta/data/monsta5.db
+
+# 1) Schema da tabela groups (devices ficam aqui)
+echo "=== Schema groups ==="
+sqlite3 $DB ".schema groups"
+echo "=== group_parents (hierarquia) ==="
+sqlite3 $DB ".schema group_parents"
+
+# 2) Que "tipos" de grupo existem? (DeviceGroup, Device, Monitor...)
+echo "=== Distribuição por tipo (se houver coluna type/kind) ==="
+sqlite3 $DB "PRAGMA table_info(groups);"
+echo "=== Amostra de 3 groups (data JSON resumido) ==="
+sqlite3 $DB "SELECT id, substr(data,1,500) FROM groups LIMIT 3;"
+
+# 3) Achar grupos que parecem device (com IP no JSON)
+echo "=== Grupos com 'address' ou IP no JSON (top 3) ==="
+sqlite3 $DB "SELECT id, json_extract(data,'\$.name'), json_extract(data,'\$.address'), json_extract(data,'\$.host') FROM groups WHERE data LIKE '%address%' OR data LIKE '%host%' LIMIT 5;"
+
+# 4) Pegar uma série monstadb ATIVA (com pontos recentes)
+echo "=== Achar série com dados recentes ==="
+# tenta device id de um group que sabemos que existe
+GID=$(sqlite3 $DB "SELECT id FROM groups WHERE id < 50 ORDER BY id LIMIT 1;")
+echo "Group id alvo: $GID"
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+*+from+device$GID+limit+3" | head -c 1500; echo
+echo "---"
+# tenta uma série conhecida-ativa pegando uma com mais pontos via query
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+count(value)+from+/device.*/+limit+5" | head -c 1500; echo
+
+# 5) Eventos abertos (não-fechados) — confirmar mapeamento container_id → group_id
+echo "=== Top 5 eventos abertos (recentes) ==="
+sqlite3 /var/monsta/data/events.db "SELECT id, container_id, event_type, time, substr(props,1,200) FROM events WHERE closed=0 ORDER BY time DESC LIMIT 5;"
+=== Schema groups ===
+CREATE TABLE groups (
+        id integer not null primary key autoincrement,
+        uuid text not null unique,
+        agent_id integer,
+        kind text not null,
+        name text not null,
+        description text,
+        should_run_items boolean not null,
+        is_proxy boolean not null,
+        configsets text not null,
+        config json not null,
+        config_priority integer not null,
+        created_by_network_rule_id integer,
+        data json,
+        created_at integer not null default 0,
+        updated_at integer not null default 0,
+        foreign key (agent_id) references agents(id),
+        foreign key (created_by_network_rule_id) references network_discovery_rules(id)
+);
+CREATE INDEX group_created_by_network_rule_idx on groups(created_by_network_rule_id);
+CREATE INDEX group_agent_idx on groups(agent_id);
+CREATE INDEX group_kind_idx on groups(kind);
+=== group_parents (hierarquia) ===
+CREATE TABLE group_parents (
+        id integer not null primary key,
+        group_id integer not null,
+        parent_id integer not null,
+        foreign key (group_id) references groups(id),
+        foreign key (parent_id) references groups(id)
+);
+CREATE INDEX group_parents_group on group_parents(group_id);
+CREATE INDEX group_parents_parent on group_parents(parent_id);
+=== Distribuição por tipo (se houver coluna type/kind) ===
+0|id|INTEGER|1||1
+1|uuid|TEXT|1||0
+2|agent_id|INTEGER|0||0
+3|kind|TEXT|1||0
+4|name|TEXT|1||0
+5|description|TEXT|0||0
+6|should_run_items|boolean|1||0
+7|is_proxy|boolean|1||0
+8|configsets|TEXT|1||0
+9|config|json|1||0
+10|config_priority|INTEGER|1||0
+11|created_by_network_rule_id|INTEGER|0||0
+12|data|json|0||0
+13|created_at|INTEGER|1|0|0
+14|updated_at|INTEGER|1|0|0
+=== Amostra de 3 groups (data JSON resumido) ===
+1|{"description":null,"name":"","actions":[]}
+2|{"description":null,"system":true,"name":"Padrão","actions":[{"disabled":false,"id":0,"props":{"AlertFor":{"String":"Device"},"TelegramCode":{"String":"RFD"}},"steps":[{"children":[],"script":{"context":{"alert.for":{"String":"Device"},"alert.levels":{"List":[{"Int":1},{"Int":3},{"Int":4}]},"alert.recipient.email":{"List":[{"String":"infra@marvitel.com.br"}]},"alert.script_id":{"Int":10000},"alert.script_uuid":{"String":"email"},"alert.telegram_code":{"String":"RFD"},"alert.template_id":{"Ref":{
+3|{"actions":[{"disabled":false,"id":0,"props":{"AlertFor":{"String":""},"TelegramCode":{"String":"T15"}},"steps":[{"children":[],"script":{"context":{"alert.for":{"String":""},"alert.levels":{"List":[{"Int":1},{"Int":3},{"Int":4}]},"alert.recipient.email":{"List":[{"String":"infraestruturati@jfse.jus.br"},{"String":"infra@marvitel.com.br"}]},"alert.script_id":{"Int":10000},"alert.script_uuid":{"String":"email"},"alert.telegram_code":{"String":"T15"},"alert.template_id":{"Ref":{"Blob":"00DefaultTe
+=== Grupos com 'address' ou IP no JSON (top 3) ===
+8287|remote.sao.host.speedtest.net||
+10277|Internet||
+10521|ONU - MAC Address||
+11051|Mac Address||
+11081|Mac Address||
+=== Achar série com dados recentes ===
+Group id alvo: 1
+Couldn't find series: device1
+---
+[]
+=== Top 5 eventos abertos (recentes) ===
+2711931|19651|::ContainerMetricStatusChange|2026-04-19T00:41:34.000000+00:00|{"device_name":"Servidor Dominio Marvitel - MVT-AD02","formatted_value":"39,89 ms","last_event_pri":2,"metric_id":484637,"metric_name":"Gravação","monitor_name":"Média de Disco","monitor_short_name":"
+2711932|19628|::ContainerMetricStatusChange|2026-04-19T00:41:34.000000+00:00|{"device_name":"Servidor Dominio Marvitel - MVT-AD02","formatted_value":"39,89 ms","last_event_pri":2,"metric_id":484637,"metric_name":"Gravação","monitor_name":"Média de Disco","monitor_short_name":"
+2711933|12067|::ContainerMetricStatusChange|2026-04-19T00:41:34.000000+00:00|{"device_name":"Servidor Dominio Marvitel - MVT-AD02","formatted_value":"39,89 ms","last_event_pri":2,"metric_id":484637,"metric_name":"Gravação","monitor_name":"Média de Disco","monitor_short_name":"
+2711928|19646|::ContainerMetricStatusChange|2026-04-19T00:40:43.000000+00:00|{"device_name":"Servidor Dominio Marvitel - MVT-AD02","formatted_value":"10,44 ms","last_event_pri":3,"metric_id":484614,"metric_name":"Leitura","monitor_name":"Média de Partição","monitor_short_name"
+2711929|19628|::ContainerMetricStatusChange|2026-04-19T00:40:43.000000+00:00|{"device_name":"Servidor Dominio Marvitel - MVT-AD02","formatted_value":"10,44 ms","last_event_pri":3,"metric_id":484614,"metric_name":"Leitura","monitor_name":"Média de Partição","monitor_short_name"
+[root@191-52-248-66 ~]# 
