@@ -1235,6 +1235,16 @@ function MonstaTestPanel() {
 // Card de uma proposta individual (com edição inline antes de aprovar)
 // =====================================================================
 
+const ALLOWED_EDIT_FIELDS = [
+  "snmpInterfaceAlias", "snmpInterfaceIndex", "snmpInterfaceName", "snmpInterfaceDescr",
+  "snmpRouterIp", "monitoredIp", "concentratorId", "snmpProfileId", "pppoeUser",
+  "vlan", "vlanInterface", "trafficSourceType", "accessPointId",
+  "accessPointInterfaceIndex", "accessPointInterfaceName", "equipmentVendorId",
+  "equipmentModel", "equipmentSerialNumber", "oltId", "slotOlt", "portOlt",
+  "onuSearchString", "onuId", "switchId", "switchPort", "cpeVendor", "ozmapTag",
+  "invertBandwidth", "isL2Link", "icmpBlocked", "linkType", "authType",
+].sort();
+
 function ProposalCard({
   proposal,
   onApprove,
@@ -1248,27 +1258,60 @@ function ProposalCard({
   isApproving: boolean;
   isRejecting: boolean;
 }) {
-  const [edits, setEdits] = useState<Record<string, string>>({});
+  const proposed = (proposal.proposedFields || {}) as Record<string, unknown>;
+  const proposedKeys = Object.keys(proposed);
+
+  // edits começa com os valores propostos (string) — assim "Aprovar" pós-edição manda tudo
+  const [edits, setEdits] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const [k, v] of Object.entries(proposed)) init[k] = String(v ?? "");
+    return init;
+  });
+  const [extraKeys, setExtraKeys] = useState<string[]>([]);
+  const [newFieldKey, setNewFieldKey] = useState<string>("");
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
 
   const cls = classificationLabel[proposal.classification] || classificationLabel.inconclusive;
-  const fields = Object.entries(proposal.proposedFields || {});
+  const allKeys = [...proposedKeys, ...extraKeys];
+  const availableToAdd = ALLOWED_EDIT_FIELDS.filter((k) => !allKeys.includes(k));
+
+  const addField = () => {
+    if (!newFieldKey || allKeys.includes(newFieldKey)) return;
+    setExtraKeys((prev) => [...prev, newFieldKey]);
+    setEdits((prev) => ({ ...prev, [newFieldKey]: "" }));
+    setNewFieldKey("");
+  };
+
+  const removeExtraField = (k: string) => {
+    setExtraKeys((prev) => prev.filter((x) => x !== k));
+    setEdits((prev) => {
+      const { [k]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const coerce = (v: string): unknown => {
+    if (v === "true") return true;
+    if (v === "false") return false;
+    if (v !== "" && !isNaN(Number(v))) return Number(v);
+    return v;
+  };
 
   const handleApprove = () => {
-    if (Object.keys(edits).length === 0) {
+    // Sem edição ativa e nenhum campo extra: aprovar como está (mantém comportamento original)
+    if (!editing && extraKeys.length === 0) {
       onApprove(undefined, note || undefined);
-    } else {
-      const overrides: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(edits)) {
-        // Preserva tipo simples: number se parsear, boolean se true/false, senão string
-        if (v === "true") overrides[k] = true;
-        else if (v === "false") overrides[k] = false;
-        else if (v !== "" && !isNaN(Number(v))) overrides[k] = Number(v);
-        else overrides[k] = v;
-      }
-      onApprove(overrides, note || undefined);
+      return;
     }
+    // Construir overrides: todos os campos com valor não-vazio
+    const overrides: Record<string, unknown> = {};
+    for (const k of allKeys) {
+      const v = edits[k] ?? "";
+      if (v === "") continue; // pular campos em branco
+      overrides[k] = coerce(v);
+    }
+    onApprove(Object.keys(overrides).length > 0 ? overrides : undefined, note || undefined);
   };
 
   return (
@@ -1290,38 +1333,74 @@ function ProposalCard({
         {proposal.reasoning}
       </p>
 
-      {fields.length > 0 ? (
-        <div className="border-t pt-2">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-muted-foreground">Campos a serem alterados:</p>
-            <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)} data-testid={`button-edit-${proposal.id}`}>
-              {editing ? "Cancelar edição" : "Editar antes de aprovar"}
+      <div className="border-t pt-2">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {proposedKeys.length > 0 ? "Campos a serem alterados:" : "Nenhuma alteração proposta pela IA."}
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(!editing)} data-testid={`button-edit-${proposal.id}`}>
+            {editing ? "Cancelar edição" : (proposedKeys.length > 0 ? "Editar antes de aprovar" : "Adicionar correção manual")}
+          </Button>
+        </div>
+
+        {allKeys.length > 0 && (
+          <div className="space-y-1 text-sm">
+            {allKeys.map((k) => {
+              const isExtra = extraKeys.includes(k);
+              return (
+                <div key={k} className="flex items-center gap-2">
+                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{k}</code>
+                  <span className="text-muted-foreground">→</span>
+                  {editing || isExtra ? (
+                    <>
+                      <Input
+                        className="h-7 text-xs flex-1"
+                        value={edits[k] ?? ""}
+                        placeholder={isExtra ? "(vazio = não altera)" : ""}
+                        onChange={(e) => setEdits((prev) => ({ ...prev, [k]: e.target.value }))}
+                        data-testid={`input-edit-${proposal.id}-${k}`}
+                      />
+                      {isExtra && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => removeExtraField(k)}
+                          data-testid={`button-remove-field-${proposal.id}-${k}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="font-mono text-xs">{JSON.stringify(proposed[k])}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {editing && availableToAdd.length > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <Select value={newFieldKey} onValueChange={setNewFieldKey}>
+              <SelectTrigger className="h-7 text-xs flex-1" data-testid={`select-add-field-${proposal.id}`}>
+                <SelectValue placeholder="Adicionar campo…" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableToAdd.map((k) => (
+                  <SelectItem key={k} value={k} className="text-xs font-mono">{k}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-7" onClick={addField} disabled={!newFieldKey} data-testid={`button-add-field-${proposal.id}`}>
+              <Plus className="w-3 h-3 mr-1" /> Adicionar
             </Button>
           </div>
-          <div className="space-y-1 text-sm">
-            {fields.map(([k, v]) => (
-              <div key={k} className="flex items-center gap-2">
-                <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{k}</code>
-                <span className="text-muted-foreground">→</span>
-                {editing ? (
-                  <Input
-                    className="h-7 text-xs flex-1"
-                    defaultValue={String(v ?? "")}
-                    onChange={(e) => setEdits((prev) => ({ ...prev, [k]: e.target.value }))}
-                    data-testid={`input-edit-${proposal.id}-${k}`}
-                  />
-                ) : (
-                  <span className="font-mono text-xs">{JSON.stringify(v)}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground italic">Nenhuma alteração proposta.</p>
-      )}
+        )}
+      </div>
 
-      {editing && (
+      {(editing || extraKeys.length > 0) && (
         <Textarea
           placeholder="Anotação opcional (vai alimentar o aprendizado)..."
           value={note}
