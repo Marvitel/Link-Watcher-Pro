@@ -76,6 +76,7 @@ const ALLOWED_FIELDS = new Set<string>([
   "icmpBlocked",
   "linkType",
   "authType",
+  "ipBlock",
 ]);
 
 // =====================================================================

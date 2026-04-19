@@ -1284,6 +1284,7 @@ const FIELD_META: Record<string, FieldMeta> = {
   switchPort: { kind: "number", label: "Porta do Switch" },
   cpeVendor: { kind: "text", label: "Vendor (livre)" },
   ozmapTag: { kind: "text", label: "OZmap Tag" },
+  ipBlock: { kind: "text", label: "Bloco IP (CIDR)" },
   invertBandwidth: { kind: "boolean", label: "Inverter Banda" },
   isL2Link: { kind: "boolean", label: "Link L2" },
   icmpBlocked: { kind: "boolean", label: "ICMP Bloqueado" },
@@ -1317,11 +1318,11 @@ function isEmptyValue(kind: FieldKind, v: unknown): boolean {
 }
 
 interface Lookups {
-  concentrators: Array<{ id: number; name: string }>;
+  concentrators: Array<{ id: number; name: string; isAccessPoint?: boolean }>;
   olts: Array<{ id: number; name: string; vendor?: string }>;
   snmpProfiles: Array<{ id: number; name: string }>;
   equipmentVendors: Array<{ id: number; name: string; slug?: string }>;
-  switches: Array<{ id: number; name: string; isAccessPoint?: boolean }>;
+  switches: Array<{ id: number; name: string }>;
 }
 
 function lookupName<T extends { id: number; name: string }>(arr: T[], id: unknown): string | null {
@@ -1356,9 +1357,12 @@ function FieldDisplay({ fieldKey, meta, value, lookups }: {
       const name = lookupName(lookups.equipmentVendors, value);
       return <span className="text-xs">{name || `#${value}`}</span>;
     }
-    case "select-switch":
-    case "select-access-point": {
+    case "select-switch": {
       const name = lookupName(lookups.switches, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "select-access-point": {
+      const name = lookupName(lookups.concentrators, value);
       return <span className="text-xs">{name || `#${value}`}</span>;
     }
     case "object-default-cpe": {
@@ -1456,23 +1460,29 @@ function FieldEditor({ fieldKey, meta, value, onChange, lookups, proposalId }: {
         <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
           <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
           <SelectContent>
-            {lookups.switches.filter((s) => !s.isAccessPoint).map((s) => (
+            {lookups.switches.map((s) => (
               <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       );
-    case "select-access-point":
+    case "select-access-point": {
+      const accessPoints = lookups.concentrators.filter((c) => c.isAccessPoint);
       return (
         <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
           <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
           <SelectContent>
-            {lookups.switches.filter((s) => s.isAccessPoint).map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+            {accessPoints.length === 0 ? (
+              <div className="text-xs text-muted-foreground px-2 py-1.5">
+                Nenhum concentrador marcado como ponto de acesso
+              </div>
+            ) : accessPoints.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       );
+    }
     case "select-traffic-source":
       return (
         <Select value={(value as string) || ""} onValueChange={onChange}>
