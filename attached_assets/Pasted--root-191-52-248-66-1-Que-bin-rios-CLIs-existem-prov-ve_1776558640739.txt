@@ -1,0 +1,181 @@
+[root@191-52-248-66 ~]# # 1. Que binários/CLIs existem (provável que tenha cliente do banco)
+ls -la /opt/monsta/bin/
+ls -la /opt/monstav4/ 2>/dev/null | head
+
+# 2. A porta 8086/8090 responde HTTP local? (formato dos dados)
+curl -s --max-time 5 http://127.0.0.1:8086/ -i 2>&1 | head -20
+echo "---"
+curl -s --max-time 5 http://127.0.0.1:8090/ -i 2>&1 | head -20
+echo "---"
+curl -s --max-time 5 http://127.0.0.1:4321/ -i 2>&1 | head -20
+
+# 3. Configs (sem senhas — tira se aparecer "password=")
+grep -vE "password|secret|key" /opt/monsta/etc/monstadb.ini 2>/dev/null
+echo "---"
+grep -vE "password|secret|key" /opt/monsta/etc/monkerneld.ini 2>/dev/null | head -40
+
+# 4. Estrutura do storage (entender formato)
+ls /var/monsta/data/ | head -20
+file /var/monsta/data/* 2>/dev/null | head -10
+
+# 5. Tem CLI client? (testa nomes comuns)
+for cmd in monstadb-cli monstacli monsta-cli monstadb monstactl; do
+  which $cmd 2>/dev/null && $cmd --help 2>&1 | head -10
+done
+
+# 6. Documentação local / man pages
+ls /opt/monsta/doc /opt/monsta/docs /opt/monsta/share/doc 2>/dev/null
+find /opt/monsta -maxdepth 3 -name "*.md" -o -name "README*" -o -name "*.txt" 2>/dev/null | head -20
+total 189176
+drwxr-xr-x. 2 monsta root     4096 abr  7 09:52 .
+drwxr-xr-x. 6 monsta root       52 nov 19  2024 ..
+-rw-rw-r--  1 root   root      172 abr  7 09:52 changelog.sh
+-rwxr-xr-x. 1 monsta root      193 jul 17  2019 execbin.sh
+-rwxr-xr-x  1 root   root 59621232 mar 18 07:57 monagent
+-rwxr-xr-x. 1 monsta root  5205224 jul 17  2019 monagentd
+-rwxr-xr-x. 1 monsta root 12777272 jul 17  2019 moncored
+-rwxr-xr-x. 1 monsta root   599544 jul 17  2019 monit
+-rwxr-xr-x  1 root   root 32211336 abr  7 09:52 monkerneld
+-rwxr-xr-x  1 root   root  7909752 fev  7  2025 monrouter
+-rwxr-xr-x. 1 monsta root 44567968 jul 17  2019 monstad
+-rwxr-xr-x. 1 monsta root  9725984 jul 17  2019 monstadb
+-rwxr-xr-x  1 root   root  6802720 mar 18 07:57 monstaupd
+-rwxr-xr-x. 1 monsta root   760768 jul 17  2019 nginx
+-rwxr-xr-x. 1 monsta root  6315504 jul 17  2019 portping
+-rwxr-xr-x  1 root   root      144 fev 28  2025 reset_admin.sh
+-rw-rw-r--  1 root   root       70 abr  7 09:52 rm_zlib.sh
+-rw-rw-r--  1 root   root      333 abr  7 09:52 update_ports.sh
+-rw-rw-r--  1 root   root      623 abr  7 09:52 update_scripts.sh
+-rwxr-xr-x. 1 monsta root  7168695 jul 17  2019 wmic
+total 0
+drwxr-xr-x  6 root root  52 jan 24  2025 .
+drwxr-xr-x. 4 root root  36 jan 24  2025 ..
+drwxr-xr-x  2 root root 159 jan 24  2025 bin
+drwxr-xr-x  3 root root 191 jan 24  2025 etc
+drwxr-xr-x  2 root root 135 jan 24  2025 lib
+drwxr-xr-x  7 root root 103 jan 24  2025 nginx
+HTTP/1.1 404 Not Found
+Content-Type: text/plain; charset=utf-8
+Date: Sun, 19 Apr 2026 00:30:17 GMT
+Content-Length: 19
+
+404 page not found
+---
+HTTP/1.1 404 Not Found
+Content-Type: text/plain; charset=utf-8
+Date: Sun, 19 Apr 2026 00:30:17 GMT
+Content-Length: 19
+
+404 page not found
+---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 15
+date: Sun, 19 Apr 2026 00:30:17 GMT
+
+{"status":"ok"}reporting-disabled = false
+[logging]
+level  = "info"
+file   = "/var/log/monsta/monstadb.log"         # stdout to log to standard out, or syslog facility
+[api]
+port     = 8086    # binding is disabled if the port isn't set
+read-timeout = "5s"
+[raft]
+port = 8090
+dir  = "/var/monsta/data/ts_raft"
+debug = false
+[storage]
+dir = "/var/monsta/data/ts"
+write-buffer-size = 10000
+default-engine = "leveldb"
+max-open-shards = 0
+point-batch-size = 100
+write-batch-size = 5000000
+retention-sweep-period = "10m"
+[storage.engines.leveldb]
+max-open-files = 1000
+lru-cache-size = "200m"
+[wal]
+dir   = "/var/monsta/data/ts_wal"
+flush-after = 1000 # the number of writes after which wal will be flushed, 0 for flushing on every write
+bookmark-after = 1000 # the number of writes after which a bookmark will be created
+index-after = 1000
+requests-per-logfile = 10000
+
+[input_plugins]
+  [input_plugins.udp]
+  enabled = true
+  port = 60514
+  database = "monsta"
+---
+data_directory = '/var/monsta/data'
+disable_events = true
+dump_lua_data = true
+dump_processor_data = true
+dump_schedule_data = false
+ui_logo_saved = true
+
+[auth]
+group_hierarchies = [
+    [
+    'Monitor',
+    'Device',
+],
+    [
+    'Device',
+    'DeviceGroup',
+],
+]
+path = '/var/monsta/data/auth.db'
+root_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE4NDQ2NzQ0MDczNzA5NTUxNjE1LCJpc19yb290Ijp0cnVlLCJ1c2VybmFtZSI6InJvb3QifQ.EwNtC8QTF9zbwoKsH__N-N_1S_uCGCNSKX-o4sTWkSQ'
+user_permissions_updated = true
+
+[backend]
+endpoint = '127.0.0.1:4321'
+
+[blobs]
+path = '/var/monsta/blobs'
+
+[database]
+backup_path = '/var/monsta/data/backup'
+main = 'monsta5.db'
+restore_path = '/var/monsta/data/_restore.db'
+
+[events]
+close_open_events = false
+
+[events_db]
+path = '/var/monsta/data'
+
+[icons]
+alerts.db
+alerts.db-shm
+alerts.db-wal
+auth.db
+backup
+backup.state.json
+events.db
+events.db-shm
+events.db-wal
+import
+lua_cache.bin
+monsta5.db
+monsta5.db.20250901220755
+monsta5.db-shm
+monsta5.db-shm.20250901220755
+monsta5.db-wal
+monsta5.db-wal.20250901220755
+monsta.db
+processor.bin
+processor.bin.bak
+/var/monsta/data/alerts.db:                     SQLite 3.x database, last written using SQLite version 3046000, writer version 2, read version 2, file counter 38278, database pages 38375, cookie 0x1, schema 4, UTF-8, version-valid-for 38278
+/var/monsta/data/alerts.db-shm:                 SQLite Write-Ahead Log shared memory, counter 35298, page size 4096, 956 frames, 38398 pages, frame checksum 0x12194a6, salt 0xe9b54eda77412efc, header checksum 0x426d1b0a, read-mark[1] 0x3bc, read-mark[2] 0x3ac
+/var/monsta/data/alerts.db-wal:                 SQLite Write-Ahead Log, version 3007000
+/var/monsta/data/auth.db:                       JSON text data
+/var/monsta/data/backup:                        directory
+/var/monsta/data/backup.state.json:             JSON text data
+/var/monsta/data/events.db:                     SQLite 3.x database, last written using SQLite version 3046000, writer version 2, read version 2, file counter 394440, database pages 485684, 1st free page 72331, free pages 2505, cookie 0x13, schema 4, UTF-8, version-valid-for 394440
+/var/monsta/data/events.db-shm:                 SQLite Write-Ahead Log shared memory, counter 115923, page size 4096, 769 frames, 485684 pages, frame checksum 0x3de2c2d, salt 0x3ad8f67fc866fa54, header checksum 0x7dda5c49, read-mark[1] 0x301
+/var/monsta/data/events.db-wal:                 SQLite Write-Ahead Log, version 3007000
+/var/monsta/data/import:                        directory
+[root@191-52-248-66 ~]# 
