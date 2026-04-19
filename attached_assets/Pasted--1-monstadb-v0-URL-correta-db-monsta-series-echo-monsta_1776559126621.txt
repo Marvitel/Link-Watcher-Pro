@@ -1,0 +1,170 @@
+# === 1. monstadb v0 — URL correta é /db/monsta/series ===
+echo "=== monstadb: listar séries (LIMIT 10) ==="
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=list+series" | head -c 2000; echo
+echo "=== monstadb: amostra de pontos (qualquer série) ==="
+curl -s --max-time 5 "http://127.0.0.1:8086/db/monsta/series?u=root&p=root&q=select+*+from+/.*/+limit+1" | head -c 2000; echo
+
+# === 2. Schema real do monsta5.db ===
+echo "=== Schema objects ==="; sqlite3 /var/monsta/data/monsta5.db ".schema objects"
+echo "=== Schema items ==="; sqlite3 /var/monsta/data/monsta5.db ".schema items"
+echo "=== Schema triggers ==="; sqlite3 /var/monsta/data/monsta5.db ".schema triggers"
+echo "=== Schema status_counts/status_types ==="; sqlite3 /var/monsta/data/monsta5.db ".schema status_counts"; sqlite3 /var/monsta/data/monsta5.db ".schema status_types"
+
+echo "=== Amostra: 2 objects (resumo: id, name, ip se houver) ==="
+sqlite3 -header /var/monsta/data/monsta5.db "PRAGMA table_info(objects);"
+sqlite3 -header /var/monsta/data/monsta5.db "SELECT * FROM objects LIMIT 1;"
+
+echo "=== Amostra: 2 items ==="
+sqlite3 -header /var/monsta/data/monsta5.db "SELECT * FROM items LIMIT 2;"
+
+echo "=== status_counts: o que tem? ==="
+sqlite3 -header /var/monsta/data/monsta5.db "SELECT * FROM status_counts LIMIT 5;"
+
+# === 3. Descobrir como achar um device por IP ===
+echo "=== Procurar IP em objects ==="
+sqlite3 /var/monsta/data/monsta5.db ".schema objects" | grep -iE "ip|host|address"
+
+# === 4. monkerneld — talvez tenha outro path-base. Vamos descobrir testando GETs comuns ===
+echo "=== monkerneld - probe de paths ==="
+for path in "/" "/health" "/status" "/v1" "/rpc" "/data" "/auth"; do
+  echo -n "$path: "
+  curl -s --max-time 3 -o /dev/null -w "HTTP %{http_code}\n" \
+    -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:4321$path"
+done
+# Listar strings do binário pra achar rotas registradas
+echo "=== Rotas hardcoded no binário monkerneld ==="
+strings /opt/monsta/bin/monkerneld 2>/dev/null | grep -E "^/(api|v1|rpc|monitor|device|alert|object|item|status)" | sort -u | head -40
+=== monstadb: listar séries (LIMIT 10) ===
+[{"name":"list_series_result","columns":["time","name"],"points":[[0,"device10"],[0,"device1000"],[0,"device1001"],[0,"device1002"],[0,"device1003"],[0,"device1004"],[0,"device1005"],[0,"device1006"],[0,"device1007"],[0,"device1008"],[0,"device1009"],[0,"device1010"],[0,"device1011"],[0,"device1012"],[0,"device1013"],[0,"device1014"],[0,"device1015"],[0,"device1016"],[0,"device1017"],[0,"device1018"],[0,"device1019"],[0,"device1020"],[0,"device1021"],[0,"device1022"],[0,"device1023"],[0,"device1024"],[0,"device1025"],[0,"device1026"],[0,"device1027"],[0,"device1028"],[0,"device1029"],[0,"device1030"],[0,"device1033"],[0,"device1034"],[0,"device1035"],[0,"device1036"],[0,"device1037"],[0,"device1038"],[0,"device1039"],[0,"device1040"],[0,"device1041"],[0,"device1042"],[0,"device1043"],[0,"device1044"],[0,"device1045"],[0,"device1046"],[0,"device1048"],[0,"device1049"],[0,"device1051"],[0,"device1052"],[0,"device1053"],[0,"device1054"],[0,"device1055"],[0,"device1056"],[0,"device1057"],[0,"device1059"],[0,"device1060"],[0,"device1062"],[0,"device1064"],[0,"device1065"],[0,"device1066"],[0,"device1067"],[0,"device1068"],[0,"device1069"],[0,"device1070"],[0,"device1071"],[0,"device1072"],[0,"device1073"],[0,"device1074"],[0,"device1075"],[0,"device1076"],[0,"device1077"],[0,"device1078"],[0,"device1079"],[0,"device1080"],[0,"device1081"],[0,"device1082"],[0,"device1083"],[0,"device1084"],[0,"device1085"],[0,"device1086"],[0,"device1087"],[0,"device1088"],[0,"device1089"],[0,"device1090"],[0,"device1091"],[0,"device1092"],[0,"device1093"],[0,"device1094"],[0,"device1095"],[0,"device1096"],[0,"device1097"],[0,"device1098"],[0,"device1099"],[0,"device110"],[0,"device1100"],[0,"device1101"],[0,"device1102"],[0,"device1103"],[0,"device1104"],[0,"device1105"],[0,"device1106"],[0,"device1108"],[0,"device1109"],[0,"device111"],[0,"device1110"],[0,"device1112"],[0,"device1114"],[0,"device1115"],[0,"device1116"],[0,"device1117"],[0,"device1118"],[0,"device1119"],[0,"device1120"],
+=== monstadb: amostra de pontos (qualquer série) ===
+
+=== Schema objects ===
+CREATE TABLE objects (
+        id integer not null primary key autoincrement,
+        kind text not null,
+        uuid text not null unique,
+        group_id integer,
+        data json not null,
+        foreign key (group_id) references groups(id)
+);
+CREATE INDEX object_group on objects(group_id);
+=== Schema items ===
+CREATE TABLE items (
+        id integer not null primary key autoincrement,
+        uuid text not null unique,
+        is_disabled boolean not null default false,
+        group_id integer,
+        discovery_rule_id integer,
+        identifier text,
+        name text,
+        origin_item_id integer,
+        master_item_id integer,
+        run_where text not null,
+        run_on_agent_id integer,
+        should_run_on_server boolean,
+        source_type text not null,
+        source_args json not null,
+        value_type text not null,
+        unit_id integer,
+        interval text not null,
+        transforms json not null,
+        discovered boolean,
+        last_discovered_at datetime,
+        discovery_data json,
+        data json,
+        created_at integer not null default 0,
+        updated_at integer not null default 0,
+        foreign key (group_id) references groups(id),
+        foreign key (discovery_rule_id) references item_discovery_rules(id),
+        foreign key (origin_item_id) references items(id),
+        foreign key (master_item_id) references items(id),
+        foreign key (run_on_agent_id) references agents(id),
+        foreign key (unit_id) references units(id)
+);
+CREATE UNIQUE INDEX item_identifier on items (group_id, identifier);
+CREATE INDEX item_group on items(group_id);
+CREATE INDEX item_discovery_rule on items(discovery_rule_id);
+CREATE INDEX item_origin_item on items(origin_item_id);
+CREATE INDEX item_master_item on items(master_item_id);
+CREATE INDEX item_run_on_agent on items(run_on_agent_id);
+=== Schema triggers ===
+CREATE TABLE triggers (
+        id integer not null primary key autoincrement,
+        uuid text not null unique,
+        is_disabled boolean not null default false,
+        parent_id integer,
+        group_id integer,
+        origin_trigger_id integer,
+        discovery_rule_id integer,
+        event_name text not null,
+        event_level_id integer not null,
+        expression text not null,
+        ok_expression text,
+        num_triggers_required integer not null default 1,
+        is_triggered boolean not null default false,
+        last_triggered_at datetime,
+        last_reset_at datetime,
+        discovered boolean,
+        last_discovered_at datetime,
+        discovery_data json,
+        data json,
+        foreign key (parent_id) references triggers(id),
+        foreign key (group_id) references groups(id),
+        foreign key (origin_trigger_id) references triggers(id),
+        foreign key (discovery_rule_id) references item_discovery_rules(id),
+        foreign key (event_level_id) references status_types(id)
+);
+CREATE INDEX trigger_parent on triggers(parent_id);
+CREATE INDEX trigger_group on triggers(group_id);
+CREATE INDEX trigger_origin_trigger on triggers(origin_trigger_id);
+CREATE INDEX trigger_discovery_rule on triggers(discovery_rule_id);
+CREATE INDEX trigger_event_level on triggers(event_level_id);
+=== Schema status_counts/status_types ===
+CREATE TABLE status_counts (
+        id integer not null primary key,
+        group_id integer not null,
+        status_type_id not null,
+        count integer not null,
+        foreign key (group_id) references groups(id),
+        foreign key (status_type_id) references status_types(id)
+);
+CREATE INDEX status_count_group on status_counts(group_id);
+CREATE INDEX status_count_status_type on status_counts(status_type_id);
+CREATE TABLE status_types (
+        id integer not null primary key,
+        name text not null unique,
+        priority integer not null,
+        is_problem boolean not null default true,
+        data json
+);
+=== Amostra: 2 objects (resumo: id, name, ip se houver) ===
+cid|name|type|notnull|dflt_value|pk
+0|id|INTEGER|1||1
+1|kind|TEXT|1||0
+2|uuid|TEXT|1||0
+3|group_id|INTEGER|0||0
+4|data|json|1||0
+id|kind|uuid|group_id|data
+1|AlertTemplate|00DefaultTemplate||{"name":"Padrão","body":"Monsta V5\n+++++++++\n\n{{#if alertadispositivo}}\n> Subject: {{estado}}: {{dispositivo.nome}}\nDispositivo: {{dispositivo.nome}}\nEstado: {{estado}}\nIP: {{dispositivo.endereco}}\nHorário: {{dataehora}}\n{{else}}\n> Subject: {{estado}}: {{dispositivo.nome}}: {{monitor.nome}}\n----------------------------\nDispositivo: {{dispositivo.nome}}\nIP: {{dispositivo.endereco}}\n----------------------------\n\nMonitor: {{nomecurto.monitor}} ({{nome.monitor}})\n{{#if nome.instância}}\n{{nome.metrica}} ({{nome.metrica}}): {{valor}}\n{{else}}\n{{nome.metrica}}: {{valor}}\n{{/if}}\nEstado: {{estado}}\nValor: {{valor}}\nHorário: {{dataehora}}\n{{/if}}"}
+=== Amostra: 2 items ===
+id|uuid|is_disabled|group_id|discovery_rule_id|identifier|name|origin_item_id|master_item_id|run_where|run_on_agent_id|should_run_on_server|source_type|source_args|value_type|unit_id|interval|transforms|discovered|last_discovered_at|discovery_data|data|created_at|updated_at
+2284|44150ca2-1369-4203-ab84-9b4caa08faca|0|11856||kYAKVA7s|Unidades|||None||0|Lua|{"globals":{"params":{"OID":"1.3.6.1.4.1.12394.1.1.1.13.0"}},"script_from_config":"lua.script.10358"}|Float|10400|300s|[]||||{"order":0,"max_check_attempts":3,"short_name":"","unit":"@object:10400","disable_triggers":false,"sources":[{"context":{"OID":{"String":"1.3.6.1.4.1.12394.1.1.1.13.0"}},"script":{"Reference":{"Script":10358}}},{"context":{"OID":{"String":"1.3.6.1.4.1.12394.1.1.6.10.0"}},"script":{"Reference":{"Script":10358}}}],"icon":"@blob:4bedfc41aebb6e29cee28cdd7bd71b735731db5c","identifier":"kYAKVA7s","color":"#1c30e6","context":{},"fill_color":"#1c30e6","critical_trigger":{"Percent":[95,"LowerIsBetter"]},"warning_trigger":{"Percent":[85,"LowerIsBetter"]}}|1737722651|1737722651
+2285|974da496-6d23-4099-b4f8-6c66befb9f21|0|11858||zyWFmQR_|Frequencia|||None||0|Lua|{"globals":{"params":{"OID":"1.3.6.1.4.1.12394.1.1.6.12.9.0"}},"script_from_config":"lua.script.10358"}|Float|10398|300s|[]||||{"order":0,"fill_color":"#08c708","unit":"@object:10398","context":{},"color":"#08c708","sources":[{"context":{"OID":{"String":"1.3.6.1.4.1.12394.1.1.6.12.9.0"}},"script":{"Reference":{"Script":10358}}}],"warning_trigger":"None","disable_triggers":true,"critical_trigger":"None","max_check_attempts":3,"short_name":"","icon":"@blob:76b7e08af5ecee31048f1dadd12c50f490a85331","identifier":"zyWFmQR_"}|1737722648|1737722648
+=== status_counts: o que tem? ===
+id|group_id|status_type_id|count
+1|15|3|-33
+2|11122|3|-33
+3|11|3|0
+4|5|3|-4
+5|1602|3|0
+=== Procurar IP em objects ===
+=== monkerneld - probe de paths ===
+/: HTTP 200
+/health: HTTP 404
+/status: HTTP 404
+/v1: HTTP 404
+/rpc: HTTP 404
+/data: HTTP 404
+/auth: HTTP 404
+=== Rotas hardcoded no binário monkerneld ===
+[root@191-52-248-66 ~]# 
