@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Play, CheckCircle2, XCircle, Plus, Trash2, KeyRound, AlertTriangle, RefreshCw } from "lucide-react";
+import { Bot, Play, CheckCircle2, XCircle, Plus, Trash2, KeyRound, AlertTriangle, RefreshCw, Server, Search } from "lucide-react";
 
 interface AiAnalystSettings {
   id: number;
@@ -388,6 +388,9 @@ export function AiAnalystTab() {
           </TabsTrigger>
           <TabsTrigger value="config" data-testid="tab-ai-config">
             Configurações
+          </TabsTrigger>
+          <TabsTrigger value="monsta" data-testid="tab-ai-monsta">
+            Monsta
           </TabsTrigger>
         </TabsList>
 
@@ -816,7 +819,269 @@ export function AiAnalystTab() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ============ MONSTA (teste de integração) ============ */}
+        <TabsContent value="monsta" className="space-y-4">
+          <MonstaTestPanel />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// =====================================================================
+// Painel de teste da integração Monsta (consulta status/eventos/busca)
+// =====================================================================
+
+function MonstaTestPanel() {
+  const { toast } = useToast();
+  const [ip, setIp] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [hours, setHours] = useState(24);
+  const [statusResult, setStatusResult] = useState<any>(null);
+  const [eventsResult, setEventsResult] = useState<any>(null);
+  const [searchResult, setSearchResult] = useState<any>(null);
+
+  const ping = useMutation({
+    mutationFn: () => fetch("/api/admin/monsta/ping", { credentials: "include" }).then((r) => r.json()),
+    onSuccess: (data) => {
+      if (data?.ok) {
+        toast({ title: "Monsta online", description: `${data.deviceCount ?? 0} devices cadastrados` });
+      } else {
+        toast({ title: "Monsta offline", description: data?.error || "Sem resposta", variant: "destructive" });
+      }
+    },
+    onError: (e: any) => toast({ title: "Erro", description: String(e?.message || e), variant: "destructive" }),
+  });
+
+  const queryStatus = useMutation({
+    mutationFn: async () => {
+      if (!ip.trim()) throw new Error("Informe o IP");
+      const r = await fetch(`/api/admin/monsta/device-status?ip=${encodeURIComponent(ip.trim())}`, { credentials: "include" });
+      if (!r.ok) throw new Error((await r.json())?.error || "erro");
+      return r.json();
+    },
+    onSuccess: (data) => setStatusResult(data),
+    onError: (e: any) => {
+      setStatusResult(null);
+      toast({ title: "Erro", description: String(e?.message || e), variant: "destructive" });
+    },
+  });
+
+  const queryEvents = useMutation({
+    mutationFn: async () => {
+      if (!ip.trim()) throw new Error("Informe o IP");
+      const r = await fetch(`/api/admin/monsta/events?ip=${encodeURIComponent(ip.trim())}&hours=${hours}`, { credentials: "include" });
+      if (!r.ok) throw new Error((await r.json())?.error || "erro");
+      return r.json();
+    },
+    onSuccess: (data) => setEventsResult(data),
+    onError: (e: any) => {
+      setEventsResult(null);
+      toast({ title: "Erro", description: String(e?.message || e), variant: "destructive" });
+    },
+  });
+
+  const querySearch = useMutation({
+    mutationFn: async () => {
+      if (!searchQ.trim()) throw new Error("Informe um padrão de busca");
+      const r = await fetch(`/api/admin/monsta/search?q=${encodeURIComponent(searchQ.trim())}&limit=20`, { credentials: "include" });
+      if (!r.ok) throw new Error((await r.json())?.error || "erro");
+      return r.json();
+    },
+    onSuccess: (data) => setSearchResult(data),
+    onError: (e: any) => {
+      setSearchResult(null);
+      toast({ title: "Erro", description: String(e?.message || e), variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Server className="h-4 w-4" />
+            Teste de conexão Monsta
+          </CardTitle>
+          <CardDescription>
+            Valida o acesso SSH ao servidor Monsta (191.52.248.66) e exercita as 3 ferramentas que o Analista IA usa para enriquecer triagem.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={() => ping.mutate()}
+            disabled={ping.isPending}
+            variant="outline"
+            data-testid="button-monsta-ping"
+          >
+            {ping.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Server className="h-4 w-4 mr-2" />}
+            Testar conexão (ping)
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Consulta por IP</CardTitle>
+          <CardDescription>
+            Status atual do device, dados SNMP cadastrados e contagem de eventos abertos. Esta é a fonte mais fiel para validar IP de monitoramento.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="monsta-ip">IP do device</Label>
+              <Input
+                id="monsta-ip"
+                placeholder="ex: 191.52.249.162"
+                value={ip}
+                onChange={(e) => setIp(e.target.value)}
+                data-testid="input-monsta-ip"
+              />
+            </div>
+            <div className="w-28">
+              <Label htmlFor="monsta-hours">Janela (h)</Label>
+              <Input
+                id="monsta-hours"
+                type="number"
+                min={1}
+                max={168}
+                value={hours}
+                onChange={(e) => setHours(Math.max(1, Math.min(168, Number(e.target.value) || 24)))}
+                data-testid="input-monsta-hours"
+              />
+            </div>
+            <Button
+              onClick={() => queryStatus.mutate()}
+              disabled={queryStatus.isPending || !ip.trim()}
+              data-testid="button-monsta-status"
+            >
+              {queryStatus.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Status
+            </Button>
+            <Button
+              onClick={() => queryEvents.mutate()}
+              disabled={queryEvents.isPending || !ip.trim()}
+              variant="outline"
+              data-testid="button-monsta-events"
+            >
+              {queryEvents.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Eventos
+            </Button>
+          </div>
+
+          {statusResult && (
+            <div className="rounded border p-3 bg-muted/30" data-testid="result-monsta-status">
+              <p className="text-xs text-muted-foreground mb-2">Resultado — status</p>
+              {statusResult.found === false ? (
+                <p className="text-sm">{statusResult.message}</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Nome:</span> <span className="font-medium">{statusResult.device?.name}</span></div>
+                  <div><span className="text-muted-foreground">Status:</span> <Badge variant={statusResult.device?.status === "DeviceUp" ? "default" : "destructive"}>{statusResult.device?.status}</Badge></div>
+                  <div><span className="text-muted-foreground">IP:</span> <span className="font-mono">{statusResult.device?.ip}</span></div>
+                  <div><span className="text-muted-foreground">SNMP community:</span> <span className="font-mono">{statusResult.device?.snmpCommunity ?? "—"}</span></div>
+                  <div><span className="text-muted-foreground">SNMP v:</span> {statusResult.device?.snmpVersion ?? "—"}</div>
+                  <div><span className="text-muted-foreground">SNMP porta:</span> {statusResult.device?.snmpPort ?? "—"}</div>
+                  <div><span className="text-muted-foreground">Eventos abertos:</span> {statusResult.openEventsCount}</div>
+                  <div><span className="text-muted-foreground">Última mudança:</span> <span className="font-mono text-xs">{statusResult.device?.lastStatusChangeAt ?? "—"}</span></div>
+                  <div><span className="text-muted-foreground">Inativo:</span> {statusResult.device?.isInactive ? "sim" : "não"}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {eventsResult && (
+            <div className="rounded border p-3 bg-muted/30" data-testid="result-monsta-events">
+              <p className="text-xs text-muted-foreground mb-2">Resultado — eventos ({hours}h)</p>
+              {eventsResult.found === false ? (
+                <p className="text-sm">{eventsResult.message}</p>
+              ) : eventsResult.events?.length === 0 ? (
+                <p className="text-sm">Nenhum evento na janela.</p>
+              ) : (
+                <div className="text-xs font-mono max-h-64 overflow-auto">
+                  {eventsResult.events.map((ev: any, i: number) => (
+                    <div key={i} className="border-b py-1">
+                      <span className="text-muted-foreground">{ev.createdAt}</span> · {ev.severity} · {ev.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Buscar device por nome ou IP parcial</CardTitle>
+          <CardDescription>
+            Útil quando o IP no Link Monitor não é o de monitoramento real. Tente número de contrato, fragmento de nome ou octetos do IP — nomes divergem entre Voalle/Monsta/Zabbix.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[240px]">
+              <Label htmlFor="monsta-search">Padrão (LIKE %padrão%)</Label>
+              <Input
+                id="monsta-search"
+                placeholder="ex: 2111, Alpha-Matriz, 249.162"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                data-testid="input-monsta-search"
+              />
+            </div>
+            <Button
+              onClick={() => querySearch.mutate()}
+              disabled={querySearch.isPending || !searchQ.trim()}
+              data-testid="button-monsta-search"
+            >
+              {querySearch.isPending ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+              Buscar
+            </Button>
+          </div>
+
+          {searchResult?.items && (
+            <div className="rounded border" data-testid="result-monsta-search">
+              {searchResult.items.length === 0 ? (
+                <p className="text-sm p-3">Nenhum device encontrado.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">ID</TableHead>
+                      <TableHead>Nome</TableHead>
+                      <TableHead className="w-36">IP</TableHead>
+                      <TableHead className="w-28">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {searchResult.items.map((d: any) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-mono text-xs">{d.id}</TableCell>
+                        <TableCell>
+                          <button
+                            className="text-left hover:underline"
+                            onClick={() => d.ip && setIp(d.ip)}
+                            data-testid={`button-pick-ip-${d.id}`}
+                          >
+                            {d.name}
+                          </button>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{d.ip ?? "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={d.status === "DeviceUp" ? "default" : "destructive"}>{d.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
