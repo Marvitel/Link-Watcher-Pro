@@ -1235,16 +1235,355 @@ function MonstaTestPanel() {
 // Card de uma proposta individual (com edição inline antes de aprovar)
 // =====================================================================
 
-const ALLOWED_EDIT_FIELDS = [
-  "snmpInterfaceAlias", "snmpInterfaceIndex", "snmpInterfaceName", "snmpInterfaceDescr",
-  "snmpRouterIp", "monitoredIp", "concentratorId", "snmpProfileId", "pppoeUser",
-  "vlan", "vlanInterface", "trafficSourceType", "accessPointId",
-  "accessPointInterfaceIndex", "accessPointInterfaceName", "equipmentVendorId",
-  "equipmentModel", "equipmentSerialNumber", "oltId", "slotOlt", "portOlt",
-  "onuSearchString", "onuId", "switchId", "switchPort", "cpeVendor", "ozmapTag",
-  "invertBandwidth", "isL2Link", "icmpBlocked", "linkType", "authType",
-  "defaultCpe", // virtual: cria/atualiza CPE padrão {ip, vendor?, mac?}
-].sort();
+type FieldKind =
+  | "text"
+  | "number"
+  | "boolean"
+  | "select-concentrator"
+  | "select-olt"
+  | "select-snmp-profile"
+  | "select-equipment-vendor"
+  | "select-switch"
+  | "select-access-point"
+  | "select-traffic-source"
+  | "select-link-type"
+  | "select-auth-type"
+  | "object-default-cpe"
+  | "object-olt-snmp-enable";
+
+interface FieldMeta {
+  kind: FieldKind;
+  label?: string;
+}
+
+const FIELD_META: Record<string, FieldMeta> = {
+  snmpInterfaceAlias: { kind: "text", label: "SNMP Interface Alias" },
+  snmpInterfaceIndex: { kind: "number", label: "SNMP Interface Index" },
+  snmpInterfaceName: { kind: "text", label: "SNMP Interface Name" },
+  snmpInterfaceDescr: { kind: "text", label: "SNMP Interface Descr" },
+  snmpRouterIp: { kind: "text", label: "IP do Roteador SNMP" },
+  monitoredIp: { kind: "text", label: "IP de Monitoramento" },
+  concentratorId: { kind: "select-concentrator", label: "Concentrador" },
+  snmpProfileId: { kind: "select-snmp-profile", label: "Perfil SNMP" },
+  pppoeUser: { kind: "text", label: "Usuário PPPoE" },
+  vlan: { kind: "number", label: "VLAN" },
+  vlanInterface: { kind: "text", label: "Interface VLAN" },
+  trafficSourceType: { kind: "select-traffic-source", label: "Tipo de Coleta" },
+  accessPointId: { kind: "select-access-point", label: "Ponto de Acesso" },
+  accessPointInterfaceIndex: { kind: "number", label: "AP Interface Index" },
+  accessPointInterfaceName: { kind: "text", label: "AP Interface Name" },
+  equipmentVendorId: { kind: "select-equipment-vendor", label: "Fabricante do CPE" },
+  equipmentModel: { kind: "text", label: "Modelo do CPE" },
+  equipmentSerialNumber: { kind: "text", label: "Serial do CPE" },
+  oltId: { kind: "select-olt", label: "OLT" },
+  slotOlt: { kind: "number", label: "Slot da OLT" },
+  portOlt: { kind: "number", label: "Porta da OLT" },
+  onuSearchString: { kind: "text", label: "String de busca da ONU" },
+  onuId: { kind: "text", label: "ID da ONU" },
+  switchId: { kind: "select-switch", label: "Switch" },
+  switchPort: { kind: "number", label: "Porta do Switch" },
+  cpeVendor: { kind: "text", label: "Vendor (livre)" },
+  ozmapTag: { kind: "text", label: "OZmap Tag" },
+  invertBandwidth: { kind: "boolean", label: "Inverter Banda" },
+  isL2Link: { kind: "boolean", label: "Link L2" },
+  icmpBlocked: { kind: "boolean", label: "ICMP Bloqueado" },
+  linkType: { kind: "select-link-type", label: "Tipo de Link" },
+  authType: { kind: "select-auth-type", label: "Tipo de Autenticação" },
+  defaultCpe: { kind: "object-default-cpe", label: "CPE Padrão" },
+  oltSnmpEnable: { kind: "object-olt-snmp-enable", label: "Habilitar SNMP All (Datacom)" },
+};
+
+const ALLOWED_EDIT_FIELDS = Object.keys(FIELD_META).sort();
+
+function defaultValueForField(kind: FieldKind): unknown {
+  switch (kind) {
+    case "boolean": return false;
+    case "object-default-cpe": return { ip: "" };
+    case "object-olt-snmp-enable": return { enable: true };
+    default: return "";
+  }
+}
+
+function isEmptyValue(kind: FieldKind, v: unknown): boolean {
+  if (v === undefined || v === null || v === "") return true;
+  if (kind === "object-default-cpe") {
+    const o = v as any;
+    return !o || !o.ip || String(o.ip).trim() === "";
+  }
+  if (kind === "object-olt-snmp-enable") {
+    return !v || (v as any).enable !== true;
+  }
+  return false;
+}
+
+interface Lookups {
+  concentrators: Array<{ id: number; name: string }>;
+  olts: Array<{ id: number; name: string; vendor?: string }>;
+  snmpProfiles: Array<{ id: number; name: string }>;
+  equipmentVendors: Array<{ id: number; name: string; slug?: string }>;
+  switches: Array<{ id: number; name: string; isAccessPoint?: boolean }>;
+}
+
+function lookupName<T extends { id: number; name: string }>(arr: T[], id: unknown): string | null {
+  if (id == null || id === "") return null;
+  const n = Number(id);
+  const found = arr.find((x) => x.id === n);
+  return found?.name || null;
+}
+
+function FieldDisplay({ fieldKey, meta, value, lookups }: {
+  fieldKey: string; meta: FieldMeta; value: unknown; lookups: Lookups;
+}) {
+  if (value == null || value === "") {
+    return <span className="text-xs text-muted-foreground italic">(vazio)</span>;
+  }
+  switch (meta.kind) {
+    case "boolean":
+      return <Badge variant={value ? "default" : "outline"}>{value ? "Sim" : "Não"}</Badge>;
+    case "select-concentrator": {
+      const name = lookupName(lookups.concentrators, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "select-olt": {
+      const name = lookupName(lookups.olts, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "select-snmp-profile": {
+      const name = lookupName(lookups.snmpProfiles, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "select-equipment-vendor": {
+      const name = lookupName(lookups.equipmentVendors, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "select-switch":
+    case "select-access-point": {
+      const name = lookupName(lookups.switches, value);
+      return <span className="text-xs">{name || `#${value}`}</span>;
+    }
+    case "object-default-cpe": {
+      const o = value as any;
+      return (
+        <span className="text-xs font-mono">
+          ip={o?.ip || "?"}{o?.vendor ? `, vendor=${o.vendor}` : ""}{o?.mac ? `, mac=${o.mac}` : ""}
+          {o?.replaceExisting ? ", substituir" : ""}
+        </span>
+      );
+    }
+    case "object-olt-snmp-enable": {
+      const o = value as any;
+      return <Badge variant="default">snmp all{o?.chassis ? ` (chassis ${o.chassis})` : ""}</Badge>;
+    }
+    default:
+      return <span className="text-xs font-mono">{String(value)}</span>;
+  }
+}
+
+function FieldEditor({ fieldKey, meta, value, onChange, lookups, proposalId }: {
+  fieldKey: string; meta: FieldMeta; value: unknown;
+  onChange: (v: unknown) => void; lookups: Lookups; proposalId: number;
+}) {
+  const tid = `input-edit-${proposalId}-${fieldKey}`;
+
+  switch (meta.kind) {
+    case "boolean":
+      return (
+        <div className="flex items-center gap-2 h-8">
+          <Switch
+            checked={value === true}
+            onCheckedChange={(c) => onChange(c)}
+            data-testid={tid}
+          />
+          <span className="text-xs text-muted-foreground">{value === true ? "Sim" : "Não"}</span>
+        </div>
+      );
+    case "number":
+      return (
+        <Input
+          type="number"
+          className="h-8 text-xs"
+          value={value == null || value === "" ? "" : String(value)}
+          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+          data-testid={tid}
+        />
+      );
+    case "select-concentrator":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.concentrators.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-olt":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.olts.map((o) => (
+              <SelectItem key={o.id} value={String(o.id)}>{o.name}{o.vendor ? ` (${o.vendor})` : ""}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-snmp-profile":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.snmpProfiles.map((p) => (
+              <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-equipment-vendor":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.equipmentVendors.map((v) => (
+              <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-switch":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.switches.filter((s) => !s.isAccessPoint).map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-access-point":
+      return (
+        <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            {lookups.switches.filter((s) => s.isAccessPoint).map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    case "select-traffic-source":
+      return (
+        <Select value={(value as string) || ""} onValueChange={onChange}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manual">Manual (IP)</SelectItem>
+            <SelectItem value="concentrator">Concentrador</SelectItem>
+            <SelectItem value="accessPoint">Ponto de Acesso</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    case "select-link-type":
+      return (
+        <Select value={(value as string) || ""} onValueChange={onChange}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="gpon">GPON</SelectItem>
+            <SelectItem value="ptp">PTP</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    case "select-auth-type":
+      return (
+        <Select value={(value as string) || ""} onValueChange={onChange}>
+          <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pppoe">PPPoE</SelectItem>
+            <SelectItem value="corporate">Corporate (IP fixo)</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    case "object-default-cpe": {
+      const o = (value as any) || {};
+      const update = (patch: any) => onChange({ ...o, ...patch });
+      return (
+        <div className="space-y-1.5 border rounded-md p-2 bg-muted/30">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">IP de monitoramento *</Label>
+              <Input className="h-7 text-xs" value={o.ip || ""}
+                onChange={(e) => update({ ip: e.target.value })}
+                placeholder="192.168.1.1"
+                data-testid={`${tid}-ip`} />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Fabricante (slug)</Label>
+              <Select value={o.vendor || ""} onValueChange={(v) => update({ vendor: v || undefined })}>
+                <SelectTrigger className="h-7 text-xs" data-testid={`${tid}-vendor`}>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {lookups.equipmentVendors.map((v) => (
+                    <SelectItem key={v.id} value={v.slug || v.name.toLowerCase()}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">MAC (opcional)</Label>
+            <Input className="h-7 text-xs font-mono" value={o.mac || ""}
+              onChange={(e) => update({ mac: e.target.value })}
+              placeholder="AA:BB:CC:11:22:33"
+              data-testid={`${tid}-mac`} />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Switch checked={o.replaceExisting === true}
+              onCheckedChange={(c) => update({ replaceExisting: c })}
+              data-testid={`${tid}-replace`} />
+            <span className="text-[11px] text-muted-foreground">Substituir CPE existente (se houver)</span>
+          </div>
+        </div>
+      );
+    }
+    case "object-olt-snmp-enable": {
+      const o = (value as any) || { enable: false };
+      return (
+        <div className="space-y-1.5 border rounded-md p-2 bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Switch checked={o.enable === true}
+              onCheckedChange={(c) => onChange({ ...o, enable: c })}
+              data-testid={`${tid}-enable`} />
+            <span className="text-[11px]">Executar <code>snmp all</code> na ONU (Datacom DmOS)</span>
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Chassis (default 1)</Label>
+            <Input type="number" className="h-7 text-xs w-24"
+              value={o.chassis ?? ""}
+              placeholder="1"
+              onChange={(e) => onChange({ ...o, chassis: e.target.value === "" ? undefined : Number(e.target.value) })}
+              data-testid={`${tid}-chassis`} />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Slot, porta e ID da ONU são lidos automaticamente do cadastro do link.
+          </p>
+        </div>
+      );
+    }
+    default:
+      return (
+        <Input
+          className="h-8 text-xs"
+          value={value == null ? "" : String(value)}
+          onChange={(e) => onChange(e.target.value)}
+          data-testid={tid}
+        />
+      );
+  }
+}
 
 function ProposalCard({
   proposal,
@@ -1262,16 +1601,31 @@ function ProposalCard({
   const proposed = (proposal.proposedFields || {}) as Record<string, unknown>;
   const proposedKeys = Object.keys(proposed);
 
-  // edits começa com os valores propostos (string) — assim "Aprovar" pós-edição manda tudo
-  const [edits, setEdits] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const [k, v] of Object.entries(proposed)) init[k] = String(v ?? "");
-    return init;
-  });
+  // edits guarda valores tipados (boolean, number, string, object) na forma final
+  const [edits, setEdits] = useState<Record<string, unknown>>(() => ({ ...proposed }));
   const [extraKeys, setExtraKeys] = useState<string[]>([]);
   const [newFieldKey, setNewFieldKey] = useState<string>("");
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
+
+  // Lookups para selects
+  const { data: concentrators = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/concentrators"],
+  });
+  const { data: olts = [] } = useQuery<Array<{ id: number; name: string; vendor?: string }>>({
+    queryKey: ["/api/olts"],
+  });
+  const { data: snmpProfiles = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/snmp-profiles"],
+  });
+  const { data: equipmentVendors = [] } = useQuery<Array<{ id: number; name: string; slug?: string }>>({
+    queryKey: ["/api/equipment-vendors"],
+  });
+  const { data: switches = [] } = useQuery<Array<{ id: number; name: string; isAccessPoint?: boolean }>>({
+    queryKey: ["/api/switches"],
+  });
+
+  const lookups = { concentrators, olts, snmpProfiles, equipmentVendors, switches };
 
   const cls = classificationLabel[proposal.classification] || classificationLabel.inconclusive;
   const allKeys = [...proposedKeys, ...extraKeys];
@@ -1279,8 +1633,9 @@ function ProposalCard({
 
   const addField = () => {
     if (!newFieldKey || allKeys.includes(newFieldKey)) return;
+    const meta = FIELD_META[newFieldKey];
     setExtraKeys((prev) => [...prev, newFieldKey]);
-    setEdits((prev) => ({ ...prev, [newFieldKey]: "" }));
+    setEdits((prev) => ({ ...prev, [newFieldKey]: defaultValueForField(meta?.kind || "text") }));
     setNewFieldKey("");
   };
 
@@ -1292,25 +1647,17 @@ function ProposalCard({
     });
   };
 
-  const coerce = (v: string): unknown => {
-    if (v === "true") return true;
-    if (v === "false") return false;
-    if (v !== "" && !isNaN(Number(v))) return Number(v);
-    return v;
-  };
-
   const handleApprove = () => {
-    // Sem edição ativa e nenhum campo extra: aprovar como está (mantém comportamento original)
     if (!editing && extraKeys.length === 0) {
       onApprove(undefined, note || undefined);
       return;
     }
-    // Construir overrides: todos os campos com valor não-vazio
     const overrides: Record<string, unknown> = {};
     for (const k of allKeys) {
-      const v = edits[k] ?? "";
-      if (v === "") continue; // pular campos em branco
-      overrides[k] = coerce(v);
+      const meta = FIELD_META[k];
+      const v = edits[k];
+      if (isEmptyValue(meta?.kind || "text", v)) continue;
+      overrides[k] = v;
     }
     onApprove(Object.keys(overrides).length > 0 ? overrides : undefined, note || undefined);
   };
@@ -1345,36 +1692,46 @@ function ProposalCard({
         </div>
 
         {allKeys.length > 0 && (
-          <div className="space-y-1 text-sm">
+          <div className="space-y-2 text-sm">
             {allKeys.map((k) => {
               const isExtra = extraKeys.includes(k);
+              const meta = FIELD_META[k] || { kind: "text" as FieldKind };
+              const isEditableNow = editing || isExtra;
               return (
-                <div key={k} className="flex items-center gap-2">
-                  <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{k}</code>
-                  <span className="text-muted-foreground">→</span>
-                  {editing || isExtra ? (
-                    <>
-                      <Input
-                        className="h-7 text-xs flex-1"
-                        value={edits[k] ?? ""}
-                        placeholder={isExtra ? "(vazio = não altera)" : ""}
-                        onChange={(e) => setEdits((prev) => ({ ...prev, [k]: e.target.value }))}
-                        data-testid={`input-edit-${proposal.id}-${k}`}
+                <div key={k} className="flex items-start gap-2">
+                  <div className="min-w-[140px] pt-1">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{meta.label || k}</code>
+                  </div>
+                  <span className="text-muted-foreground pt-1">→</span>
+                  <div className="flex-1">
+                    {isEditableNow ? (
+                      <FieldEditor
+                        fieldKey={k}
+                        meta={meta}
+                        value={edits[k]}
+                        onChange={(v) => setEdits((prev) => ({ ...prev, [k]: v }))}
+                        lookups={lookups}
+                        proposalId={proposal.id}
                       />
-                      {isExtra && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2"
-                          onClick={() => removeExtraField(k)}
-                          data-testid={`button-remove-field-${proposal.id}-${k}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <span className="font-mono text-xs">{JSON.stringify(proposed[k])}</span>
+                    ) : (
+                      <FieldDisplay
+                        fieldKey={k}
+                        meta={meta}
+                        value={proposed[k]}
+                        lookups={lookups}
+                      />
+                    )}
+                  </div>
+                  {isExtra && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => removeExtraField(k)}
+                      data-testid={`button-remove-field-${proposal.id}-${k}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   )}
                 </div>
               );
@@ -1383,18 +1740,23 @@ function ProposalCard({
         )}
 
         {editing && availableToAdd.length > 0 && (
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-3">
             <Select value={newFieldKey} onValueChange={setNewFieldKey}>
-              <SelectTrigger className="h-7 text-xs flex-1" data-testid={`select-add-field-${proposal.id}`}>
+              <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-field-${proposal.id}`}>
                 <SelectValue placeholder="Adicionar campo…" />
               </SelectTrigger>
               <SelectContent>
-                {availableToAdd.map((k) => (
-                  <SelectItem key={k} value={k} className="text-xs font-mono">{k}</SelectItem>
-                ))}
+                {availableToAdd.map((k) => {
+                  const meta = FIELD_META[k];
+                  return (
+                    <SelectItem key={k} value={k} className="text-xs">
+                      {meta?.label || k} <span className="text-muted-foreground font-mono">({k})</span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-            <Button size="sm" variant="outline" className="h-7" onClick={addField} disabled={!newFieldKey} data-testid={`button-add-field-${proposal.id}`}>
+            <Button size="sm" variant="outline" className="h-8" onClick={addField} disabled={!newFieldKey} data-testid={`button-add-field-${proposal.id}`}>
               <Plus className="w-3 h-3 mr-1" /> Adicionar
             </Button>
           </div>
