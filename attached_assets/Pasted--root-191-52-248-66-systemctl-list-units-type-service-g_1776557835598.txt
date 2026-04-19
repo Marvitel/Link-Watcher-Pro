@@ -1,0 +1,69 @@
+[root@191-52-248-66 ~]# systemctl list-units --type=service | grep -iE "monsta|monita|zabbix|libre|observium"
+ls /etc/systemd/system/ | grep -i mons
+ps aux | grep -iE "monsta|node|python|java" | grep -v grep | head -10
+  monsta-com.monagent.service              loaded active running Monsta System Agent
+  monsta-com.monkernel.service             loaded active running Monsta System Kernel
+  monsta-com.monrouter.service             loaded active running Monsta System Agent
+  monsta-com.monstadb.service              loaded active running MonstaDB
+  monsta-com.monstaupd.service             loaded active running Monsta Autoupdate Agent
+monsta-com.monagent.service
+monsta-com.monkernel.service
+monsta-com.monrouter.service
+monsta-com.monstadb.service
+monsta-com.monstaupd.service
+root         573  0.0  0.0      0     0 ?        I<   mar02   0:00 [kworker/R-xfs-inodegc/dm-0]
+root         742  0.0  0.0      0     0 ?        I<   mar02   0:00 [kworker/R-xfs-inodegc/sda2]
+root         765  0.0  0.0      0     0 ?        I<   mar02   0:00 [kworker/R-xfs-inodegc/dm-2]
+root         826  0.0  0.1 136684 36108 ?        Ssl  mar02   0:01 /usr/bin/python3 -sP /usr/sbin/firewalld --nofork --nopid
+root     2490630  0.0  0.0   7048  3352 ?        Ss   abr07   0:00 /bin/bash -c /opt/monsta/bin/monagent -c /opt/monsta/etc/monkerneld.ini server >> /var/log/monsta/monagent.log
+root     2490631  0.0  0.0   7048  3532 ?        Ss   abr07   0:00 /bin/bash -c /opt/monsta/bin/monkerneld -c /opt/monsta/etc/monkerneld.ini server >> /var/log/monsta/monkerneld.log
+root     2490632  111  7.8 10313304 2577044 ?    Sl   abr07 18386:01 /opt/monsta/bin/monagent -c /opt/monsta/etc/monkerneld.ini server
+root     2490642 21.1  0.4 5469120 145908 ?      Sl   abr07 3501:32 /opt/monsta/bin/monkerneld -c /opt/monsta/etc/monkerneld.ini server
+root     2490683  7.1  3.2 4660020 1071120 ?     Ssl  abr07 1187:26 /opt/monsta/bin/monstadb -config=/opt/monsta/etc/monstadb.ini
+root     2490727  0.0  0.0   7048  3352 ?        Ss   abr07   0:00 /bin/bash -c /opt/monsta/bin/monrouter -c /opt/monsta/etc/monkerneld.ini server >> /var/log/monsta/monrouter.log
+[root@191-52-248-66 ~]# ss -tlnp | head -20
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                   
+LISTEN 0      4096       127.0.0.1:199        0.0.0.0:*    users:(("snmpd",pid=1219,fd=8))          
+LISTEN 0      128          0.0.0.0:2266       0.0.0.0:*    users:(("sshd",pid=1097,fd=3))           
+LISTEN 0      1024       127.0.0.1:4321       0.0.0.0:*    users:(("monagent",pid=2490632,fd=33))   
+LISTEN 0      4096         0.0.0.0:5355       0.0.0.0:*    users:(("systemd-resolve",pid=792,fd=11))
+LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=792,fd=20))
+LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=792,fd=18))
+LISTEN 0      128             [::]:2266          [::]:*    users:(("sshd",pid=1097,fd=4))           
+LISTEN 0      4096               *:80               *:*    users:(("monrouter",pid=2490729,fd=12))  
+LISTEN 0      4096               *:443              *:*    users:(("monrouter",pid=2490729,fd=10))  
+LISTEN 0      4096               *:8086             *:*    users:(("monstadb",pid=2490683,fd=220))  
+LISTEN 0      4096               *:8090             *:*    users:(("monstadb",pid=2490683,fd=5))    
+LISTEN 0      4096            [::]:5355          [::]:*    users:(("systemd-resolve",pid=792,fd=13))
+LISTEN 0      4096               *:42007            *:*    users:(("monstadb",pid=2490683,fd=206))  
+[root@191-52-248-66 ~]# ls /opt /var/monsta /usr/local 2>/dev/null
+find / -maxdepth 4 -iname "*monsta*" 2>/dev/null | head -20
+/opt:
+monsta  monstav4
+
+/usr/local:
+bin  etc  games  include  lib  lib64  libexec  sbin  share  src
+
+/var/monsta:
+agent  BACKUP  blobs  branding  data  ipc  KEY  plugins  public  run  templates  update
+/run/systemd/units/invocation:monsta-com.monagent.service
+/run/systemd/units/invocation:monsta-com.monkernel.service
+/run/systemd/units/invocation:monsta-com.monstadb.service
+/run/systemd/units/invocation:monsta-com.monrouter.service
+/run/systemd/units/invocation:monsta-com.monstaupd.service
+/var/log/monsta
+/var/log/monsta/monstad.log
+/var/log/monsta/monstaupd.log
+/var/log/monsta/monstad.log-20250120.gz
+/var/log/monsta/monstad.log-20250125.gz
+/var/log/monsta/monstaupd.log-20260412.gz
+/var/log/monsta/monstadb.log.001
+/var/log/monsta/monstadb.log-20260414.gz
+/var/log/monsta/monstadb.log.004
+/var/log/monsta/monstadb.log
+/var/log/monsta/monstadb.log-20260416.gz
+/var/log/monsta/monstaupd.log-20260416.gz
+/var/log/monsta/monstaupd.log-20260415.gz
+/var/log/monsta/monstaupd.log-20260417.gz
+/var/log/monsta/monstadb.log.003
+[root@191-52-248-66 ~]# 
