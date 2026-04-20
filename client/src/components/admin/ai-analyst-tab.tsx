@@ -1281,7 +1281,7 @@ const FIELD_META: Record<string, FieldMeta> = {
   onuSearchString: { kind: "text", label: "String de busca da ONU" },
   onuId: { kind: "text", label: "ID da ONU" },
   switchId: { kind: "select-switch", label: "Switch" },
-  switchPort: { kind: "number", label: "Porta do Switch" },
+  switchPort: { kind: "text", label: "Porta do Switch" },
   cpeVendor: { kind: "text", label: "Vendor (livre)" },
   ozmapTag: { kind: "text", label: "OZmap Tag" },
   ipBlock: { kind: "text", label: "Bloco IP (CIDR)" },
@@ -1362,7 +1362,7 @@ function FieldDisplay({ fieldKey, meta, value, lookups }: {
       return <span className="text-xs">{name || `#${value}`}</span>;
     }
     case "select-access-point": {
-      const name = lookupName(lookups.concentrators, value);
+      const name = lookupName(lookups.switches, value);
       return <span className="text-xs">{name || `#${value}`}</span>;
     }
     case "object-default-cpe": {
@@ -1466,23 +1466,21 @@ function FieldEditor({ fieldKey, meta, value, onChange, lookups, proposalId }: {
           </SelectContent>
         </Select>
       );
-    case "select-access-point": {
-      const accessPoints = lookups.concentrators.filter((c) => c.isAccessPoint);
+    case "select-access-point":
       return (
         <Select value={value == null ? "" : String(value)} onValueChange={(v) => onChange(v === "" ? "" : Number(v))}>
           <SelectTrigger className="h-8 text-xs" data-testid={tid}><SelectValue placeholder="Selecione..." /></SelectTrigger>
           <SelectContent>
-            {accessPoints.length === 0 ? (
+            {lookups.switches.length === 0 ? (
               <div className="text-xs text-muted-foreground px-2 py-1.5">
-                Nenhum concentrador marcado como ponto de acesso
+                Nenhum switch cadastrado
               </div>
-            ) : accessPoints.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+            ) : lookups.switches.map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       );
-    }
     case "select-traffic-source":
       return (
         <Select value={(value as string) || ""} onValueChange={onChange}>
