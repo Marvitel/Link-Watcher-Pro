@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MapPin, AlertTriangle } from "lucide-react";
+import { MapPin, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import type { MassiveOutage } from "@shared/schema";
 import { RouteDiagram } from "@/components/route-diagram";
@@ -114,45 +114,97 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
               <RouteDiagram outageId={outageId} open={open} />
             </div>
 
-            <Table data-testid="table-affected-links">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Link</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Sinal antes (Rx)</TableHead>
-                  <TableHead className="text-right">Sinal agora (Rx)</TableHead>
-                  <TableHead className="text-right">Δ Rx</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.affectedLinks.map((al) => (
-                  <TableRow key={al.linkId} data-testid={`row-affected-link-${al.linkId}`}>
-                    <TableCell>
-                      <Link href={`/links/${al.linkId}`} className="text-primary hover:underline">
-                        {al.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={al.status === "online" ? "default" : "destructive"}>
-                        {al.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{fmt(al.opticalRxBefore, " dBm")}</TableCell>
-                    <TableCell className="text-right font-mono">{fmt(al.opticalRxNow, " dBm")}</TableCell>
-                    <TableCell className={`text-right font-mono ${al.deltaRx != null && al.deltaRx < -3 ? "text-destructive font-semibold" : ""}`}>
-                      {al.deltaRx != null ? `${al.deltaRx > 0 ? "+" : ""}${al.deltaRx.toFixed(2)} dB` : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {data.affectedLinks.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      Nenhum link afetado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            {(() => {
+              // Ordena: ainda offline primeiro (mais críticos), depois online (já voltaram).
+              // Dentro de cada grupo, ordena por nome.
+              const sorted = [...data.affectedLinks].sort((a, b) => {
+                const aOffline = a.status !== "online";
+                const bOffline = b.status !== "online";
+                if (aOffline !== bOffline) return aOffline ? -1 : 1;
+                return a.name.localeCompare(b.name);
+              });
+              const stillOffline = sorted.filter((l) => l.status !== "online").length;
+              const recovered = sorted.length - stillOffline;
+              return (
+                <>
+                  <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                    <h3 className="text-sm font-semibold">Links afetados ({sorted.length})</h3>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="flex items-center gap-1.5" data-testid="text-still-offline">
+                        <XCircle className="h-3.5 w-3.5 text-destructive" />
+                        <span className="font-medium text-destructive">{stillOffline}</span>
+                        <span className="text-muted-foreground">ainda offline</span>
+                      </span>
+                      <span className="flex items-center gap-1.5" data-testid="text-recovered">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="font-medium text-emerald-600">{recovered}</span>
+                        <span className="text-muted-foreground">já voltou</span>
+                      </span>
+                    </div>
+                  </div>
+                  <Table data-testid="table-affected-links">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Link</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Sinal antes (Rx)</TableHead>
+                        <TableHead className="text-right">Sinal agora (Rx)</TableHead>
+                        <TableHead className="text-right">Δ Rx</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sorted.map((al) => {
+                        const isOnline = al.status === "online";
+                        return (
+                          <TableRow
+                            key={al.linkId}
+                            className={isOnline ? "opacity-70" : ""}
+                            data-testid={`row-affected-link-${al.linkId}`}
+                          >
+                            <TableCell>
+                              <Link href={`/links/${al.linkId}`} className="text-primary hover:underline">
+                                {al.name}
+                              </Link>
+                              {isOnline && al.leftAt && (
+                                <div className="text-[11px] text-muted-foreground mt-0.5">
+                                  voltou há {formatElapsed(String(al.leftAt))}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={isOnline ? "default" : "destructive"}
+                                className={isOnline ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                              >
+                                {al.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">{fmt(al.opticalRxBefore, " dBm")}</TableCell>
+                            <TableCell className="text-right font-mono">{fmt(al.opticalRxNow, " dBm")}</TableCell>
+                            <TableCell
+                              className={`text-right font-mono ${
+                                al.deltaRx != null && al.deltaRx < -3 ? "text-destructive font-semibold" : ""
+                              }`}
+                            >
+                              {al.deltaRx != null
+                                ? `${al.deltaRx > 0 ? "+" : ""}${al.deltaRx.toFixed(2)} dB`
+                                : "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {sorted.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            Nenhum link afetado.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </>
+              );
+            })()}
           </>
         )}
       </DialogContent>
