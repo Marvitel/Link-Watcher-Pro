@@ -1,0 +1,34 @@
+AJU-MVT-OLT-HSP# sh alarm
+Triggered on                 Severity Source                          Status   Name                           Description                             
+---------------------------- -------- ------------------------------- -------- ------------------------------ -----------------------------------------
+2026-04-21 15:49:43 UTC-3    CRITICAL gpon-1/1/5                      Active   GPON_LOS                       Loss of signal                           
+2026-04-21 15:49:43 UTC-3    CRITICAL gpon-1/1/8                      Active   GPON_LOS                       Loss of signal                           
+2026-04-08 03:55:12 UTC-3    CRITICAL gpon-1/1/1/14                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-19 05:04:43 UTC-3    CRITICAL gpon-1/1/1/19                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-03-06 12:06:00 UTC-3    CRITICAL gpon-1/1/2/32                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/1                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-03-26 03:03:48 UTC-3    CRITICAL gpon-1/1/3/10                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/12                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-13 10:41:28 UTC-3    MINOR    gpon-1/1/3/13                   Active   GPON_LOAMi                     Loss of PLOAM for ONU                    
+2026-04-13 10:41:26 UTC-3    CRITICAL gpon-1/1/3/13                   Active   GPON_LOFi                      Loss of frame of ONU                     
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/14                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/16                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/17                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/2                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/20                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/21                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/22                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/3                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/4                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/5                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/50                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/52                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/53                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/54                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/56                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/57                   Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/7                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/8                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-21 15:49:35 UTC-3    CRITICAL gpon-1/1/3/9                    Active   GPON_LOSi                      ONU Loss of signal                       
+2026-04-04 00:55:11 UTC-3    CRITICAL gpon-1/1/4/4                    Active   GPON_LOSi                      ONU Loss of signal                       
+AJU-MVT-OLT-HSP# 
