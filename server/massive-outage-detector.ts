@@ -589,19 +589,15 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 120): Pr
     const slot = parts[2] != null ? parseInt(parts[2], 10) : null;
     const port = parts[3] != null ? parseInt(parts[3], 10) : null;
     if (oltName) {
-      const baseConds = [
-        // Aceita match por OLT cadastrada OU por ozmapOltName — nem todos os links
-        // têm o ozmapOltName populado, mas têm oltId.
-        sql`(${links.ozmapOltName} = ${oltName} OR EXISTS (
+      const oltMatch = sql`(${links.ozmapOltName} = ${oltName} OR EXISTS (
                SELECT 1 FROM olts o WHERE o.id = ${links.oltId} AND o.name = ${oltName}
-             ))`,
-        sql`${links.deletedAt} IS NULL`,
-        sql`${links.ozmapNoRoute} IS NOT TRUE`,
-      ];
+             ))`;
+      const baseConds = [oltMatch, sql`${links.deletedAt} IS NULL`];
       if (outage.scope === "pon" && slot != null && port != null && !isNaN(slot) && !isNaN(port)) {
         baseConds.push(eq(links.ozmapSlot, slot), eq(links.ozmapPort, port));
       }
-      // Prioriza ONLINE (essenciais pra validação cruzada) e completa com offline.
+      // ONLINE primeiro: NÃO filtra ozmap_no_route — se a tag mudou desde o último
+      // 422/404, dá outra chance. Online é raro e crítico pra validação cruzada.
       const halfLimit = Math.ceil(peerLimit / 2);
       const onlinePeers = await db
         .select({ id: links.id })
@@ -611,18 +607,23 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 120): Pr
       for (const r of onlinePeers) {
         if (!affectedIds.has(r.id)) peerIds.add(r.id);
       }
+      // Resto (offline) com o filtro ozmap_no_route pra economizar quota.
       const remaining = peerLimit - peerIds.size;
       if (remaining > 0) {
         const otherPeers = await db
           .select({ id: links.id })
           .from(links)
-          .where(and(...baseConds))
-          .limit(remaining * 2); // pega 2× e filtra os que já entraram
+          .where(and(...baseConds, sql`${links.ozmapNoRoute} IS NOT TRUE`))
+          .limit(remaining * 2);
         for (const r of otherPeers) {
           if (peerIds.size >= peerLimit) break;
           if (!affectedIds.has(r.id) && !peerIds.has(r.id)) peerIds.add(r.id);
         }
       }
+      console.log(
+        `[MassiveOutage] sync-routes outage=${outageId} olt="${oltName}" ` +
+        `online_peers_found=${onlinePeers.length} total_peer_ids=${peerIds.size}`,
+      );
     }
   }
 
@@ -929,9 +930,7 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
         .from(links)
         .where(and(
           eq(links.status, "online"),
-          eq(links.monitoringEnabled, true),
           sql`${links.deletedAt} IS NULL`,
-          sql`${links.contractStatus} IN ('active', 'blocked')`,
           sql`${links.ozmapRoute} IS NOT NULL`,
           // Match pela OLT cadastrada OU pela OLT do OZmap
           sql`(${links.ozmapOltName} = ${oltNameForOnline} OR EXISTS (
@@ -940,6 +939,10 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
                ))`,
         ))
         .limit(200);
+      console.log(
+        `[MassiveOutage] route-diagram outage=${outageId} olt="${oltNameForOnline}" ` +
+        `online_with_route_found=${onlinePeers.length}`,
+      );
       for (const peer of onlinePeers) {
         const r = peer.ozmapRoute as RouteElementShape[] | null;
         if (!Array.isArray(r) || r.length === 0) continue;
