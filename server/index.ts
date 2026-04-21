@@ -231,6 +231,14 @@ app.use((req, res, next) => {
     console.error("[index] falha ao iniciar detector de rompimentos:", err);
   }
 
+  // Detector de surto de quedas (burst counter — a cada 60s)
+  try {
+    const { startOutageBurstDetector } = await import("./outage-burst-detector");
+    startOutageBurstDetector();
+  } catch (err) {
+    console.error("[index] falha ao iniciar burst detector:", err);
+  }
+
   // Auto-resume do Analista IA: se havia tasks pendentes antes do restart, retoma o lote
   setTimeout(async () => {
     try {

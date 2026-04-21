@@ -10,6 +10,7 @@ import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
 import { LinkGroupCard } from "@/components/link-group-card";
 import { MassiveOutageCard } from "@/components/massive-outage-card";
+import { BurstCounterCard } from "@/components/burst-counter-card";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
@@ -847,6 +848,7 @@ function DashboardContent() {
           </div>
         </div>
 
+        <BurstCounterCard />
         <MassiveOutageCard />
 
         {clientsLoading ? (

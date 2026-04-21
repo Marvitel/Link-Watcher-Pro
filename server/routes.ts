@@ -2682,6 +2682,18 @@ export async function registerRoutes(
     }
   });
 
+  // Burst counter: snapshot do estado atual do detector de surto de quedas
+  app.get("/api/admin/burst-counter", requireDiagnosticsAccess, async (_req, res) => {
+    try {
+      const { getBurstSnapshot } = await import("./outage-burst-detector");
+      const snap = await getBurstSnapshot();
+      res.json(snap);
+    } catch (error: any) {
+      console.error("[burst-counter] error:", error);
+      res.status(500).json({ error: error?.message || "Failed to read burst state" });
+    }
+  });
+
   // Diagnóstico de cluster de quedas: lista todos os links offline e/ou que caíram na
   // janela de tempo, agrupando por topologia (CEO, splitter/CTO, OLT, PON). Útil quando
   // a maior parte dos afetados ainda não tem rota OZmap sincronizada — usa apenas os
