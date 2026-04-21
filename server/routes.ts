@@ -2573,7 +2573,7 @@ export async function registerRoutes(
   //   names=CEO MVT 180,CEO MVT 178   (obrigatório, separado por vírgula)
   //   windowMinutes=180                (opcional, default 180)
   //   matchMode=any|all                (opcional, default any — 'all' exige que a rota passe por TODOS)
-  app.get("/api/admin/route-correlation", requireAuth, requireSuperAdmin, async (req, res) => {
+  app.get("/api/admin/route-correlation", requireDiagnosticsAccess, async (req, res) => {
     try {
       const namesParam = String(req.query.names || "").trim();
       if (!namesParam) {
