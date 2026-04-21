@@ -2564,6 +2564,61 @@ export async function registerRoutes(
     }
   });
 
+  // Diagnóstico: mostra contagens cruas direto do banco pra entender por que
+  // a validação cruzada não está achando online.
+  app.get("/api/massive-outages/:id/debug", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, id)).limit(1);
+      if (outageRows.length === 0) return res.status(404).json({ error: "outage not found" });
+      const outage = outageRows[0];
+      const oltName = outage.scope === "olt" || outage.scope === "pon"
+        ? outage.scopeKey.split("|")[1]
+        : null;
+      if (!oltName) return res.json({ outage, note: "scope sem OLT direta" });
+      const oltMatch = sql`(${links.ozmapOltName} = ${oltName} OR EXISTS (
+        SELECT 1 FROM olts o WHERE o.id = ${links.oltId} AND o.name = ${oltName}
+      ))`;
+      const counts = await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE status='online') AS online_total,
+          COUNT(*) FILTER (WHERE status='online' AND ozmap_route IS NOT NULL) AS online_with_route,
+          COUNT(*) FILTER (WHERE status='online' AND ozmap_route IS NULL) AS online_without_route,
+          COUNT(*) FILTER (WHERE status='online' AND ozmap_no_route = true) AS online_marked_no_route,
+          COUNT(*) FILTER (WHERE status='online' AND (ozmap_tag IS NULL OR ozmap_tag = '')) AS online_without_tag,
+          COUNT(*) FILTER (WHERE status='offline') AS offline_total,
+          COUNT(*) FILTER (WHERE status='offline' AND ozmap_route IS NOT NULL) AS offline_with_route,
+          COUNT(*) AS total
+        FROM links
+        WHERE deleted_at IS NULL
+        AND (ozmap_olt_name = ${oltName} OR EXISTS (
+          SELECT 1 FROM olts o WHERE o.id = links.olt_id AND o.name = ${oltName}
+        ))
+      `);
+      const sampleOnline = await db
+        .select({
+          id: links.id, name: links.name, status: links.status,
+          ozmapTag: links.ozmapTag, ozmapNoRoute: links.ozmapNoRoute,
+          ozmapRoute: sql<boolean>`${links.ozmapRoute} IS NOT NULL`,
+          contractStatus: links.contractStatus,
+          monitoringEnabled: links.monitoringEnabled,
+        })
+        .from(links)
+        .where(and(eq(links.status, "online"), oltMatch, sql`${links.deletedAt} IS NULL`))
+        .limit(10);
+      res.json({
+        outage: { id: outage.id, scope: outage.scope, scopeKey: outage.scopeKey, scopeLabel: outage.scopeLabel },
+        oltNameUsed: oltName,
+        counts: counts.rows?.[0] ?? counts[0] ?? counts,
+        sampleOnline,
+      });
+    } catch (error: any) {
+      console.error("[massive-outages] debug error:", error);
+      res.status(500).json({ error: error?.message || "Failed" });
+    }
+  });
+
   // Correlação por trecho de rota: dados N nomes de elementos OZmap (CEO, CTO, splitter,
   // caixa de emenda, etc), retorna todos os links cuja rota OZmap passa por algum deles
   // E que ficaram offline na janela de tempo. Útil pra investigar rompimentos identificados
