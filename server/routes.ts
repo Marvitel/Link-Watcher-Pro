@@ -2618,12 +2618,48 @@ export async function registerRoutes(
         .from(links)
         .where(and(eq(links.status, "online"), oltMatch, sql`${links.deletedAt} IS NULL`))
         .limit(10);
+      // Quantos links online têm o nome da OLT na rota OZmap (independente de olt_id/ozmap_olt_name)
+      const routeContainsOlt = await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE status='online') AS online_route_contains_olt,
+          COUNT(*) FILTER (WHERE status='offline') AS offline_route_contains_olt
+        FROM links
+        WHERE deleted_at IS NULL
+          AND ozmap_route IS NOT NULL
+          AND ozmap_route::text ILIKE ${'%' + oltName + '%'}
+      `);
+      const sampleRouteOnline = await db.execute(sql`
+        SELECT id, name, status, olt_id, ozmap_olt_name, ozmap_tag
+        FROM links
+        WHERE deleted_at IS NULL
+          AND status='online'
+          AND ozmap_route IS NOT NULL
+          AND ozmap_route::text ILIKE ${'%' + oltName + '%'}
+        LIMIT 10
+      `);
+      // Lookup de link específico, se passado ?probeLinkId=N
+      let probe: any = null;
+      const probeId = parseInt(String(req.query.probeLinkId ?? ""), 10);
+      if (!Number.isNaN(probeId)) {
+        const rows = await db.execute(sql`
+          SELECT id, name, status, olt_id, ozmap_olt_name, ozmap_tag, ozmap_no_route,
+                 ozmap_route IS NOT NULL AS has_route,
+                 ozmap_route::text ILIKE ${'%' + oltName + '%'} AS route_contains_olt,
+                 contract_status, monitoring_enabled, deleted_at,
+                 (SELECT name FROM olts WHERE id = links.olt_id) AS olt_name_via_id
+          FROM links WHERE id = ${probeId}
+        `);
+        probe = rows.rows?.[0] ?? rows[0] ?? null;
+      }
       res.json({
         outage: { id: outage.id, scope: outage.scope, scopeKey: outage.scopeKey, scopeLabel: outage.scopeLabel },
         oltNameUsed: oltName,
         statusBreakdown: statusBreakdown.rows ?? statusBreakdown,
         counts: counts.rows?.[0] ?? counts[0] ?? counts,
+        routeContainsOlt: routeContainsOlt.rows?.[0] ?? routeContainsOlt[0] ?? routeContainsOlt,
         sampleOnline,
+        sampleRouteOnline: sampleRouteOnline.rows ?? sampleRouteOnline,
+        probe,
       });
     } catch (error: any) {
       console.error("[massive-outages] debug error:", error);
