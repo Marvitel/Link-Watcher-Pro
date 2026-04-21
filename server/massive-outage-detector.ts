@@ -759,16 +759,19 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
     }
   }
 
-  if (routes.length === 0) {
+  // Precisamos de no mínimo 2 rotas pra calcular um caminho COMUM real.
+  // Com apenas 1 rota, a "interseção" seria a própria rota inteira — que não tem
+  // valor diagnóstico (qualquer ramificação dela seria considerada "comum").
+  if (routes.length < 2) {
     return {
       outageId,
       totalAffected,
-      withRoute: 0,
+      withRoute: routes.length,
       withoutRoute,
       commonPath: [],
       convergenceNode: null,
-      inferredFromPeers: false,
-      peersUsed: 0,
+      inferredFromPeers,
+      peersUsed,
     };
   }
 

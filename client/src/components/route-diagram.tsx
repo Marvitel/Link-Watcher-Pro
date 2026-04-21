@@ -158,6 +158,11 @@ export function RouteDiagram({ outageId, open }: Props) {
               Nenhum dos {data.totalAffected} link(s) afetado(s) tem rota OZmap sincronizada
               — e não foi possível inferir a partir dos vizinhos da PON/OLT.
             </>
+          ) : data.withRoute === 1 ? (
+            <>
+              Apenas 1 link tem rota OZmap sincronizada — preciso de pelo menos 2 rotas
+              para identificar onde os caminhos convergem. Sincronize mais links abaixo.
+            </>
           ) : (
             <>
               As rotas dos links afetados não compartilham um trecho comum identificável.
