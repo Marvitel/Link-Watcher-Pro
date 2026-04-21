@@ -253,10 +253,26 @@ export function RouteDiagram({ outageId, open, scope, scopeKey }: Props) {
             })}
           </ul>
           {ranked[0].onlineConsidered === 0 && (
-            <p className="text-[11px] text-muted-foreground">
-              Sem clientes online da mesma OLT com rota OZmap pra validar — sincronize as
-              rotas pra liberar a validação cruzada e identificar o ponto exato.
-            </p>
+            <div className="rounded-md border border-dashed p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground">
+                Sem clientes online da mesma OLT com rota OZmap pra validar — sincronize as
+                rotas pra liberar a validação cruzada e identificar o ponto exato.
+              </p>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={handleSync}
+                disabled={syncing}
+                data-testid="button-sync-routes-now"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Sincronizando..." : "Sincronizar rotas agora"}
+              </Button>
+              <p className="text-[10px] text-muted-foreground">
+                Vai puxar a rota OZmap dos afetados + até 120 vizinhos da mesma OLT (com
+                prioridade pra ONLINE). Pode levar de 30s a 2min.
+              </p>
+            </div>
           )}
         </div>
       );
