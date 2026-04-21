@@ -6,7 +6,29 @@
 
 import { db } from "./db";
 import { eq, and, sql, isNull, gte, lte, desc, inArray } from "drizzle-orm";
-import { links, massiveOutages, massiveOutageLinks, metrics } from "@shared/schema";
+import { links, massiveOutages, massiveOutageLinks, metrics, olts } from "@shared/schema";
+
+// Cache em memória do mapa oltId → nome. Atualizado a cada passada do detector.
+let oltNameById: Map<number, string> = new Map();
+
+async function loadOltNames(): Promise<void> {
+  const rows = await db.select({ id: olts.id, name: olts.name }).from(olts);
+  oltNameById = new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * Resolve o nome canônico da OLT de um link. Prioriza o `oltId` cadastrado
+ * (sempre preenchido pelo time de operação) e cai pra `ozmapOltName` apenas
+ * como fallback. Isso garante que o roll-up por OLT funcione mesmo quando a
+ * rota OZmap está incompleta.
+ */
+function resolveOltName(link: typeof links.$inferSelect): string | null {
+  if (link.oltId != null) {
+    const name = oltNameById.get(link.oltId);
+    if (name) return name;
+  }
+  return link.ozmapOltName ?? null;
+}
 
 const THRESHOLD = 2; // mínimo de links offline no mesmo escopo para considerar rompimento
 const RUN_INTERVAL_MS = 60 * 1000;
@@ -47,7 +69,7 @@ function ceoScope(link: typeof links.$inferSelect): ScopeInfo | null {
 }
 
 function ponScope(link: typeof links.$inferSelect): ScopeInfo | null {
-  const oltName = link.ozmapOltName;
+  const oltName = resolveOltName(link);
   if (!oltName || link.ozmapSlot == null || link.ozmapPort == null) return null;
   const key = `${oltName}|${link.ozmapSlot}|${link.ozmapPort}`;
   return {
@@ -61,7 +83,7 @@ function ponScope(link: typeof links.$inferSelect): ScopeInfo | null {
 }
 
 function oltScope(link: typeof links.$inferSelect): ScopeInfo | null {
-  const oltName = link.ozmapOltName;
+  const oltName = resolveOltName(link);
   if (!oltName) return null;
   return {
     scope: "olt",
@@ -82,6 +104,7 @@ async function countTotalsByScope(): Promise<{
 }> {
   const monitored = await db
     .select({
+      oltId: links.oltId,
       ozmapSplitterName: links.ozmapSplitterName,
       ozmapCeoName: links.ozmapCeoName,
       ozmapOltName: links.ozmapOltName,
@@ -109,12 +132,14 @@ async function countTotalsByScope(): Promise<{
       const k = `ceo|${l.ozmapCeoName}`;
       ceo.set(k, (ceo.get(k) ?? 0) + 1);
     }
-    if (l.ozmapOltName && l.ozmapSlot != null && l.ozmapPort != null) {
-      const k = `pon|${l.ozmapOltName}|${l.ozmapSlot}|${l.ozmapPort}`;
+    // OLT/PON: prioriza nome via oltId cadastrado, cai pra ozmapOltName
+    const oltName = l.oltId != null ? oltNameById.get(l.oltId) ?? l.ozmapOltName : l.ozmapOltName;
+    if (oltName && l.ozmapSlot != null && l.ozmapPort != null) {
+      const k = `pon|${oltName}|${l.ozmapSlot}|${l.ozmapPort}`;
       pon.set(k, (pon.get(k) ?? 0) + 1);
     }
-    if (l.ozmapOltName) {
-      const k = `olt|${l.ozmapOltName}`;
+    if (oltName) {
+      const k = `olt|${oltName}`;
       olt.set(k, (olt.get(k) ?? 0) + 1);
     }
   }
@@ -186,6 +211,9 @@ export async function detectMassiveOutages(): Promise<{
   newOutages: number;
   resolvedOutages: number;
 }> {
+  // 0. Atualiza cache de nomes de OLT (usado por resolveOltName e countTotalsByScope)
+  await loadOltNames();
+
   // 1. Busca todos os links offline elegíveis
   const offline = await db
     .select()
