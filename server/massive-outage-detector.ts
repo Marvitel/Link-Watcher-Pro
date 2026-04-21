@@ -698,6 +698,10 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   /** Quando true, o caminho foi inferido a partir dos vizinhos (outros links da mesma PON/OLT). */
   inferredFromPeers: boolean;
   peersUsed: number;
+  /** Verdadeiro quando o primeiro elemento da rota é a OLT (rota completa). */
+  routeReachesOlt: boolean;
+  /** Índice (0-based) do "ponto provável de rompimento" no commonPath. */
+  convergenceIndex: number | null;
 } | null> {
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
   if (outageRows.length === 0) return null;
@@ -772,6 +776,8 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
       convergenceNode: null,
       inferredFromPeers,
       peersUsed,
+      routeReachesOlt: false,
+      convergenceIndex: null,
     };
   }
 
@@ -799,12 +805,11 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
       ...node,
       affectedAtThisPoint: stillHere,
       divergesAfterCount: 0,
-      isConvergencePoint: idx === commonLen - 1,
+      isConvergencePoint: false, // será marcado abaixo
     };
   });
 
   // Calcula divergesAfterCount: quantos links divergem APÓS este nó
-  // (= afetadosAqui - afetadosNoPróximoNóComum)
   for (let i = 0; i < commonPath.length; i++) {
     const next = commonPath[i + 1];
     commonPath[i].divergesAfterCount = next
@@ -812,15 +817,41 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
       : 0;
   }
 
+  // O ponto provável de rompimento deve ser um ELEMENTO ESTRUTURAL — caixa, splitter,
+  // CTO, CEO, DIO ou OLT — não um cabo curto ou uma fusão. Cabos não são "lugares"
+  // que o técnico vai inspecionar isoladamente; ele vai à última caixa antes da
+  // divergência. Procura o último elemento estrutural no commonPath; se não houver
+  // nenhum, cai no último elemento.
+  const STRUCTURAL_KINDS = new Set(["olt", "dio", "ceo", "cto", "splitter", "box"]);
+  let convergenceIndex: number | null = null;
+  for (let i = commonPath.length - 1; i >= 0; i--) {
+    if (STRUCTURAL_KINDS.has(commonPath[i].kind)) {
+      convergenceIndex = i;
+      break;
+    }
+  }
+  if (convergenceIndex === null && commonPath.length > 0) {
+    convergenceIndex = commonPath.length - 1;
+  }
+  if (convergenceIndex !== null) {
+    commonPath[convergenceIndex].isConvergencePoint = true;
+  }
+
+  // Verifica se a rota chega até a OLT (primeiro elemento = OLT). Se não, o caminho
+  // está incompleto e o "ponto provável" tem confiança reduzida — a UI mostra alerta.
+  const routeReachesOlt = commonPath.length > 0 && commonPath[0].kind === "olt";
+
   return {
     outageId,
     totalAffected,
     withRoute,
     withoutRoute,
     commonPath,
-    convergenceNode: commonPath.length > 0 ? commonPath[commonPath.length - 1] : null,
+    convergenceNode: convergenceIndex !== null ? commonPath[convergenceIndex] : null,
     inferredFromPeers,
     peersUsed,
+    routeReachesOlt,
+    convergenceIndex,
   };
 }
 

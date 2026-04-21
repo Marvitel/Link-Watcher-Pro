@@ -44,6 +44,8 @@ interface DiagramResponse {
   convergenceNode: RouteNode | null;
   inferredFromPeers: boolean;
   peersUsed: number;
+  routeReachesOlt: boolean;
+  convergenceIndex: number | null;
 }
 
 interface Props {
@@ -210,6 +212,20 @@ export function RouteDiagram({ outageId, open }: Props) {
         </div>
       )}
 
+      {!data.routeReachesOlt && (
+        <div
+          className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-xs"
+          data-testid="banner-route-incomplete"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="text-amber-900 dark:text-amber-200">
+            <strong>Rota OZmap incompleta</strong> — não inclui o trecho até a OLT/switch.
+            O ponto provável marcado abaixo é o último elemento comum CONHECIDO; o rompimento
+            real pode estar antes, no backbone não mapeado.
+          </span>
+        </div>
+      )}
+
       {/* Timeline vertical */}
       <ol className="relative" data-testid="route-timeline">
         {data.commonPath.map((node, idx) => {
@@ -300,8 +316,9 @@ export function RouteDiagram({ outageId, open }: Props) {
       </ol>
 
       <p className="text-xs text-muted-foreground">
-        O caminho comum vai da OLT até o último elemento compartilhado. Após esse ponto,
-        as rotas se ramificam para cada cliente.
+        {data.routeReachesOlt
+          ? "O caminho comum vai da OLT até o último elemento compartilhado. Após esse ponto, as rotas se ramificam para cada cliente."
+          : "O caminho mostrado representa a parte CONHECIDA da rota (OZmap não tem o trecho até a OLT). O ponto provável é a última caixa/splitter compartilhado antes da ramificação."}
       </p>
     </div>
   );
