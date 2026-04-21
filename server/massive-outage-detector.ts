@@ -747,6 +747,18 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
     count: number;
     totalConsidered: number;
     percentage: number;
+    /** Quantos links ONLINE da mesma OLT passam por este ponto. */
+    onlinePassThrough: number;
+    /** Total de rotas de links online consideradas (denominador). */
+    onlineConsidered: number;
+    /**
+     * Diagnóstico:
+     * - "downstream_cut": online passa, então rompimento é depois daqui (este NÃO é o ponto)
+     * - "likely_cut":     nenhum online passa AQUI mas passa em pontos a jusante → este é o ponto
+     * - "upstream_or_here": nenhum online passa em lugar nenhum dessa rota — pode ser aqui ou a montante
+     * - "unknown":        sem rota online suficiente pra validar
+     */
+    verdict: "downstream_cut" | "likely_cut" | "upstream_or_here" | "unknown";
   }>;
 } | null> {
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
@@ -835,17 +847,119 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   // Filtra: aparece em ≥30% das rotas E em pelo menos 2 — evita ruído de waypoint
   // único de algum link específico
   const minCount = Math.max(2, Math.ceil(totalConsidered * 0.3));
-  const probablePath = Array.from(probableFreq.values())
+  const rankedRaw = Array.from(probableFreq.values())
     .filter((e) => e.count >= minCount)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 12)
-    .map((e) => ({
+    .slice(0, 12);
+
+  // ── VALIDAÇÃO COM ONLINE ──────────────────────────────────────────────────
+  // Pra cada candidato, conta em quantas rotas de links ONLINE da MESMA OLT ele
+  // aparece. Se ainda passa cliente online por aquele ponto, o rompimento NÃO é
+  // ali (é a jusante). O primeiro ponto SEM online passando é o ponto provável.
+  const onlineFreq = new Map<string, number>();
+  let onlineConsidered = 0;
+  if (rankedRaw.length > 0) {
+    // Resolve nome da OLT a partir do escopo: scopeKey "olt|<name>" ou "pon|<name>|s|p"
+    // ou cai pra ozmapOltName/oltId via memberships
+    let oltNameForOnline: string | null = null;
+    if (outage.scope === "olt" || outage.scope === "pon") {
+      oltNameForOnline = outage.scopeKey.split("|")[1] ?? null;
+    } else {
+      // Pra escopos CTO/CEO, descobre OLT via afetados
+      const affRow = await db
+        .select({
+          oltId: links.oltId,
+          ozmapOltName: links.ozmapOltName,
+        })
+        .from(links)
+        .where(inArray(links.id, linkIds))
+        .limit(1);
+      if (affRow[0]) {
+        oltNameForOnline =
+          (affRow[0].oltId != null ? oltNameById.get(affRow[0].oltId) : null) ??
+          affRow[0].ozmapOltName ?? null;
+      }
+    }
+
+    if (oltNameForOnline) {
+      const onlinePeers = await db
+        .select({ id: links.id, ozmapRoute: links.ozmapRoute })
+        .from(links)
+        .where(and(
+          eq(links.status, "online"),
+          eq(links.monitoringEnabled, true),
+          sql`${links.deletedAt} IS NULL`,
+          sql`${links.contractStatus} IN ('active', 'blocked')`,
+          sql`${links.ozmapRoute} IS NOT NULL`,
+          // Match pela OLT cadastrada OU pela OLT do OZmap
+          sql`(${links.ozmapOltName} = ${oltNameForOnline} OR EXISTS (
+                 SELECT 1 FROM olts o
+                 WHERE o.id = ${links.oltId} AND o.name = ${oltNameForOnline}
+               ))`,
+        ))
+        .limit(200);
+      for (const peer of onlinePeers) {
+        const r = peer.ozmapRoute as RouteElementShape[] | null;
+        if (!Array.isArray(r) || r.length === 0) continue;
+        onlineConsidered++;
+        const seen = new Set<string>();
+        for (const node of r) {
+          if (!STRUCTURAL_KINDS_LOCAL.has(node.kind)) continue;
+          const name = (node.name || "").trim();
+          if (!name) continue;
+          const key = `${node.kind}|${name.toLowerCase()}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          onlineFreq.set(key, (onlineFreq.get(key) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
+  // Monta lista final com veredito.
+  // Critério: o primeiro candidato (de cima pra baixo na lista ranqueada por %)
+  // que NÃO tem nenhum online passando = "likely_cut". Os de cima dele com online
+  // passando = "downstream_cut" (rompimento é depois). Os de baixo (ainda sem
+  // online) ficam "upstream_or_here" porque podem ser sub-pontos a jusante do cut.
+  // Se nenhum tem online passando, o primeiro vira "upstream_or_here" (cut pode
+  // estar acima da OLT).
+  const probablePath = rankedRaw.map((e) => {
+    const key = `${e.kind}|${e.name.toLowerCase()}`;
+    const onlinePass = onlineFreq.get(key) ?? 0;
+    return {
       kind: e.kind,
       name: e.name,
       count: e.count,
       totalConsidered,
       percentage: totalConsidered > 0 ? e.count / totalConsidered : 0,
-    }));
+      onlinePassThrough: onlinePass,
+      onlineConsidered,
+      verdict: "unknown" as
+        | "downstream_cut"
+        | "likely_cut"
+        | "upstream_or_here"
+        | "unknown",
+    };
+  });
+
+  if (onlineConsidered > 0) {
+    let firstCutAssigned = false;
+    for (const p of probablePath) {
+      if (p.onlinePassThrough > 0) {
+        p.verdict = "downstream_cut";
+      } else if (!firstCutAssigned) {
+        p.verdict = "likely_cut";
+        firstCutAssigned = true;
+      } else {
+        p.verdict = "upstream_or_here";
+      }
+    }
+    if (!firstCutAssigned) {
+      // Nenhum candidato tem online passando → cut pode estar a montante de tudo
+      for (const p of probablePath) p.verdict = "upstream_or_here";
+    }
+  }
+  // Se onlineConsidered === 0, todos ficam "unknown" (UI mostra só o ranking)
 
   // Precisamos de no mínimo 2 rotas pra calcular um caminho COMUM real.
   // Com apenas 1 rota, a "interseção" seria a própria rota inteira — que não tem

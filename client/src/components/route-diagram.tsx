@@ -52,6 +52,9 @@ interface DiagramResponse {
     count: number;
     totalConsidered: number;
     percentage: number;
+    onlinePassThrough: number;
+    onlineConsidered: number;
+    verdict: "downstream_cut" | "likely_cut" | "upstream_or_here" | "unknown";
   }>;
 }
 
@@ -173,49 +176,87 @@ export function RouteDiagram({ outageId, open, scope }: Props) {
               forte.
             </p>
           </div>
+          {ranked[0].onlineConsidered > 0 && (
+            <div className="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/20 p-2 text-xs">
+              Validação cruzada: {ranked[0].onlineConsidered} cliente(s) ONLINE da
+              mesma OLT consultados. Quando algum online passa por um ponto, o
+              rompimento é <strong>a jusante</strong> dele.
+            </div>
+          )}
           <ul className="space-y-1.5" data-testid="probable-path-list">
             {ranked.map((p, idx) => {
               const pct = Math.round(p.percentage * 100);
-              const isHigh = p.percentage >= 0.8;
+              const verdictStyles =
+                p.verdict === "likely_cut"
+                  ? {
+                      box: "border-destructive bg-destructive/5",
+                      barClass: "h-full bg-destructive",
+                      label: "🎯 PROVÁVEL PONTO DE CORTE",
+                      labelClass: "text-destructive font-bold",
+                    }
+                  : p.verdict === "downstream_cut"
+                  ? {
+                      box: "border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 opacity-80",
+                      barClass: "h-full bg-emerald-500",
+                      label: `✅ ${p.onlinePassThrough} online passa — corte é a jusante`,
+                      labelClass: "text-emerald-700 dark:text-emerald-400",
+                    }
+                  : p.verdict === "upstream_or_here"
+                  ? {
+                      box: "border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20",
+                      barClass: "h-full bg-amber-500",
+                      label: "⚠️ sem online passando — pode estar aqui ou a montante",
+                      labelClass: "text-amber-700 dark:text-amber-400",
+                    }
+                  : {
+                      box: "border",
+                      barClass: pct >= 80 ? "h-full bg-destructive" : "h-full bg-amber-500",
+                      label: null,
+                      labelClass: "",
+                    };
               return (
                 <li
                   key={`${p.kind}|${p.name}`}
-                  className="flex items-center justify-between gap-2 text-sm"
+                  className={`rounded-md border p-2 ${verdictStyles.box}`}
                   data-testid={`probable-path-item-${idx}`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs text-muted-foreground tabular-nums w-6 text-right">
-                      {idx + 1}.
-                    </span>
-                    <Badge variant="outline" className="text-[10px] uppercase shrink-0">
-                      {p.kind}
-                    </Badge>
-                    <span className="truncate font-medium">{p.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={isHigh ? "h-full bg-destructive" : "h-full bg-amber-500"}
-                        style={{ width: `${pct}%` }}
-                      />
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-muted-foreground tabular-nums w-6 text-right">
+                        {idx + 1}.
+                      </span>
+                      <Badge variant="outline" className="text-[10px] uppercase shrink-0">
+                        {p.kind}
+                      </Badge>
+                      <span className="truncate font-medium">{p.name}</span>
                     </div>
-                    <span
-                      className={`text-xs tabular-nums w-16 text-right ${
-                        isHigh ? "text-destructive font-semibold" : "text-muted-foreground"
-                      }`}
-                    >
-                      {pct}% ({p.count}/{p.totalConsidered})
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                        <div className={verdictStyles.barClass} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs tabular-nums w-16 text-right text-muted-foreground">
+                        {pct}% ({p.count}/{p.totalConsidered})
+                      </span>
+                    </div>
                   </div>
+                  {verdictStyles.label && (
+                    <div
+                      className={`mt-1 ml-9 text-[11px] ${verdictStyles.labelClass}`}
+                      data-testid={`probable-path-verdict-${idx}`}
+                    >
+                      {verdictStyles.label}
+                    </div>
+                  )}
                 </li>
               );
             })}
           </ul>
-          <p className="text-[11px] text-muted-foreground">
-            Comece inspeção pelo topo da lista. Itens com {">="}80% são quase certos
-            como ponto comum; abaixo disso o rompimento pode ser a montante (OLT/backbone)
-            ou em segmento que não está em todos os afetados.
-          </p>
+          {ranked[0].onlineConsidered === 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Sem clientes online da mesma OLT com rota OZmap pra validar — sincronize as
+              rotas pra liberar a validação cruzada e identificar o ponto exato.
+            </p>
+          )}
         </div>
       );
     }
