@@ -547,7 +547,8 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
     .where(eq(massiveOutageLinks.outageId, outageId));
   const affectedIds = new Set(memberships.map((m) => m.linkId));
 
-  // 2. Coleta IDs de vizinhos quando o escopo é PON ou OLT
+  // 2. Coleta IDs de vizinhos quando o escopo é PON ou OLT.
+  //    NÃO exige ozmapTag preenchido — vamos tentar resolver a tag no passo 3.
   const peerIds = new Set<number>();
   if (outage.scope === "pon" || outage.scope === "olt") {
     const parts = outage.scopeKey.split("|");
@@ -557,7 +558,6 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
     if (oltName) {
       const conds = [
         eq(links.ozmapOltName, oltName),
-        sql`${links.ozmapTag} IS NOT NULL`,
         sql`${links.deletedAt} IS NULL`,
       ];
       if (outage.scope === "pon" && slot != null && port != null && !isNaN(slot) && !isNaN(port)) {
@@ -574,8 +574,39 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
     }
   }
 
-  // 3. Sincroniza com concorrência limitada (4 paralelos)
+  // 3. Resolve ozmap_tag a partir de voalle_contract_tag_service_tag pra links que estão sem tag.
+  //    A tag Voalle (varchar alfanumérico) na Marvitel é o mesmo código usado no OZmap como service tag.
   const allIds = [...Array.from(affectedIds), ...Array.from(peerIds)];
+  let tagsResolved = 0;
+  if (allIds.length > 0) {
+    const linkRows = await db
+      .select({
+        id: links.id,
+        ozmapTag: links.ozmapTag,
+        voalleTag: links.voalleContractTagServiceTag,
+      })
+      .from(links)
+      .where(inArray(links.id, allIds));
+    const toUpdate = linkRows.filter(
+      (l) => (!l.ozmapTag || l.ozmapTag.trim() === "") && l.voalleTag && l.voalleTag.trim() !== "",
+    );
+    for (const l of toUpdate) {
+      try {
+        await db
+          .update(links)
+          .set({ ozmapTag: l.voalleTag!.trim() })
+          .where(eq(links.id, l.id));
+        tagsResolved++;
+      } catch (e) {
+        // ignora — vai cair como falha na próxima fase
+      }
+    }
+    if (tagsResolved > 0) {
+      console.log(`[MassiveOutage] sync-routes outage=${outageId} tags resolvidas via Voalle: ${tagsResolved}`);
+    }
+  }
+
+  // 4. Sincroniza topologia OZmap com concorrência limitada (4 paralelos)
   let cursor = 0;
   let affectedSynced = 0;
   let peersSynced = 0;
