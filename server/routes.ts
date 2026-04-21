@@ -2590,18 +2590,25 @@ export async function registerRoutes(
 
       const sinceTs = new Date(Date.now() - windowMinutes * 60_000);
       const namesLower = names.map((n) => n.toLowerCase());
+      const namesArrSql = sql`ARRAY[${sql.join(
+        namesLower.map((n) => sql`${n}`),
+        sql`, `
+      )}]::text[]`;
 
       const result = await db.execute(sql`
         WITH candidates AS (
           SELECT l.id, l.name, l.identifier, l.location, l.status,
-                 l.optical_rx_power, l.optical_signal_at,
+                 l.optical_rx_baseline,
                  l.ozmap_ceo_name, l.ozmap_splitter_name,
                  c.name AS client_name,
+                 (SELECT m.optical_rx_power FROM metrics m
+                    WHERE m.link_id = l.id AND m.optical_rx_power IS NOT NULL
+                    ORDER BY m.timestamp DESC LIMIT 1) AS optical_rx_now,
                  (
                    SELECT array_agg(DISTINCT lower(elem->>'name'))
                    FROM jsonb_array_elements(l.ozmap_route) AS elem
                    WHERE elem->>'name' IS NOT NULL
-                     AND lower(elem->>'name') = ANY(${namesLower}::text[])
+                     AND lower(elem->>'name') = ANY(${namesArrSql})
                  ) AS matched_names_lower
           FROM links l
           LEFT JOIN clients c ON c.id = l.client_id
@@ -2610,7 +2617,7 @@ export async function registerRoutes(
             AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
             AND EXISTS (
               SELECT 1 FROM jsonb_array_elements(l.ozmap_route) AS elem
-              WHERE lower(elem->>'name') = ANY(${namesLower}::text[])
+              WHERE lower(elem->>'name') = ANY(${namesArrSql})
             )
         )
         SELECT c.*,
@@ -2637,8 +2644,8 @@ export async function registerRoutes(
             location: r.location as string | null,
             clientName: r.client_name as string | null,
             status: r.status as string,
-            opticalRxNow: r.optical_rx_power as number | null,
-            opticalAt: r.optical_signal_at as string | null,
+            opticalRxNow: r.optical_rx_now as number | null,
+            opticalRxBaseline: r.optical_rx_baseline as number | null,
             ceoName: r.ozmap_ceo_name as string | null,
             splitterName: r.ozmap_splitter_name as string | null,
             matchedElements: matchedOriginal,
