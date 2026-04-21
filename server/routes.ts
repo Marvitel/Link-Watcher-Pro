@@ -2815,11 +2815,23 @@ export async function registerRoutes(
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");
       const onlyMissing = req.body?.onlyMissing === true;
-      // Roda em background — devolve já
-      syncOzmapTopologyForAllLinks({ onlyMissing }).catch((e) =>
-        console.error("[OZmap Topology Sync] erro background:", e)
-      );
-      res.json({ ok: true, message: "Sync iniciado em background" });
+      const onlyMissingRoute = req.body?.onlyMissingRoute === true;
+      const oltName = typeof req.body?.oltName === "string" && req.body.oltName.trim()
+        ? String(req.body.oltName).trim()
+        : undefined;
+      const status = req.body?.status === "online" || req.body?.status === "offline"
+        ? req.body.status
+        : undefined;
+      // Se filtro estreito (OLT específica), aguarda pra devolver stats reais — geralmente <30s
+      const isNarrow = !!oltName;
+      const promise = syncOzmapTopologyForAllLinks({ onlyMissing, onlyMissingRoute, oltName, status });
+      if (isNarrow) {
+        const stats = await promise;
+        res.json({ ok: true, ...stats });
+      } else {
+        promise.catch((e) => console.error("[OZmap Topology Sync] erro background:", e));
+        res.json({ ok: true, message: "Sync iniciado em background" });
+      }
     } catch (error: any) {
       console.error("[ozmap topology] sync error:", error);
       res.status(500).json({ error: error?.message || "Failed to start sync" });

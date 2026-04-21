@@ -272,7 +272,15 @@ export async function syncOzmapTopologyForLink(linkId: number): Promise<{
  * Roda 1x/dia por padrão. Limita concorrência a 4 para não sobrecarregar a API.
  */
 export async function syncOzmapTopologyForAllLinks(opts?: {
+  /** Apenas links sem coordenadas de splitter (modo inicial leve). */
   onlyMissing?: boolean;
+  /** Apenas links sem `ozmap_route` populado — pra retroativos depois que o campo foi
+   *  adicionado. */
+  onlyMissingRoute?: boolean;
+  /** Restringe a uma OLT específica (match por nome cadastrado OU `ozmap_olt_name`). */
+  oltName?: string;
+  /** Restringe por status (ex.: 'online' pra validar rompimentos rapidamente). */
+  status?: "online" | "offline";
   concurrency?: number;
 }): Promise<{
   total: number;
@@ -282,13 +290,26 @@ export async function syncOzmapTopologyForAllLinks(opts?: {
 }> {
   const concurrency = opts?.concurrency ?? 4;
   const onlyMissing = opts?.onlyMissing ?? false;
+  const onlyMissingRoute = opts?.onlyMissingRoute ?? false;
 
   const conditions = [
     isNotNull(links.ozmapTag),
     sql`${links.deletedAt} IS NULL`,
+    sql`${links.ozmapNoRoute} IS NOT TRUE`,
   ];
   if (onlyMissing) {
     conditions.push(sql`${links.ozmapSplitterLat} IS NULL`);
+  }
+  if (onlyMissingRoute) {
+    conditions.push(sql`${links.ozmapRoute} IS NULL`);
+  }
+  if (opts?.oltName) {
+    conditions.push(sql`(${links.ozmapOltName} = ${opts.oltName} OR EXISTS (
+      SELECT 1 FROM olts o WHERE o.id = ${links.oltId} AND o.name = ${opts.oltName}
+    ))`);
+  }
+  if (opts?.status) {
+    conditions.push(eq(links.status, opts.status));
   }
 
   const targetLinks = await db

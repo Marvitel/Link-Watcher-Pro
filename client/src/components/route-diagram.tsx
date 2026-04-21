@@ -62,6 +62,7 @@ interface Props {
   outageId: number | null;
   open: boolean;
   scope?: string;
+  scopeKey?: string;
 }
 
 const KIND_META: Record<string, { label: string; Icon: typeof Radio; dotClass: string; iconClass: string }> = {
@@ -102,7 +103,7 @@ function nodeSubtitle(node: RouteNode): string {
   return m.label;
 }
 
-export function RouteDiagram({ outageId, open, scope }: Props) {
+export function RouteDiagram({ outageId, open, scope, scopeKey }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);

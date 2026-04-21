@@ -111,7 +111,12 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
             </div>
 
             <div className="mb-4">
-              <RouteDiagram outageId={outageId} open={open} scope={data.outage.scope} />
+              <RouteDiagram
+                outageId={outageId}
+                open={open}
+                scope={data.outage.scope}
+                scopeKey={data.outage.scopeKey}
+              />
             </div>
 
             {(() => {

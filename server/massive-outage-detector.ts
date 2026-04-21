@@ -559,7 +559,7 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
  * todos os afetados + até `peerLimit` vizinhos da mesma PON/OLT (quando aplicável).
  * Usado pelo botão "Sincronizar rotas agora" no diagrama.
  */
-export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Promise<{
+export async function syncRoutesForOutage(outageId: number, peerLimit = 120): Promise<{
   affectedSynced: number;
   peersSynced: number;
   failed: number;
@@ -589,20 +589,39 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
     const slot = parts[2] != null ? parseInt(parts[2], 10) : null;
     const port = parts[3] != null ? parseInt(parts[3], 10) : null;
     if (oltName) {
-      const conds = [
-        eq(links.ozmapOltName, oltName),
+      const baseConds = [
+        // Aceita match por OLT cadastrada OU por ozmapOltName — nem todos os links
+        // têm o ozmapOltName populado, mas têm oltId.
+        sql`(${links.ozmapOltName} = ${oltName} OR EXISTS (
+               SELECT 1 FROM olts o WHERE o.id = ${links.oltId} AND o.name = ${oltName}
+             ))`,
         sql`${links.deletedAt} IS NULL`,
+        sql`${links.ozmapNoRoute} IS NOT TRUE`,
       ];
       if (outage.scope === "pon" && slot != null && port != null && !isNaN(slot) && !isNaN(port)) {
-        conds.push(eq(links.ozmapSlot, slot), eq(links.ozmapPort, port));
+        baseConds.push(eq(links.ozmapSlot, slot), eq(links.ozmapPort, port));
       }
-      const peerRows = await db
+      // Prioriza ONLINE (essenciais pra validação cruzada) e completa com offline.
+      const halfLimit = Math.ceil(peerLimit / 2);
+      const onlinePeers = await db
         .select({ id: links.id })
         .from(links)
-        .where(and(...conds))
-        .limit(peerLimit);
-      for (const r of peerRows) {
+        .where(and(...baseConds, eq(links.status, "online")))
+        .limit(halfLimit);
+      for (const r of onlinePeers) {
         if (!affectedIds.has(r.id)) peerIds.add(r.id);
+      }
+      const remaining = peerLimit - peerIds.size;
+      if (remaining > 0) {
+        const otherPeers = await db
+          .select({ id: links.id })
+          .from(links)
+          .where(and(...baseConds))
+          .limit(remaining * 2); // pega 2× e filtra os que já entraram
+        for (const r of otherPeers) {
+          if (peerIds.size >= peerLimit) break;
+          if (!affectedIds.has(r.id) && !peerIds.has(r.id)) peerIds.add(r.id);
+        }
       }
     }
   }
