@@ -192,8 +192,13 @@ export const links = pgTable("links", {
   // Integração OZmap - Etiqueta do cliente no OZmap para rastreamento de fibra
   ozmapTag: varchar("ozmap_tag", { length: 100 }),
   // Dados de splitter e rota vindos do OZmap (auto-preenchidos, prioridade sobre Zabbix)
-  ozmapSplitterName: varchar("ozmap_splitter_name", { length: 150 }), // Nome do splitter do OZmap
+  ozmapSplitterName: varchar("ozmap_splitter_name", { length: 150 }), // Nome do splitter (CTO) do OZmap
   ozmapSplitterPort: varchar("ozmap_splitter_port", { length: 20 }), // Porta do splitter do OZmap
+  ozmapCeoName: varchar("ozmap_ceo_name", { length: 150 }), // Nome da Caixa de Emenda Óptica (CEO) anterior à CTO
+  ozmapSplitterLat: real("ozmap_splitter_lat"), // Latitude aproximada da CTO (centroide)
+  ozmapSplitterLng: real("ozmap_splitter_lng"), // Longitude aproximada da CTO (centroide)
+  ozmapCeoLat: real("ozmap_ceo_lat"), // Latitude da CEO (se houver)
+  ozmapCeoLng: real("ozmap_ceo_lng"), // Longitude da CEO (se houver)
   ozmapDistance: real("ozmap_distance"), // Distância total em km (do OZmap)
   ozmapArrivingPotency: real("ozmap_arriving_potency"), // Potência de chegada calculada (dBm)
   ozmapAttenuation: real("ozmap_attenuation"), // Atenuação total (dB)
@@ -672,6 +677,37 @@ export const incidents = pgTable("incidents", {
   repairNotes: text("repair_notes"),
 });
 
+// Rompimentos massivos detectados automaticamente por agrupamento topológico OZmap
+export const massiveOutages = pgTable("massive_outages", {
+  id: serial("id").primaryKey(),
+  scope: varchar("scope", { length: 10 }).notNull(), // 'cto' | 'ceo' | 'pon' | 'olt'
+  scopeKey: varchar("scope_key", { length: 255 }).notNull(), // chave única do escopo (ex.: nome da CTO, "olt|slot|port")
+  scopeLabel: varchar("scope_label", { length: 255 }).notNull(), // legenda em PT (ex.: "CTO ARACAJU-001")
+  totalLinksInScope: integer("total_links_in_scope").notNull().default(0), // total de links monitorados naquele escopo
+  affectedCount: integer("affected_count").notNull().default(0), // links offline atualmente
+  confidence: real("confidence").notNull().default(0), // affectedCount / totalLinksInScope (0..1)
+  mostLikelyLocation: text("most_likely_location"), // descrição em PT do local provável do rompimento
+  latitude: real("latitude"), // centroide das coordenadas dos afetados
+  longitude: real("longitude"),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // 'active' | 'resolved'
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(), // última vez que o detector viu este cluster ativo
+  resolvedAt: timestamp("resolved_at"),
+  affectedLinkIds: integer("affected_link_ids").array().notNull().default(sql`ARRAY[]::integer[]`),
+});
+
+// Histórico de pertencimento de link a um rompimento massivo (entrada/saída do cluster)
+export const massiveOutageLinks = pgTable("massive_outage_links", {
+  id: serial("id").primaryKey(),
+  outageId: integer("outage_id").notNull(),
+  linkId: integer("link_id").notNull(),
+  joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  leftAt: timestamp("left_at"),
+  // Snapshot do sinal óptico no momento da entrada (pra comparar antes/depois do reparo)
+  opticalRxBefore: real("optical_rx_before"),
+  opticalTxBefore: real("optical_tx_before"),
+});
+
 export const clientSettings = pgTable("client_settings", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").notNull().unique(),
@@ -882,6 +918,8 @@ export const insertMetricSchema = createInsertSchema(metrics).omit({ id: true, t
 export const insertEventSchema = createInsertSchema(events).omit({ id: true, timestamp: true });
 export const insertDDoSEventSchema = createInsertSchema(ddosEvents).omit({ id: true, startTime: true });
 export const insertIncidentSchema = createInsertSchema(incidents).omit({ id: true, openedAt: true, lastUpdateAt: true });
+export const insertMassiveOutageSchema = createInsertSchema(massiveOutages).omit({ id: true, startedAt: true, lastSeenAt: true });
+export const insertMassiveOutageLinkSchema = createInsertSchema(massiveOutageLinks).omit({ id: true, joinedAt: true });
 export const insertClientSettingsSchema = createInsertSchema(clientSettings).omit({ id: true, updatedAt: true });
 export const insertGroupSchema = createInsertSchema(groups).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertGroupMemberSchema = createInsertSchema(groupMembers).omit({ id: true, createdAt: true });
@@ -922,6 +960,8 @@ export type InsertMetricDaily = Omit<typeof metricsDaily.$inferSelect, 'id'>;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type InsertDDoSEvent = z.infer<typeof insertDDoSEventSchema>;
 export type InsertIncident = z.infer<typeof insertIncidentSchema>;
+export type InsertMassiveOutage = z.infer<typeof insertMassiveOutageSchema>;
+export type InsertMassiveOutageLink = z.infer<typeof insertMassiveOutageLinkSchema>;
 export type InsertClientSettings = z.infer<typeof insertClientSettingsSchema>;
 export type InsertGroup = z.infer<typeof insertGroupSchema>;
 export type InsertGroupMember = z.infer<typeof insertGroupMemberSchema>;
@@ -962,6 +1002,8 @@ export type MetricDaily = typeof metricsDaily.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type DDoSEvent = typeof ddosEvents.$inferSelect;
 export type Incident = typeof incidents.$inferSelect;
+export type MassiveOutage = typeof massiveOutages.$inferSelect;
+export type MassiveOutageLink = typeof massiveOutageLinks.$inferSelect;
 export type ClientSettings = typeof clientSettings.$inferSelect;
 export type Group = typeof groups.$inferSelect;
 export type GroupMember = typeof groupMembers.$inferSelect;

@@ -2506,6 +2506,52 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/massive-outages", requireAuth, async (req, res) => {
+    try {
+      const { massiveOutages } = await import("@shared/schema");
+      const { desc, eq } = await import("drizzle-orm");
+      const status = (req.query.status as string) || "active";
+      const rows = await db
+        .select()
+        .from(massiveOutages)
+        .where(eq(massiveOutages.status, status))
+        .orderBy(desc(massiveOutages.startedAt));
+      res.json(rows);
+    } catch (error: any) {
+      console.error("[massive-outages] list error:", error);
+      res.status(500).json({ error: "Failed to fetch massive outages" });
+    }
+  });
+
+  app.get("/api/massive-outages/:id", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { getMassiveOutageDetail } = await import("./massive-outage-detector");
+      const detail = await getMassiveOutageDetail(id);
+      if (!detail) return res.status(404).json({ error: "not found" });
+      res.json(detail);
+    } catch (error: any) {
+      console.error("[massive-outages] detail error:", error);
+      res.status(500).json({ error: "Failed to fetch outage detail" });
+    }
+  });
+
+  app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");
+      const onlyMissing = req.body?.onlyMissing === true;
+      // Roda em background — devolve já
+      syncOzmapTopologyForAllLinks({ onlyMissing }).catch((e) =>
+        console.error("[OZmap Topology Sync] erro background:", e)
+      );
+      res.json({ ok: true, message: "Sync iniciado em background" });
+    } catch (error: any) {
+      console.error("[ozmap topology] sync error:", error);
+      res.status(500).json({ error: error?.message || "Failed to start sync" });
+    }
+  });
+
   app.get("/api/incidents", requireAuth, async (req, res) => {
     try {
       const open = req.query.open === "true";

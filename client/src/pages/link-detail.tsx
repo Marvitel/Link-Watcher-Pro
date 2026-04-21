@@ -85,6 +85,8 @@ import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { formatBandwidth } from "@/lib/export-utils";
 import { LinkForm } from "@/pages/admin";
+import { MassiveOutageDetailDialog } from "@/components/massive-outage-detail-dialog";
+import type { MassiveOutage } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -151,6 +153,36 @@ function getStatusLabel(status: string) {
     case "cancelado": return "Cancelado";
     default: return status;
   }
+}
+
+function MassiveOutageBadge({ linkId }: { linkId: number }) {
+  const [open, setOpen] = useState(false);
+  const { data: outages = [] } = useQuery<MassiveOutage[]>({
+    queryKey: ["/api/massive-outages", { status: "active" }],
+    queryFn: async () => {
+      const r = await fetch("/api/massive-outages?status=active", { credentials: "include" });
+      if (!r.ok) throw new Error("Falha");
+      return r.json();
+    },
+    refetchInterval: 60000,
+  });
+
+  const affecting = outages.find((o) => (o.affectedLinkIds || []).includes(linkId));
+  if (!affecting) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30 text-xs font-medium hover:bg-destructive/20 transition-colors"
+        data-testid="badge-affected-by-massive-outage"
+      >
+        Afetado por rompimento massivo em {affecting.mostLikelyLocation || affecting.scopeLabel}
+      </button>
+      <MassiveOutageDetailDialog outageId={affecting.id} open={open} onOpenChange={setOpen} />
+    </>
+  );
 }
 
 export default function LinkDetail() {
@@ -676,6 +708,7 @@ export default function LinkDetail() {
                 Contrato Cancelado
               </Badge>
             )}
+            <MassiveOutageBadge linkId={linkId} />
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="w-4 h-4" />

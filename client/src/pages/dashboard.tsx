@@ -9,6 +9,7 @@ import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
 import { LinkGroupCard } from "@/components/link-group-card";
+import { MassiveOutageCard } from "@/components/massive-outage-card";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
@@ -845,6 +846,8 @@ function DashboardContent() {
             </p>
           </div>
         </div>
+
+        <MassiveOutageCard />
 
         {clientsLoading ? (
           <div className="space-y-4">

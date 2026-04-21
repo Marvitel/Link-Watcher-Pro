@@ -215,6 +215,22 @@ app.use((req, res, next) => {
     console.error("[index] falha ao iniciar scheduler de auditoria:", err);
   }
 
+  // Scheduler diário de sync de topologia OZmap (CTO/CEO/lat-lng por link)
+  try {
+    const { startOzmapTopologySyncScheduler } = await import("./ozmap-topology");
+    startOzmapTopologySyncScheduler();
+  } catch (err) {
+    console.error("[index] falha ao iniciar sync de topologia OZmap:", err);
+  }
+
+  // Detector de rompimentos massivos (a cada 60s)
+  try {
+    const { startMassiveOutageDetector } = await import("./massive-outage-detector");
+    startMassiveOutageDetector();
+  } catch (err) {
+    console.error("[index] falha ao iniciar detector de rompimentos:", err);
+  }
+
   // Auto-resume do Analista IA: se havia tasks pendentes antes do restart, retoma o lote
   setTimeout(async () => {
     try {
