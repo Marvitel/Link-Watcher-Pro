@@ -2537,6 +2537,20 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/massive-outages/:id/route-diagram", requireAuth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { getMassiveOutageRouteDiagram } = await import("./massive-outage-detector");
+      const diagram = await getMassiveOutageRouteDiagram(id);
+      if (!diagram) return res.status(404).json({ error: "not found" });
+      res.json(diagram);
+    } catch (error: any) {
+      console.error("[massive-outages] route-diagram error:", error);
+      res.status(500).json({ error: "Failed to compute route diagram" });
+    }
+  });
+
   app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");

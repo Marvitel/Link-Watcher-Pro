@@ -208,6 +208,10 @@ export const links = pgTable("links", {
   ozmapPonReached: boolean("ozmap_pon_reached"), // Se a PON foi alcançada
   ozmapLastSync: timestamp("ozmap_last_sync"), // Última sincronização com OZmap
   ozmapNoRoute: boolean("ozmap_no_route").default(false), // Cliente existe no OZmap mas sem rota de fibra (HTTP 422)
+  // Rota completa de fibra OZmap (sequência ordenada de elementos: OLT → DIO → cabos → caixas → splitter)
+  // Usada pelo detector de rompimentos pra calcular o caminho comum entre links afetados.
+  // Estrutura: [{ kind, name, parentName, distanceM, segmentM, attenuationDb, lat, lng, slot, port }]
+  ozmapRoute: jsonb("ozmap_route"),
   // Modo do gráfico principal: 'primary' (coleta atual), 'single' (uma interface), 'aggregate' (soma de interfaces)
   mainGraphMode: varchar("main_graph_mode", { length: 20 }).notNull().default("primary"),
   // IDs das interfaces adicionais para agregação (usado quando mainGraphMode = 'aggregate' ou 'single')

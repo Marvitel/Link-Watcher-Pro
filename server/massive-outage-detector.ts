@@ -511,6 +511,142 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
   return { outage, affectedLinks };
 }
 
+// =====================================================================
+// Diagrama de rota: caminho comum entre os links afetados (OLT → ponto de convergência)
+// =====================================================================
+
+interface RouteElementShape {
+  kind: string;
+  name: string;
+  parentName?: string | null;
+  distanceM?: number | null;
+  segmentM?: number | null;
+  attenuationDb?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  slot?: number | null;
+  port?: number | null;
+  bandeja?: string | null;
+  fiberLabel?: string | null;
+}
+
+interface RouteDiagramNode extends RouteElementShape {
+  /** Quantos links afetados ainda passam por este nó (= ainda não divergiram). */
+  affectedAtThisPoint: number;
+  /** Quantidade de links que divergem (saem do caminho comum) DEPOIS deste nó. */
+  divergesAfterCount: number;
+  /** Marca o último elemento do caminho comum (= ponto provável de rompimento). */
+  isConvergencePoint: boolean;
+}
+
+/** Compara dois nós como "iguais" pra fins de prefixo comum. */
+function nodesMatch(a: RouteElementShape, b: RouteElementShape): boolean {
+  if (a.kind !== b.kind) return false;
+  const an = (a.name || "").trim().toLowerCase();
+  const bn = (b.name || "").trim().toLowerCase();
+  if (an !== bn) return false;
+  // Pra OLT, exige slot/porta iguais quando ambos disponíveis
+  if (a.kind === "olt" && a.slot != null && b.slot != null) {
+    if (a.slot !== b.slot) return false;
+    if (a.port != null && b.port != null && a.port !== b.port) return false;
+  }
+  return true;
+}
+
+/**
+ * Calcula o diagrama de rota da outage: prefixo comum (OLT → ... → ponto de convergência)
+ * a partir das rotas OZmap dos links afetados.
+ */
+export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
+  outageId: number;
+  totalAffected: number;
+  withRoute: number;
+  withoutRoute: number;
+  commonPath: RouteDiagramNode[];
+  convergenceNode: RouteDiagramNode | null;
+} | null> {
+  const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
+  if (outageRows.length === 0) return null;
+  const memberships = await db
+    .select({ linkId: massiveOutageLinks.linkId })
+    .from(massiveOutageLinks)
+    .where(eq(massiveOutageLinks.outageId, outageId));
+  const linkIds = memberships.map((m) => m.linkId);
+  if (linkIds.length === 0) {
+    return { outageId, totalAffected: 0, withRoute: 0, withoutRoute: 0, commonPath: [], convergenceNode: null };
+  }
+  const linkRows = await db
+    .select({ id: links.id, ozmapRoute: links.ozmapRoute })
+    .from(links)
+    .where(inArray(links.id, linkIds));
+
+  // Filtra rotas válidas
+  const routes: RouteElementShape[][] = [];
+  for (const row of linkRows) {
+    const r = row.ozmapRoute as RouteElementShape[] | null;
+    if (Array.isArray(r) && r.length > 0) routes.push(r);
+  }
+  const withRoute = routes.length;
+  const withoutRoute = linkIds.length - withRoute;
+
+  if (routes.length === 0) {
+    return {
+      outageId,
+      totalAffected: linkIds.length,
+      withRoute: 0,
+      withoutRoute,
+      commonPath: [],
+      convergenceNode: null,
+    };
+  }
+
+  // Calcula prefixo comum: usa a primeira rota como referência e vai cortando
+  // o tamanho conforme as outras divergem.
+  let commonLen = routes[0].length;
+  for (let r = 1; r < routes.length; r++) {
+    const other = routes[r];
+    let i = 0;
+    const max = Math.min(commonLen, other.length);
+    while (i < max && nodesMatch(routes[0][i], other[i])) i++;
+    commonLen = i;
+    if (commonLen === 0) break;
+  }
+
+  const baseCommon = routes[0].slice(0, commonLen);
+
+  // Conta quantos links ainda permanecem no caminho em cada índice
+  const commonPath: RouteDiagramNode[] = baseCommon.map((node, idx) => {
+    let stillHere = 0;
+    for (const r of routes) {
+      if (r.length > idx && nodesMatch(r[idx], node)) stillHere++;
+    }
+    return {
+      ...node,
+      affectedAtThisPoint: stillHere,
+      divergesAfterCount: 0,
+      isConvergencePoint: idx === commonLen - 1,
+    };
+  });
+
+  // Calcula divergesAfterCount: quantos links divergem APÓS este nó
+  // (= afetadosAqui - afetadosNoPróximoNóComum)
+  for (let i = 0; i < commonPath.length; i++) {
+    const next = commonPath[i + 1];
+    commonPath[i].divergesAfterCount = next
+      ? Math.max(0, commonPath[i].affectedAtThisPoint - next.affectedAtThisPoint)
+      : 0;
+  }
+
+  return {
+    outageId,
+    totalAffected: linkIds.length,
+    withRoute,
+    withoutRoute,
+    commonPath,
+    convergenceNode: commonPath.length > 0 ? commonPath[commonPath.length - 1] : null,
+  };
+}
+
 /** Inicia o loop em background (1x/min). */
 export function startMassiveOutageDetector(): void {
   // Primeira execução depois de 60s pra dar tempo do monitor estabilizar

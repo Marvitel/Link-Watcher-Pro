@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MapPin, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import type { MassiveOutage } from "@shared/schema";
+import { RouteDiagram } from "@/components/route-diagram";
 
 interface AffectedLink {
   linkId: number;
@@ -107,6 +108,10 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                   {data.outage.status === "active" ? "Ativo" : "Resolvido"}
                 </Badge>
               </div>
+            </div>
+
+            <div className="mb-4">
+              <RouteDiagram outageId={outageId} open={open} />
             </div>
 
             <Table data-testid="table-affected-links">
