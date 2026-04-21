@@ -2593,8 +2593,10 @@ export async function registerRoutes(
 
       const result = await db.execute(sql`
         WITH candidates AS (
-          SELECT l.id, l.name, l.client_name, l.status, l.optical_rx_power, l.optical_signal_at,
+          SELECT l.id, l.name, l.identifier, l.location, l.status,
+                 l.optical_rx_power, l.optical_signal_at,
                  l.ozmap_ceo_name, l.ozmap_splitter_name,
+                 c.name AS client_name,
                  (
                    SELECT array_agg(DISTINCT lower(elem->>'name'))
                    FROM jsonb_array_elements(l.ozmap_route) AS elem
@@ -2602,6 +2604,7 @@ export async function registerRoutes(
                      AND lower(elem->>'name') = ANY(${namesLower}::text[])
                  ) AS matched_names_lower
           FROM links l
+          LEFT JOIN clients c ON c.id = l.client_id
           WHERE l.ozmap_route IS NOT NULL
             AND l.monitoring_enabled = true
             AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
@@ -2630,6 +2633,8 @@ export async function registerRoutes(
           return {
             linkId: r.id as number,
             name: r.name as string,
+            identifier: r.identifier as string | null,
+            location: r.location as string | null,
             clientName: r.client_name as string | null,
             status: r.status as string,
             opticalRxNow: r.optical_rx_power as number | null,
