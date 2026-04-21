@@ -2682,6 +2682,123 @@ export async function registerRoutes(
     }
   });
 
+  // Diagnóstico de cluster de quedas: lista todos os links offline e/ou que caíram na
+  // janela de tempo, agrupando por topologia (CEO, splitter/CTO, OLT, PON). Útil quando
+  // a maior parte dos afetados ainda não tem rota OZmap sincronizada — usa apenas os
+  // campos topológicos diretos do link (não depende de jsonb_array_elements).
+  //
+  // Query params:
+  //   windowMinutes=180 (default 180)
+  //   onlyOffline=true|false (default true) — se true, só lista links cujo status atual é offline
+  app.get("/api/admin/offline-cluster", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const windowMinutes = Math.max(1, Math.min(24 * 60, parseInt(String(req.query.windowMinutes || "180"), 10) || 180));
+      const onlyOffline = String(req.query.onlyOffline ?? "true") !== "false";
+      const sinceTs = new Date(Date.now() - windowMinutes * 60_000);
+
+      const result = await db.execute(sql`
+        WITH offlines AS (
+          SELECT l.id, l.name, l.identifier, l.location, l.status,
+                 l.last_failure_at, l.last_failure_reason,
+                 l.optical_rx_baseline,
+                 l.ozmap_ceo_name, l.ozmap_splitter_name, l.ozmap_olt_name,
+                 l.olt_id, l.slot_olt, l.port_olt,
+                 c.name AS client_name,
+                 (SELECT m.optical_rx_power FROM metrics m
+                    WHERE m.link_id = l.id AND m.optical_rx_power IS NOT NULL
+                    ORDER BY m.timestamp DESC LIMIT 1) AS optical_rx_now,
+                 (SELECT MIN(e.timestamp) FROM events e
+                    WHERE e.link_id = l.id
+                      AND e.timestamp >= ${sinceTs}
+                      AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+                 ) AS first_down_in_window
+          FROM links l
+          LEFT JOIN clients c ON c.id = l.client_id
+          WHERE l.monitoring_enabled = true
+            AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+            AND (
+              ${onlyOffline ? sql`l.status = 'offline'` : sql`(l.status = 'offline' OR l.last_failure_at >= ${sinceTs})`}
+            )
+        )
+        SELECT * FROM offlines
+        ORDER BY first_down_in_window NULLS LAST, ozmap_ceo_name NULLS LAST
+        LIMIT 1000
+      `);
+
+      const rows: any[] = (result as any).rows || (result as any) || [];
+
+      // Agrupa por CEO (mais útil pra identificar trecho rompido)
+      const byCeo = new Map<string, any[]>();
+      const bySplitter = new Map<string, any[]>();
+      const byOlt = new Map<string, any[]>();
+      const byPon = new Map<string, any[]>();
+      const noTopology: any[] = [];
+
+      for (const r of rows) {
+        const ceo = r.ozmap_ceo_name as string | null;
+        if (ceo) {
+          if (!byCeo.has(ceo)) byCeo.set(ceo, []);
+          byCeo.get(ceo)!.push(r);
+        }
+        const sp = r.ozmap_splitter_name as string | null;
+        if (sp) {
+          if (!bySplitter.has(sp)) bySplitter.set(sp, []);
+          bySplitter.get(sp)!.push(r);
+        }
+        const olt = r.ozmap_olt_name as string | null;
+        if (olt) {
+          if (!byOlt.has(olt)) byOlt.set(olt, []);
+          byOlt.get(olt)!.push(r);
+          if (r.slot_olt != null && r.port_olt != null) {
+            const ponKey = `${olt}|${r.slot_olt}|${r.port_olt}`;
+            if (!byPon.has(ponKey)) byPon.set(ponKey, []);
+            byPon.get(ponKey)!.push(r);
+          }
+        }
+        if (!ceo && !sp && !olt) noTopology.push(r);
+      }
+
+      const groupSummary = (m: Map<string, any[]>) =>
+        Array.from(m.entries())
+          .map(([key, items]) => ({
+            key,
+            count: items.length,
+            sampleNames: items.slice(0, 5).map((i) => i.name),
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 30);
+
+      res.json({
+        query: { windowMinutes, onlyOffline, since: sinceTs.toISOString() },
+        totalAffected: rows.length,
+        withoutOzmapTopology: noTopology.length,
+        topByCeo: groupSummary(byCeo),
+        topBySplitter: groupSummary(bySplitter),
+        topByOlt: groupSummary(byOlt),
+        topByPon: groupSummary(byPon),
+        links: rows.map((r: any) => ({
+          linkId: r.id,
+          name: r.name,
+          clientName: r.client_name,
+          status: r.status,
+          ceoName: r.ozmap_ceo_name,
+          splitterName: r.ozmap_splitter_name,
+          oltName: r.ozmap_olt_name,
+          slot: r.slot_olt,
+          port: r.port_olt,
+          opticalRxBaseline: r.optical_rx_baseline,
+          opticalRxNow: r.optical_rx_now,
+          lastFailureAt: r.last_failure_at,
+          lastFailureReason: r.last_failure_reason,
+          firstDownInWindow: r.first_down_in_window,
+        })),
+      });
+    } catch (error: any) {
+      console.error("[offline-cluster] error:", error);
+      res.status(500).json({ error: error?.message || "Failed to compute cluster" });
+    }
+  });
+
   app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");
