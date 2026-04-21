@@ -197,26 +197,84 @@ export async function detectMassiveOutages(): Promise<{
       sql`${links.contractStatus} IN ('active', 'blocked')`,
     ));
 
-  // 2. Para cada link offline, pega o escopo MAIS ESPECÍFICO disponível
-  // (CTO > CEO > PON > OLT). Um mesmo link só conta em UM escopo (o mais profundo).
-  const groups = new Map<string, { info: ScopeInfo; links: typeof offline }>();
+  // 2. Para cada link offline, computa TODAS as escalas disponíveis (cto/ceo/pon/olt).
+  // Atribuição inicial: o mais específico (CTO > CEO > PON > OLT).
+  type Level = "cto" | "ceo" | "pon" | "olt";
+  const LEVEL_RANK: Record<Level, number> = { cto: 0, ceo: 1, pon: 2, olt: 3 };
+  const allScopes = new Map<number, Partial<Record<Level, ScopeInfo>>>();
+  const assignment = new Map<number, ScopeInfo>();
 
   for (const link of offline) {
-    const scope =
-      ctoScope(link) ||
-      ceoScope(link) ||
-      ponScope(link) ||
-      oltScope(link);
-    if (!scope) continue; // sem topologia OZmap — ignora
-    const existing = groups.get(scope.scopeKey);
-    if (existing) {
-      existing.links.push(link);
-    } else {
-      groups.set(scope.scopeKey, { info: scope, links: [link] });
+    const scopes: Partial<Record<Level, ScopeInfo>> = {};
+    const c = ctoScope(link); if (c) scopes.cto = c;
+    const e = ceoScope(link); if (e) scopes.ceo = e;
+    const p = ponScope(link); if (p) scopes.pon = p;
+    const o = oltScope(link); if (o) scopes.olt = o;
+    allScopes.set(link.id, scopes);
+    const initial = scopes.cto || scopes.ceo || scopes.pon || scopes.olt;
+    if (initial) assignment.set(link.id, initial);
+  }
+
+  // 3. Roll-up bottom-up por convergência: para cada escopo PARENT, conta quantos
+  // sub-escopos DISTINTOS estão presentes nos links offline. Se ≥2 distintos
+  // convergem nele, sobe todos pra esse parent (= ponto provável de rompimento).
+  // Itera CEO → PON → OLT.
+  const ROLLUP_ORDER: Array<{ parent: Level; childOf: Level[] }> = [
+    { parent: "ceo", childOf: ["cto"] },
+    { parent: "pon", childOf: ["cto", "ceo"] },
+    { parent: "olt", childOf: ["cto", "ceo", "pon"] },
+  ];
+
+  for (const { parent, childOf } of ROLLUP_ORDER) {
+    // Para cada parentKey, coleta linkIds que possuem esse parent E suas chaves de filho
+    const parentBuckets = new Map<string, { linkIds: number[]; distinctChildKeys: Set<string>; info: ScopeInfo }>();
+    for (const link of offline) {
+      const scopes = allScopes.get(link.id);
+      const parentScope = scopes?.[parent];
+      if (!parentScope) continue;
+      // Chave de filho mais específica disponível (a mais profunda dentre childOf)
+      let childKey: string | null = null;
+      for (const lvl of childOf) {
+        if (scopes[lvl]) { childKey = `${lvl}|${scopes[lvl]!.scopeKey}`; break; }
+      }
+      // Se link já está atribuído a algo no nível do parent ou acima, ignora
+      const cur = assignment.get(link.id);
+      if (cur && LEVEL_RANK[cur.scope] >= LEVEL_RANK[parent]) continue;
+
+      const b = parentBuckets.get(parentScope.scopeKey);
+      if (b) {
+        b.linkIds.push(link.id);
+        if (childKey) b.distinctChildKeys.add(childKey);
+      } else {
+        parentBuckets.set(parentScope.scopeKey, {
+          linkIds: [link.id],
+          distinctChildKeys: new Set(childKey ? [childKey] : []),
+          info: parentScope,
+        });
+      }
+    }
+    // Promove quem tem ≥2 sub-escopos distintos convergindo
+    for (const bucket of Array.from(parentBuckets.values())) {
+      if (bucket.distinctChildKeys.size >= 2) {
+        for (const linkId of bucket.linkIds) {
+          assignment.set(linkId, bucket.info);
+        }
+      }
     }
   }
 
-  // 3. Filtra grupos que atingem o threshold
+  // 4. Constrói grupos finais a partir das atribuições
+  const groups = new Map<string, { info: ScopeInfo; links: typeof offline }>();
+  for (const link of offline) {
+    const a = assignment.get(link.id);
+    if (!a) continue;
+    const fullKey = `${a.scope}|${a.scopeKey}`;
+    const ex = groups.get(fullKey);
+    if (ex) ex.links.push(link);
+    else groups.set(fullKey, { info: a, links: [link] });
+  }
+
+  // 5. Filtra grupos que atingem o threshold
   const eligibleGroups = Array.from(groups.values()).filter((g) => g.links.length >= THRESHOLD);
 
   // 4. Carrega totais por escopo (pra calcular confidence)
@@ -229,14 +287,31 @@ export async function detectMassiveOutages(): Promise<{
     return totals.olt.get(info.scopeKey) ?? fallback;
   };
 
-  // 5. Carrega outages ativas atuais
+  // 6. Carrega outages ativas atuais (ordenado por mais recente primeiro pra dedupe)
   const currentActive = await db
     .select()
     .from(massiveOutages)
-    .where(eq(massiveOutages.status, "active"));
+    .where(eq(massiveOutages.status, "active"))
+    .orderBy(desc(massiveOutages.startedAt));
+
+  // Dedupe defensivo: se houver duplicatas pra mesma (scope, scopeKey), mantém a mais
+  // recente e marca as demais como resolvidas (corrige inconsistências históricas).
   const activeByKey = new Map<string, typeof currentActive[0]>();
+  const dupesToResolve: number[] = [];
   for (const a of currentActive) {
-    activeByKey.set(`${a.scope}|${a.scopeKey}`, a);
+    const k = `${a.scope}|${a.scopeKey}`;
+    if (activeByKey.has(k)) {
+      dupesToResolve.push(a.id);
+    } else {
+      activeByKey.set(k, a);
+    }
+  }
+  if (dupesToResolve.length > 0) {
+    await db.update(massiveOutages).set({
+      status: "resolved",
+      resolvedAt: new Date(),
+    }).where(inArray(massiveOutages.id, dupesToResolve));
+    console.log(`[MassiveOutage] 🧹 Resolvido ${dupesToResolve.length} duplicata(s) ativa(s)`);
   }
 
   let newOutages = 0;
