@@ -735,6 +735,19 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   routeReachesOlt: boolean;
   /** Índice (0-based) do "ponto provável de rompimento" no commonPath. */
   convergenceIndex: number | null;
+  /**
+   * Caminho provável por FREQUÊNCIA: lista de elementos estruturais (CEO/CTO/box/etc)
+   * que aparecem na rota de uma porcentagem alta dos afetados. Funciona quando o
+   * prefixo estrito é curto/vazio (típico em escopo OLT) — mostra os pontos
+   * "candidatos" mesmo que nem todos passem por eles.
+   */
+  probablePath: Array<{
+    kind: string;
+    name: string;
+    count: number;
+    totalConsidered: number;
+    percentage: number;
+  }>;
 } | null> {
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
   if (outageRows.length === 0) return null;
@@ -796,6 +809,44 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
     }
   }
 
+  // STRUCTURAL_KINDS: tipos de elementos que valem como "ponto de inspeção"
+  const STRUCTURAL_KINDS_LOCAL = new Set(["olt", "dio", "ceo", "cto", "splitter", "box"]);
+
+  // Caminho provável por frequência: pra cada elemento estrutural que aparece em
+  // alguma rota, conta em quantas rotas (distintas) ele aparece. Ranqueia por
+  // percentual decrescente — assim mesmo quando algumas rotas estão incompletas
+  // ainda dá pra ver "99% passa por CEO X, 87% por CTO Y, etc".
+  const probableFreq = new Map<string, { kind: string; name: string; count: number }>();
+  for (const route of routes) {
+    const seen = new Set<string>(); // dedupe por rota
+    for (const node of route) {
+      if (!STRUCTURAL_KINDS_LOCAL.has(node.kind)) continue;
+      const name = (node.name || "").trim();
+      if (!name) continue;
+      const key = `${node.kind}|${name.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const ex = probableFreq.get(key);
+      if (ex) ex.count++;
+      else probableFreq.set(key, { kind: node.kind, name, count: 1 });
+    }
+  }
+  const totalConsidered = routes.length;
+  // Filtra: aparece em ≥30% das rotas E em pelo menos 2 — evita ruído de waypoint
+  // único de algum link específico
+  const minCount = Math.max(2, Math.ceil(totalConsidered * 0.3));
+  const probablePath = Array.from(probableFreq.values())
+    .filter((e) => e.count >= minCount)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12)
+    .map((e) => ({
+      kind: e.kind,
+      name: e.name,
+      count: e.count,
+      totalConsidered,
+      percentage: totalConsidered > 0 ? e.count / totalConsidered : 0,
+    }));
+
   // Precisamos de no mínimo 2 rotas pra calcular um caminho COMUM real.
   // Com apenas 1 rota, a "interseção" seria a própria rota inteira — que não tem
   // valor diagnóstico (qualquer ramificação dela seria considerada "comum").
@@ -811,6 +862,7 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
       peersUsed,
       routeReachesOlt: false,
       convergenceIndex: null,
+      probablePath,
     };
   }
 
@@ -885,6 +937,7 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
     peersUsed,
     routeReachesOlt,
     convergenceIndex,
+    probablePath,
   };
 }
 

@@ -46,6 +46,13 @@ interface DiagramResponse {
   peersUsed: number;
   routeReachesOlt: boolean;
   convergenceIndex: number | null;
+  probablePath?: Array<{
+    kind: string;
+    name: string;
+    count: number;
+    totalConsidered: number;
+    percentage: number;
+  }>;
 }
 
 interface Props {
@@ -150,9 +157,69 @@ export function RouteDiagram({ outageId, open, scope }: Props) {
   }
 
   if (data.commonPath.length === 0) {
-    // Quando o escopo é a OLT inteira, NÃO faz sentido procurar trecho de fibra
-    // comum: cada PON sai por um caminho diferente. A causa provável é a própria
-    // OLT (energia, placa, uplink, backbone até ela).
+    // Caminho provável por frequência: mesmo sem prefixo estrito, dá pra
+    // ranquear quais CEOs/CTOs aparecem na rota da maioria dos afetados.
+    const ranked = data.probablePath ?? [];
+    if (ranked.length > 0) {
+      return (
+        <div className="rounded-md border p-4 text-sm space-y-3" data-testid="route-diagram-probable">
+          <div className="space-y-1">
+            <p className="font-medium">
+              Pontos prováveis ranqueados por frequência
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {ranked[0].totalConsidered} rota(s) OZmap analisada(s). Cada item mostra
+              em que % das rotas aquele elemento aparece — o topo é o suspeito mais
+              forte.
+            </p>
+          </div>
+          <ul className="space-y-1.5" data-testid="probable-path-list">
+            {ranked.map((p, idx) => {
+              const pct = Math.round(p.percentage * 100);
+              const isHigh = p.percentage >= 0.8;
+              return (
+                <li
+                  key={`${p.kind}|${p.name}`}
+                  className="flex items-center justify-between gap-2 text-sm"
+                  data-testid={`probable-path-item-${idx}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-muted-foreground tabular-nums w-6 text-right">
+                      {idx + 1}.
+                    </span>
+                    <Badge variant="outline" className="text-[10px] uppercase shrink-0">
+                      {p.kind}
+                    </Badge>
+                    <span className="truncate font-medium">{p.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={isHigh ? "h-full bg-destructive" : "h-full bg-amber-500"}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span
+                      className={`text-xs tabular-nums w-16 text-right ${
+                        isHigh ? "text-destructive font-semibold" : "text-muted-foreground"
+                      }`}
+                    >
+                      {pct}% ({p.count}/{p.totalConsidered})
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-[11px] text-muted-foreground">
+            Comece inspeção pelo topo da lista. Itens com {">="}80% são quase certos
+            como ponto comum; abaixo disso o rompimento pode ser a montante (OLT/backbone)
+            ou em segmento que não está em todos os afetados.
+          </p>
+        </div>
+      );
+    }
+    // Fallback final: nem prefixo nem ranking → mensagens originais
     if (scope === "olt") {
       return (
         <div
@@ -160,13 +227,12 @@ export function RouteDiagram({ outageId, open, scope }: Props) {
           data-testid="route-diagram-olt"
         >
           <p className="font-medium text-amber-900 dark:text-amber-200">
-            Queda no nível da OLT — sem trecho de fibra comum aos afetados.
+            Queda no nível da OLT — sem rotas OZmap suficientes para ranquear pontos.
           </p>
           <p className="text-muted-foreground text-xs">
-            Cada PON da OLT sai por um caminho diferente, então não existe um
-            "ponto comum" de fibra para diagramar. A causa provável está na própria
-            OLT (energia, placa, uplink) ou no backbone até ela. Verifique alarmes
-            no equipamento e o link de transporte.
+            Sincronize as rotas dos afetados pra liberar a análise por frequência. A
+            causa provável está na própria OLT (energia, placa, uplink) ou no backbone
+            até ela.
           </p>
         </div>
       );
