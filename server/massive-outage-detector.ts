@@ -564,39 +564,80 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   withoutRoute: number;
   commonPath: RouteDiagramNode[];
   convergenceNode: RouteDiagramNode | null;
+  /** Quando true, o caminho foi inferido a partir dos vizinhos (outros links da mesma PON/OLT). */
+  inferredFromPeers: boolean;
+  peersUsed: number;
 } | null> {
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
   if (outageRows.length === 0) return null;
+  const outage = outageRows[0];
+
   const memberships = await db
     .select({ linkId: massiveOutageLinks.linkId })
     .from(massiveOutageLinks)
     .where(eq(massiveOutageLinks.outageId, outageId));
   const linkIds = memberships.map((m) => m.linkId);
-  if (linkIds.length === 0) {
-    return { outageId, totalAffected: 0, withRoute: 0, withoutRoute: 0, commonPath: [], convergenceNode: null };
-  }
-  const linkRows = await db
-    .select({ id: links.id, ozmapRoute: links.ozmapRoute })
-    .from(links)
-    .where(inArray(links.id, linkIds));
+  const totalAffected = linkIds.length;
 
-  // Filtra rotas válidas
-  const routes: RouteElementShape[][] = [];
-  for (const row of linkRows) {
-    const r = row.ozmapRoute as RouteElementShape[] | null;
-    if (Array.isArray(r) && r.length > 0) routes.push(r);
+  // Carrega rotas dos afetados
+  let routes: RouteElementShape[][] = [];
+  if (linkIds.length > 0) {
+    const linkRows = await db
+      .select({ id: links.id, ozmapRoute: links.ozmapRoute })
+      .from(links)
+      .where(inArray(links.id, linkIds));
+    for (const row of linkRows) {
+      const r = row.ozmapRoute as RouteElementShape[] | null;
+      if (Array.isArray(r) && r.length > 0) routes.push(r);
+    }
   }
   const withRoute = routes.length;
-  const withoutRoute = linkIds.length - withRoute;
+  const withoutRoute = totalAffected - withRoute;
+
+  // Fallback: se NENHUM afetado tem rota e o escopo é PON ou OLT, usa as rotas dos
+  // VIZINHOS da mesma PON/OLT (links online ou offline) — todos compartilham a mesma
+  // infra até pelo menos a última CEO comum.
+  let inferredFromPeers = false;
+  let peersUsed = 0;
+  if (routes.length === 0 && (outage.scope === "pon" || outage.scope === "olt")) {
+    // Decompõe scopeKey: "pon|<oltName>|<slot>|<port>" ou "olt|<oltName>"
+    const parts = outage.scopeKey.split("|");
+    const oltName = parts[1];
+    const slot = parts[2] != null ? parseInt(parts[2], 10) : null;
+    const port = parts[3] != null ? parseInt(parts[3], 10) : null;
+    if (oltName) {
+      const conds = [
+        eq(links.ozmapOltName, oltName),
+        sql`${links.ozmapRoute} IS NOT NULL`,
+        sql`${links.deletedAt} IS NULL`,
+      ];
+      if (outage.scope === "pon" && slot != null && port != null && !isNaN(slot) && !isNaN(port)) {
+        conds.push(eq(links.ozmapSlot, slot), eq(links.ozmapPort, port));
+      }
+      const peerRows = await db
+        .select({ id: links.id, ozmapRoute: links.ozmapRoute })
+        .from(links)
+        .where(and(...conds))
+        .limit(50);
+      for (const row of peerRows) {
+        const r = row.ozmapRoute as RouteElementShape[] | null;
+        if (Array.isArray(r) && r.length > 0) routes.push(r);
+      }
+      peersUsed = routes.length;
+      if (routes.length > 0) inferredFromPeers = true;
+    }
+  }
 
   if (routes.length === 0) {
     return {
       outageId,
-      totalAffected: linkIds.length,
+      totalAffected,
       withRoute: 0,
       withoutRoute,
       commonPath: [],
       convergenceNode: null,
+      inferredFromPeers: false,
+      peersUsed: 0,
     };
   }
 
@@ -639,11 +680,13 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
 
   return {
     outageId,
-    totalAffected: linkIds.length,
+    totalAffected,
     withRoute,
     withoutRoute,
     commonPath,
     convergenceNode: commonPath.length > 0 ? commonPath[commonPath.length - 1] : null,
+    inferredFromPeers,
+    peersUsed,
   };
 }
 
