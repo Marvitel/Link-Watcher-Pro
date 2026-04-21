@@ -51,6 +51,7 @@ interface DiagramResponse {
 interface Props {
   outageId: number | null;
   open: boolean;
+  scope?: string;
 }
 
 const KIND_META: Record<string, { label: string; Icon: typeof Radio; dotClass: string; iconClass: string }> = {
@@ -91,7 +92,7 @@ function nodeSubtitle(node: RouteNode): string {
   return m.label;
 }
 
-export function RouteDiagram({ outageId, open }: Props) {
+export function RouteDiagram({ outageId, open, scope }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
@@ -149,6 +150,27 @@ export function RouteDiagram({ outageId, open }: Props) {
   }
 
   if (data.commonPath.length === 0) {
+    // Quando o escopo é a OLT inteira, NÃO faz sentido procurar trecho de fibra
+    // comum: cada PON sai por um caminho diferente. A causa provável é a própria
+    // OLT (energia, placa, uplink, backbone até ela).
+    if (scope === "olt") {
+      return (
+        <div
+          className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 p-4 text-sm space-y-2"
+          data-testid="route-diagram-olt"
+        >
+          <p className="font-medium text-amber-900 dark:text-amber-200">
+            Queda no nível da OLT — sem trecho de fibra comum aos afetados.
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Cada PON da OLT sai por um caminho diferente, então não existe um
+            "ponto comum" de fibra para diagramar. A causa provável está na própria
+            OLT (energia, placa, uplink) ou no backbone até ela. Verifique alarmes
+            no equipamento e o link de transporte.
+          </p>
+        </div>
+      );
+    }
     return (
       <div
         className="rounded-md border border-dashed p-4 text-sm text-muted-foreground space-y-3"

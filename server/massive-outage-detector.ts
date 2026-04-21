@@ -506,16 +506,21 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
   const linkById = new Map(linkRows.map((l) => [l.id, l]));
 
   // OTIMIZAÇÃO: uma única consulta com DISTINCT ON em vez de N consultas sequenciais.
-  // Pega a última leitura óptica não-nula por link em uma única ida ao banco.
+  // Pega a última leitura óptica DEPOIS do início do rompimento (ou da entrada do link
+  // no rompimento). Se não houver leitura nova, retorna null → UI mostra "—" em "Sinal
+  // agora", evitando a confusão de mostrar o mesmo valor "antes" e "agora".
   const latestSignalRows = await db.execute(sql`
-    SELECT DISTINCT ON (link_id)
-      link_id,
-      optical_rx_power AS rx,
-      optical_tx_power AS tx
-    FROM ${metrics}
-    WHERE link_id IN (${sql.join(linkIds.map((id) => sql`${id}`), sql`, `)})
-      AND optical_rx_power IS NOT NULL
-    ORDER BY link_id, timestamp DESC
+    SELECT DISTINCT ON (m.link_id)
+      m.link_id,
+      m.optical_rx_power AS rx,
+      m.optical_tx_power AS tx
+    FROM ${metrics} m
+    JOIN ${massiveOutageLinks} mol
+      ON mol.link_id = m.link_id AND mol.outage_id = ${outageId}
+    WHERE m.link_id IN (${sql.join(linkIds.map((id) => sql`${id}`), sql`, `)})
+      AND m.optical_rx_power IS NOT NULL
+      AND m.timestamp > mol.joined_at
+    ORDER BY m.link_id, m.timestamp DESC
   `);
   const latestByLink = new Map<number, { rx: number | null; tx: number | null }>();
   for (const row of latestSignalRows.rows as any[]) {

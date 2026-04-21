@@ -111,7 +111,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
             </div>
 
             <div className="mb-4">
-              <RouteDiagram outageId={outageId} open={open} />
+              <RouteDiagram outageId={outageId} open={open} scope={data.outage.scope} />
             </div>
 
             {(() => {
@@ -162,7 +162,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                             data-testid={`row-affected-link-${al.linkId}`}
                           >
                             <TableCell>
-                              <Link href={`/links/${al.linkId}`} className="text-primary hover:underline">
+                              <Link href={`/link/${al.linkId}`} className="text-primary hover:underline">
                                 {al.name}
                               </Link>
                               {isOnline && al.leftAt && (
