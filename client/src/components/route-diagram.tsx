@@ -121,22 +121,25 @@ export function RouteDiagram({ outageId, open, scope, scopeKey }: Props) {
       const res = await apiRequest("POST", `/api/massive-outages/${outageId}/sync-routes`);
       const json = await res.json();
       const okCount = (json.affectedSynced || 0) + (json.peersSynced || 0);
+      const reasons = json.failureReasons || {};
+      const reasonList = Object.entries(reasons)
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .map(([r, n]) => `${r}: ${n}`)
+        .join(" · ");
       if (okCount === 0 && json.failed > 0) {
-        const reasons = json.failureReasons || {};
-        const reasonList = Object.entries(reasons)
-          .map(([r, n]) => `${r} (${n})`)
-          .join(", ");
         toast({
           title: "Nada sincronizado",
-          description: `${json.failed} link(s) falharam. Motivos: ${reasonList || "desconhecido"}`,
+          description: `${json.failed} falha(s). ${reasonList || "motivo desconhecido"}`,
           variant: "destructive",
+          duration: 12_000,
         });
       } else {
         toast({
           title: "Sincronização concluída",
-          description: `${json.affectedSynced} afetado(s) + ${json.peersSynced} vizinho(s) sincronizados${
-            json.failed > 0 ? ` · ${json.failed} falha(s)` : ""
-          }`,
+          description:
+            `${json.affectedSynced} afetado(s) + ${json.peersSynced} vizinho(s) OK` +
+            (json.failed > 0 ? ` · ${json.failed} falha(s) → ${reasonList}` : ""),
+          duration: 12_000,
         });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/massive-outages", outageId, "route-diagram"] });
