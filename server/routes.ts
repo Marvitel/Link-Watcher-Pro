@@ -2551,6 +2551,19 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/massive-outages/:id/sync-routes", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { syncRoutesForOutage } = await import("./massive-outage-detector");
+      const result = await syncRoutesForOutage(id);
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      console.error("[massive-outages] sync-routes error:", error);
+      res.status(500).json({ error: error?.message || "Failed to sync routes" });
+    }
+  });
+
   app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");

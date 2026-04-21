@@ -1,6 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Radio,
   Layers,
@@ -10,6 +14,7 @@ import {
   HelpCircle,
   AlertTriangle,
   Info,
+  RefreshCw,
 } from "lucide-react";
 
 interface RouteNode {
@@ -85,11 +90,39 @@ function nodeSubtitle(node: RouteNode): string {
 }
 
 export function RouteDiagram({ outageId, open }: Props) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+
   const { data, isLoading } = useQuery<DiagramResponse>({
     queryKey: ["/api/massive-outages", outageId, "route-diagram"],
     enabled: open && outageId !== null,
     refetchInterval: 60_000,
   });
+
+  async function handleSync() {
+    if (outageId == null) return;
+    setSyncing(true);
+    try {
+      const res = await apiRequest("POST", `/api/massive-outages/${outageId}/sync-routes`);
+      const json = await res.json();
+      toast({
+        title: "Sincronização concluída",
+        description: `${json.affectedSynced} afetado(s) + ${json.peersSynced} vizinho(s) sincronizados${
+          json.failed > 0 ? ` · ${json.failed} falha(s)` : ""
+        }`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/massive-outages", outageId, "route-diagram"] });
+    } catch (err: any) {
+      toast({
+        title: "Falha na sincronização",
+        description: err?.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   if (isLoading || !data) {
     return (
@@ -103,21 +136,36 @@ export function RouteDiagram({ outageId, open }: Props) {
   if (data.commonPath.length === 0) {
     return (
       <div
-        className="rounded-md border border-dashed p-4 text-sm text-muted-foreground"
+        className="rounded-md border border-dashed p-4 text-sm text-muted-foreground space-y-3"
         data-testid="route-diagram-empty"
       >
-        {data.withRoute === 0 ? (
-          <>
-            Nenhum dos {data.totalAffected} link(s) afetado(s) tem rota OZmap sincronizada ainda
-            — e não foi possível inferir a partir dos vizinhos da PON/OLT.
-            Aguarde a sincronização diária (04:00) ou dispare manualmente no painel admin.
-          </>
-        ) : (
-          <>
-            As rotas dos links afetados não compartilham um trecho comum identificável.
-            ({data.withRoute}/{data.totalAffected} com rota OZmap)
-          </>
-        )}
+        <p>
+          {data.withRoute === 0 ? (
+            <>
+              Nenhum dos {data.totalAffected} link(s) afetado(s) tem rota OZmap sincronizada
+              — e não foi possível inferir a partir dos vizinhos da PON/OLT.
+            </>
+          ) : (
+            <>
+              As rotas dos links afetados não compartilham um trecho comum identificável.
+              ({data.withRoute}/{data.totalAffected} com rota OZmap)
+            </>
+          )}
+        </p>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={handleSync}
+          disabled={syncing}
+          data-testid="button-sync-routes-now"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Sincronizando..." : "Sincronizar rotas agora"}
+        </Button>
+        <p className="text-xs">
+          Vai puxar a rota OZmap dos links afetados + até 30 vizinhos da mesma PON/OLT
+          (pode levar alguns segundos).
+        </p>
       </div>
     );
   }

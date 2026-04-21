@@ -477,22 +477,32 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     .where(inArray(links.id, linkIds));
   const linkById = new Map(linkRows.map((l) => [l.id, l]));
 
-  const affectedLinks = await Promise.all(memberships.map(async (m) => {
-    const link = linkById.get(m.linkId);
-    // Sinal "agora": último valor não-nulo
-    const nowRows = await db
-      .select({ rx: metrics.opticalRxPower, tx: metrics.opticalTxPower })
-      .from(metrics)
-      .where(and(
-        eq(metrics.linkId, m.linkId),
-        sql`${metrics.opticalRxPower} IS NOT NULL`,
-      ))
-      .orderBy(desc(metrics.timestamp))
-      .limit(1);
-    const rxNow = nowRows[0]?.rx ?? null;
-    const txNow = nowRows[0]?.tx ?? null;
-    const deltaRx = rxNow != null && m.opticalRxBefore != null ? rxNow - m.opticalRxBefore : null;
+  // OTIMIZAÇÃO: uma única consulta com DISTINCT ON em vez de N consultas sequenciais.
+  // Pega a última leitura óptica não-nula por link em uma única ida ao banco.
+  const latestSignalRows = await db.execute(sql`
+    SELECT DISTINCT ON (link_id)
+      link_id,
+      optical_rx_power AS rx,
+      optical_tx_power AS tx
+    FROM ${metrics}
+    WHERE link_id IN (${sql.join(linkIds.map((id) => sql`${id}`), sql`, `)})
+      AND optical_rx_power IS NOT NULL
+    ORDER BY link_id, timestamp DESC
+  `);
+  const latestByLink = new Map<number, { rx: number | null; tx: number | null }>();
+  for (const row of latestSignalRows.rows as any[]) {
+    latestByLink.set(Number(row.link_id), {
+      rx: row.rx != null ? Number(row.rx) : null,
+      tx: row.tx != null ? Number(row.tx) : null,
+    });
+  }
 
+  const affectedLinks = memberships.map((m) => {
+    const link = linkById.get(m.linkId);
+    const latest = latestByLink.get(m.linkId);
+    const rxNow = latest?.rx ?? null;
+    const txNow = latest?.tx ?? null;
+    const deltaRx = rxNow != null && m.opticalRxBefore != null ? rxNow - m.opticalRxBefore : null;
     return {
       linkId: m.linkId,
       name: link?.name ?? `Link #${m.linkId}`,
@@ -506,9 +516,85 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
       joinedAt: m.joinedAt,
       leftAt: m.leftAt,
     };
-  }));
+  });
 
   return { outage, affectedLinks };
+}
+
+/**
+ * Sincroniza a rota OZmap dos links relevantes para um outage específico:
+ * todos os afetados + até `peerLimit` vizinhos da mesma PON/OLT (quando aplicável).
+ * Usado pelo botão "Sincronizar rotas agora" no diagrama.
+ */
+export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Promise<{
+  affectedSynced: number;
+  peersSynced: number;
+  failed: number;
+}> {
+  const { syncOzmapTopologyForLink } = await import("./ozmap-topology");
+  const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
+  if (outageRows.length === 0) return { affectedSynced: 0, peersSynced: 0, failed: 0 };
+  const outage = outageRows[0];
+
+  // 1. Coleta IDs dos afetados
+  const memberships = await db
+    .select({ linkId: massiveOutageLinks.linkId })
+    .from(massiveOutageLinks)
+    .where(eq(massiveOutageLinks.outageId, outageId));
+  const affectedIds = new Set(memberships.map((m) => m.linkId));
+
+  // 2. Coleta IDs de vizinhos quando o escopo é PON ou OLT
+  const peerIds = new Set<number>();
+  if (outage.scope === "pon" || outage.scope === "olt") {
+    const parts = outage.scopeKey.split("|");
+    const oltName = parts[1];
+    const slot = parts[2] != null ? parseInt(parts[2], 10) : null;
+    const port = parts[3] != null ? parseInt(parts[3], 10) : null;
+    if (oltName) {
+      const conds = [
+        eq(links.ozmapOltName, oltName),
+        sql`${links.ozmapTag} IS NOT NULL`,
+        sql`${links.deletedAt} IS NULL`,
+      ];
+      if (outage.scope === "pon" && slot != null && port != null && !isNaN(slot) && !isNaN(port)) {
+        conds.push(eq(links.ozmapSlot, slot), eq(links.ozmapPort, port));
+      }
+      const peerRows = await db
+        .select({ id: links.id })
+        .from(links)
+        .where(and(...conds))
+        .limit(peerLimit);
+      for (const r of peerRows) {
+        if (!affectedIds.has(r.id)) peerIds.add(r.id);
+      }
+    }
+  }
+
+  // 3. Sincroniza com concorrência limitada (4 paralelos)
+  const allIds = [...Array.from(affectedIds), ...Array.from(peerIds)];
+  let cursor = 0;
+  let affectedSynced = 0;
+  let peersSynced = 0;
+  let failed = 0;
+  async function worker() {
+    while (cursor < allIds.length) {
+      const idx = cursor++;
+      const linkId = allIds[idx];
+      try {
+        const r = await syncOzmapTopologyForLink(linkId);
+        if (r.success) {
+          if (affectedIds.has(linkId)) affectedSynced++;
+          else peersSynced++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return { affectedSynced, peersSynced, failed };
 }
 
 // =====================================================================
