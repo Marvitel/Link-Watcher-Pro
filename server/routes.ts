@@ -2570,6 +2570,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id, 10);
       if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { massiveOutages } = await import("@shared/schema");
       const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, id)).limit(1);
       if (outageRows.length === 0) return res.status(404).json({ error: "outage not found" });
       const outage = outageRows[0];
