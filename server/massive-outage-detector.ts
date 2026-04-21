@@ -602,7 +602,7 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 120): Pr
       const onlinePeers = await db
         .select({ id: links.id })
         .from(links)
-        .where(and(...baseConds, eq(links.status, "online")))
+        .where(and(...baseConds, sql`${links.status} IN ('operational','degraded')`))
         .limit(halfLimit);
       for (const r of onlinePeers) {
         if (!affectedIds.has(r.id)) peerIds.add(r.id);
@@ -929,7 +929,7 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
         .select({ id: links.id, ozmapRoute: links.ozmapRoute })
         .from(links)
         .where(and(
-          eq(links.status, "online"),
+          sql`${links.status} IN ('operational','degraded')`,
           sql`${links.deletedAt} IS NULL`,
           sql`${links.ozmapRoute} IS NOT NULL`,
           // Match pela OLT cadastrada OU pela OLT do OZmap

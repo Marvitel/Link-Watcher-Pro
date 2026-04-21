@@ -57,6 +57,9 @@ This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
 
+### Status de Link (importante)
+Valores reais da coluna `links.status` no sistema: `operational` (funcionando OK), `degraded` (alcançável mas com problemas), `offline` (caiu) e `unknown`. **Não existe `online`** — qualquer query de cross-validation/peers que precise de "links que estão funcionando" deve usar `status IN ('operational','degraded')`.
+
 ### SLA Monitoring
 The system monitors SLA compliance for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours), excluding links with `contractStatus="blocked"` or `"cancelled"`.
 
