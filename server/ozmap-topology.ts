@@ -233,9 +233,11 @@ export async function syncOzmapTopologyForLink(linkId: number): Promise<{
   try {
     const r = await fetch(url, { method: "GET", headers });
     if (!r.ok) {
-      if (r.status === 422) {
+      // 422 = sem rota cadastrada; 404 = cliente não existe no OZmap com essa tag.
+      // Em ambos os casos marca a flag pra não retentar — economiza quota da API.
+      if (r.status === 422 || r.status === 404) {
         await db.update(links).set({ ozmapNoRoute: true }).where(eq(links.id, linkId));
-        return { success: false, reason: "no_route" };
+        return { success: false, reason: r.status === 404 ? "http_404" : "no_route" };
       }
       return { success: false, reason: `http_${r.status}` };
     }
