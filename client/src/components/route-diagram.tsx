@@ -106,12 +106,25 @@ export function RouteDiagram({ outageId, open }: Props) {
     try {
       const res = await apiRequest("POST", `/api/massive-outages/${outageId}/sync-routes`);
       const json = await res.json();
-      toast({
-        title: "Sincronização concluída",
-        description: `${json.affectedSynced} afetado(s) + ${json.peersSynced} vizinho(s) sincronizados${
-          json.failed > 0 ? ` · ${json.failed} falha(s)` : ""
-        }`,
-      });
+      const okCount = (json.affectedSynced || 0) + (json.peersSynced || 0);
+      if (okCount === 0 && json.failed > 0) {
+        const reasons = json.failureReasons || {};
+        const reasonList = Object.entries(reasons)
+          .map(([r, n]) => `${r} (${n})`)
+          .join(", ");
+        toast({
+          title: "Nada sincronizado",
+          description: `${json.failed} link(s) falharam. Motivos: ${reasonList || "desconhecido"}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sincronização concluída",
+          description: `${json.affectedSynced} afetado(s) + ${json.peersSynced} vizinho(s) sincronizados${
+            json.failed > 0 ? ` · ${json.failed} falha(s)` : ""
+          }`,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/massive-outages", outageId, "route-diagram"] });
     } catch (err: any) {
       toast({

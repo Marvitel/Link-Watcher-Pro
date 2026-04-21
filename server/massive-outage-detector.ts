@@ -530,10 +530,14 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
   affectedSynced: number;
   peersSynced: number;
   failed: number;
+  failureReasons: Record<string, number>;
+  totalAttempted: number;
 }> {
   const { syncOzmapTopologyForLink } = await import("./ozmap-topology");
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
-  if (outageRows.length === 0) return { affectedSynced: 0, peersSynced: 0, failed: 0 };
+  if (outageRows.length === 0) {
+    return { affectedSynced: 0, peersSynced: 0, failed: 0, failureReasons: {}, totalAttempted: 0 };
+  }
   const outage = outageRows[0];
 
   // 1. Coleta IDs dos afetados
@@ -576,6 +580,7 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
   let affectedSynced = 0;
   let peersSynced = 0;
   let failed = 0;
+  const failureReasons: Record<string, number> = {};
   async function worker() {
     while (cursor < allIds.length) {
       const idx = cursor++;
@@ -587,14 +592,23 @@ export async function syncRoutesForOutage(outageId: number, peerLimit = 30): Pro
           else peersSynced++;
         } else {
           failed++;
+          const key = r.reason || "unknown";
+          failureReasons[key] = (failureReasons[key] || 0) + 1;
         }
-      } catch {
+      } catch (e: any) {
         failed++;
+        const key = `exception: ${e?.message || "unknown"}`;
+        failureReasons[key] = (failureReasons[key] || 0) + 1;
       }
     }
   }
   await Promise.all([worker(), worker(), worker(), worker()]);
-  return { affectedSynced, peersSynced, failed };
+  if (failed > 0) {
+    console.log(
+      `[MassiveOutage] sync-routes outage=${outageId} ok=${affectedSynced + peersSynced} failed=${failed} reasons=${JSON.stringify(failureReasons)}`,
+    );
+  }
+  return { affectedSynced, peersSynced, failed, failureReasons, totalAttempted: allIds.length };
 }
 
 // =====================================================================
