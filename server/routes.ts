@@ -2564,6 +2564,112 @@ export async function registerRoutes(
     }
   });
 
+  // Correlação por trecho de rota: dados N nomes de elementos OZmap (CEO, CTO, splitter,
+  // caixa de emenda, etc), retorna todos os links cuja rota OZmap passa por algum deles
+  // E que ficaram offline na janela de tempo. Útil pra investigar rompimentos identificados
+  // manualmente em campo ("o cabo entre CEO X e CEO Y rompeu, quem foi afetado?").
+  //
+  // Query params:
+  //   names=CEO MVT 180,CEO MVT 178   (obrigatório, separado por vírgula)
+  //   windowMinutes=180                (opcional, default 180)
+  //   matchMode=any|all                (opcional, default any — 'all' exige que a rota passe por TODOS)
+  app.get("/api/admin/route-correlation", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const namesParam = String(req.query.names || "").trim();
+      if (!namesParam) {
+        return res.status(400).json({ error: "missing 'names' query param (comma-separated)" });
+      }
+      const names = namesParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (names.length === 0) return res.status(400).json({ error: "no valid names" });
+
+      const windowMinutes = Math.max(1, Math.min(24 * 60, parseInt(String(req.query.windowMinutes || "180"), 10) || 180));
+      const matchMode = String(req.query.matchMode || "any") === "all" ? "all" : "any";
+
+      const sinceTs = new Date(Date.now() - windowMinutes * 60_000);
+      const namesLower = names.map((n) => n.toLowerCase());
+
+      const result = await db.execute(sql`
+        WITH candidates AS (
+          SELECT l.id, l.name, l.client_name, l.status, l.optical_rx_power, l.optical_signal_at,
+                 l.ozmap_ceo_name, l.ozmap_splitter_name,
+                 (
+                   SELECT array_agg(DISTINCT lower(elem->>'name'))
+                   FROM jsonb_array_elements(l.ozmap_route) AS elem
+                   WHERE elem->>'name' IS NOT NULL
+                     AND lower(elem->>'name') = ANY(${namesLower}::text[])
+                 ) AS matched_names_lower
+          FROM links l
+          WHERE l.ozmap_route IS NOT NULL
+            AND l.monitoring_enabled = true
+            AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+            AND EXISTS (
+              SELECT 1 FROM jsonb_array_elements(l.ozmap_route) AS elem
+              WHERE lower(elem->>'name') = ANY(${namesLower}::text[])
+            )
+        )
+        SELECT c.*,
+               (SELECT MIN(e.timestamp) FROM events e
+                  WHERE e.link_id = c.id
+                    AND e.type IN ('critical','warning')
+                    AND e.timestamp >= ${sinceTs}
+                    AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+               ) AS first_down_in_window
+        FROM candidates c
+        LIMIT 5000
+      `);
+
+      const rows: any[] = (result as any).rows || (result as any) || [];
+
+      const enriched = rows
+        .map((r: any) => {
+          const matched: string[] = Array.isArray(r.matched_names_lower) ? r.matched_names_lower : [];
+          const matchedOriginal = names.filter((n) => matched.includes(n.toLowerCase()));
+          return {
+            linkId: r.id as number,
+            name: r.name as string,
+            clientName: r.client_name as string | null,
+            status: r.status as string,
+            opticalRxNow: r.optical_rx_power as number | null,
+            opticalAt: r.optical_signal_at as string | null,
+            ceoName: r.ozmap_ceo_name as string | null,
+            splitterName: r.ozmap_splitter_name as string | null,
+            matchedElements: matchedOriginal,
+            firstDownInWindow: r.first_down_in_window as string | null,
+            isCurrentlyOffline: r.status === "offline",
+            wentDownInWindow: r.first_down_in_window != null,
+          };
+        })
+        .filter((x: any) => {
+          if (matchMode === "all" && x.matchedElements.length < names.length) return false;
+          // só queremos correlações relevantes: caiu na janela OU está offline agora
+          return x.wentDownInWindow || x.isCurrentlyOffline;
+        });
+
+      // Ordena: ainda offline primeiro, depois por horário da queda
+      enriched.sort((a: any, b: any) => {
+        if (a.isCurrentlyOffline !== b.isCurrentlyOffline) return a.isCurrentlyOffline ? -1 : 1;
+        const ta = a.firstDownInWindow ? new Date(a.firstDownInWindow).getTime() : 0;
+        const tb = b.firstDownInWindow ? new Date(b.firstDownInWindow).getTime() : 0;
+        return ta - tb;
+      });
+
+      res.json({
+        query: { names, windowMinutes, matchMode, since: sinceTs.toISOString() },
+        totalScanned: rows.length,
+        totalCorrelated: enriched.length,
+        stillOffline: enriched.filter((x: any) => x.isCurrentlyOffline).length,
+        recovered: enriched.filter((x: any) => !x.isCurrentlyOffline && x.wentDownInWindow).length,
+        links: enriched,
+      });
+    } catch (error: any) {
+      console.error("[route-correlation] error:", error);
+      res.status(500).json({ error: error?.message || "Failed to correlate" });
+    }
+  });
+
   app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");
