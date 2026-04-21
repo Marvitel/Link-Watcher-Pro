@@ -2581,6 +2581,16 @@ export async function registerRoutes(
       const oltMatch = sql`(${links.ozmapOltName} = ${oltName} OR EXISTS (
         SELECT 1 FROM olts o WHERE o.id = ${links.oltId} AND o.name = ${oltName}
       ))`;
+      const statusBreakdown = await db.execute(sql`
+        SELECT status, COUNT(*) AS n
+        FROM links
+        WHERE deleted_at IS NULL
+        AND (ozmap_olt_name = ${oltName} OR EXISTS (
+          SELECT 1 FROM olts o WHERE o.id = links.olt_id AND o.name = ${oltName}
+        ))
+        GROUP BY status
+        ORDER BY n DESC
+      `);
       const counts = await db.execute(sql`
         SELECT
           COUNT(*) FILTER (WHERE status='online') AS online_total,
@@ -2611,6 +2621,7 @@ export async function registerRoutes(
       res.json({
         outage: { id: outage.id, scope: outage.scope, scopeKey: outage.scopeKey, scopeLabel: outage.scopeLabel },
         oltNameUsed: oltName,
+        statusBreakdown: statusBreakdown.rows ?? statusBreakdown,
         counts: counts.rows?.[0] ?? counts[0] ?? counts,
         sampleOnline,
       });
