@@ -863,12 +863,35 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
     }
   }
   const totalConsidered = routes.length;
-  // Filtra: aparece em ≥30% das rotas E em pelo menos 2 — evita ruído de waypoint
-  // único de algum link específico
-  const minCount = Math.max(2, Math.ceil(totalConsidered * 0.3));
+  // Limiar diferenciado por tipo: CEO é fisicamente acessível na rua (caixa de
+  // emenda), então vale a pena mostrar mesmo com cobertura mais baixa. DIO/SPLITTER/
+  // CTO ficam em locais de difícil acesso (POP, cofre) — exigimos cobertura maior
+  // pra evitar ruído.
+  const minCountStrict = Math.max(2, Math.ceil(totalConsidered * 0.3));
+  const minCountCeo = Math.max(2, Math.ceil(totalConsidered * 0.15));
+  // Prioridade visual por acessibilidade: CEO no topo (mais fácil localizar),
+  // depois CTO/SPLITTER, depois DIO, depois OLT/box.
+  const KIND_PRIORITY: Record<string, number> = {
+    ceo: 0,
+    cto: 1,
+    splitter: 1,
+    dio: 2,
+    olt: 3,
+    box: 3,
+  };
   const rankedRaw = Array.from(probableFreq.values())
-    .filter((e) => e.count >= minCount)
-    .sort((a, b) => b.count - a.count)
+    .filter((e) => {
+      const min = e.kind === "ceo" ? minCountCeo : minCountStrict;
+      return e.count >= min;
+    })
+    .sort((a, b) => {
+      // 1) Prioriza tipo (CEO primeiro)
+      const pa = KIND_PRIORITY[a.kind] ?? 9;
+      const pb = KIND_PRIORITY[b.kind] ?? 9;
+      if (pa !== pb) return pa - pb;
+      // 2) Empate de tipo → maior frequência primeiro
+      return b.count - a.count;
+    })
     .slice(0, 12);
 
   // ── VALIDAÇÃO COM ONLINE ──────────────────────────────────────────────────
