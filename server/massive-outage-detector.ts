@@ -439,6 +439,24 @@ export async function detectMassiveOutages(): Promise<{
         };
       });
       if (rows.length > 0) await db.insert(massiveOutageLinks).values(rows);
+
+      // Snapshot do ranking de pontos prováveis no momento da criação. Faz isso
+      // em background pra não atrasar o ciclo de detecção (e pra não falhar se o
+      // OZmap estiver lento — o snapshot é um bônus, não um requisito).
+      (async () => {
+        try {
+          const diagram = await getMassiveOutageRouteDiagram(outageId);
+          if (diagram?.probablePath && diagram.probablePath.length > 0) {
+            await db.update(massiveOutages).set({
+              probablePathSnapshot: diagram.probablePath as any,
+              probablePathSnapshotAt: new Date(),
+            }).where(eq(massiveOutages.id, outageId));
+            console.log(`[MassiveOutage] 📸 snapshot do ranking salvo (outage=${outageId}, ${diagram.probablePath.length} pontos)`);
+          }
+        } catch (err: any) {
+          console.warn(`[MassiveOutage] snapshot falhou (outage=${outageId}):`, err?.message);
+        }
+      })();
     }
   }
 
@@ -473,6 +491,26 @@ export async function detectMassiveOutages(): Promise<{
  * Busca dados detalhados de uma outage incluindo sinal antes/depois por afetado.
  * Usado pelo endpoint GET /api/massive-outages/:id.
  */
+/** Entrada do ranking de pontos prováveis de corte (compartilhada entre live e snapshot). */
+export type ProbablePathEntry = {
+  kind: string;
+  name: string;
+  count: number;
+  totalConsidered: number;
+  percentage: number;
+  /** Quantos links ONLINE da mesma OLT passam por este ponto. */
+  onlinePassThrough: number;
+  /** Total de rotas de links online consideradas (denominador). */
+  onlineConsidered: number;
+  /**
+   * - "downstream_cut": online passa, então rompimento é depois daqui (este NÃO é o ponto)
+   * - "likely_cut":     nenhum online passa AQUI mas passa em pontos a jusante → este é o ponto
+   * - "upstream_or_here": nenhum online passa em lugar nenhum dessa rota — pode ser aqui ou a montante
+   * - "unknown":        sem rota online suficiente pra validar
+   */
+  verdict: "downstream_cut" | "likely_cut" | "upstream_or_here" | "unknown";
+};
+
 export async function getMassiveOutageDetail(outageId: number): Promise<{
   outage: typeof massiveOutages.$inferSelect;
   affectedLinks: Array<{
@@ -489,6 +527,8 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     leftAt: Date | null;
     lastFailureAt: Date | null;
   }>;
+  probablePathSnapshot: ProbablePathEntry[] | null;
+  probablePathSnapshotAt: Date | null;
 } | null> {
   const rows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
   if (rows.length === 0) return null;
@@ -537,6 +577,9 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     });
   }
 
+  const snapshot = (outage.probablePathSnapshot as ProbablePathEntry[] | null) ?? null;
+  const snapshotAt = outage.probablePathSnapshotAt as Date | null;
+
   const affectedLinks = memberships.map((m) => {
     const link = linkById.get(m.linkId);
     const latest = latestByLink.get(m.linkId);
@@ -562,7 +605,7 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     };
   });
 
-  return { outage, affectedLinks };
+  return { outage, affectedLinks, probablePathSnapshot: snapshot, probablePathSnapshotAt: snapshotAt };
 }
 
 /**
@@ -772,25 +815,7 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
    * prefixo estrito é curto/vazio (típico em escopo OLT) — mostra os pontos
    * "candidatos" mesmo que nem todos passem por eles.
    */
-  probablePath: Array<{
-    kind: string;
-    name: string;
-    count: number;
-    totalConsidered: number;
-    percentage: number;
-    /** Quantos links ONLINE da mesma OLT passam por este ponto. */
-    onlinePassThrough: number;
-    /** Total de rotas de links online consideradas (denominador). */
-    onlineConsidered: number;
-    /**
-     * Diagnóstico:
-     * - "downstream_cut": online passa, então rompimento é depois daqui (este NÃO é o ponto)
-     * - "likely_cut":     nenhum online passa AQUI mas passa em pontos a jusante → este é o ponto
-     * - "upstream_or_here": nenhum online passa em lugar nenhum dessa rota — pode ser aqui ou a montante
-     * - "unknown":        sem rota online suficiente pra validar
-     */
-    verdict: "downstream_cut" | "likely_cut" | "upstream_or_here" | "unknown";
-  }>;
+  probablePath: ProbablePathEntry[];
 } | null> {
   const outageRows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
   if (outageRows.length === 0) return null;

@@ -23,9 +23,22 @@ interface AffectedLink {
   lastFailureAt: string | null;
 }
 
+interface ProbablePathSnapshotEntry {
+  kind: string;
+  name: string;
+  count: number;
+  totalConsidered: number;
+  percentage: number;
+  onlinePassThrough: number;
+  onlineConsidered: number;
+  verdict: "downstream_cut" | "likely_cut" | "upstream_or_here" | "unknown";
+}
+
 interface OutageDetailResponse {
   outage: MassiveOutage;
   affectedLinks: AffectedLink[];
+  probablePathSnapshot: ProbablePathSnapshotEntry[] | null;
+  probablePathSnapshotAt: string | null;
 }
 
 interface Props {

@@ -698,6 +698,12 @@ export const massiveOutages = pgTable("massive_outages", {
   lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(), // última vez que o detector viu este cluster ativo
   resolvedAt: timestamp("resolved_at"),
   affectedLinkIds: integer("affected_link_ids").array().notNull().default(sql`ARRAY[]::integer[]`),
+  // Snapshot do ranking de pontos prováveis no momento da criação (ou logo depois).
+  // Estrutura: Array<{ kind, name, count, totalConsidered, percentage, onlinePassThrough,
+  // onlineConsidered, verdict }>. Permite consultar como a topologia estava quando o
+  // rompimento começou, mesmo depois de tudo voltar ao normal.
+  probablePathSnapshot: jsonb("probable_path_snapshot"),
+  probablePathSnapshotAt: timestamp("probable_path_snapshot_at"),
 });
 
 // Histórico de pertencimento de link a um rompimento massivo (entrada/saída do cluster)
