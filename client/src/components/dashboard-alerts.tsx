@@ -40,11 +40,16 @@ const BURST_ICON: Record<BurstState, typeof Activity> = {
 };
 
 export function DashboardAlerts() {
-  const [openPopover, setOpenPopover] = useState<"burst" | "outages" | null>(null);
-  const burstOpen = openPopover === "burst";
-  const outagesOpen = openPopover === "outages";
-  const setBurstOpen = (open: boolean) => setOpenPopover(open ? "burst" : null);
-  const setOutagesOpen = (open: boolean) => setOpenPopover(open ? "outages" : null);
+  const [burstOpen, setBurstOpen] = useState(false);
+  const [outagesOpen, setOutagesOpen] = useState(false);
+  const handleBurstOpenChange = (open: boolean) => {
+    setBurstOpen(open);
+    if (open) setOutagesOpen(false);
+  };
+  const handleOutagesOpenChange = (open: boolean) => {
+    setOutagesOpen(open);
+    if (open) setBurstOpen(false);
+  };
 
   const { data: burst } = useQuery<BurstSnapshot>({
     queryKey: ["/api/admin/burst-counter"],
