@@ -487,6 +487,7 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     deltaRx: number | null;
     joinedAt: Date;
     leftAt: Date | null;
+    lastFailureAt: Date | null;
   }>;
 } | null> {
   const rows = await db.select().from(massiveOutages).where(eq(massiveOutages.id, outageId)).limit(1);
@@ -500,7 +501,13 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
   }
 
   const linkRows = await db
-    .select({ id: links.id, name: links.name, clientId: links.clientId, status: links.status })
+    .select({
+      id: links.id,
+      name: links.name,
+      clientId: links.clientId,
+      status: links.status,
+      lastFailureAt: links.lastFailureAt,
+    })
     .from(links)
     .where(inArray(links.id, linkIds));
   const linkById = new Map(linkRows.map((l) => [l.id, l]));
@@ -551,6 +558,7 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
       deltaRx,
       joinedAt: m.joinedAt,
       leftAt: m.leftAt,
+      lastFailureAt: link?.lastFailureAt ?? null,
     };
   });
 
