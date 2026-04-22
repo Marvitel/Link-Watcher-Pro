@@ -286,3 +286,24 @@
     inset: -1px;
   }
 }
+
+/* Print stylesheet — relatório de massivas */
+@media print {
+  body * { visibility: hidden; }
+  [data-testid="dialog-massive-outage-detail"],
+  [data-testid="dialog-massive-outage-detail"] * { visibility: visible; }
+  [data-testid="dialog-massive-outage-detail"] {
+    position: absolute !important;
+    left: 0; top: 0; width: 100% !important; max-width: 100% !important;
+    box-shadow: none !important; border: 0 !important;
+    overflow: visible !important; max-height: none !important;
+    padding: 1.5rem !important;
+  }
+  .print\:hidden { display: none !important; }
+  /* Fechar overlays do Radix pra não cobrir conteúdo */
+  [data-radix-popper-content-wrapper] { display: none !important; }
+  /* Quebra-de-página amigável dentro de tabelas */
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+}

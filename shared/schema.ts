@@ -704,6 +704,26 @@ export const massiveOutages = pgTable("massive_outages", {
   // rompimento começou, mesmo depois de tudo voltar ao normal.
   probablePathSnapshot: jsonb("probable_path_snapshot"),
   probablePathSnapshotAt: timestamp("probable_path_snapshot_at"),
+  // Override manual do horário de início (operador pode ajustar pra refletir momento real
+  // observado em campo). UI sempre mostra startedAtOverride ?? startedAt.
+  startedAtOverride: timestamp("started_at_override"),
+  // Causa provável calculada por heurística no momento da criação.
+  // 'fiber_cut': maioria dos afetados sem sinal óptico (LOS) ou sinal severo → fibra rompida.
+  // 'power_outage': maioria com sinal normal antes de cair → ONUs sem energia.
+  // 'unknown': sem dados ópticos suficientes pra decidir.
+  probableCause: varchar("probable_cause", { length: 20 }).notNull().default("unknown"),
+  // Override manual da causa (operador pode reclassificar).
+  probableCauseOverride: varchar("probable_cause_override", { length: 20 }),
+  // Análise inicial estruturada salva no momento da criação (resumo + dominantCause + topPoint).
+  // Estrutura: { summary, totalAffected, totalInScope, dominantCause, topPoint?, capturedAt }.
+  initialAnalysis: jsonb("initial_analysis"),
+  // Quando o operador encerra manualmente (vs auto-resolve pelo detector).
+  resolvedManually: boolean("resolved_manually").notNull().default(false),
+  // Texto livre justificando encerramento manual ou observação geral do operador.
+  resolutionNote: text("resolution_note"),
+  // IDs de links que o operador removeu manualmente do cluster. O detector NÃO
+  // re-inclui esses ids no próximo ciclo, mesmo que continuem offline.
+  excludedLinkIds: integer("excluded_link_ids").array().notNull().default(sql`ARRAY[]::integer[]`),
 });
 
 // Histórico de pertencimento de link a um rompimento massivo (entrada/saída do cluster)
@@ -716,6 +736,11 @@ export const massiveOutageLinks = pgTable("massive_outage_links", {
   // Snapshot do sinal óptico no momento da entrada (pra comparar antes/depois do reparo)
   opticalRxBefore: real("optical_rx_before"),
   opticalTxBefore: real("optical_tx_before"),
+  // Marcação manual: operador removeu este link do cluster por engano de inclusão.
+  // Quando true, NÃO conta no affectedCount nem aparece como ativo na UI.
+  excluded: boolean("excluded").notNull().default(false),
+  excludedAt: timestamp("excluded_at"),
+  excludedReason: text("excluded_reason"),
 });
 
 export const clientSettings = pgTable("client_settings", {

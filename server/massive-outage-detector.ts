@@ -202,6 +202,69 @@ async function getOpticalSnapshotsBulk(
 }
 
 /**
+ * Heurística de causa provável baseada nos snapshots ópticos dos afetados.
+ *
+ * - 'fiber_cut': maioria (>=60%) dos afetados sem leitura óptica recente OU sinal severo
+ *   (<-28 dBm). Sinais "sumidos" (LOS) ou em queda livre = ruptura de fibra.
+ * - 'power_outage': maioria (>=60%) tinha sinal NORMAL (>= -25 dBm) na última leitura,
+ *   indicando que a ONU caiu por falta de energia, não por degradação óptica.
+ * - 'unknown': sem dados suficientes (menos de 50% com leitura) ou cenário misto.
+ */
+function computeProbableCause(
+  snaps: Map<number, { rx: number | null; tx: number | null }>,
+): "fiber_cut" | "power_outage" | "unknown" {
+  const values: Array<number | null> = [];
+  for (const v of Array.from(snaps.values())) values.push(v.rx);
+  const total = values.length;
+  if (total === 0) return "unknown";
+  const withSignal = values.filter((v) => v != null) as number[];
+  const without = values.length - withSignal.length;
+  // Coverage mínima: precisa de pelo menos 50% dos afetados com leitura óptica recente.
+  if (withSignal.length / total < 0.5) return "unknown";
+  const severeOrLos = without + withSignal.filter((v) => v <= -28).length;
+  const normal = withSignal.filter((v) => v >= -25).length;
+  if (severeOrLos / total >= 0.6) return "fiber_cut";
+  if (normal / total >= 0.6) return "power_outage";
+  return "unknown";
+}
+
+/**
+ * Filtra outliers temporais UNIDIRECIONAL: descarta apenas links que caíram MUITO
+ * ANTES do mediano do cluster (= casos isolados pré-existentes). Links que caem
+ * depois da mediana são sempre aceitos — eles são candidatos legítimos de membros
+ * que entraram tarde no rompimento (timing de polling, propagação, etc).
+ *
+ * Janela: 20 min antes do mediano. Usa min(20min, mediana - oldest) pra evitar
+ * descarte agressivo quando todos caíram em janela apertada.
+ */
+const PRE_INCLUSION_WINDOW_MS = 20 * 60 * 1000;
+function filterOutliersByFailureTime<T extends { id: number; lastFailureAt: Date | null }>(
+  candidates: T[],
+): { kept: T[]; outliers: T[] } {
+  if (candidates.length < 3) return { kept: candidates, outliers: [] };
+  const withTime = candidates.filter((l) => l.lastFailureAt);
+  if (withTime.length < 3) return { kept: candidates, outliers: [] };
+  const times = withTime.map((l) => l.lastFailureAt!.getTime()).sort((a, b) => a - b);
+  const median = times[Math.floor(times.length / 2)];
+  const cutoff = median - PRE_INCLUSION_WINDOW_MS;
+  const kept: T[] = [];
+  const outliers: T[] = [];
+  for (const link of candidates) {
+    if (!link.lastFailureAt) {
+      kept.push(link);
+      continue;
+    }
+    // Só descarta quem caiu muito ANTES do cluster. Quem caiu depois é mantido.
+    if (link.lastFailureAt.getTime() < cutoff) outliers.push(link);
+    else kept.push(link);
+  }
+  // Segurança: se o filtro deixaria menos que THRESHOLD, mantém tudo (evita
+  // perder o cluster por causa de um median ruim).
+  if (kept.length < THRESHOLD) return { kept: candidates, outliers: [] };
+  return { kept, outliers };
+}
+
+/**
  * Roda uma passada do detector. Idempotente — pode chamar quantas vezes quiser.
  * Retorna estatísticas pra logging/debug.
  */
@@ -302,7 +365,18 @@ export async function detectMassiveOutages(): Promise<{
     else groups.set(fullKey, { info: a, links: [link] });
   }
 
-  // 5. Filtra grupos que atingem o threshold
+  // 5a. Filtra outliers temporais por grupo (links offline há muito mais tempo que
+  // o mediano do cluster são casos isolados e não devem entrar). Substitui g.links
+  // pelos sobreviventes ao filtro.
+  for (const g of Array.from(groups.values())) {
+    const { kept, outliers } = filterOutliersByFailureTime(g.links);
+    if (outliers.length > 0) {
+      console.log(`[MassiveOutage] ⏱️  ${g.info.scopeLabel}: ${outliers.length} link(s) descartado(s) por estarem offline há tempo demais antes do cluster`);
+    }
+    g.links = kept;
+  }
+
+  // 5b. Filtra grupos que atingem o threshold
   const eligibleGroups = Array.from(groups.values()).filter((g) => g.links.length >= THRESHOLD);
 
   // 4. Carrega totais por escopo (pra calcular confidence)
@@ -350,6 +424,19 @@ export async function detectMassiveOutages(): Promise<{
   for (const group of eligibleGroups) {
     const fullKey = `${group.info.scope}|${group.info.scopeKey}`;
     seenKeys.add(fullKey);
+    const existingForExclusion = activeByKey.get(fullKey);
+    // Respeita exclusões manuais do operador: se tem outage ativa com excludedLinkIds,
+    // remove esses links do cluster atual (não recoloca).
+    const excludedSet = new Set(existingForExclusion?.excludedLinkIds || []);
+    if (excludedSet.size > 0) {
+      group.links = group.links.filter((l) => !excludedSet.has(l.id));
+    }
+    if (group.links.length < THRESHOLD) {
+      // Após exclusão, caiu abaixo do threshold — não conta como ativo neste ciclo
+      // (vai ser auto-resolvido na etapa 7).
+      seenKeys.delete(fullKey);
+      continue;
+    }
     const affectedIds = group.links.map((l) => l.id);
     const total = totalForScope(group.info, affectedIds.length);
     const confidence = total > 0 ? Math.min(1, group.links.length / total) : 0;
@@ -408,6 +495,25 @@ export async function detectMassiveOutages(): Promise<{
     } else {
       // Cria nova outage
       const startedAt = new Date();
+      // Snapshot de sinal de cada afetado no momento da criação (bulk → 1 query)
+      const snaps = await getOpticalSnapshotsBulk(affectedIds, startedAt);
+      const probableCause = computeProbableCause(snaps);
+      const causeLabel: Record<string, string> = {
+        fiber_cut: "rompimento de fibra",
+        power_outage: "queda de energia",
+        unknown: "indeterminada",
+      };
+      const initialAnalysis = {
+        summary: `${affectedIds.length} de ${total} links no escopo ${group.info.scopeLabel} caíram simultaneamente. Causa provável: ${causeLabel[probableCause]}.`,
+        totalAffected: affectedIds.length,
+        totalInScope: total,
+        confidence,
+        probableCause,
+        scope: group.info.scope,
+        scopeLabel: group.info.scopeLabel,
+        mostLikelyLocation: group.info.mostLikelyLocation,
+        capturedAt: startedAt.toISOString(),
+      };
       const inserted = await db.insert(massiveOutages).values({
         scope: group.info.scope,
         scopeKey: group.info.scopeKey,
@@ -421,14 +527,14 @@ export async function detectMassiveOutages(): Promise<{
         status: "active",
         affectedLinkIds: affectedIds,
         resolvedAt: null,
+        probableCause,
+        initialAnalysis: initialAnalysis as any,
       }).returning({ id: massiveOutages.id });
 
       const outageId = inserted[0].id;
       newOutages++;
-      console.log(`[MassiveOutage] 🚨 NOVO rompimento detectado: ${group.info.scopeLabel} — ${affectedIds.length}/${total} links offline (confiança ${(confidence * 100).toFixed(0)}%)`);
+      console.log(`[MassiveOutage] 🚨 NOVO rompimento detectado: ${group.info.scopeLabel} — ${affectedIds.length}/${total} links offline (confiança ${(confidence * 100).toFixed(0)}%, causa: ${probableCause})`);
 
-      // Snapshot de sinal de cada afetado no momento da criação (bulk → 1 query)
-      const snaps = await getOpticalSnapshotsBulk(affectedIds, startedAt);
       const rows = affectedIds.map((linkId) => {
         const s = snaps.get(linkId) ?? { rx: null, tx: null };
         return {
@@ -526,6 +632,9 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     joinedAt: Date;
     leftAt: Date | null;
     lastFailureAt: Date | null;
+    excluded: boolean;
+    excludedReason: string | null;
+    ozmapRoute: any;
   }>;
   probablePathSnapshot: ProbablePathEntry[] | null;
   probablePathSnapshotAt: Date | null;
@@ -547,6 +656,7 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
       clientId: links.clientId,
       status: links.status,
       lastFailureAt: links.lastFailureAt,
+      ozmapRoute: links.ozmapRoute,
     })
     .from(links)
     .where(inArray(links.id, linkIds));
@@ -602,6 +712,9 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
       joinedAt: m.joinedAt,
       leftAt: m.leftAt,
       lastFailureAt: link?.lastFailureAt ?? null,
+      excluded: m.excluded ?? false,
+      excludedReason: m.excludedReason ?? null,
+      ozmapRoute: link?.ozmapRoute ?? null,
     };
   });
 

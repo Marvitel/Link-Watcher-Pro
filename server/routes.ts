@@ -2551,6 +2551,161 @@ export async function registerRoutes(
     }
   });
 
+  // PATCH: ajusta campos editáveis pelo operador (override de início, override de causa, nota)
+  app.patch("/api/massive-outages/:id", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { massiveOutages } = await import("@shared/schema");
+      const update: Record<string, any> = {};
+      if ("startedAtOverride" in req.body) {
+        const v = req.body.startedAtOverride;
+        if (v === null || v === "") {
+          update.startedAtOverride = null;
+        } else {
+          const d = new Date(v);
+          if (Number.isNaN(d.getTime())) {
+            return res.status(400).json({ error: "invalid startedAtOverride" });
+          }
+          update.startedAtOverride = d;
+        }
+      }
+      if ("probableCauseOverride" in req.body) {
+        const v = req.body.probableCauseOverride;
+        if (v !== null && v !== "" && !["fiber_cut", "power_outage", "unknown"].includes(v)) {
+          return res.status(400).json({ error: "invalid probableCauseOverride" });
+        }
+        update.probableCauseOverride = v === "" ? null : v;
+      }
+      if ("resolutionNote" in req.body) {
+        update.resolutionNote = typeof req.body.resolutionNote === "string" ? req.body.resolutionNote : null;
+      }
+      if (Object.keys(update).length === 0) return res.status(400).json({ error: "no fields to update" });
+      await db.update(massiveOutages).set(update).where(eq(massiveOutages.id, id));
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("[massive-outages] patch error:", error);
+      res.status(500).json({ error: "Failed to update outage" });
+    }
+  });
+
+  // POST /resolve: encerra manualmente
+  app.post("/api/massive-outages/:id/resolve", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const { massiveOutages, massiveOutageLinks } = await import("@shared/schema");
+      const note = typeof req.body?.note === "string" ? req.body.note : null;
+      const now = new Date();
+      await db.update(massiveOutages).set({
+        status: "resolved",
+        resolvedAt: now,
+        resolvedManually: true,
+        resolutionNote: note ?? undefined,
+      }).where(eq(massiveOutages.id, id));
+      await db.update(massiveOutageLinks).set({ leftAt: now })
+        .where(and(eq(massiveOutageLinks.outageId, id), isNull(massiveOutageLinks.leftAt)));
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("[massive-outages] resolve error:", error);
+      res.status(500).json({ error: "Failed to resolve outage" });
+    }
+  });
+
+  // POST /exclude-link: remove link do cluster (operador identificou que não pertence)
+  app.post("/api/massive-outages/:id/exclude-link", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const linkId = parseInt(String(req.body?.linkId), 10);
+      if (Number.isNaN(linkId)) return res.status(400).json({ error: "invalid linkId" });
+      const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
+      const { massiveOutages, massiveOutageLinks } = await import("@shared/schema");
+      const now = new Date();
+      const result = await db.transaction(async (tx) => {
+        const rows = await tx.select().from(massiveOutages).where(eq(massiveOutages.id, id)).limit(1);
+        if (rows.length === 0) return { status: 404, body: { error: "outage not found" } };
+        const outage = rows[0];
+        const affectedIds = outage.affectedLinkIds || [];
+        const alreadyExcluded = (outage.excludedLinkIds || []).includes(linkId);
+        if (!affectedIds.includes(linkId) && !alreadyExcluded) {
+          return { status: 400, body: { error: "link does not belong to this outage" } };
+        }
+        const excluded = new Set(outage.excludedLinkIds || []);
+        excluded.add(linkId);
+        const newAffectedIds = affectedIds.filter((x) => x !== linkId);
+        await tx.update(massiveOutages).set({
+          excludedLinkIds: Array.from(excluded),
+          affectedLinkIds: newAffectedIds,
+          affectedCount: newAffectedIds.length,
+        }).where(eq(massiveOutages.id, id));
+        // Atualiza apenas a linha ATIVA (sem leftAt). Não bagunça histórico.
+        await tx.update(massiveOutageLinks).set({
+          excluded: true,
+          excludedAt: now,
+          excludedReason: reason,
+          leftAt: now,
+        }).where(and(
+          eq(massiveOutageLinks.outageId, id),
+          eq(massiveOutageLinks.linkId, linkId),
+          isNull(massiveOutageLinks.leftAt),
+        ));
+        return { status: 200, body: { ok: true } };
+      });
+      res.status(result.status).json(result.body);
+    } catch (error: any) {
+      console.error("[massive-outages] exclude-link error:", error);
+      res.status(500).json({ error: "Failed to exclude link" });
+    }
+  });
+
+  // POST /include-link: desfaz exclusão (operador errou; quer voltar)
+  app.post("/api/massive-outages/:id/include-link", requireAuth, requireSuperAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (Number.isNaN(id)) return res.status(400).json({ error: "invalid id" });
+      const linkId = parseInt(String(req.body?.linkId), 10);
+      if (Number.isNaN(linkId)) return res.status(400).json({ error: "invalid linkId" });
+      const { massiveOutages, massiveOutageLinks } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+      const result = await db.transaction(async (tx) => {
+        const rows = await tx.select().from(massiveOutages).where(eq(massiveOutages.id, id)).limit(1);
+        if (rows.length === 0) return { status: 404, body: { error: "outage not found" } };
+        const outage = rows[0];
+        const excludedIds = outage.excludedLinkIds || [];
+        if (!excludedIds.includes(linkId)) {
+          return { status: 400, body: { error: "link is not excluded from this outage" } };
+        }
+        const excluded = excludedIds.filter((x) => x !== linkId);
+        const affectedIds = outage.affectedLinkIds || [];
+        const newAffectedIds = affectedIds.includes(linkId) ? affectedIds : [...affectedIds, linkId];
+        await tx.update(massiveOutages).set({
+          excludedLinkIds: excluded,
+          affectedLinkIds: newAffectedIds,
+          affectedCount: newAffectedIds.length,
+        }).where(eq(massiveOutages.id, id));
+        // Reabre apenas a linha mais recente (a que foi marcada excluída pela última vez).
+        const latest = await tx.select().from(massiveOutageLinks)
+          .where(and(eq(massiveOutageLinks.outageId, id), eq(massiveOutageLinks.linkId, linkId)))
+          .orderBy(desc(massiveOutageLinks.id))
+          .limit(1);
+        if (latest.length > 0) {
+          await tx.update(massiveOutageLinks).set({
+            excluded: false,
+            excludedAt: null,
+            excludedReason: null,
+            leftAt: null,
+          }).where(eq(massiveOutageLinks.id, latest[0].id));
+        }
+        return { status: 200, body: { ok: true } };
+      });
+      res.status(result.status).json(result.body);
+    } catch (error: any) {
+      console.error("[massive-outages] include-link error:", error);
+      res.status(500).json({ error: "Failed to include link" });
+    }
+  });
+
   app.post("/api/massive-outages/:id/sync-routes", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
