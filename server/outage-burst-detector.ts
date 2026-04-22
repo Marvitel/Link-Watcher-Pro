@@ -358,10 +358,15 @@ function toUtcIso(value: unknown): string | null {
 
 export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Promise<BurstLinkEntry[]> {
   const since = new Date(Date.now() - windowMinutes * 60_000);
-  // Pegamos só o evento mais recente por link e filtramos novamente pela janela
-  // após agregação, garantindo que nada fora dos últimos N min vaze.
+  // IMPORTANTE: esta query precisa retornar EXATAMENTE o mesmo conjunto de
+  // link_id que `countNewOfflinesInWindow`. Por isso usamos a mesma estrutura
+  // (JOIN events ↔ links com os mesmos filtros), apenas escolhendo um evento
+  // representativo por link via DISTINCT ON. Qualquer divergência (subquery
+  // agregada com HAVING, filtro JS adicional, etc.) faz contador e lista
+  // ficarem dessincronizados.
   const result = await db.execute(sql`
-    SELECT l.id AS link_id,
+    SELECT DISTINCT ON (e.link_id)
+           l.id AS link_id,
            l.name AS link_name,
            l.client_id,
            c.name AS client_name,
@@ -371,25 +376,19 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
            l.ozmap_olt_name,
            l.ozmap_ceo_name,
            l.ozmap_splitter_name,
-           agg.first_at
-    FROM (
-      SELECT e.link_id, MIN(e.timestamp) AS first_at
-      FROM events e
-      WHERE e.timestamp >= ${since}
-        AND e.type IN ('critical', 'warning')
-        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
-      GROUP BY e.link_id
-      HAVING MIN(e.timestamp) >= ${since}
-    ) agg
-    JOIN links l ON l.id = agg.link_id
+           e.timestamp AS first_at
+    FROM events e
+    JOIN links l ON l.id = e.link_id
     LEFT JOIN clients c ON c.id = l.client_id
-    WHERE l.monitoring_enabled = true
+    WHERE e.timestamp >= ${since}
+      AND e.type IN ('critical', 'warning')
+      AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+      AND l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
-    ORDER BY agg.first_at DESC
+    ORDER BY e.link_id, e.timestamp ASC
     LIMIT 500
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
-  const cutoffMs = since.getTime();
   return rows
     .map((r) => {
       const reason: string | null = r.failure_reason;
@@ -409,8 +408,7 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
         lastFailureAt: toUtcIso(r.last_failure_at),
       } as BurstLinkEntry;
     })
-    // Defesa final em JS contra qualquer linha que escape do filtro (TZ raros, etc.)
-    .filter((e) => new Date(e.firstOfflineAt).getTime() >= cutoffMs - 1000);
+    .sort((a, b) => new Date(b.firstOfflineAt).getTime() - new Date(a.firstOfflineAt).getTime());
 }
 
 /** Snapshot atual para o endpoint do dashboard.
