@@ -41,9 +41,18 @@ const BURST_ICON: Record<BurstState, typeof Activity> = {
 };
 
 export function DashboardAlerts() {
+  const [openMenu, setOpenMenu] = useState<"burst" | "outages" | null>(null);
   const [selectedOutageId, setSelectedOutageId] = useState<number | null>(null);
   const handleSelectOutage = (id: number) => {
+    setOpenMenu(null);
     setSelectedOutageId(id);
+  };
+  const makeHandler = (id: "burst" | "outages") => (open: boolean) => {
+    setOpenMenu((current) => {
+      if (open) return id;
+      if (current === id) return null;
+      return current;
+    });
   };
 
   const { data: burst } = useQuery<BurstSnapshot>({
@@ -68,7 +77,7 @@ export function DashboardAlerts() {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <Popover>
+      <Popover open={openMenu === "burst"} onOpenChange={makeHandler("burst")}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -99,12 +108,13 @@ export function DashboardAlerts() {
           align="end"
           className="w-[440px] p-0 bg-popover border shadow-xl"
           data-testid="popover-burst"
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <BurstCounterCard />
         </PopoverContent>
       </Popover>
 
-      <Popover>
+      <Popover open={openMenu === "outages"} onOpenChange={makeHandler("outages")}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -131,6 +141,7 @@ export function DashboardAlerts() {
           align="end"
           className="w-[500px] p-0 bg-popover border shadow-xl"
           data-testid="popover-outages"
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <Tabs defaultValue="active" className="w-full">
             <div className="px-3 pt-3 pb-2 border-b">
