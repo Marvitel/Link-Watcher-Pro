@@ -2678,6 +2678,30 @@ export async function registerRoutes(
         ORDER BY mol.joined_at
         LIMIT 8
       `);
+      // Dump da rota crua de um afetado pra ver quais kind/name estão sendo gravados
+      const sampleAffectedRoute = await db.execute(sql`
+        SELECT l.id, l.name, l.ozmap_route
+        FROM ${massiveOutageLinks} mol
+        JOIN links l ON l.id = mol.link_id
+        WHERE mol.outage_id = ${id}
+          AND l.ozmap_route IS NOT NULL
+        LIMIT 1
+      `);
+      // Distribuição de kinds nas rotas dos afetados
+      const kindDistribution = await db.execute(sql`
+        SELECT
+          elem->>'kind' AS kind,
+          COUNT(*) AS occurrences,
+          COUNT(DISTINCT mol.link_id) AS distinct_links,
+          (ARRAY_AGG(DISTINCT elem->>'name'))[1:5] AS sample_names
+        FROM ${massiveOutageLinks} mol
+        JOIN links l ON l.id = mol.link_id
+        CROSS JOIN LATERAL jsonb_array_elements(l.ozmap_route) AS elem
+        WHERE mol.outage_id = ${id}
+          AND l.ozmap_route IS NOT NULL
+        GROUP BY elem->>'kind'
+        ORDER BY occurrences DESC
+      `);
       // Lookup de link específico, se passado ?probeLinkId=N
       let probe: any = null;
       const probeId = parseInt(String(req.query.probeLinkId ?? ""), 10);
@@ -2701,6 +2725,8 @@ export async function registerRoutes(
         sampleOnline,
         sampleRouteOnline: sampleRouteOnline.rows ?? sampleRouteOnline,
         returnedSignalDebug: returnedSignalDebug.rows ?? returnedSignalDebug,
+        kindDistribution: kindDistribution.rows ?? kindDistribution,
+        sampleAffectedRoute: sampleAffectedRoute.rows?.[0] ?? sampleAffectedRoute[0] ?? null,
         probe,
       });
     } catch (error: any) {
