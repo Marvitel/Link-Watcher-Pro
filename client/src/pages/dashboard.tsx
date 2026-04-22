@@ -9,8 +9,7 @@ import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
 import { LinkGroupCard } from "@/components/link-group-card";
-import { MassiveOutageCard } from "@/components/massive-outage-card";
-import { BurstCounterCard } from "@/components/burst-counter-card";
+import { DashboardAlerts } from "@/components/dashboard-alerts";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
 import { Link, useLocation } from "wouter";
@@ -839,17 +838,15 @@ function DashboardContent() {
   if (isSuperAdmin && !isViewingAsClient) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
             <p className="text-muted-foreground">
               Monitoramento em tempo real de todos os links - Clique em um cliente para ver detalhes
             </p>
           </div>
+          <DashboardAlerts />
         </div>
-
-        <BurstCounterCard />
-        <MassiveOutageCard />
 
         {clientsLoading ? (
           <div className="space-y-4">
