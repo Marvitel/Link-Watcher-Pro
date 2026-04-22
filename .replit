@@ -50,3 +50,8 @@ integrations = ["javascript_database:1.0.0"]
 
 [userenv.development]
 ADMIN_PORT = "5001"
+
+[userenv.shared]
+PROD_DIAGNOSTICS_TOKEN = "H7aP2vN9kX5mQ1zR8LwY4jT0uB6nG3pS1eM7dK4qV9fH2rZ5xW8"
+PROD_DIAGNOSTICS_BYPASS_KEY = "x:67ame[yWU2t6X.8(89egDgYGfO-sTkc}bsW0X*,qkkcJUA{i@}=G=X\"GRkqc/\"yE?+uk3gqaj13@"
+PROD_BASE_URL = "https://linkmonitor.marvitel.com.br"
