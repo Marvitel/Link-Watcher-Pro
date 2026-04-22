@@ -29,6 +29,21 @@ function formatDuration(startISO: string | Date, endISO: string | Date): string 
   return `${d}d ${h % 24}h`;
 }
 
+function formatResolvedAt(iso: string | Date): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const sameDay =
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  if (sameDay) return `${hh}:${mm}`;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mo} ${hh}:${mm}`;
+}
+
 interface Props {
   status?: "active" | "resolved";
   /** Esconde o wrapper Card (usado quando exibido dentro de popover já com chrome). */
@@ -92,9 +107,16 @@ export function MassiveOutageCard({ status = "active", bare = false, onSelect }:
             <span className="tabular-nums whitespace-nowrap text-muted-foreground">
               {Math.round((o.confidence || 0) * 100)}%
             </span>
-            <span className="tabular-nums whitespace-nowrap text-muted-foreground">
+            <span
+              className="tabular-nums whitespace-nowrap text-muted-foreground"
+              title={
+                isResolved && o.resolvedAt
+                  ? `Encerrada em ${new Date(o.resolvedAt).toLocaleString("pt-BR")} · duração ${formatDuration(o.startedAt, o.resolvedAt)}`
+                  : `Iniciada em ${new Date(o.startedAt).toLocaleString("pt-BR")}`
+              }
+            >
               {isResolved && o.resolvedAt
-                ? formatDuration(o.startedAt, o.resolvedAt)
+                ? formatResolvedAt(o.resolvedAt)
                 : `há ${formatElapsed(o.startedAt)}`}
             </span>
           </button>
