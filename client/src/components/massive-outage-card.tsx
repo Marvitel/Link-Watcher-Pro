@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PopoverClose } from "@/components/ui/popover";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { MassiveOutageDetailDialog } from "@/components/massive-outage-detail-dialog";
 import type { MassiveOutage } from "@shared/schema";
@@ -73,30 +74,39 @@ export function MassiveOutageCard({ status = "active", bare = false, onSelect }:
       {isLoading && (
         <div className="px-2 py-3 text-xs text-muted-foreground">Carregando…</div>
       )}
-      {outages.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => handleClick(o.id)}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-accent text-left transition-colors text-xs"
-          data-testid={`button-outage-${o.id}`}
-        >
-          <span className="font-semibold truncate flex-1 min-w-0" data-testid={`text-outage-label-${o.id}`}>
-            {o.scopeLabel}
-          </span>
-          <span className="tabular-nums whitespace-nowrap font-medium text-destructive">
-            {o.affectedCount}
-            {o.totalLinksInScope > 0 && <span className="text-muted-foreground">/{o.totalLinksInScope}</span>}
-          </span>
-          <span className="tabular-nums whitespace-nowrap text-muted-foreground">
-            {Math.round((o.confidence || 0) * 100)}%
-          </span>
-          <span className="tabular-nums whitespace-nowrap text-muted-foreground">
-            {isResolved && o.resolvedAt
-              ? formatDuration(o.startedAt, o.resolvedAt)
-              : `há ${formatElapsed(o.startedAt)}`}
-          </span>
-        </button>
-      ))}
+      {outages.map((o) => {
+        const buttonInner = (
+          <button
+            key={o.id}
+            onClick={() => handleClick(o.id)}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-accent text-left transition-colors text-xs"
+            data-testid={`button-outage-${o.id}`}
+          >
+            <span className="font-semibold truncate flex-1 min-w-0" data-testid={`text-outage-label-${o.id}`}>
+              {o.scopeLabel}
+            </span>
+            <span className="tabular-nums whitespace-nowrap font-medium text-destructive">
+              {o.affectedCount}
+              {o.totalLinksInScope > 0 && <span className="text-muted-foreground">/{o.totalLinksInScope}</span>}
+            </span>
+            <span className="tabular-nums whitespace-nowrap text-muted-foreground">
+              {Math.round((o.confidence || 0) * 100)}%
+            </span>
+            <span className="tabular-nums whitespace-nowrap text-muted-foreground">
+              {isResolved && o.resolvedAt
+                ? formatDuration(o.startedAt, o.resolvedAt)
+                : `há ${formatElapsed(o.startedAt)}`}
+            </span>
+          </button>
+        );
+        return onSelect ? (
+          <PopoverClose key={o.id} asChild>
+            {buttonInner}
+          </PopoverClose>
+        ) : (
+          buttonInner
+        );
+      })}
     </div>
   );
 

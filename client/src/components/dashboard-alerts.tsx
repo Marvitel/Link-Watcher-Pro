@@ -41,20 +41,9 @@ const BURST_ICON: Record<BurstState, typeof Activity> = {
 };
 
 export function DashboardAlerts() {
-  const [burstOpen, setBurstOpen] = useState(false);
-  const [outagesOpen, setOutagesOpen] = useState(false);
   const [selectedOutageId, setSelectedOutageId] = useState<number | null>(null);
   const handleSelectOutage = (id: number) => {
-    setOutagesOpen(false);
     setSelectedOutageId(id);
-  };
-  const handleBurstOpenChange = (open: boolean) => {
-    setBurstOpen(open);
-    if (open) setOutagesOpen(false);
-  };
-  const handleOutagesOpenChange = (open: boolean) => {
-    setOutagesOpen(open);
-    if (open) setBurstOpen(false);
   };
 
   const { data: burst } = useQuery<BurstSnapshot>({
@@ -79,7 +68,7 @@ export function DashboardAlerts() {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <Popover open={burstOpen} onOpenChange={setBurstOpen}>
+      <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -115,7 +104,7 @@ export function DashboardAlerts() {
         </PopoverContent>
       </Popover>
 
-      <Popover open={outagesOpen} onOpenChange={setOutagesOpen}>
+      <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
