@@ -848,19 +848,31 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   // alguma rota, conta em quantas rotas (distintas) ele aparece. Ranqueia por
   // percentual decrescente — assim mesmo quando algumas rotas estão incompletas
   // ainda dá pra ver "99% passa por CEO X, 87% por CTO Y, etc".
+  // Heurística: rotas antigas podem ter elementos com kind="box" (genérico) cujo
+  // nome é claramente um CEO ("CEO MVT 175") ou emenda. Reclassifica pra ceo aqui
+  // pra que entrem no ranking com a prioridade certa, sem precisar re-sync.
+  const reclassifyKind = (kind: string, name: string): string => {
+    const n = name.toLowerCase();
+    if (kind === "box" || kind === "caixa" || kind === "junctionbox" || kind === "junction_box") {
+      if (n.startsWith("ceo") || n.includes(" ceo ") || n.includes("emenda")) return "ceo";
+      if (n.startsWith("cto") || n.includes(" cto ")) return "cto";
+    }
+    return kind;
+  };
   const probableFreq = new Map<string, { kind: string; name: string; count: number }>();
   for (const route of routes) {
     const seen = new Set<string>(); // dedupe por rota
     for (const node of route) {
-      if (!STRUCTURAL_KINDS_LOCAL.has(node.kind)) continue;
       const name = (node.name || "").trim();
       if (!name) continue;
-      const key = `${node.kind}|${name.toLowerCase()}`;
+      const kind = reclassifyKind(node.kind, name);
+      if (!STRUCTURAL_KINDS_LOCAL.has(kind)) continue;
+      const key = `${kind}|${name.toLowerCase()}`;
       if (seen.has(key)) continue;
       seen.add(key);
       const ex = probableFreq.get(key);
       if (ex) ex.count++;
-      else probableFreq.set(key, { kind: node.kind, name, count: 1 });
+      else probableFreq.set(key, { kind, name, count: 1 });
     }
   }
   const totalConsidered = routes.length;
