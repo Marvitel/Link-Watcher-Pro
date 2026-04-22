@@ -413,6 +413,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
     enabled: open && outageId !== null,
     refetchInterval: 30000,
   });
+  const [showAllProbable, setShowAllProbable] = useState(false);
 
   const initialAnalysis = data?.outage.initialAnalysis as any;
 
@@ -430,12 +431,18 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                 {data?.outage.scopeLabel || "Carregando..."}
               </DialogTitle>
               <DialogDescription>
-                {data?.outage && (
-                  <span className="flex items-center gap-1.5 mt-1">
-                    <MapPin className="h-4 w-4" />
-                    Local provável: <strong data-testid="text-most-likely-location">{data.outage.mostLikelyLocation || "—"}</strong>
-                  </span>
-                )}
+                {data?.outage && (() => {
+                  const loc = (data.outage.mostLikelyLocation || "").trim();
+                  const label = (data.outage.scopeLabel || "").trim();
+                  // Esconde se o local provável só repete o que já está no título
+                  if (!loc || loc === label) return null;
+                  return (
+                    <span className="flex items-center gap-1.5 mt-1">
+                      <MapPin className="h-4 w-4" />
+                      Local provável: <strong data-testid="text-most-likely-location">{loc}</strong>
+                    </span>
+                  );
+                })()}
               </DialogDescription>
             </div>
             {data?.outage && (
@@ -504,11 +511,21 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
               </div>
             </div>
 
-            {/* Causa provável */}
-            <div className="mb-4 p-3 rounded-md border bg-card">
-              <div className="text-xs text-muted-foreground mb-2">Causa provável</div>
-              {outageId !== null && <CauseEditor outage={data.outage} outageId={outageId} />}
-            </div>
+            {/* Causa provável — esconde no impresso quando indeterminada (sem informação útil) */}
+            {(() => {
+              const eff = getEffectiveCause(data.outage);
+              const isUnknown = !eff || eff === "unknown";
+              return (
+                <div
+                  className={`mb-4 p-3 rounded-md border bg-card flex items-center gap-3 flex-wrap ${
+                    isUnknown ? "print:hidden" : ""
+                  }`}
+                >
+                  <div className="text-xs text-muted-foreground">Causa provável:</div>
+                  {outageId !== null && <CauseEditor outage={data.outage} outageId={outageId} />}
+                </div>
+              );
+            })()}
 
             {/* Análise inicial */}
             {initialAnalysis && (
@@ -556,7 +573,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.probablePathSnapshot.map((p, i) => {
+                      {(() => {
                         const verdictLabel: Record<string, string> = {
                           likely_cut: "ponto provável",
                           downstream_cut: "rompimento depois daqui",
@@ -569,27 +586,66 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                           upstream_or_here: "bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200",
                           unknown: "bg-muted text-muted-foreground",
                         };
+                        // Prioriza vereditos mais informativos e quebra empates por
+                        // online cruzando (menor = corte mais próximo daqui)
+                        const verdictOrder: Record<string, number> = {
+                          likely_cut: 0,
+                          upstream_or_here: 1,
+                          downstream_cut: 2,
+                          unknown: 3,
+                        };
+                        const ranked = [...data.probablePathSnapshot].sort((a, b) => {
+                          const va = verdictOrder[a.verdict] ?? 9;
+                          const vb = verdictOrder[b.verdict] ?? 9;
+                          if (va !== vb) return va - vb;
+                          if (b.percentage !== a.percentage) return b.percentage - a.percentage;
+                          return (a.onlinePassThrough ?? 0) - (b.onlinePassThrough ?? 0);
+                        });
+                        const TOP = 8;
+                        const shown = showAllProbable ? ranked : ranked.slice(0, TOP);
+                        const rest = ranked.length - shown.length;
                         return (
-                          <TableRow key={`${p.kind}|${p.name}|${i}`}>
-                            <TableCell className="text-xs font-medium">{p.name}</TableCell>
-                            <TableCell className="text-xs uppercase text-muted-foreground">{p.kind}</TableCell>
-                            <TableCell className="text-xs text-right font-mono">
-                              {p.count}/{p.totalConsidered}
-                            </TableCell>
-                            <TableCell className="text-xs text-right font-mono">
-                              {(p.percentage * 100).toFixed(0)}%
-                            </TableCell>
-                            <TableCell className="text-xs text-right font-mono">
-                              {p.onlinePassThrough}/{p.onlineConsidered}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={`text-[10px] ${verdictClass[p.verdict] ?? ""}`}>
-                                {verdictLabel[p.verdict] ?? p.verdict}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
+                          <>
+                            {shown.map((p, i) => (
+                              <TableRow key={`${p.kind}|${p.name}|${i}`}>
+                                <TableCell className="text-xs font-medium">{p.name}</TableCell>
+                                <TableCell className="text-xs uppercase text-muted-foreground">{p.kind}</TableCell>
+                                <TableCell className="text-xs text-right font-mono">
+                                  {p.count}/{p.totalConsidered}
+                                </TableCell>
+                                <TableCell className="text-xs text-right font-mono">
+                                  {(p.percentage * 100).toFixed(0)}%
+                                </TableCell>
+                                <TableCell className="text-xs text-right font-mono">
+                                  {p.onlinePassThrough}/{p.onlineConsidered}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className={`text-[10px] ${verdictClass[p.verdict] ?? ""}`}>
+                                    {verdictLabel[p.verdict] ?? p.verdict}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {rest > 0 && (
+                              <TableRow className="hover:bg-transparent">
+                                <TableCell colSpan={6} className="text-center text-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllProbable(true)}
+                                    className="text-primary hover:underline print:hidden"
+                                    data-testid="button-show-all-probable"
+                                  >
+                                    Mostrar +{rest} pontos similares
+                                  </button>
+                                  <span className="hidden print:inline text-muted-foreground italic">
+                                    + {rest} pontos similares com mesmo padrão
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
                         );
-                      })}
+                      })()}
                     </TableBody>
                   </Table>
                 </div>
