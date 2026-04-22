@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   MapPin, AlertTriangle, CheckCircle2, XCircle, Printer, Clock,
-  Power, Cable, HelpCircle, ChevronDown, RotateCcw, Trash2, Save, X,
+  Power, Cable, HelpCircle, ChevronDown, ChevronRight, RotateCcw, Trash2, Save, X,
 } from "lucide-react";
 import { Link } from "wouter";
 import type { MassiveOutage } from "@shared/schema";
@@ -414,6 +414,8 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
     refetchInterval: 30000,
   });
   const [showAllProbable, setShowAllProbable] = useState(false);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [liveRankingOpen, setLiveRankingOpen] = useState(false);
 
   const initialAnalysis = data?.outage.initialAnalysis as any;
 
@@ -549,18 +551,30 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
 
             {/* Snapshot do ranking de pontos prováveis (capturado na criação) */}
             {data.probablePathSnapshot && data.probablePathSnapshot.length > 0 && (
-              <div className="mb-4 p-3 rounded-md border bg-muted/30" data-testid="block-probable-path-snapshot">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="mb-4 p-3 rounded-md border bg-muted/30 print:bg-transparent" data-testid="block-probable-path-snapshot">
+                <button
+                  type="button"
+                  onClick={() => setSnapshotOpen((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 text-left print:cursor-default"
+                  data-testid="button-toggle-snapshot"
+                  aria-expanded={snapshotOpen}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <ChevronRight
+                      className={`h-3.5 w-3.5 transition-transform print:hidden ${snapshotOpen ? "rotate-90" : ""}`}
+                    />
                     Pontos prováveis de corte (no momento da abertura)
+                    <Badge variant="outline" className="text-[10px] font-normal print:hidden">
+                      {data.probablePathSnapshot.length}
+                    </Badge>
                   </div>
                   {data.probablePathSnapshotAt && (
                     <div className="text-[10px] text-muted-foreground">
                       capturado em {formatDateTime(data.probablePathSnapshotAt)}
                     </div>
                   )}
-                </div>
-                <div className="overflow-x-auto">
+                </button>
+                <div className={`overflow-x-auto mt-2 ${snapshotOpen ? "" : "hidden print:block"}`}>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -661,12 +675,30 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
             )}
 
             <div className="mb-4 print:hidden">
-              <RouteDiagram
-                outageId={outageId}
-                open={open}
-                scope={data.outage.scope}
-                scopeKey={data.outage.scopeKey}
-              />
+              <button
+                type="button"
+                onClick={() => setLiveRankingOpen((v) => !v)}
+                className="w-full flex items-center gap-2 text-left p-3 rounded-md border bg-muted/30 hover:bg-muted/50"
+                data-testid="button-toggle-live-ranking"
+                aria-expanded={liveRankingOpen}
+              >
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform ${liveRankingOpen ? "rotate-90" : ""}`}
+                />
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Pontos prováveis ranqueados por frequência (atualizado agora)
+                </span>
+              </button>
+              {liveRankingOpen && (
+                <div className="mt-2">
+                  <RouteDiagram
+                    outageId={outageId}
+                    open={open}
+                    scope={data.outage.scope}
+                    scopeKey={data.outage.scopeKey}
+                  />
+                </div>
+              )}
             </div>
 
             {(() => {
