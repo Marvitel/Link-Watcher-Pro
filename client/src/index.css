@@ -315,23 +315,32 @@
     line-height: 1.35;
   }
 
-  /* Padrão "visibility hidden everywhere, then re-show only the dialog" —
-     mais robusto que display:none + portal porque não depende de :has()
-     nem da estrutura DOM exata do portal Radix. */
-  body * {
+  /* Tira o app principal completamente do fluxo (display:none, não visibility,
+     senão ele continua ocupando ~1-2 páginas A4 em branco antes do dialog). */
+  body > #root,
+  body > div#root { display: none !important; }
+
+  /* Esconde por visibilidade qualquer outro sibling do body que NÃO seja
+     o portal contendo o dialog (toasts, tooltips órfãos, etc). */
+  body > * {
     visibility: hidden !important;
   }
   [data-testid="dialog-massive-outage-detail"],
-  [data-testid="dialog-massive-outage-detail"] * {
+  [data-testid="dialog-massive-outage-detail"] *,
+  [data-testid="dialog-massive-outage-detail"] ~ *,
+  body > div:has([data-testid="dialog-massive-outage-detail"]),
+  body > div:has([data-testid="dialog-massive-outage-detail"]) * {
     visibility: visible !important;
   }
 
-  /* Tira o dialog do "modal mode": posicionamento, tamanho, scroll */
+  /* Tira TODA a hierarquia do dialog do "modal mode": position fixed/absolute
+     do portal e do dialog vira static, pra fluir naturalmente do topo. */
+  body > div:has([data-testid="dialog-massive-outage-detail"]),
   [data-testid="dialog-massive-outage-detail"] {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
     inset: auto !important;
+    top: auto !important;
+    left: auto !important;
     transform: none !important;
     width: 100% !important;
     max-width: 100% !important;
