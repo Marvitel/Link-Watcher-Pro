@@ -13,7 +13,7 @@ import { db } from "./db";
 
 const WINDOW_MINUTES = 5;
 const POLL_INTERVAL_MS = 60_000;
-const RE_INVESTIGATE_INTERVAL_MS = 5 * 60_000;
+const RE_INVESTIGATE_INTERVAL_MS = 60_000;
 
 const THRESHOLD_WARN = 5;
 const THRESHOLD_BURST = 10;
