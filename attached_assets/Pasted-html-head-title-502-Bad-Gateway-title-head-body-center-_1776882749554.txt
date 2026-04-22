@@ -1,0 +1,99 @@
+html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+<hr><center>nginx/1.22.1</center>
+</body>
+</html>
+
+HTTP 502
+origin  https://github.com/Marvitel/Link-Watcher-Pro (fetch)
+origin  https://github.com/Marvitel/Link-Watcher-Pro (push)
+root@link-monitor:/opt/link-monitor# systemctl status link-monitor --no-pager | head -25
+journalctl -u link-monitor -n 60 --no-pager
+● link-monitor.service - Link Monitor - Marvitel
+     Loaded: loaded (/etc/systemd/system/link-monitor.service; enabled; preset: enabled)
+     Active: active (running) since Wed 2026-04-22 15:31:44 -03; 35s ago
+   Main PID: 1947572 (npm start)
+      Tasks: 53 (limit: 9464)
+     Memory: 235.1M
+        CPU: 31.441s
+     CGroup: /system.slice/link-monitor.service
+             ├─1947572 "npm start"
+             ├─1947593 sh -c "NODE_ENV=production node dist/index.cjs"
+             ├─1947594 node dist/index.cjs
+             ├─1948227 /bin/sh -c "ping -c 5 -W 3 -i 0.3 100.80.9.243 2>&1"
+             ├─1948228 ping -c 5 -W 3 -i 0.3 100.80.9.243
+             ├─1948246 /bin/sh -c "ping -c 5 -W 3 -i 0.3 100.80.9.88 2>&1"
+             ├─1948247 ping -c 5 -W 3 -i 0.3 100.80.9.88
+             ├─1948258 /bin/sh -c "ping -c 5 -W 3 -i 0.3 100.80.7.124 2>&1"
+             ├─1948259 ping -c 5 -W 3 -i 0.3 100.80.7.124
+             ├─1948262 /bin/sh -c "ping -c 5 -W 3 -i 0.3 191.52.252.71 2>&1"
+             ├─1948263 ping -c 5 -W 3 -i 0.3 191.52.252.71
+             ├─1948264 /bin/sh -c "ping -c 5 -W 3 -i 0.3 191.52.252.85 2>&1"
+             ├─1948265 ping -c 5 -W 3 -i 0.3 191.52.252.85
+             ├─1948278 /bin/sh -c "ping -c 5 -W 3 -i 0.3 100.80.10.35 2>&1"
+             ├─1948279 ping -c 5 -W 3 -i 0.3 100.80.10.35
+             ├─1948280 /bin/sh -c "ping -c 5 -W 3 -i 0.3 100.80.9.67 2>&1"
+             ├─1948281 ping -c 5 -W 3 -i 0.3 100.80.9.67
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] STA-HELENA- MPLS - COROA DO MEIO (Laboratorio de Vacinas): lat=1.6ms, loss=0.0%, status=operational
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER: Using concentrator (CE: BCQ-MVT-CLT-COND-MAIKAI) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.255.96, ifIndex: 1376, profileId: 7
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER: First traffic reading stored (need 2 readings to calculate bandwidth). inOctets=34051225920, outOctets=59058848243775
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER: ifIndex 1376 verified OK - "sfp-sfpplus1-vlan.50-OSPF-CEs" matches "sfp-sfpplus1-vlan.50-OSPF-CEs"
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER - Óptico: coletando via OLT OLT-DATACOM-MAIKAI (datacom) slot=1 port=8 onu=55
+abr 22 15:32:19 link-monitor npm[1947594]: [SNMP Optical] Índice calculado para datacom: slot=1, port=8, onuId=55 -> index=16791303
+abr 22 15:32:19 link-monitor npm[1947594]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16791303, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16791303
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ygor.louzao: 28 elementos na rota
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ygor.louzao: Splitter: CONDOMINIO THAI JSGTJWCR 5VFEGWD9, Porta: 2
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ygor.louzao: Splitter: CTO THAI LOTES 1207 A 1213 / LOTES 1301 A 1307, Porta: 2
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ygor.louzao: Splitter: CTO THAI LOTES 1107 A 1112 / LOTES 1201 A 1206, Porta: 1
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ONU-ROUTER: 21 elementos na rota
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: MAIKAI - CEO10 - RUA 16D, Porta: 4
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ONU-ROUTER: Splitter: CTO MAIKAI 19D, Porta: 1
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER - Óptico OK: RX=-15.3dBm TX=2.5dBm OLT_RX=nulldBm
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM917127B8...
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] MAIKAI_Q07D09_ENIKSON: lat=4.6ms, loss=0.0%, status=operational
+abr 22 15:32:19 link-monitor npm[1947594]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM917127B8 (variantes: DACM917127B8, 4441434D917127B8)...
+abr 22 15:32:19 link-monitor npm[1947594]: [OLT Zabbix Optical] ONU DACM917127B8 encontrada: RX=nulldBm TX=nulldBm OLT_RX=nulldBm
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ONU-ROUTER: Salvo - Splitter: CTO MAIKAI 19D, Porta: 1, Potência: -24.618773884884206
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] tjse.gloria: lat=0.0ms, loss=100.0%, status=offline
+abr 22 15:32:19 link-monitor npm[1947594]: [OZmap Auto-Sync] Link ygor.louzao: Salvo - Splitter: CTO THAI LOTES 1107 A 1112 / LOTES 1201 A 1206, Porta: 1, Potência: -21.087438288517443
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU-BRIDGE: lat=3.5ms, loss=0.0%, status=operational
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] Link 689 - Splitter atualizado: SPLITER MAIKAI 20D porta 6 dist 2
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA: ICMP blocked, TCP failed/skipped, no SNMP traffic - link is OFFLINE
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] XINGOBKP: lat=0.0ms, loss=100.0%, status=degraded
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=3 onu=52
+abr 22 15:32:19 link-monitor npm[1947594]: [SNMP Optical] Índice calculado para datacom: slot=1, port=3, onuId=52 -> index=16790530
+abr 22 15:32:19 link-monitor npm[1947594]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16790530, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16790530
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA - Óptico OK: RX=-20dBm TX=nulldBm OLT_RX=nulldBm
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM0002ABF1...
+abr 22 15:32:19 link-monitor npm[1947594]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM0002ABF1 (variantes: DACM0002ABF1, 4441434D0002ABF1)...
+abr 22 15:32:19 link-monitor npm[1947594]: [OLT Zabbix Optical] ONU DACM0002ABF1 encontrada: RX=-19.96dBm TX=nulldBm OLT_RX=-23.57dBm
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA - Óptico Zabbix: OLT_RX=-23.57dBm
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] Link 913 - Splitter atualizado: (vazio) porta (vazio) dist 12
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA: Startup grace period active — suppressing operational→offline transition (34s after start)
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA: Offline detected, consulting OLT for diagnosis...
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] TJSE-SANTAMARIA: Querying OLT with key: show alarm | include 1/1/3/52
+abr 22 15:32:19 link-monitor npm[1947594]: [OLT SSH] Conectando a 172.26.240.254:22...
+abr 22 15:32:19 link-monitor npm[1947594]: [Monitor] ONU ROUTER: lat=4.4ms, loss=0.0%, status=operational
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira: Using concentrator (CE:CONDOMINIO-TAHAA) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.249.187, ifIndex: 15728714, profileId: 7
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira: First traffic reading stored (need 2 readings to calculate bandwidth). inOctets=4695528826, outOctets=87844569855
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira: ifIndex 15728714 verified OK - "<pppoe-2869marcelovieira>" matches "<pppoe-2869marcelovieira>"
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] TRIBUNAL DE JUSTIÇA - DIVINA PASTORA: ICMP blocked, TCP failed/skipped, no SNMP traffic - link is OFFLINE
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] TRIBUNAL DE JUSTIÇA - DIVINA PASTORA - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=tjse.divinapastora)...
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira - Óptico: coletando via OLT OLT-DATACOM-TAHAA (datacom) slot=1 port=5 onu=9
+abr 22 15:32:20 link-monitor npm[1947594]: [SNMP Optical] Índice calculado para datacom: slot=1, port=5, onuId=9 -> index=16779524
+abr 22 15:32:20 link-monitor npm[1947594]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16779524, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16779524
+abr 22 15:32:20 link-monitor npm[1947594]: [OLT SSH] Handshake OK com 172.26.240.254: kex=curve25519-sha256, cipher=chacha20-poly1305@openssh.com
+abr 22 15:32:20 link-monitor npm[1947594]: [Flashman/API] GET /api/v3/device/full/tjse.divinapastora/ -> 404: {"success":false,"message":"Device not found"}
+abr 22 15:32:20 link-monitor npm[1947594]: [Flashman/Full] Endpoint /full/ not available for tjse.divinapastora: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 22 15:32:20 link-monitor npm[1947594]: [Flashman/API] GET /api/v3/device/pppoe-username/tjse.divinapastora/ -> 404: {"success":false,"message":"Device not found"}
+abr 22 15:32:20 link-monitor npm[1947594]: [Flashman] Optical lookup by PPPoE "tjse.divinapastora" failed: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] TRIBUNAL DE JUSTIÇA - DIVINA PASTORA - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] TRIBUNAL DE JUSTIÇA - DIVINA PASTORA: Startup grace period active — suppressing operational→offline transition (35s after start)
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira - Óptico OK: RX=-15.3dBm TX=2.5dBm OLT_RX=nulldBm
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] marcelo.vieira - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial ITBSF1F0C8AA...
+abr 22 15:32:20 link-monitor npm[1947594]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial ITBSF1F0C8AA (variantes: ITBSF1F0C8AA, 49544253F1F0C8AA)...
+abr 22 15:32:20 link-monitor npm[1947594]: [OLT Zabbix Optical] ONU ITBSF1F0C8AA não encontrada no banco
+abr 22 15:32:20 link-monitor npm[1947594]: [Monitor] Q14E06: Using concentrator (CE: BCQ-MVT-CLT-COND-MAIKAI) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.255.96, ifIndex: 1376, profileId: 7
+root@link-monitor:/opt/link-monitor# 
