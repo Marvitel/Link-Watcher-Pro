@@ -299,21 +299,15 @@
     line-height: 1.35;
   }
 
-  /* Esconde TUDO por padrão; só revela o dialog */
-  body * { visibility: hidden; }
-  [data-testid="dialog-massive-outage-detail"],
-  [data-testid="dialog-massive-outage-detail"] * { visibility: visible; }
-
-  /* Esconde controles/UI interativa */
-  .print\:hidden,
-  [data-radix-popper-content-wrapper],
-  [role="dialog"] button[aria-label="Close"],
-  [data-testid="dialog-massive-outage-detail"] button {
+  /* Esconde via display:none (visibility deixa páginas fantasma em branco).
+     Mantém só os ancestrais do dialog (portal do Radix) visíveis. */
+  body > *:not(:has([data-testid="dialog-massive-outage-detail"])) {
     display: none !important;
   }
-
-  /* Solta o dialog do overlay/modal e ocupa a página */
+  /* Overlay escuro do modal não vai pro papel */
   [data-radix-dialog-overlay] { display: none !important; }
+
+  /* Solta o dialog do posicionamento de modal */
   [data-testid="dialog-massive-outage-detail"] {
     position: static !important;
     transform: none !important;
@@ -328,6 +322,30 @@
     box-shadow: none !important;
     border: 0 !important;
     background: white !important;
+  }
+  /* O ancestral imediato do dialog (wrapper centralizador) também não pode
+     posicionar nada */
+  body > div:has(> [data-testid="dialog-massive-outage-detail"]),
+  body div:has(> [data-testid="dialog-massive-outage-detail"]) {
+    display: block !important;
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  /* Esconde controles/UI interativa dentro do dialog */
+  .print\:hidden,
+  [data-radix-popper-content-wrapper],
+  [role="dialog"] button[aria-label="Close"],
+  [data-testid="dialog-massive-outage-detail"] button {
+    display: none !important;
   }
 
   /* Cabeçalho de impressão — título maior, descrição apagada */
