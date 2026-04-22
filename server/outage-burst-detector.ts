@@ -46,16 +46,34 @@ interface BurstSnapshot {
 }
 
 const REASON_LABELS: Record<string, string> = {
+  // Diagnósticos OLT
   rompimento_fibra: "Rompimento de fibra",
   queda_energia: "Queda de energia",
-  falha_eletrica: "Falha elétrica",
-  falha_equipamento: "Falha de equipamento",
   sinal_degradado: "Sinal degradado",
   onu_inativa: "ONU inativa",
   olt_alarm: "Alarme OLT",
+  gpon_no_optical_signal: "Sem sinal óptico (GPON)",
+  optical_no_signal: "Sem sinal óptico",
+  optical_low_signal: "Sinal óptico baixo",
+  optical_warning: "Sinal óptico em alerta",
+  port_down: "Porta da OLT fora do ar",
+  ping_failed_optical_ok: "Ping falhou (sinal óptico OK)",
+  // Causas manuais / legadas
+  falha_eletrica: "Falha elétrica",
+  falha_equipamento: "Falha de equipamento",
+  indefinido: "Causa indefinida",
+  // Diagnósticos de rede / ping
+  timeout: "Timeout de ping",
+  host_unreachable: "Host inacessível",
+  network_unreachable: "Rede inacessível",
+  connection_refused: "Conexão recusada",
   packet_loss: "Perda de pacotes",
+  no_response: "Sem resposta ao ping",
+  dns_failure: "Falha de DNS",
+  snmp_unreachable: "SNMP inacessível",
   high_latency: "Latência alta",
-  indefinido: "Indefinido",
+  unknown: "Sem diagnóstico",
+  sem_diagnostico: "Sem diagnóstico",
 };
 
 function reasonLabel(r: string | null | undefined): string {
