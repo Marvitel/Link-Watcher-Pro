@@ -175,8 +175,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                       <TableRow>
                         <TableHead>Link</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead title="Quando o monitor (SNMP/ping) marcou o link como offline no banco">Falha real</TableHead>
-                        <TableHead title="Quando o detector incluiu o link nesta outage massiva (cron 60s)">Entrou na outage</TableHead>
+                        <TableHead>Caiu</TableHead>
                         <TableHead>Voltou</TableHead>
                         <TableHead>Downtime</TableHead>
                         <TableHead className="text-right">Sinal antes (Rx)</TableHead>
@@ -205,13 +204,6 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                               >
                                 {al.status}
                               </Badge>
-                            </TableCell>
-                            <TableCell
-                              className="text-xs text-muted-foreground whitespace-nowrap"
-                              data-testid={`text-real-failure-${al.linkId}`}
-                              title={al.lastFailureAt ? formatDateTime(al.lastFailureAt) : "sem registro de falha"}
-                            >
-                              {al.lastFailureAt ? formatDateTime(al.lastFailureAt) : "—"}
                             </TableCell>
                             <TableCell
                               className="text-xs text-muted-foreground whitespace-nowrap"
