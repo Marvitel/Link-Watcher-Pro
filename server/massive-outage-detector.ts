@@ -1026,20 +1026,28 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   });
 
   if (onlineConsidered > 0) {
-    let firstCutAssigned = false;
-    for (const p of probablePath) {
-      if (p.onlinePassThrough > 0) {
-        p.verdict = "downstream_cut";
-      } else if (!firstCutAssigned) {
-        p.verdict = "likely_cut";
-        firstCutAssigned = true;
-      } else {
-        p.verdict = "upstream_or_here";
+    // Caso A: pelo menos um candidato NÃO tem online passando → o 1º deles é o
+    // ponto provável (likely_cut). Os anteriores (com online passando) ficam
+    // downstream_cut. Os posteriores sem online ficam upstream_or_here.
+    // Caso B: TODOS os candidatos têm online passando → o cut está a jusante de
+    // todos os candidatos visíveis (provavelmente em sub-elementos não estruturais
+    // ou no splitter/drop final). Mantém todos como downstream_cut.
+    const someoneWithoutOnline = probablePath.some((p) => p.onlinePassThrough === 0);
+    if (someoneWithoutOnline) {
+      let firstCutAssigned = false;
+      for (const p of probablePath) {
+        if (p.onlinePassThrough > 0) {
+          p.verdict = "downstream_cut";
+        } else if (!firstCutAssigned) {
+          p.verdict = "likely_cut";
+          firstCutAssigned = true;
+        } else {
+          p.verdict = "upstream_or_here";
+        }
       }
-    }
-    if (!firstCutAssigned) {
-      // Nenhum candidato tem online passando → cut pode estar a montante de tudo
-      for (const p of probablePath) p.verdict = "upstream_or_here";
+    } else {
+      // Todos os candidatos têm online passando → cut é depois de todos.
+      for (const p of probablePath) p.verdict = "downstream_cut";
     }
   }
   // Se onlineConsidered === 0, todos ficam "unknown" (UI mostra só o ranking)
