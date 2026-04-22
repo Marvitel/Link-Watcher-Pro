@@ -121,8 +121,22 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
 export function requireDiagnosticsAccess(req: Request, res: Response, next: NextFunction) {
   const diagnosticsToken = process.env.DIAGNOSTICS_TOKEN;
   const providedToken = req.headers["x-diagnostics-token"] as string | undefined;
-  
-  if (diagnosticsToken && providedToken === diagnosticsToken) {
+  const tokenOk = !!diagnosticsToken && providedToken === diagnosticsToken;
+
+  // Bypass de IP whitelist quando o cliente apresentar:
+  //   x-diagnostics-token  (válido)  E  x-diagnostics-bypass-key (válido)
+  // Útil pra ferramentas externas (ex.: agente Replit) acessarem os endpoints
+  // de diagnóstico sem precisar liberar o IP de saída no firewall.
+  const bypassKey = process.env.DIAGNOSTICS_BYPASS_KEY;
+  const providedBypass = req.headers["x-diagnostics-bypass-key"] as string | undefined;
+  const bypassOk = !!bypassKey && providedBypass === bypassKey;
+
+  if (tokenOk && bypassOk) {
+    (req as any).diagnosticsBypass = true;
+    return next();
+  }
+
+  if (tokenOk) {
     return next();
   }
   
