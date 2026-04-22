@@ -114,7 +114,7 @@ export function DashboardAlerts() {
             data-testid="trigger-massive-outages"
           >
             <AlertTriangle className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Rompimentos</span>
+            <span className="text-xs font-medium">Massivas</span>
             <Badge
               variant={outages.length > 0 ? "destructive" : "outline"}
               className="text-[10px] px-1.5 py-0 h-4 tabular-nums"
