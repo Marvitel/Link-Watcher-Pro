@@ -299,50 +299,40 @@
     line-height: 1.35;
   }
 
-  /* Esconde via display:none (visibility deixa páginas fantasma em branco).
-     Mantém só os ancestrais do dialog (portal do Radix) visíveis. */
-  body > *:not(:has([data-testid="dialog-massive-outage-detail"])) {
-    display: none !important;
-  }
-  /* Overlay escuro do modal não vai pro papel */
-  [data-radix-dialog-overlay] { display: none !important; }
+  /* Esconde a aplicação principal — a Dialog do Radix vive num portal
+     separado (sibling do #root) e fica preservada. */
+  #root { display: none !important; }
 
-  /* Solta o dialog do posicionamento de modal */
-  [data-testid="dialog-massive-outage-detail"] {
+  /* Overlay escuro do modal não vai pro papel */
+  [data-radix-dialog-overlay],
+  [data-state="open"][class*="overlay"] { display: none !important; }
+
+  /* Ancestrais do dialog dentro do portal: zera posicionamento de modal */
+  [data-testid="dialog-massive-outage-detail"],
+  [data-testid="dialog-massive-outage-detail"] ~ *,
+  body > div:has([data-testid="dialog-massive-outage-detail"]) {
     position: static !important;
     transform: none !important;
     inset: auto !important;
-    width: 100% !important;
+    top: auto !important;
+    left: auto !important;
+    width: auto !important;
     max-width: 100% !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
-    padding: 0 !important;
-    margin: 0 !important;
     box-shadow: none !important;
-    border: 0 !important;
     background: white !important;
   }
-  /* O ancestral imediato do dialog (wrapper centralizador) também não pode
-     posicionar nada */
-  body > div:has(> [data-testid="dialog-massive-outage-detail"]),
-  body div:has(> [data-testid="dialog-massive-outage-detail"]) {
-    display: block !important;
-    position: static !important;
-    transform: none !important;
-    inset: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: auto !important;
+  [data-testid="dialog-massive-outage-detail"] {
     width: 100% !important;
-    max-width: 100% !important;
-    overflow: visible !important;
-    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
   }
 
   /* Esconde controles/UI interativa dentro do dialog */
   .print\:hidden,
-  [data-radix-popper-content-wrapper],
   [role="dialog"] button[aria-label="Close"],
   [data-testid="dialog-massive-outage-detail"] button {
     display: none !important;
