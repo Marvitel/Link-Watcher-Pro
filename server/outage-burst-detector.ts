@@ -144,6 +144,11 @@ async function countNewOfflinesInWindow(windowMinutes: number): Promise<number> 
   const since = new Date(Date.now() - windowMinutes * 60_000);
   // Conta apenas links monitorados e com contrato ativo/bloqueado, igual à
   // lista detalhada — pra que o número e a tabela sempre batam.
+  // IMPORTANTE: usa NOT EXISTS pra excluir links que já estavam offline antes
+  // da janela (a tabela de events recebe avisos recorrentes "ainda offline"
+  // enquanto o link continua caído, então sem esse filtro um link que caiu
+  // há 3h reaparece como "novo offline" toda vez que o monitoramento
+  // refire o aviso).
   const result = await db.execute(sql`
     SELECT COUNT(DISTINCT e.link_id)::int AS c
     FROM events e
@@ -153,6 +158,14 @@ async function countNewOfflinesInWindow(windowMinutes: number): Promise<number> 
       AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
       AND l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+      AND NOT EXISTS (
+        SELECT 1 FROM events e2
+        WHERE e2.link_id = e.link_id
+          AND e2.timestamp < ${since}
+          AND e2.timestamp >= ${since} - interval '24 hours'
+          AND e2.type IN ('critical', 'warning')
+          AND (e2.title ILIKE 'Link % offline%' OR e2.title ILIKE '%fora do ar%')
+      )
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
   return Number(rows[0]?.c || 0);
@@ -385,6 +398,14 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
       AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
       AND l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+      AND NOT EXISTS (
+        SELECT 1 FROM events e2
+        WHERE e2.link_id = e.link_id
+          AND e2.timestamp < ${since}
+          AND e2.timestamp >= ${since} - interval '24 hours'
+          AND e2.type IN ('critical', 'warning')
+          AND (e2.title ILIKE 'Link % offline%' OR e2.title ILIKE '%fora do ar%')
+      )
     ORDER BY e.link_id, e.timestamp ASC
     LIMIT 500
   `);
