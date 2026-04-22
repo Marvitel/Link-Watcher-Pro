@@ -31,16 +31,10 @@ function formatDuration(startISO: string | Date, endISO: string | Date): string 
 
 function formatResolvedAt(iso: string | Date): string {
   const d = new Date(iso);
-  const today = new Date();
-  const sameDay =
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  if (sameDay) return `${hh}:${mm}`;
   const dd = String(d.getDate()).padStart(2, "0");
   const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
   return `${dd}/${mo} ${hh}:${mm}`;
 }
 
