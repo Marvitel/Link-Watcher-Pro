@@ -38,8 +38,8 @@ function fmt(n: number | null | undefined, suffix = ""): string {
   return `${n.toFixed(2)}${suffix}`;
 }
 
-function formatElapsed(startISO: string): string {
-  const ms = Date.now() - new Date(startISO).getTime();
+function formatDurationMs(ms: number): string {
+  if (ms < 0) ms = 0;
   const min = Math.floor(ms / 60000);
   if (min < 60) return `${min} min`;
   const h = Math.floor(min / 60);
@@ -47,6 +47,28 @@ function formatElapsed(startISO: string): string {
   if (h < 24) return `${h}h ${m}min`;
   const d = Math.floor(h / 24);
   return `${d}d ${h % 24}h`;
+}
+
+function formatElapsed(startISO: string): string {
+  return formatDurationMs(Date.now() - new Date(startISO).getTime());
+}
+
+function formatDowntime(joinedAt: string, leftAt: string | null): string {
+  const start = new Date(joinedAt).getTime();
+  const end = leftAt ? new Date(leftAt).getTime() : Date.now();
+  return formatDurationMs(end - start);
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+
+// Status que significam "link voltou / está alcançável" — o BD usa 'operational'/'degraded',
+// não 'online'. Usar a comparação errada quebra o contador "já voltou" e a coluna de delta.
+function isLinkBack(status: string): boolean {
+  return status === "operational" || status === "degraded";
 }
 
 export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Props) {
@@ -123,12 +145,12 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
               // Ordena: ainda offline primeiro (mais críticos), depois online (já voltaram).
               // Dentro de cada grupo, ordena por nome.
               const sorted = [...data.affectedLinks].sort((a, b) => {
-                const aOffline = a.status !== "online";
-                const bOffline = b.status !== "online";
+                const aOffline = !isLinkBack(a.status);
+                const bOffline = !isLinkBack(b.status);
                 if (aOffline !== bOffline) return aOffline ? -1 : 1;
                 return a.name.localeCompare(b.name);
               });
-              const stillOffline = sorted.filter((l) => l.status !== "online").length;
+              const stillOffline = sorted.filter((l) => !isLinkBack(l.status)).length;
               const recovered = sorted.length - stillOffline;
               return (
                 <>
@@ -152,6 +174,9 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                       <TableRow>
                         <TableHead>Link</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Caiu</TableHead>
+                        <TableHead>Voltou</TableHead>
+                        <TableHead>Downtime</TableHead>
                         <TableHead className="text-right">Sinal antes (Rx)</TableHead>
                         <TableHead className="text-right">Sinal agora (Rx)</TableHead>
                         <TableHead className="text-right">Δ Rx</TableHead>
@@ -159,30 +184,47 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                     </TableHeader>
                     <TableBody>
                       {sorted.map((al) => {
-                        const isOnline = al.status === "online";
+                        const back = isLinkBack(al.status);
                         return (
                           <TableRow
                             key={al.linkId}
-                            className={isOnline ? "opacity-70" : ""}
+                            className={back ? "opacity-70" : ""}
                             data-testid={`row-affected-link-${al.linkId}`}
                           >
                             <TableCell>
                               <Link href={`/link/${al.linkId}`} className="text-primary hover:underline">
                                 {al.name}
                               </Link>
-                              {isOnline && al.leftAt && (
-                                <div className="text-[11px] text-muted-foreground mt-0.5">
-                                  voltou há {formatElapsed(String(al.leftAt))}
-                                </div>
-                              )}
                             </TableCell>
                             <TableCell>
                               <Badge
-                                variant={isOnline ? "default" : "destructive"}
-                                className={isOnline ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                                variant={back ? "default" : "destructive"}
+                                className={back ? "bg-emerald-600 hover:bg-emerald-700" : ""}
                               >
                                 {al.status}
                               </Badge>
+                            </TableCell>
+                            <TableCell
+                              className="text-xs text-muted-foreground whitespace-nowrap"
+                              data-testid={`text-fell-${al.linkId}`}
+                              title={formatDateTime(al.joinedAt)}
+                            >
+                              {formatDateTime(al.joinedAt)}
+                            </TableCell>
+                            <TableCell
+                              className="text-xs text-muted-foreground whitespace-nowrap"
+                              data-testid={`text-returned-${al.linkId}`}
+                              title={al.leftAt ? formatDateTime(al.leftAt) : "ainda offline"}
+                            >
+                              {al.leftAt ? formatDateTime(al.leftAt) : "—"}
+                            </TableCell>
+                            <TableCell
+                              className={`text-xs whitespace-nowrap font-medium ${
+                                back ? "text-emerald-700" : "text-destructive"
+                              }`}
+                              data-testid={`text-downtime-${al.linkId}`}
+                            >
+                              {formatDowntime(al.joinedAt, al.leftAt)}
                             </TableCell>
                             <TableCell className="text-right font-mono">{fmt(al.opticalRxBefore, " dBm")}</TableCell>
                             <TableCell className="text-right font-mono">{fmt(al.opticalRxNow, " dBm")}</TableCell>
@@ -200,7 +242,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                       })}
                       {sorted.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                             Nenhum link afetado.
                           </TableCell>
                         </TableRow>
