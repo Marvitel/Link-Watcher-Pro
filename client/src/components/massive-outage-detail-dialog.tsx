@@ -530,6 +530,72 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
               </div>
             )}
 
+            {/* Snapshot do ranking de pontos prováveis (capturado na criação) */}
+            {data.probablePathSnapshot && data.probablePathSnapshot.length > 0 && (
+              <div className="mb-4 p-3 rounded-md border bg-muted/30" data-testid="block-probable-path-snapshot">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Pontos prováveis de corte (no momento da abertura)
+                  </div>
+                  {data.probablePathSnapshotAt && (
+                    <div className="text-[10px] text-muted-foreground">
+                      capturado em {formatDateTime(data.probablePathSnapshotAt)}
+                    </div>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Ponto</TableHead>
+                        <TableHead className="text-xs">Tipo</TableHead>
+                        <TableHead className="text-xs text-right">Afetados</TableHead>
+                        <TableHead className="text-xs text-right">% do cluster</TableHead>
+                        <TableHead className="text-xs text-right">Online cruzando</TableHead>
+                        <TableHead className="text-xs">Veredito</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.probablePathSnapshot.map((p, i) => {
+                        const verdictLabel: Record<string, string> = {
+                          likely_cut: "ponto provável",
+                          downstream_cut: "rompimento depois daqui",
+                          upstream_or_here: "aqui ou antes",
+                          unknown: "sem validação",
+                        };
+                        const verdictClass: Record<string, string> = {
+                          likely_cut: "bg-orange-100 text-orange-900 border-orange-300 dark:bg-orange-950/40 dark:text-orange-200",
+                          downstream_cut: "bg-blue-50 text-blue-900 border-blue-200 dark:bg-blue-950/30 dark:text-blue-200",
+                          upstream_or_here: "bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/30 dark:text-amber-200",
+                          unknown: "bg-muted text-muted-foreground",
+                        };
+                        return (
+                          <TableRow key={`${p.kind}|${p.name}|${i}`}>
+                            <TableCell className="text-xs font-medium">{p.name}</TableCell>
+                            <TableCell className="text-xs uppercase text-muted-foreground">{p.kind}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">
+                              {p.count}/{p.totalConsidered}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono">
+                              {(p.percentage * 100).toFixed(0)}%
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono">
+                              {p.onlinePassThrough}/{p.onlineConsidered}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-[10px] ${verdictClass[p.verdict] ?? ""}`}>
+                                {verdictLabel[p.verdict] ?? p.verdict}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
             {/* Nota de resolução */}
             {data.outage.resolutionNote && (
               <div className="mb-4 p-3 rounded-md border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
