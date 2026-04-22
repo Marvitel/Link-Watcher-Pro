@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BurstCounterCard } from "@/components/burst-counter-card";
 import { MassiveOutageCard } from "@/components/massive-outage-card";
+import { MassiveOutageDetailDialog } from "@/components/massive-outage-detail-dialog";
 import type { MassiveOutage } from "@shared/schema";
 
 type BurstState = "normal" | "warning" | "burst" | "catastrophic";
@@ -42,6 +43,11 @@ const BURST_ICON: Record<BurstState, typeof Activity> = {
 export function DashboardAlerts() {
   const [burstOpen, setBurstOpen] = useState(false);
   const [outagesOpen, setOutagesOpen] = useState(false);
+  const [selectedOutageId, setSelectedOutageId] = useState<number | null>(null);
+  const handleSelectOutage = (id: number) => {
+    setOutagesOpen(false);
+    setSelectedOutageId(id);
+  };
   const handleBurstOpenChange = (open: boolean) => {
     setBurstOpen(open);
     if (open) setOutagesOpen(false);
@@ -154,14 +160,20 @@ export function DashboardAlerts() {
               </TabsList>
             </div>
             <TabsContent value="active" className="m-0 max-h-[60vh] overflow-y-auto">
-              <MassiveOutageCard status="active" bare />
+              <MassiveOutageCard status="active" bare onSelect={handleSelectOutage} />
             </TabsContent>
             <TabsContent value="resolved" className="m-0 max-h-[60vh] overflow-y-auto">
-              <MassiveOutageCard status="resolved" bare />
+              <MassiveOutageCard status="resolved" bare onSelect={handleSelectOutage} />
             </TabsContent>
           </Tabs>
         </PopoverContent>
       </Popover>
+
+      <MassiveOutageDetailDialog
+        outageId={selectedOutageId}
+        open={selectedOutageId !== null}
+        onOpenChange={(open) => !open && setSelectedOutageId(null)}
+      />
     </div>
   );
 }

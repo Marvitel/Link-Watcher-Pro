@@ -32,10 +32,16 @@ interface Props {
   status?: "active" | "resolved";
   /** Esconde o wrapper Card (usado quando exibido dentro de popover já com chrome). */
   bare?: boolean;
+  /** Se passado, substitui o controle interno do dialog — útil pra fechar popover externo antes de abrir. */
+  onSelect?: (outageId: number) => void;
 }
 
-export function MassiveOutageCard({ status = "active", bare = false }: Props) {
+export function MassiveOutageCard({ status = "active", bare = false, onSelect }: Props) {
   const [openId, setOpenId] = useState<number | null>(null);
+  const handleClick = (id: number) => {
+    if (onSelect) onSelect(id);
+    else setOpenId(id);
+  };
 
   const { data: outages = [], isLoading } = useQuery<MassiveOutage[]>({
     queryKey: ["/api/massive-outages", { status }],
@@ -70,7 +76,7 @@ export function MassiveOutageCard({ status = "active", bare = false }: Props) {
       {outages.map((o) => (
         <button
           key={o.id}
-          onClick={() => setOpenId(o.id)}
+          onClick={() => handleClick(o.id)}
           className="w-full flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-accent text-left transition-colors text-xs"
           data-testid={`button-outage-${o.id}`}
         >
@@ -94,7 +100,7 @@ export function MassiveOutageCard({ status = "active", bare = false }: Props) {
     </div>
   );
 
-  const dialog = (
+  const dialog = onSelect ? null : (
     <MassiveOutageDetailDialog
       outageId={openId}
       open={openId !== null}
