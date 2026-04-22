@@ -2678,15 +2678,18 @@ export async function registerRoutes(
         ORDER BY mol.joined_at
         LIMIT 8
       `);
-      // Dump da rota crua de um afetado pra ver quais kind/name estão sendo gravados
-      const sampleAffectedRoute = await db.execute(sql`
-        SELECT l.id, l.name, l.ozmap_route
+      // Dump da rota crua de um afetado: SÓ os pares kind|name (sem coords/distance/etc)
+      const sampleAffectedRouteRaw = await db.execute(sql`
+        SELECT l.id, l.name,
+          (SELECT json_agg(json_build_object('kind', e->>'kind', 'name', e->>'name'))
+           FROM jsonb_array_elements(l.ozmap_route) e) AS route_compact
         FROM ${massiveOutageLinks} mol
         JOIN links l ON l.id = mol.link_id
         WHERE mol.outage_id = ${id}
           AND l.ozmap_route IS NOT NULL
         LIMIT 1
       `);
+      const sampleAffectedRoute = sampleAffectedRouteRaw.rows?.[0] ?? null;
       // Distribuição de kinds nas rotas dos afetados
       const kindDistribution = await db.execute(sql`
         SELECT
