@@ -53,17 +53,43 @@ export function MassiveOutageCard({ status = "active", bare = false, onSelect }:
     else setOpenId(id);
   };
 
-  const { data: outages = [], isLoading } = useQuery<MassiveOutage[]>({
+  const { data: outages = [], isLoading, error, refetch, isFetching } = useQuery<MassiveOutage[]>({
     queryKey: ["/api/massive-outages", { status }],
     queryFn: async () => {
       const r = await fetch(`/api/massive-outages?status=${status}`, { credentials: "include" });
-      if (!r.ok) throw new Error("Falha ao carregar rompimentos");
+      if (!r.ok) {
+        const err: any = new Error(`Falha ao carregar rompimentos (HTTP ${r.status})`);
+        err.status = r.status;
+        throw err;
+      }
       return r.json();
     },
     refetchInterval: status === "active" ? 60_000 : false,
+    retry: 1,
   });
 
   const isResolved = status === "resolved";
+
+  if (error) {
+    const status401 = (error as any)?.status === 401;
+    const content = (
+      <div className="p-4 space-y-2 text-sm" data-testid={`error-outages-${status}`}>
+        <div className="text-destructive font-medium">
+          {status401
+            ? "Sessão expirada — faça login novamente para ver os rompimentos."
+            : `Erro ao carregar rompimentos: ${(error as Error).message}`}
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="text-xs underline text-muted-foreground hover:text-foreground"
+          data-testid={`button-retry-outages-${status}`}
+        >
+          {isFetching ? "Tentando…" : "Tentar novamente"}
+        </button>
+      </div>
+    );
+    return bare ? content : <Card><CardContent className="p-0">{content}</CardContent></Card>;
+  }
 
   if (!isLoading && outages.length === 0) {
     if (bare) {

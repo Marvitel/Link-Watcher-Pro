@@ -69,14 +69,19 @@ export function DashboardAlerts() {
     refetchInterval: 30_000,
   });
 
-  const { data: outages = [] } = useQuery<MassiveOutage[]>({
+  const { data: outages = [], error: outagesError } = useQuery<MassiveOutage[]>({
     queryKey: ["/api/massive-outages", { status: "active" }],
     queryFn: async () => {
       const r = await fetch("/api/massive-outages?status=active", { credentials: "include" });
-      if (!r.ok) throw new Error("Falha ao carregar rompimentos");
+      if (!r.ok) {
+        const err: any = new Error(`HTTP ${r.status}`);
+        err.status = r.status;
+        throw err;
+      }
       return r.json();
     },
     refetchInterval: 60_000,
+    retry: 1,
   });
 
   const burstState: BurstState = burst?.state ?? "normal";
@@ -130,19 +135,22 @@ export function DashboardAlerts() {
             variant="outline"
             size="sm"
             className={
-              outages.length > 0
+              outagesError
+                ? "h-8 gap-1.5 px-2.5 border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700"
+                : outages.length > 0
                 ? "h-8 gap-1.5 px-2.5 border-red-400 bg-red-50 text-red-900 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-200 dark:border-red-700"
                 : "h-8 gap-1.5 px-2.5 border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800"
             }
             data-testid="trigger-massive-outages"
+            title={outagesError ? `Erro: ${(outagesError as Error).message}` : undefined}
           >
             <AlertTriangle className="h-3.5 w-3.5" />
             <span className="text-xs font-medium">Massivas</span>
             <Badge
-              variant={outages.length > 0 ? "destructive" : "outline"}
+              variant={outagesError ? "outline" : outages.length > 0 ? "destructive" : "outline"}
               className="text-[10px] px-1.5 py-0 h-4 tabular-nums"
             >
-              {outages.length}
+              {outagesError ? "—" : outages.length}
             </Badge>
             <ChevronDown className="h-3 w-3 opacity-60" />
           </Button>
