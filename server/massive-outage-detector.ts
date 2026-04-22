@@ -535,7 +535,10 @@ export async function getMassiveOutageDetail(outageId: number): Promise<{
     const latest = latestByLink.get(m.linkId);
     const rxNow = latest?.rx ?? null;
     const txNow = latest?.tx ?? null;
-    const deltaRx = rxNow != null && m.opticalRxBefore != null ? rxNow - m.opticalRxBefore : null;
+    // Delta como PERDA (atenuação) em dB: antes - agora.
+    // Positivo = sinal piorou (típico de fusão emergencial / dobra no cabo).
+    // Negativo = sinal melhorou (raro; possível após reparo limpo).
+    const deltaRx = rxNow != null && m.opticalRxBefore != null ? m.opticalRxBefore - rxNow : null;
     return {
       linkId: m.linkId,
       name: link?.name ?? `Link #${m.linkId}`,
@@ -971,10 +974,15 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
         onlineConsidered++;
         const seen = new Set<string>();
         for (const node of r) {
-          if (!STRUCTURAL_KINDS_LOCAL.has(node.kind)) continue;
           const name = (node.name || "").trim();
           if (!name) continue;
-          const key = `${node.kind}|${name.toLowerCase()}`;
+          // CRÍTICO: aplicar a MESMA reclassificação usada nos afetados, senão um
+          // CEO que aparece como "passing"/"fusion" na rota do online não é contado
+          // e a CEO acaba marcada erradamente como ponto de corte. (Ex.: CEO MVT 175
+          // é a 1ª da rota — todos os 145 online passam por ela como "passing".)
+          const kind = reclassifyKind(node.kind, name);
+          if (!STRUCTURAL_KINDS_LOCAL.has(kind)) continue;
+          const key = `${kind}|${name.toLowerCase()}`;
           if (seen.has(key)) continue;
           seen.add(key);
           onlineFreq.set(key, (onlineFreq.get(key) ?? 0) + 1);

@@ -179,7 +179,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                         <TableHead>Downtime</TableHead>
                         <TableHead className="text-right">Sinal antes (Rx)</TableHead>
                         <TableHead className="text-right">Sinal agora (Rx)</TableHead>
-                        <TableHead className="text-right">Δ Rx</TableHead>
+                        <TableHead className="text-right" title="Perda em dB (positivo = sinal piorou; típico de fusão emergencial)">Perda Rx</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -230,8 +230,9 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                             <TableCell className="text-right font-mono">{fmt(al.opticalRxNow, " dBm")}</TableCell>
                             <TableCell
                               className={`text-right font-mono ${
-                                al.deltaRx != null && al.deltaRx < -3 ? "text-destructive font-semibold" : ""
+                                al.deltaRx != null && al.deltaRx > 3 ? "text-destructive font-semibold" : ""
                               }`}
+                              title="Perda = sinal antes − sinal agora. Positivo = piorou."
                             >
                               {al.deltaRx != null
                                 ? `${al.deltaRx > 0 ? "+" : ""}${al.deltaRx.toFixed(2)} dB`
