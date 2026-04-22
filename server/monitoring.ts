@@ -3396,7 +3396,9 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       status: finalStatus,  // Use finalStatus to preserve blacklist degraded state
       failureReason: finalFailureReason,
       failureSource: finalFailureSource,
-      lastFailureAt: finalStatus === 'offline' ? new Date() : link.lastFailureAt,
+      lastFailureAt: (finalStatus === 'offline' && link.status !== 'offline')
+        ? new Date()
+        : link.lastFailureAt,
       uptime: newUptime,
       lastUpdated: new Date(),
     };
