@@ -851,10 +851,20 @@ export async function getMassiveOutageRouteDiagram(outageId: number): Promise<{
   // Heurística: rotas antigas podem ter elementos com kind="box" (genérico) cujo
   // nome é claramente um CEO ("CEO MVT 175") ou emenda. Reclassifica pra ceo aqui
   // pra que entrem no ranking com a prioridade certa, sem precisar re-sync.
+  // Tipos genéricos do OZmap que podem ser uma CEO/CTO de fato — o nome é a pista.
+  // "passing" = cabo passa pela caixa sem fusão. "fusion" = fusão dentro da caixa.
+  // Ambos podem ser CEO de rua (acessível pra reparo).
+  const GENERIC_PASSTHROUGH = new Set([
+    "box", "caixa", "junctionbox", "junction_box", "passing", "passagem", "fusion", "fusao", "fusão",
+  ]);
   const reclassifyKind = (kind: string, name: string): string => {
     const n = name.toLowerCase();
-    if (kind === "box" || kind === "caixa" || kind === "junctionbox" || kind === "junction_box") {
-      if (n.startsWith("ceo") || n.includes(" ceo ") || n.includes("emenda")) return "ceo";
+    if (GENERIC_PASSTHROUGH.has(kind)) {
+      if (
+        n.startsWith("ceo") || n.includes(" ceo ") ||
+        n.includes("emenda") || n.includes("caixa de") ||
+        n.startsWith("ce ") || /^ce\d/.test(n)
+      ) return "ceo";
       if (n.startsWith("cto") || n.includes(" cto ")) return "cto";
     }
     return kind;
