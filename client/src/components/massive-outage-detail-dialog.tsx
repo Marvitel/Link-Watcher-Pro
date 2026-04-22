@@ -474,7 +474,7 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 print:grid-cols-2 gap-3 mb-4">
               <div className="p-3 rounded-md border bg-card">
                 <div className="text-xs text-muted-foreground">Afetados</div>
                 <div className="text-2xl font-semibold" data-testid="text-affected-count">
