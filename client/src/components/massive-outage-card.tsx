@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, MapPin, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { MassiveOutageDetailDialog } from "@/components/massive-outage-detail-dialog";
 import type { MassiveOutage } from "@shared/schema";
 
@@ -18,8 +18,11 @@ function formatElapsed(startISO: string | Date): string {
   return `${d}d ${h % 24}h`;
 }
 
+const COLLAPSED_LIMIT = 3;
+
 export function MassiveOutageCard() {
   const [openId, setOpenId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const { data: outages = [] } = useQuery<MassiveOutage[]>({
     queryKey: ["/api/massive-outages", { status: "active" }],
@@ -33,50 +36,59 @@ export function MassiveOutageCard() {
 
   if (outages.length === 0) return null;
 
+  const visible = expanded ? outages : outages.slice(0, COLLAPSED_LIMIT);
+  const hidden = outages.length - visible.length;
+
   return (
     <>
       <Card className="border-destructive/50 bg-destructive/5" data-testid="card-massive-outages">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-5 w-5" />
+        <CardHeader className="py-2 px-3">
+          <CardTitle className="flex items-center gap-2 text-destructive text-sm">
+            <AlertTriangle className="h-4 w-4" />
             Rompimentos massivos ativos
-            <Badge variant="destructive" data-testid="badge-outage-count">{outages.length}</Badge>
+            <Badge variant="destructive" className="text-[10px] px-1.5 py-0" data-testid="badge-outage-count">
+              {outages.length}
+            </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {outages.map((o) => (
+        <CardContent className="p-2 pt-0 space-y-1">
+          {visible.map((o) => (
             <button
               key={o.id}
               onClick={() => setOpenId(o.id)}
-              className="w-full flex items-center justify-between gap-3 p-3 rounded-md border bg-background hover:bg-accent text-left transition-colors"
+              className="w-full flex items-center gap-2 px-2 py-1 rounded border bg-background hover:bg-accent text-left transition-colors text-xs"
               data-testid={`button-outage-${o.id}`}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold truncate" data-testid={`text-outage-label-${o.id}`}>
-                    {o.scopeLabel}
-                  </span>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.round((o.confidence || 0) * 100)}% confiança
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {o.mostLikelyLocation || "—"}
-                  </span>
-                  <span>·</span>
-                  <span>
-                    <strong className="text-foreground">{o.affectedCount}</strong>
-                    {o.totalLinksInScope > 0 && <span>/{o.totalLinksInScope}</span>} links offline
-                  </span>
-                  <span>·</span>
-                  <span>há {formatElapsed(o.startedAt)}</span>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <span className="font-semibold truncate flex-1 min-w-0" data-testid={`text-outage-label-${o.id}`}>
+                {o.scopeLabel}
+              </span>
+              <span className="tabular-nums whitespace-nowrap font-medium text-destructive">
+                {o.affectedCount}
+                {o.totalLinksInScope > 0 && <span className="text-muted-foreground">/{o.totalLinksInScope}</span>}
+              </span>
+              <span className="tabular-nums whitespace-nowrap text-muted-foreground">
+                {Math.round((o.confidence || 0) * 100)}%
+              </span>
+              <span className="tabular-nums whitespace-nowrap text-muted-foreground">
+                há {formatElapsed(o.startedAt)}
+              </span>
             </button>
           ))}
+          {outages.length > COLLAPSED_LIMIT && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-6 text-xs"
+              onClick={() => setExpanded((v) => !v)}
+              data-testid="button-toggle-outages"
+            >
+              {expanded ? (
+                <><ChevronUp className="h-3 w-3 mr-1" /> recolher</>
+              ) : (
+                <><ChevronDown className="h-3 w-3 mr-1" /> mostrar mais {hidden}</>
+              )}
+            </Button>
+          )}
         </CardContent>
       </Card>
 
