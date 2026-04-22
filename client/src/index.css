@@ -291,6 +291,22 @@
 @media print {
   @page { size: A4 portrait; margin: 14mm 12mm; }
 
+  /* Força modo claro no print (mesmo se .dark estiver no <html>) sobrescrevendo
+     as variáveis CSS que fazem texto ficar branco em fundo escuro. */
+  html, html.dark, :root {
+    --background: 0 0% 100% !important;
+    --foreground: 0 0% 0% !important;
+    --card: 0 0% 100% !important;
+    --card-foreground: 0 0% 0% !important;
+    --popover: 0 0% 100% !important;
+    --popover-foreground: 0 0% 0% !important;
+    --muted: 0 0% 95% !important;
+    --muted-foreground: 0 0% 25% !important;
+    --border: 0 0% 60% !important;
+    --input: 0 0% 60% !important;
+    color-scheme: light !important;
+  }
+
   /* Reset visual: preto-e-branco, sem sombras/backgrounds escuros */
   html, body {
     background: white !important;
@@ -300,8 +316,16 @@
   }
 
   /* Esconde a aplicação principal — a Dialog do Radix vive num portal
-     separado (sibling do #root) e fica preservada. */
-  #root { display: none !important; }
+     separado (sibling do #root) e fica preservada. Se o portal for filho
+     de #root (caso raro), o dialog ainda assim aparece via regra abaixo. */
+  body > #root { display: none !important; }
+
+  /* Garante que o portal do Radix (sibling do #root) seja sempre visível */
+  body > [data-radix-portal],
+  body > div:has([data-testid="dialog-massive-outage-detail"]) {
+    display: block !important;
+    visibility: visible !important;
+  }
 
   /* Overlay escuro do modal não vai pro papel */
   [data-radix-dialog-overlay],
