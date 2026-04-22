@@ -278,6 +278,23 @@ export function createFirewallMiddleware(type: "admin" | "ssh") {
       : isIpAllowedForSsh(clientIp);
     
     if (!isAllowed) {
+      // Bypass: requisições com token de diagnóstico válido + chave de bypass
+      // contornam o whitelist de IP. Permite que ferramentas externas (ex.:
+      // agente Replit) consultem endpoints de diagnóstico sem precisar liberar
+      // o IP de saída no firewall.
+      const diagnosticsToken = process.env.DIAGNOSTICS_TOKEN;
+      const bypassKey = process.env.DIAGNOSTICS_BYPASS_KEY;
+      const providedToken = req.headers["x-diagnostics-token"] as string | undefined;
+      const providedBypass = req.headers["x-diagnostics-bypass-key"] as string | undefined;
+      const tokenOk = !!diagnosticsToken && providedToken === diagnosticsToken;
+      const bypassOk = !!bypassKey && providedBypass === bypassKey;
+      if (tokenOk && bypassOk) {
+        if (firewallConfig.logBlockedAttempts) {
+          console.log(`[Firewall] Bypass via diagnostics-key concedido pra IP ${normalizeIp(clientIp)} (${type.toUpperCase()})`);
+        }
+        return next();
+      }
+
       if (firewallConfig.logBlockedAttempts) {
         console.log(`[Firewall] Acesso ${type.toUpperCase()} bloqueado de IP: ${normalizeIp(clientIp)}`);
       }
