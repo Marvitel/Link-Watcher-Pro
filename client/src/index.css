@@ -289,21 +289,117 @@
 
 /* Print stylesheet — relatório de massivas */
 @media print {
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+
+  /* Reset visual: preto-e-branco, sem sombras/backgrounds escuros */
+  html, body {
+    background: white !important;
+    color: black !important;
+    font-size: 10.5pt;
+    line-height: 1.35;
+  }
+
+  /* Esconde TUDO por padrão; só revela o dialog */
   body * { visibility: hidden; }
   [data-testid="dialog-massive-outage-detail"],
   [data-testid="dialog-massive-outage-detail"] * { visibility: visible; }
-  [data-testid="dialog-massive-outage-detail"] {
-    position: absolute !important;
-    left: 0; top: 0; width: 100% !important; max-width: 100% !important;
-    box-shadow: none !important; border: 0 !important;
-    overflow: visible !important; max-height: none !important;
-    padding: 1.5rem !important;
+
+  /* Esconde controles/UI interativa */
+  .print\:hidden,
+  [data-radix-popper-content-wrapper],
+  [role="dialog"] button[aria-label="Close"],
+  [data-testid="dialog-massive-outage-detail"] button {
+    display: none !important;
   }
-  .print\:hidden { display: none !important; }
-  /* Fechar overlays do Radix pra não cobrir conteúdo */
-  [data-radix-popper-content-wrapper] { display: none !important; }
-  /* Quebra-de-página amigável dentro de tabelas */
-  table { page-break-inside: auto; }
-  tr { page-break-inside: avoid; page-break-after: auto; }
-  thead { display: table-header-group; }
+
+  /* Solta o dialog do overlay/modal e ocupa a página */
+  [data-radix-dialog-overlay] { display: none !important; }
+  [data-testid="dialog-massive-outage-detail"] {
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: white !important;
+  }
+
+  /* Cabeçalho de impressão — título maior, descrição apagada */
+  [data-testid="dialog-massive-outage-detail"] h2 {
+    font-size: 16pt !important;
+    font-weight: 700 !important;
+    color: black !important;
+    margin: 0 0 4pt 0 !important;
+  }
+
+  /* Cards/badges: borda fina, sem fundo colorido escuro */
+  [data-testid="dialog-massive-outage-detail"] [class*="bg-"]:not(table):not(thead):not(tbody):not(tr):not(td):not(th) {
+    background: white !important;
+    color: black !important;
+  }
+  [data-testid="dialog-massive-outage-detail"] [class*="border"] {
+    border-color: #999 !important;
+  }
+  [data-testid="dialog-massive-outage-detail"] [class*="text-muted"],
+  [data-testid="dialog-massive-outage-detail"] [class*="text-gray"],
+  [data-testid="dialog-massive-outage-detail"] [class*="text-zinc"],
+  [data-testid="dialog-massive-outage-detail"] [class*="text-slate"] {
+    color: #333 !important;
+  }
+
+  /* Badges (status, contadores) — outline limpo */
+  [data-testid="dialog-massive-outage-detail"] [class*="rounded-full"],
+  [data-testid="dialog-massive-outage-detail"] [class*="rounded-md"][class*="px-"] {
+    border: 1px solid #555 !important;
+    background: white !important;
+    color: black !important;
+    padding: 1pt 5pt !important;
+  }
+
+  /* Tabelas: borda visível, células compactas */
+  [data-testid="dialog-massive-outage-detail"] table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+    margin-top: 6pt;
+  }
+  [data-testid="dialog-massive-outage-detail"] thead { display: table-header-group; }
+  [data-testid="dialog-massive-outage-detail"] tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  [data-testid="dialog-massive-outage-detail"] th,
+  [data-testid="dialog-massive-outage-detail"] td {
+    border: 1px solid #777 !important;
+    padding: 3pt 5pt !important;
+    text-align: left;
+    vertical-align: top;
+    font-size: 9.5pt !important;
+    color: black !important;
+    background: white !important;
+  }
+  [data-testid="dialog-massive-outage-detail"] th {
+    font-weight: 700 !important;
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Links: preto, sem sublinhado decorativo */
+  [data-testid="dialog-massive-outage-detail"] a {
+    color: black !important;
+    text-decoration: none !important;
+  }
+
+  /* Skeletons sumir */
+  [data-testid="dialog-massive-outage-detail"] [class*="skeleton"] { display: none !important; }
+
+  /* Garante que ícones SVG residuais não tomem espaço estranho */
+  [data-testid="dialog-massive-outage-detail"] svg { display: none !important; }
 }

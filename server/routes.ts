@@ -2581,7 +2581,22 @@ export async function registerRoutes(
         update.resolutionNote = typeof req.body.resolutionNote === "string" ? req.body.resolutionNote : null;
       }
       if (Object.keys(update).length === 0) return res.status(400).json({ error: "no fields to update" });
-      await db.update(massiveOutages).set(update).where(eq(massiveOutages.id, id));
+      const { massiveOutageLinks } = await import("@shared/schema");
+      await db.transaction(async (tx) => {
+        await tx.update(massiveOutages).set(update).where(eq(massiveOutages.id, id));
+        // Se o operador ajustou o início da massiva, propaga pros joinedAt das
+        // memberships ATIVAS pra que o downtime exibido na tabela reflita o novo
+        // horário base. Só puxa pra trás (nunca empurra pra frente, pra preservar
+        // o histórico de quem entrou tarde).
+        if ("startedAtOverride" in update && update.startedAtOverride instanceof Date) {
+          await tx.update(massiveOutageLinks).set({
+            joinedAt: update.startedAtOverride,
+          }).where(and(
+            eq(massiveOutageLinks.outageId, id),
+            sql`${massiveOutageLinks.joinedAt} > ${update.startedAtOverride}`,
+          ));
+        }
+      });
       res.json({ ok: true });
     } catch (error: any) {
       console.error("[massive-outages] patch error:", error);

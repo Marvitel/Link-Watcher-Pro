@@ -493,7 +493,32 @@ export async function detectMassiveOutages(): Promise<{
           ));
       }
     } else {
-      // Cria nova outage
+      // 🛡️ GATE de criação: nova massiva só pode ser aberta com links que caíram
+      // RECENTEMENTE (≤ NEW_OUTAGE_RECENT_FAILURE_WINDOW_MS). Isso impede que clientes
+      // que estão offline há horas/dias (e que foram excluídos manualmente de uma
+      // massiva anterior) sejam re-arrastados pra um novo cluster assim que o operador
+      // encerrar manualmente a massiva original.
+      const NEW_OUTAGE_RECENT_FAILURE_WINDOW_MS = 30 * 60 * 1000; // 30 min
+      const cutoff = Date.now() - NEW_OUTAGE_RECENT_FAILURE_WINDOW_MS;
+      const recentLinks = group.links.filter(
+        (l) => l.lastFailureAt && l.lastFailureAt.getTime() >= cutoff,
+      );
+      if (recentLinks.length < THRESHOLD) {
+        console.log(
+          `[MassiveOutage] ⏭️  ${group.info.scopeLabel}: ignorando criação — ` +
+            `${recentLinks.length}/${group.links.length} link(s) com queda recente ` +
+            `(<30min). Os demais já estavam offline há tempo.`,
+        );
+        seenKeys.delete(fullKey);
+        continue;
+      }
+      // Restringe o cluster aos links com queda recente
+      const recentIds = new Set(recentLinks.map((l) => l.id));
+      group.links = recentLinks;
+      const filteredAffectedIds = affectedIds.filter((id) => recentIds.has(id));
+      affectedIds.length = 0;
+      affectedIds.push(...filteredAffectedIds);
+
       const startedAt = new Date();
       // Snapshot de sinal de cada afetado no momento da criação (bulk → 1 query)
       const snaps = await getOpticalSnapshotsBulk(affectedIds, startedAt);

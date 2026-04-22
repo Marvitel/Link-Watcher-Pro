@@ -97,8 +97,13 @@ function formatElapsed(startISO: string): string {
   return formatDurationMs(Date.now() - new Date(startISO).getTime());
 }
 
-function formatDowntime(joinedAt: string, leftAt: string | null): string {
-  const start = new Date(joinedAt).getTime();
+function formatDowntime(joinedAt: string, leftAt: string | null, effectiveStart?: string | null): string {
+  // Usa o MENOR entre joinedAt e effectiveStart (override de início da massiva).
+  // Assim, quando o operador ajusta o início da massiva pra um horário anterior,
+  // o downtime dos links já existentes recua junto.
+  const joined = new Date(joinedAt).getTime();
+  const eff = effectiveStart ? new Date(effectiveStart).getTime() : joined;
+  const start = Math.min(joined, eff);
   const end = leftAt ? new Date(leftAt).getTime() : Date.now();
   return formatDurationMs(end - start);
 }
@@ -635,7 +640,11 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
                                 back ? "text-emerald-700" : "text-destructive"
                               }`}
                             >
-                              {formatDowntime(al.joinedAt, al.leftAt)}
+                              {formatDowntime(
+                                al.joinedAt,
+                                al.leftAt,
+                                (data.outage.startedAtOverride ?? data.outage.startedAt) as any,
+                              )}
                             </TableCell>
                             <TableCell className="text-right font-mono">{fmt(al.opticalRxBefore, " dBm")}</TableCell>
                             <TableCell className="text-right font-mono">{fmt(al.opticalRxNow, " dBm")}</TableCell>
