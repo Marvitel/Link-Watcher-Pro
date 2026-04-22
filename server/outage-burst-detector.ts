@@ -142,12 +142,17 @@ function classifyState(count: number): BurstState {
  */
 async function countNewOfflinesInWindow(windowMinutes: number): Promise<number> {
   const since = new Date(Date.now() - windowMinutes * 60_000);
+  // Conta apenas links monitorados e com contrato ativo/bloqueado, igual à
+  // lista detalhada — pra que o número e a tabela sempre batam.
   const result = await db.execute(sql`
-    SELECT COUNT(DISTINCT link_id)::int AS c
-    FROM events
-    WHERE timestamp >= ${since}
-      AND type IN ('critical', 'warning')
-      AND (title ILIKE '%offline%' OR title ILIKE '%down%' OR description ILIKE '%offline%')
+    SELECT COUNT(DISTINCT e.link_id)::int AS c
+    FROM events e
+    JOIN links l ON l.id = e.link_id
+    WHERE e.timestamp >= ${since}
+      AND e.type IN ('critical', 'warning')
+      AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+      AND l.monitoring_enabled = true
+      AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
   return Number(rows[0]?.c || 0);
@@ -164,11 +169,14 @@ async function buildSparkline(): Promise<{ minute: string; count: number }[]> {
       ) AS m
     ),
     offlines AS (
-      SELECT date_trunc('minute', timestamp) AS m, COUNT(DISTINCT link_id)::int AS c
-      FROM events
-      WHERE timestamp >= now() - interval '60 minutes'
-        AND type IN ('critical', 'warning')
-        AND (title ILIKE '%offline%' OR title ILIKE '%down%' OR description ILIKE '%offline%')
+      SELECT date_trunc('minute', e.timestamp) AS m, COUNT(DISTINCT e.link_id)::int AS c
+      FROM events e
+      JOIN links l ON l.id = e.link_id
+      WHERE e.timestamp >= now() - interval '60 minutes'
+        AND e.type IN ('critical', 'warning')
+        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+        AND l.monitoring_enabled = true
+        AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
       GROUP BY 1
     )
     SELECT m AS minute, COALESCE(o.c, 0)::int AS count
@@ -196,7 +204,7 @@ async function runBurstInvestigation(windowMinutes: number, count: number): Prom
       FROM events e
       WHERE e.timestamp >= ${since}
         AND e.type IN ('critical', 'warning')
-        AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
     )
     SELECT l.id,
            l.ozmap_ceo_name,

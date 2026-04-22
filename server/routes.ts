@@ -2969,7 +2969,7 @@ export async function registerRoutes(
                   WHERE e.link_id = c.id
                     AND e.type IN ('critical','warning')
                     AND e.timestamp >= ${sinceTs}
-                    AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+                    AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
                ) AS first_down_in_window
         FROM candidates c
         LIMIT 5000
@@ -3078,7 +3078,7 @@ export async function registerRoutes(
                  (SELECT MIN(e.timestamp) FROM events e
                     WHERE e.link_id = l.id
                       AND e.timestamp >= ${sinceTs}
-                      AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+                      AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
                  ) AS first_down_in_window
           FROM links l
           LEFT JOIN clients c ON c.id = l.client_id
