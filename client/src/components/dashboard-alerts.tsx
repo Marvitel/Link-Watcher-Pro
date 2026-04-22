@@ -54,6 +54,15 @@ export function DashboardAlerts() {
       return current;
     });
   };
+  const handleInteractOutside = (otherId: "burst" | "outages") =>
+    (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      const otherTrigger = target?.closest(`[data-testid="trigger-${otherId === "burst" ? "burst-counter" : "massive-outages"}"]`);
+      if (otherTrigger) {
+        e.preventDefault();
+        setOpenMenu(otherId);
+      }
+    };
 
   const { data: burst } = useQuery<BurstSnapshot>({
     queryKey: ["/api/admin/burst-counter"],
@@ -109,6 +118,7 @@ export function DashboardAlerts() {
           className="w-[440px] p-0 bg-popover border shadow-xl"
           data-testid="popover-burst"
           onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={handleInteractOutside("outages")}
         >
           <BurstCounterCard />
         </PopoverContent>
@@ -142,6 +152,7 @@ export function DashboardAlerts() {
           className="w-[500px] p-0 bg-popover border shadow-xl"
           data-testid="popover-outages"
           onCloseAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={handleInteractOutside("burst")}
         >
           <Tabs defaultValue="active" className="w-full">
             <div className="px-3 pt-3 pb-2 border-b">
