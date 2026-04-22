@@ -2637,6 +2637,47 @@ export async function registerRoutes(
           AND ozmap_route::text ILIKE ${'%' + oltName + '%'}
         LIMIT 10
       `);
+      // Diagnóstico de sinal pra links que voltaram (status operational/degraded mas
+      // ainda no outage). Mostra se há leitura nova de optical_rx_power após joinedAt.
+      const returnedSignalDebug = await db.execute(sql`
+        SELECT
+          mol.link_id,
+          l.name,
+          l.status,
+          mol.joined_at,
+          mol.left_at,
+          mol.optical_rx_before,
+          (
+            SELECT COUNT(*) FROM metrics m
+            WHERE m.link_id = mol.link_id
+              AND m.timestamp > mol.joined_at
+              AND m.optical_rx_power IS NOT NULL
+          ) AS metrics_with_rx_after_join,
+          (
+            SELECT COUNT(*) FROM metrics m
+            WHERE m.link_id = mol.link_id
+              AND m.timestamp > mol.joined_at
+          ) AS metrics_after_join_total,
+          (
+            SELECT m.optical_rx_power FROM metrics m
+            WHERE m.link_id = mol.link_id
+              AND m.timestamp > mol.joined_at
+              AND m.optical_rx_power IS NOT NULL
+            ORDER BY m.timestamp DESC LIMIT 1
+          ) AS latest_rx_after_join,
+          (
+            SELECT m.timestamp FROM metrics m
+            WHERE m.link_id = mol.link_id
+              AND m.timestamp > mol.joined_at
+            ORDER BY m.timestamp DESC LIMIT 1
+          ) AS latest_metric_ts
+        FROM ${massiveOutageLinks} mol
+        JOIN links l ON l.id = mol.link_id
+        WHERE mol.outage_id = ${id}
+          AND l.status IN ('operational','degraded')
+        ORDER BY mol.joined_at
+        LIMIT 8
+      `);
       // Lookup de link específico, se passado ?probeLinkId=N
       let probe: any = null;
       const probeId = parseInt(String(req.query.probeLinkId ?? ""), 10);
@@ -2659,6 +2700,7 @@ export async function registerRoutes(
         routeContainsOlt: routeContainsOlt.rows?.[0] ?? routeContainsOlt[0] ?? routeContainsOlt,
         sampleOnline,
         sampleRouteOnline: sampleRouteOnline.rows ?? sampleRouteOnline,
+        returnedSignalDebug: returnedSignalDebug.rows ?? returnedSignalDebug,
         probe,
       });
     } catch (error: any) {
