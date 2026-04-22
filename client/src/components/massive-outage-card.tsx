@@ -61,8 +61,8 @@ export function MassiveOutageCard({ status = "active", bare = false, onSelect }:
       return (
         <div className="p-4 text-sm text-muted-foreground" data-testid={`text-no-outages-${status}`}>
           {isResolved
-            ? "Nenhum rompimento encerrado nos registros."
-            : "Nenhum rompimento massivo ativo no momento."}
+            ? "Nenhuma massiva encerrada nos registros."
+            : "Nenhuma massiva ativa no momento."}
         </div>
       );
     }
@@ -136,7 +136,7 @@ export function MassiveOutageCard({ status = "active", bare = false, onSelect }:
         <CardHeader className="py-2 px-3">
           <CardTitle className={`flex items-center gap-2 text-sm ${isResolved ? "" : "text-destructive"}`}>
             {isResolved ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-            {isResolved ? "Rompimentos encerrados" : "Rompimentos massivos ativos"}
+            {isResolved ? "Massivas encerradas" : "Massivas ativas"}
             <Badge
               variant={isResolved ? "outline" : "destructive"}
               className="text-[10px] px-1.5 py-0"

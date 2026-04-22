@@ -505,10 +505,10 @@ export function MassiveOutageDetailDialog({ outageId, open, onOpenChange }: Prop
               <div className="p-3 rounded-md border bg-card">
                 <div className="text-xs text-muted-foreground">Status</div>
                 <Badge variant={data.outage.status === "active" ? "destructive" : "secondary"}>
-                  {data.outage.status === "active" ? "Ativo" : "Resolvido"}
+                  {data.outage.status === "active" ? "Ativa" : "Encerrada"}
                 </Badge>
                 {data.outage.resolvedManually && (
-                  <div className="text-[10px] text-muted-foreground mt-1">encerrado manualmente</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">encerrada manualmente</div>
                 )}
               </div>
             </div>

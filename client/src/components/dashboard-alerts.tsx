@@ -158,7 +158,7 @@ export function DashboardAlerts() {
             <div className="px-3 pt-3 pb-2 border-b">
               <TabsList className="h-8">
                 <TabsTrigger value="active" className="text-xs h-6 px-3" data-testid="tab-outages-active">
-                  Ativos
+                  Ativas
                   {outages.length > 0 && (
                     <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
                       {outages.length}
@@ -166,7 +166,7 @@ export function DashboardAlerts() {
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="resolved" className="text-xs h-6 px-3" data-testid="tab-outages-resolved">
-                  Encerrados
+                  Encerradas
                 </TabsTrigger>
               </TabsList>
             </div>
