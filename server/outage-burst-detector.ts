@@ -413,27 +413,41 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
     .filter((e) => new Date(e.firstOfflineAt).getTime() >= cutoffMs - 1000);
 }
 
-/** Snapshot atual (em memória) para o endpoint do dashboard. */
+/** Snapshot atual para o endpoint do dashboard.
+ *
+ * Importante: o tick em background roda a cada 60s, mas a janela é de 5min.
+ * Se servíssemos o snapshot puro, o `newOfflineCount` poderia estar até 60s
+ * defasado em relação à lista detalhada (`getBurstLinks`), que é sempre live.
+ * Pra garantir que contador e lista batam exatamente, recalculamos `count` e
+ * `state` ao vivo a cada chamada e mesclamos com o estado persistente
+ * (lastTriggered, lastInvestigation, sparkline, causes) que vem do tick.
+ */
 export async function getBurstSnapshot(): Promise<BurstSnapshot> {
-  if (lastSnapshot) return lastSnapshot;
-  // Primeira chamada antes do primeiro tick: calcula on-demand
-  await tick();
-  return (
-    lastSnapshot || {
-      state: "normal",
-      newOfflineCount: 0,
-      windowMinutes: WINDOW_MINUTES,
-      thresholds: {
-        warn: THRESHOLD_WARN,
-        burst: THRESHOLD_BURST,
-        catastrophic: THRESHOLD_CATASTROPHIC,
-      },
-      lastTriggeredAt: null,
-      lastInvestigationAt: null,
-      sparkline: [],
-      lastInvestigation: null,
-    }
-  );
+  if (!lastSnapshot) {
+    // Primeira chamada antes do primeiro tick: calcula on-demand
+    await tick();
+  }
+  const liveCount = await countNewOfflinesInWindow(WINDOW_MINUTES);
+  const liveState = classifyState(liveCount);
+  const base = lastSnapshot || {
+    state: liveState,
+    newOfflineCount: liveCount,
+    windowMinutes: WINDOW_MINUTES,
+    thresholds: {
+      warn: THRESHOLD_WARN,
+      burst: THRESHOLD_BURST,
+      catastrophic: THRESHOLD_CATASTROPHIC,
+    },
+    lastTriggeredAt: null,
+    lastInvestigationAt: null,
+    sparkline: [],
+    lastInvestigation: null,
+  };
+  return {
+    ...base,
+    state: liveState,
+    newOfflineCount: liveCount,
+  };
 }
 
 export function startOutageBurstDetector(): void {
