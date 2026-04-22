@@ -1,9 +1,27 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ChevronDown, ChevronUp, ExternalLink, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface BurstLinkEntry {
+  linkId: number;
+  linkName: string;
+  clientId: number;
+  clientName: string | null;
+  failureReason: string | null;
+  failureReasonLabel: string;
+  oltName: string | null;
+  ceoName: string | null;
+  splitterName: string | null;
+  status: string;
+  firstOfflineAt: string;
+  lastFailureAt: string | null;
+}
 
 type BurstState = "normal" | "warning" | "burst" | "catastrophic";
 
@@ -86,9 +104,15 @@ function Sparkline({ data, max }: { data: { minute: string; count: number }[]; m
 }
 
 export function BurstCounterCard() {
+  const [showLinks, setShowLinks] = useState(false);
   const { data, isLoading } = useQuery<BurstSnapshot>({
     queryKey: ["/api/admin/burst-counter"],
     refetchInterval: 30_000,
+  });
+  const { data: linksData, isLoading: isLoadingLinks } = useQuery<{ items: BurstLinkEntry[] }>({
+    queryKey: ["/api/admin/burst-counter/links"],
+    refetchInterval: 30_000,
+    enabled: showLinks,
   });
 
   if (isLoading || !data) {
@@ -161,6 +185,91 @@ export function BurstCounterCard() {
             </div>
           </div>
         )}
+
+        <div className="pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs w-full justify-between hover:bg-background/60"
+            onClick={() => setShowLinks((v) => !v)}
+            data-testid="button-toggle-burst-links"
+          >
+            <span>
+              {showLinks ? "Ocultar" : "Ver"} links que caíram nos últimos {data.windowMinutes} min
+            </span>
+            {showLinks ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </Button>
+          {showLinks && (
+            <div className="mt-2 rounded-md border bg-background/60 max-h-72 overflow-auto">
+              {isLoadingLinks && (
+                <div className="p-3 text-xs text-muted-foreground" data-testid="text-burst-links-loading">
+                  Carregando lista…
+                </div>
+              )}
+              {!isLoadingLinks && linksData && linksData.items.length === 0 && (
+                <div className="p-3 text-xs text-muted-foreground" data-testid="text-burst-links-empty">
+                  Nenhum link novo offline na janela.
+                </div>
+              )}
+              {!isLoadingLinks && linksData && linksData.items.length > 0 && (
+                <table className="w-full text-xs" data-testid="table-burst-links">
+                  <thead className="sticky top-0 bg-background/95 backdrop-blur">
+                    <tr className="text-left text-muted-foreground border-b">
+                      <th className="px-2 py-1.5 font-medium">Link</th>
+                      <th className="px-2 py-1.5 font-medium">Cliente</th>
+                      <th className="px-2 py-1.5 font-medium">Causa</th>
+                      <th className="px-2 py-1.5 font-medium">Topologia</th>
+                      <th className="px-2 py-1.5 font-medium text-right">Há</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linksData.items.map((l) => {
+                      const topo = l.splitterName
+                        ? `CTO ${l.splitterName}`
+                        : l.ceoName
+                        ? `CEO ${l.ceoName}`
+                        : l.oltName
+                        ? `OLT ${l.oltName}`
+                        : "—";
+                      const ago = formatDistanceToNowStrict(new Date(l.firstOfflineAt), {
+                        locale: ptBR,
+                        addSuffix: false,
+                      });
+                      return (
+                        <tr
+                          key={l.linkId}
+                          className="border-b last:border-b-0 hover:bg-muted/40"
+                          data-testid={`row-burst-link-${l.linkId}`}
+                        >
+                          <td className="px-2 py-1.5">
+                            <Link
+                              href={`/links/${l.linkId}`}
+                              className="font-medium hover:underline inline-flex items-center gap-1"
+                              data-testid={`link-burst-${l.linkId}`}
+                            >
+                              {l.linkName}
+                              <ExternalLink className="h-3 w-3 opacity-60" />
+                            </Link>
+                          </td>
+                          <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[140px]">
+                            {l.clientName ?? "—"}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <span className="text-foreground">{l.failureReasonLabel}</span>
+                          </td>
+                          <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[180px]" title={topo}>
+                            {topo}
+                          </td>
+                          <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">{ago}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
 
         {isAlert && inv && (
           <div className="rounded-md border bg-background/60 p-3 space-y-2">

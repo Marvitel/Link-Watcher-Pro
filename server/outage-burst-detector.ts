@@ -312,6 +312,74 @@ async function tick(): Promise<void> {
   }
 }
 
+/**
+ * Lista detalhada dos links que ficaram offline na janela do burst counter.
+ * Usado pelo painel "ver quem caiu" no card do contador.
+ */
+export interface BurstLinkEntry {
+  linkId: number;
+  linkName: string;
+  clientId: number;
+  clientName: string | null;
+  failureReason: string | null;
+  failureReasonLabel: string;
+  oltName: string | null;
+  ceoName: string | null;
+  splitterName: string | null;
+  status: string;
+  firstOfflineAt: string;
+  lastFailureAt: string | null;
+}
+
+export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Promise<BurstLinkEntry[]> {
+  const since = new Date(Date.now() - windowMinutes * 60_000);
+  const result = await db.execute(sql`
+    WITH offline_in_window AS (
+      SELECT DISTINCT ON (e.link_id) e.link_id, MIN(e.timestamp) OVER (PARTITION BY e.link_id) AS first_at
+      FROM events e
+      WHERE e.timestamp >= ${since}
+        AND e.type IN ('critical', 'warning')
+        AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
+    )
+    SELECT l.id AS link_id,
+           l.name AS link_name,
+           l.client_id,
+           c.name AS client_name,
+           l.failure_reason,
+           l.status,
+           l.last_failure_at,
+           l.ozmap_olt_name,
+           l.ozmap_ceo_name,
+           l.ozmap_splitter_name,
+           o.first_at
+    FROM offline_in_window o
+    JOIN links l ON l.id = o.link_id
+    LEFT JOIN clients c ON c.id = l.client_id
+    WHERE l.monitoring_enabled = true
+      AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+    ORDER BY o.first_at DESC
+    LIMIT 500
+  `);
+  const rows: any[] = (result as any).rows || (result as any) || [];
+  return rows.map((r) => {
+    const reason: string | null = r.failure_reason;
+    return {
+      linkId: Number(r.link_id),
+      linkName: String(r.link_name ?? ""),
+      clientId: Number(r.client_id),
+      clientName: r.client_name ?? null,
+      failureReason: reason,
+      failureReasonLabel: reasonLabel(reason),
+      oltName: r.ozmap_olt_name ?? null,
+      ceoName: r.ozmap_ceo_name ?? null,
+      splitterName: r.ozmap_splitter_name ?? null,
+      status: String(r.status ?? "unknown"),
+      firstOfflineAt: (r.first_at instanceof Date ? r.first_at : new Date(r.first_at)).toISOString(),
+      lastFailureAt: r.last_failure_at ? (r.last_failure_at instanceof Date ? r.last_failure_at : new Date(r.last_failure_at)).toISOString() : null,
+    };
+  });
+}
+
 /** Snapshot atual (em memória) para o endpoint do dashboard. */
 export async function getBurstSnapshot(): Promise<BurstSnapshot> {
   if (lastSnapshot) return lastSnapshot;
