@@ -331,16 +331,28 @@ export interface BurstLinkEntry {
   lastFailureAt: string | null;
 }
 
+/**
+ * Converte um valor vindo do Postgres em ISO string UTC.
+ * O driver às vezes devolve `timestamp` (sem tz) como string crua tipo
+ * "2026-04-22 14:55:00" — JS interpretaria como horário local, gerando offset
+ * fantasma. Forçamos UTC quando não há marcador de fuso.
+ */
+function toUtcIso(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  const s = String(value).trim();
+  if (!s) return null;
+  // Já tem fuso explícito (Z, +03, +03:00, -0300, etc.)
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) return new Date(s).toISOString();
+  // Sem fuso → assume UTC
+  return new Date(s.replace(" ", "T") + "Z").toISOString();
+}
+
 export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Promise<BurstLinkEntry[]> {
   const since = new Date(Date.now() - windowMinutes * 60_000);
+  // Pegamos só o evento mais recente por link e filtramos novamente pela janela
+  // após agregação, garantindo que nada fora dos últimos N min vaze.
   const result = await db.execute(sql`
-    WITH offline_in_window AS (
-      SELECT DISTINCT ON (e.link_id) e.link_id, MIN(e.timestamp) OVER (PARTITION BY e.link_id) AS first_at
-      FROM events e
-      WHERE e.timestamp >= ${since}
-        AND e.type IN ('critical', 'warning')
-        AND (e.title ILIKE '%offline%' OR e.title ILIKE '%down%' OR e.description ILIKE '%offline%')
-    )
     SELECT l.id AS link_id,
            l.name AS link_name,
            l.client_id,
@@ -351,33 +363,46 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
            l.ozmap_olt_name,
            l.ozmap_ceo_name,
            l.ozmap_splitter_name,
-           o.first_at
-    FROM offline_in_window o
-    JOIN links l ON l.id = o.link_id
+           agg.first_at
+    FROM (
+      SELECT e.link_id, MIN(e.timestamp) AS first_at
+      FROM events e
+      WHERE e.timestamp >= ${since}
+        AND e.type IN ('critical', 'warning')
+        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+      GROUP BY e.link_id
+      HAVING MIN(e.timestamp) >= ${since}
+    ) agg
+    JOIN links l ON l.id = agg.link_id
     LEFT JOIN clients c ON c.id = l.client_id
     WHERE l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
-    ORDER BY o.first_at DESC
+    ORDER BY agg.first_at DESC
     LIMIT 500
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
-  return rows.map((r) => {
-    const reason: string | null = r.failure_reason;
-    return {
-      linkId: Number(r.link_id),
-      linkName: String(r.link_name ?? ""),
-      clientId: Number(r.client_id),
-      clientName: r.client_name ?? null,
-      failureReason: reason,
-      failureReasonLabel: reasonLabel(reason),
-      oltName: r.ozmap_olt_name ?? null,
-      ceoName: r.ozmap_ceo_name ?? null,
-      splitterName: r.ozmap_splitter_name ?? null,
-      status: String(r.status ?? "unknown"),
-      firstOfflineAt: (r.first_at instanceof Date ? r.first_at : new Date(r.first_at)).toISOString(),
-      lastFailureAt: r.last_failure_at ? (r.last_failure_at instanceof Date ? r.last_failure_at : new Date(r.last_failure_at)).toISOString() : null,
-    };
-  });
+  const cutoffMs = since.getTime();
+  return rows
+    .map((r) => {
+      const reason: string | null = r.failure_reason;
+      const firstIso = toUtcIso(r.first_at);
+      return {
+        linkId: Number(r.link_id),
+        linkName: String(r.link_name ?? ""),
+        clientId: Number(r.client_id),
+        clientName: r.client_name ?? null,
+        failureReason: reason,
+        failureReasonLabel: reasonLabel(reason),
+        oltName: r.ozmap_olt_name ?? null,
+        ceoName: r.ozmap_ceo_name ?? null,
+        splitterName: r.ozmap_splitter_name ?? null,
+        status: String(r.status ?? "unknown"),
+        firstOfflineAt: firstIso ?? new Date().toISOString(),
+        lastFailureAt: toUtcIso(r.last_failure_at),
+      } as BurstLinkEntry;
+    })
+    // Defesa final em JS contra qualquer linha que escape do filtro (TZ raros, etc.)
+    .filter((e) => new Date(e.firstOfflineAt).getTime() >= cutoffMs - 1000);
 }
 
 /** Snapshot atual (em memória) para o endpoint do dashboard. */
