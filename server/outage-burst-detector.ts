@@ -142,30 +142,27 @@ function classifyState(count: number): BurstState {
  */
 async function countNewOfflinesInWindow(windowMinutes: number): Promise<number> {
   const since = new Date(Date.now() - windowMinutes * 60_000);
-  // Conta apenas links monitorados e com contrato ativo/bloqueado, igual à
-  // lista detalhada — pra que o número e a tabela sempre batam.
-  // IMPORTANTE: usa NOT EXISTS pra excluir links que já estavam offline antes
-  // da janela (a tabela de events recebe avisos recorrentes "ainda offline"
-  // enquanto o link continua caído, então sem esse filtro um link que caiu
-  // há 3h reaparece como "novo offline" toda vez que o monitoramento
-  // refire o aviso).
+  // Para excluir links que já estavam offline antes da janela (avisos
+  // recorrentes "ainda offline" são gerados enquanto o link continua caído),
+  // agregamos MIN(timestamp) por link_id sobre as últimas 24h e filtramos
+  // só os cuja primeira ocorrência cai DENTRO da janela.
+  // Performance: scan único de 24h de events agrupado por link_id, em vez de
+  // subquery NOT EXISTS por linha.
   const result = await db.execute(sql`
-    SELECT COUNT(DISTINCT e.link_id)::int AS c
-    FROM events e
-    JOIN links l ON l.id = e.link_id
-    WHERE e.timestamp >= ${since}
-      AND e.type IN ('critical', 'warning')
-      AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+    WITH offline_first AS (
+      SELECT e.link_id, MIN(e.timestamp) AS first_offline
+      FROM events e
+      WHERE e.timestamp >= ${since} - interval '24 hours'
+        AND e.type IN ('critical', 'warning')
+        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+      GROUP BY e.link_id
+    )
+    SELECT COUNT(*)::int AS c
+    FROM offline_first o
+    JOIN links l ON l.id = o.link_id
+    WHERE o.first_offline >= ${since}
       AND l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
-      AND NOT EXISTS (
-        SELECT 1 FROM events e2
-        WHERE e2.link_id = e.link_id
-          AND e2.timestamp < ${since}
-          AND e2.timestamp >= ${since} - interval '24 hours'
-          AND e2.type IN ('critical', 'warning')
-          AND (e2.title ILIKE 'Link % offline%' OR e2.title ILIKE '%fora do ar%')
-      )
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
   return Number(rows[0]?.c || 0);
@@ -377,9 +374,19 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
   // representativo por link via DISTINCT ON. Qualquer divergência (subquery
   // agregada com HAVING, filtro JS adicional, etc.) faz contador e lista
   // ficarem dessincronizados.
+  // Mesma lógica do counter: agrega MIN(timestamp) por link em 24h e
+  // mantém só quem caiu DENTRO da janela (descarta links offline há horas
+  // que continuam gerando avisos recorrentes).
   const result = await db.execute(sql`
-    SELECT DISTINCT ON (e.link_id)
-           l.id AS link_id,
+    WITH offline_first AS (
+      SELECT e.link_id, MIN(e.timestamp) AS first_offline
+      FROM events e
+      WHERE e.timestamp >= ${since} - interval '24 hours'
+        AND e.type IN ('critical', 'warning')
+        AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+      GROUP BY e.link_id
+    )
+    SELECT l.id AS link_id,
            l.name AS link_name,
            l.client_id,
            c.name AS client_name,
@@ -389,24 +396,14 @@ export async function getBurstLinks(windowMinutes: number = WINDOW_MINUTES): Pro
            l.ozmap_olt_name,
            l.ozmap_ceo_name,
            l.ozmap_splitter_name,
-           e.timestamp AS first_at
-    FROM events e
-    JOIN links l ON l.id = e.link_id
+           o.first_offline AS first_at
+    FROM offline_first o
+    JOIN links l ON l.id = o.link_id
     LEFT JOIN clients c ON c.id = l.client_id
-    WHERE e.timestamp >= ${since}
-      AND e.type IN ('critical', 'warning')
-      AND (e.title ILIKE 'Link % offline%' OR e.title ILIKE '%fora do ar%')
+    WHERE o.first_offline >= ${since}
       AND l.monitoring_enabled = true
       AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
-      AND NOT EXISTS (
-        SELECT 1 FROM events e2
-        WHERE e2.link_id = e.link_id
-          AND e2.timestamp < ${since}
-          AND e2.timestamp >= ${since} - interval '24 hours'
-          AND e2.type IN ('critical', 'warning')
-          AND (e2.title ILIKE 'Link % offline%' OR e2.title ILIKE '%fora do ar%')
-      )
-    ORDER BY e.link_id, e.timestamp ASC
+    ORDER BY o.first_offline DESC
     LIMIT 500
   `);
   const rows: any[] = (result as any).rows || (result as any) || [];
