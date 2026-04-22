@@ -21,6 +21,13 @@ const THRESHOLD_CATASTROPHIC = 30;
 
 type BurstState = "normal" | "warning" | "burst" | "catastrophic";
 
+interface CauseBreakdownEntry {
+  reason: string;
+  label: string;
+  count: number;
+  pct: number;
+}
+
 interface BurstSnapshot {
   state: BurstState;
   newOfflineCount: number;
@@ -32,6 +39,53 @@ interface BurstSnapshot {
   sparkline: { minute: string; count: number }[];
   /** Resumo da última investigação disparada. */
   lastInvestigation: BurstInvestigation | null;
+  /** Total de links offline agora (não só novos na janela). */
+  totalOffline: number;
+  /** Causa dominante das indisponibilidades atuais (links offline agora). */
+  causeBreakdown: CauseBreakdownEntry[];
+}
+
+const REASON_LABELS: Record<string, string> = {
+  rompimento_fibra: "Rompimento de fibra",
+  queda_energia: "Queda de energia",
+  falha_eletrica: "Falha elétrica",
+  falha_equipamento: "Falha de equipamento",
+  sinal_degradado: "Sinal degradado",
+  onu_inativa: "ONU inativa",
+  olt_alarm: "Alarme OLT",
+  packet_loss: "Perda de pacotes",
+  high_latency: "Latência alta",
+  indefinido: "Indefinido",
+};
+
+function reasonLabel(r: string | null | undefined): string {
+  if (!r) return "Sem diagnóstico";
+  return REASON_LABELS[r] || r;
+}
+
+async function buildCauseBreakdown(): Promise<{ total: number; entries: CauseBreakdownEntry[] }> {
+  const result = await db.execute(sql`
+    SELECT COALESCE(failure_reason, 'sem_diagnostico') AS reason, COUNT(*)::int AS c
+    FROM links
+    WHERE status = 'offline'
+      AND monitoring_enabled = true
+      AND (contract_status IS NULL OR contract_status IN ('active','blocked'))
+    GROUP BY 1
+    ORDER BY 2 DESC
+  `);
+  const rows: any[] = (result as any).rows || (result as any) || [];
+  const total = rows.reduce((s, r) => s + Number(r.c || 0), 0);
+  const entries = rows.map((r) => {
+    const reason = String(r.reason);
+    const count = Number(r.c) || 0;
+    return {
+      reason,
+      label: reason === "sem_diagnostico" ? "Sem diagnóstico" : reasonLabel(reason),
+      count,
+      pct: total > 0 ? Math.round((count / total) * 100) : 0,
+    };
+  });
+  return { total, entries };
 }
 
 interface BurstInvestigation {
@@ -189,9 +243,12 @@ async function runBurstInvestigation(windowMinutes: number, count: number): Prom
 
 async function tick(): Promise<void> {
   try {
-    const count = await countNewOfflinesInWindow(WINDOW_MINUTES);
+    const [count, sparkline, causes] = await Promise.all([
+      countNewOfflinesInWindow(WINDOW_MINUTES),
+      buildSparkline(),
+      buildCauseBreakdown(),
+    ]);
     const state = classifyState(count);
-    const sparkline = await buildSparkline();
 
     // Decide se dispara investigação:
     // - se está em burst/catastrophic E (não disparou ainda OU já passou o intervalo)
@@ -229,6 +286,8 @@ async function tick(): Promise<void> {
       lastInvestigationAt: lastInvestigationAt?.toISOString() ?? null,
       sparkline,
       lastInvestigation,
+      totalOffline: causes.total,
+      causeBreakdown: causes.entries,
     };
   } catch (e) {
     console.error("[BurstDetector] tick falhou:", e);

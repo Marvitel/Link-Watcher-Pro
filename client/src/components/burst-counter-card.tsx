@@ -25,6 +25,8 @@ interface BurstSnapshot {
     withoutOzmapTopology: number;
     totalAffectedSampled: number;
   } | null;
+  totalOffline?: number;
+  causeBreakdown?: { reason: string; label: string; count: number; pct: number }[];
 }
 
 const STATE_STYLES: Record<BurstState, { label: string; classes: string; icon: typeof Activity }> = {
@@ -133,6 +135,32 @@ export function BurstCounterCard() {
             <div className="text-[10px] text-right text-muted-foreground mt-1">últimos 60 min</div>
           </div>
         </div>
+
+        {data.causeBreakdown && data.causeBreakdown.length > 0 && (
+          <div className="rounded-md border bg-background/60 p-3 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold">Causa das indisponibilidades</span>
+              <span className="text-muted-foreground">
+                {data.totalOffline ?? 0} link{(data.totalOffline ?? 0) === 1 ? "" : "s"} offline
+              </span>
+            </div>
+            <div className="space-y-1">
+              {data.causeBreakdown.slice(0, 4).map((c) => (
+                <div key={c.reason} className="flex items-center gap-2 text-xs" data-testid={`cause-${c.reason}`}>
+                  <span className="flex-1 truncate">{c.label}</span>
+                  <span className="tabular-nums text-muted-foreground">{c.count}</span>
+                  <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-destructive/70"
+                      style={{ width: `${c.pct}%` }}
+                    />
+                  </div>
+                  <span className="tabular-nums w-9 text-right text-muted-foreground">{c.pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isAlert && inv && (
           <div className="rounded-md border bg-background/60 p-3 space-y-2">

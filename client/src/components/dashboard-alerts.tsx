@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, Zap, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BurstCounterCard } from "@/components/burst-counter-card";
 import { MassiveOutageCard } from "@/components/massive-outage-card";
 import type { MassiveOutage } from "@shared/schema";
@@ -14,6 +15,7 @@ interface BurstSnapshot {
   state: BurstState;
   newOfflineCount: number;
   windowMinutes: number;
+  causeBreakdown?: { reason: string; label: string; count: number; pct: number }[];
 }
 
 const BURST_TRIGGER_STYLE: Record<BurstState, string> = {
@@ -59,6 +61,7 @@ export function DashboardAlerts() {
   const burstState: BurstState = burst?.state ?? "normal";
   const BurstIcon = BURST_ICON[burstState];
   const burstAlert = burstState === "burst" || burstState === "catastrophic";
+  const dominantCause = burst?.causeBreakdown?.[0];
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -81,10 +84,19 @@ export function DashboardAlerts() {
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
               {BURST_LABEL[burstState]}
             </span>
+            {dominantCause && dominantCause.count > 0 && (
+              <span className="text-[10px] text-muted-foreground hidden md:inline border-l pl-1.5 ml-0.5">
+                {dominantCause.label} {dominantCause.pct}%
+              </span>
+            )}
             <ChevronDown className="h-3 w-3 opacity-60" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[420px] p-0 border-0 bg-transparent shadow-xl">
+        <PopoverContent
+          align="end"
+          className="w-[440px] p-0 bg-popover border shadow-xl"
+          data-testid="popover-burst"
+        >
           <BurstCounterCard />
         </PopoverContent>
       </Popover>
@@ -112,14 +124,34 @@ export function DashboardAlerts() {
             <ChevronDown className="h-3 w-3 opacity-60" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-[480px] p-0 border-0 bg-transparent shadow-xl">
-          {outages.length > 0 ? (
-            <MassiveOutageCard />
-          ) : (
-            <div className="rounded-md border bg-background p-4 text-sm text-muted-foreground" data-testid="text-no-outages">
-              Nenhum rompimento massivo ativo no momento.
+        <PopoverContent
+          align="end"
+          className="w-[500px] p-0 bg-popover border shadow-xl"
+          data-testid="popover-outages"
+        >
+          <Tabs defaultValue="active" className="w-full">
+            <div className="px-3 pt-3 pb-2 border-b">
+              <TabsList className="h-8">
+                <TabsTrigger value="active" className="text-xs h-6 px-3" data-testid="tab-outages-active">
+                  Ativos
+                  {outages.length > 0 && (
+                    <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5 py-0 h-4">
+                      {outages.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="resolved" className="text-xs h-6 px-3" data-testid="tab-outages-resolved">
+                  Encerrados
+                </TabsTrigger>
+              </TabsList>
             </div>
-          )}
+            <TabsContent value="active" className="m-0 max-h-[60vh] overflow-y-auto">
+              <MassiveOutageCard status="active" bare />
+            </TabsContent>
+            <TabsContent value="resolved" className="m-0 max-h-[60vh] overflow-y-auto">
+              <MassiveOutageCard status="resolved" bare />
+            </TabsContent>
+          </Tabs>
         </PopoverContent>
       </Popover>
     </div>
