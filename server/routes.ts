@@ -16451,6 +16451,174 @@ export async function registerRoutes(
       }
     });
 
+    // ==================== System Settings (singleton global) ====================
+    // Substitui o estado mock do componente SystemSettingsTab — agora os campos
+    // de SLA, retenção, intervalo de coleta etc. são persistidos e lidos pelo
+    // backend (cleanup, fast-poll, /api/sla/compliance).
+    app.get("/api/admin/system-settings", requireAuth, async (_req: Request, res: Response) => {
+      try {
+        const s = await storage.getSystemSettings();
+        res.json(s);
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    app.patch("/api/admin/system-settings", requireAuth, requireSuperAdmin, async (req: Request, res: Response) => {
+      try {
+        const { insertSystemSettingsSchema } = await import("@shared/schema");
+        const data = insertSystemSettingsSchema.parse(req.body);
+        const updated = await storage.updateSystemSettings(data);
+        res.json(updated);
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    // ==================== SLA Compliance ====================
+    // Calcula compliance contra as metas configuradas em system_settings.
+    // Disponibilidade vem de incidents (downtime acumulado / período total).
+    // Latência e perda vêm de metrics_daily (média do período).
+    // MTTR = média de (closedAt - openedAt) dos incidentes fechados no período.
+    app.get("/api/sla/compliance", requireAuth, async (req: Request, res: Response) => {
+      try {
+        const days = Math.max(1, Math.min(365, parseInt(String(req.query.days ?? "30"), 10) || 30));
+        const clientIdRaw = req.query.clientId ? parseInt(String(req.query.clientId), 10) : undefined;
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        const totalSeconds = days * 24 * 3600;
+
+        const settings = await storage.getSystemSettings();
+        const { db } = await import("./db");
+        const { sql } = await import("drizzle-orm");
+
+        const clientFilter = clientIdRaw ? sql`AND l.client_id = ${clientIdRaw}` : sql``;
+
+        // Downtime acumulado (seg) por link a partir de incidents fechados +
+        // incidentes ainda abertos (até agora).
+        const downtimeRows: any = await db.execute(sql`
+          SELECT l.id AS link_id,
+                 l.name,
+                 l.client_id,
+                 COALESCE(SUM(
+                   EXTRACT(EPOCH FROM (
+                     LEAST(COALESCE(i.closed_at, NOW()), NOW())
+                     - GREATEST(i.opened_at, ${since})
+                   ))
+                 ) FILTER (
+                   WHERE i.opened_at < NOW()
+                     AND COALESCE(i.closed_at, NOW()) > ${since}
+                 ), 0)::float AS downtime_seconds
+          FROM links l
+          LEFT JOIN incidents i ON i.link_id = l.id
+          WHERE l.monitoring_enabled = true
+            AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+            ${clientFilter}
+          GROUP BY l.id, l.name, l.client_id
+        `);
+
+        const dRows: any[] = (downtimeRows as any).rows || downtimeRows || [];
+
+        // Latência e perda: média de metrics_daily no período.
+        const metricsRows: any = await db.execute(sql`
+          SELECT md.link_id,
+                 AVG(md.latency_avg)::float AS lat_avg,
+                 AVG(md.packet_loss_avg)::float AS loss_avg
+          FROM metrics_daily md
+          JOIN links l ON l.id = md.link_id
+          WHERE md.bucket_start >= ${since}
+            AND l.monitoring_enabled = true
+            AND (l.contract_status IS NULL OR l.contract_status IN ('active','blocked'))
+            ${clientFilter}
+          GROUP BY md.link_id
+        `);
+        const mRows: any[] = (metricsRows as any).rows || metricsRows || [];
+        const metricsByLink = new Map<number, { latAvg: number; lossAvg: number }>();
+        for (const r of mRows) {
+          metricsByLink.set(Number(r.link_id), {
+            latAvg: Number(r.lat_avg) || 0,
+            lossAvg: Number(r.loss_avg) || 0,
+          });
+        }
+
+        // MTTR: média de horas de reparo nos incidentes fechados no período.
+        const mttrRows: any = await db.execute(sql`
+          SELECT COALESCE(
+            AVG(EXTRACT(EPOCH FROM (i.closed_at - i.opened_at)) / 3600), 0
+          )::float AS mttr_hours,
+          COUNT(*)::int AS closed_count
+          FROM incidents i
+          JOIN links l ON l.id = i.link_id
+          WHERE i.closed_at IS NOT NULL
+            AND i.closed_at >= ${since}
+            ${clientFilter}
+        `);
+        const mttrRow: any = ((mttrRows as any).rows || mttrRows || [])[0] || {};
+        const mttrHours = Number(mttrRow.mttr_hours) || 0;
+        const closedCount = Number(mttrRow.closed_count) || 0;
+
+        // Compliance por link.
+        const perLink = dRows.map((r) => {
+          const linkId = Number(r.link_id);
+          const downtime = Number(r.downtime_seconds) || 0;
+          const availability = Math.max(0, 100 * (1 - downtime / totalSeconds));
+          const m = metricsByLink.get(linkId);
+          const latAvg = m?.latAvg ?? 0;
+          const lossAvg = m?.lossAvg ?? 0;
+          return {
+            linkId,
+            name: r.name,
+            clientId: Number(r.client_id),
+            availability: Number(availability.toFixed(4)),
+            latencyAvg: Number(latAvg.toFixed(2)),
+            packetLossAvg: Number(lossAvg.toFixed(2)),
+            availabilityOk: availability >= settings.slaAvailability,
+            latencyOk: latAvg === 0 || latAvg <= settings.slaLatency,
+            packetLossOk: lossAvg <= settings.slaPacketLoss,
+          };
+        });
+
+        const totalLinks = perLink.length;
+        const avgAvailability = totalLinks
+          ? perLink.reduce((sum, l) => sum + l.availability, 0) / totalLinks
+          : 100;
+        const avgLatency = totalLinks
+          ? perLink.reduce((sum, l) => sum + l.latencyAvg, 0) / totalLinks
+          : 0;
+        const avgLoss = totalLinks
+          ? perLink.reduce((sum, l) => sum + l.packetLossAvg, 0) / totalLinks
+          : 0;
+        const linksOutOfSla = perLink.filter(
+          (l) => !l.availabilityOk || !l.latencyOk || !l.packetLossOk,
+        ).length;
+
+        res.json({
+          periodDays: days,
+          targets: {
+            availability: settings.slaAvailability,
+            latency: settings.slaLatency,
+            packetLoss: settings.slaPacketLoss,
+            maxRepairTime: settings.slaMaxRepairTime,
+          },
+          summary: {
+            totalLinks,
+            linksOutOfSla,
+            availability: Number(avgAvailability.toFixed(4)),
+            availabilityOk: avgAvailability >= settings.slaAvailability,
+            latencyAvg: Number(avgLatency.toFixed(2)),
+            latencyOk: avgLatency === 0 || avgLatency <= settings.slaLatency,
+            packetLossAvg: Number(avgLoss.toFixed(2)),
+            packetLossOk: avgLoss <= settings.slaPacketLoss,
+            mttrHours: Number(mttrHours.toFixed(2)),
+            mttrOk: closedCount === 0 || mttrHours <= settings.slaMaxRepairTime,
+            closedIncidents: closedCount,
+          },
+          links: perLink,
+        });
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
     // ==================== Monsta (servidor de monitoramento legado) ====================
     const monsta = await import("./monsta");
     const { encrypt: encryptMonsta } = await import("./crypto");

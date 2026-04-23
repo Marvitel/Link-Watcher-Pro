@@ -44,6 +44,9 @@ import {
   linkTrafficInterfaces,
   trafficInterfaceMetrics,
   integrationSettings,
+  systemSettings,
+  type SystemSettings,
+  type InsertSystemSettings,
   type Client,
   type User,
   type Link,
@@ -1596,6 +1599,23 @@ export class DatabaseStorage {
         updatedAt: new Date(),
       });
     }
+  }
+
+  // ========== System Settings (singleton) ==========
+  async getSystemSettings(): Promise<SystemSettings> {
+    const [row] = await db.select().from(systemSettings).limit(1);
+    if (row) return row;
+    const [created] = await db.insert(systemSettings).values({}).returning();
+    return created;
+  }
+
+  async updateSystemSettings(data: Partial<InsertSystemSettings>): Promise<SystemSettings> {
+    const current = await this.getSystemSettings();
+    const [updated] = await db.update(systemSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(systemSettings.id, current.id))
+      .returning();
+    return updated;
   }
 
   async getGroups(clientId?: number): Promise<Group[]> {

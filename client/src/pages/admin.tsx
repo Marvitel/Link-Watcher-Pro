@@ -7514,21 +7514,57 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
 
 function SystemSettingsTab() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState({
+  const defaults = {
     slaAvailability: 99,
     slaLatency: 80,
     slaPacketLoss: 2,
     slaMaxRepairTime: 6,
     dataRetentionMonths: 6,
-    metricsPollingInterval: 5,
+    metricsPollingInterval: 30,
+    fastPollIntervalSeconds: 5,
     alertsEnabled: true,
     emailNotifications: true,
     slackWebhook: "",
+  };
+  const [settings, setSettings] = useState(defaults);
+
+  const { data: serverSettings, isLoading } = useQuery<typeof defaults & { id: number; updatedAt: string }>({
+    queryKey: ["/api/admin/system-settings"],
   });
 
-  const handleSave = () => {
-    toast({ title: "Configuracoes salvas com sucesso" });
-  };
+  useEffect(() => {
+    if (serverSettings) {
+      setSettings({
+        slaAvailability: serverSettings.slaAvailability ?? defaults.slaAvailability,
+        slaLatency: serverSettings.slaLatency ?? defaults.slaLatency,
+        slaPacketLoss: serverSettings.slaPacketLoss ?? defaults.slaPacketLoss,
+        slaMaxRepairTime: serverSettings.slaMaxRepairTime ?? defaults.slaMaxRepairTime,
+        dataRetentionMonths: serverSettings.dataRetentionMonths ?? defaults.dataRetentionMonths,
+        metricsPollingInterval: serverSettings.metricsPollingInterval ?? defaults.metricsPollingInterval,
+        fastPollIntervalSeconds: serverSettings.fastPollIntervalSeconds ?? defaults.fastPollIntervalSeconds,
+        alertsEnabled: serverSettings.alertsEnabled ?? defaults.alertsEnabled,
+        emailNotifications: serverSettings.emailNotifications ?? defaults.emailNotifications,
+        slackWebhook: serverSettings.slackWebhook ?? "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSettings]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof defaults) => {
+      const res = await apiRequest("PATCH", "/api/admin/system-settings", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/system-settings"] });
+      toast({ title: "Configurações salvas com sucesso" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erro ao salvar", description: err?.message || "Tente novamente", variant: "destructive" });
+    },
+  });
+
+  const handleSave = () => saveMutation.mutate(settings);
 
   return (
     <div className="space-y-6">
@@ -7622,6 +7658,24 @@ function SystemSettingsTab() {
                   onChange={(e) => setSettings({ ...settings, metricsPollingInterval: parseInt(e.target.value) })}
                   data-testid="input-polling-interval"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Intervalo padrão de coleta para todos os links.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fastPollInterval">Coleta com Dashboard Aberto (segundos)</Label>
+                <Input
+                  id="fastPollInterval"
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={settings.fastPollIntervalSeconds}
+                  onChange={(e) => setSettings({ ...settings, fastPollIntervalSeconds: parseInt(e.target.value) || 5 })}
+                  data-testid="input-fast-poll-interval"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Intervalo acelerado quando um analista está visualizando o link (1–60s).
+                </p>
               </div>
             </div>
           </CardContent>

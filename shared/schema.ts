@@ -797,6 +797,35 @@ export const integrationSettings = pgTable("integration_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Configurações globais do sistema (singleton — usar id=1).
+// Substitui o estado mock do componente SystemSettingsTab em admin.tsx.
+// Aplicadas pelo backend:
+//   - dataRetentionMonths: usado pelo cleanup em server/aggregation.ts.
+//   - fastPollIntervalSeconds: intervalo de coleta para links assistidos
+//     (link-detail.tsx aberto). Usado em server/monitoring.ts.
+//   - sla*: alvos comparados em /api/sla/compliance.
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  slaAvailability: real("sla_availability").notNull().default(99),
+  slaLatency: real("sla_latency").notNull().default(80),
+  slaPacketLoss: real("sla_packet_loss").notNull().default(2),
+  slaMaxRepairTime: integer("sla_max_repair_time").notNull().default(6),
+  dataRetentionMonths: integer("data_retention_months").notNull().default(6),
+  metricsPollingInterval: integer("metrics_polling_interval").notNull().default(30),
+  fastPollIntervalSeconds: integer("fast_poll_interval_seconds").notNull().default(5),
+  alertsEnabled: boolean("alerts_enabled").notNull().default(true),
+  emailNotifications: boolean("email_notifications").notNull().default(true),
+  slackWebhook: text("slack_webhook"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSystemSettingsSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  updatedAt: true,
+}).partial();
+export type SystemSettings = typeof systemSettings.$inferSelect;
+export type InsertSystemSettings = z.infer<typeof insertSystemSettingsSchema>;
+
 export const eventTypes = pgTable("event_types", {
   id: serial("id").primaryKey(),
   code: varchar("code", { length: 50 }).notNull().unique(),

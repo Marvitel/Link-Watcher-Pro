@@ -1,10 +1,29 @@
 import { db } from "./db";
-import { metrics, metricsHourly, metricsDaily } from "@shared/schema";
+import { metrics, metricsHourly, metricsDaily, systemSettings } from "@shared/schema";
 import { sql, and, gte, lt, eq } from "drizzle-orm";
 
-const RETENTION_RAW_DAYS = 7;
-const RETENTION_HOURLY_DAYS = 30;
-const RETENTION_DAILY_DAYS = 180;
+// Limites mínimos de retenção (raw e hourly não devem cair abaixo destes valores
+// pra preservar gráficos de curto prazo). O usuário ajusta o teto via
+// system_settings.dataRetentionMonths, que controla o cleanup do bucket diário
+// (e amplia raw/hourly proporcionalmente quando configurado pra mais).
+const MIN_RETENTION_RAW_DAYS = 7;
+const MIN_RETENTION_HOURLY_DAYS = 30;
+const DEFAULT_RETENTION_DAILY_DAYS = 180;
+
+async function getRetentionDaysFromSettings(): Promise<{ raw: number; hourly: number; daily: number }> {
+  try {
+    const [row] = await db.select().from(systemSettings).limit(1);
+    const months = row?.dataRetentionMonths ?? 6;
+    const dailyDays = Math.max(MIN_RETENTION_HOURLY_DAYS, months * 30);
+    return {
+      raw: MIN_RETENTION_RAW_DAYS,
+      hourly: MIN_RETENTION_HOURLY_DAYS,
+      daily: dailyDays,
+    };
+  } catch {
+    return { raw: MIN_RETENTION_RAW_DAYS, hourly: MIN_RETENTION_HOURLY_DAYS, daily: DEFAULT_RETENTION_DAILY_DAYS };
+  }
+}
 
 export async function aggregateHourlyMetrics(): Promise<number> {
   const now = new Date();
@@ -87,10 +106,11 @@ export async function aggregateDailyMetrics(): Promise<number> {
 
 export async function cleanupOldMetrics(): Promise<{ raw: number; hourly: number; daily: number }> {
   const now = new Date();
-  
-  const rawCutoff = new Date(now.getTime() - RETENTION_RAW_DAYS * 24 * 60 * 60 * 1000);
-  const hourlyCutoff = new Date(now.getTime() - RETENTION_HOURLY_DAYS * 24 * 60 * 60 * 1000);
-  const dailyCutoff = new Date(now.getTime() - RETENTION_DAILY_DAYS * 24 * 60 * 60 * 1000);
+  const ret = await getRetentionDaysFromSettings();
+
+  const rawCutoff = new Date(now.getTime() - ret.raw * 24 * 60 * 60 * 1000);
+  const hourlyCutoff = new Date(now.getTime() - ret.hourly * 24 * 60 * 60 * 1000);
+  const dailyCutoff = new Date(now.getTime() - ret.daily * 24 * 60 * 60 * 1000);
 
   const rawResult = await db.execute(sql`
     DELETE FROM metrics WHERE timestamp < ${rawCutoff}

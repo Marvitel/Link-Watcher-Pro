@@ -514,10 +514,11 @@ const previousTrafficData = new Map<number, TrafficResult>();
 // Cache para interfaces de tráfego adicionais - chave: "linkId-interfaceId"
 const previousAdditionalTrafficData = new Map<string, TrafficResult>();
 
-// Links sendo ativamente visualizados por analistas — recebem coleta rápida (5s)
+// Links sendo ativamente visualizados por analistas — recebem coleta rápida.
+// O intervalo padrão é 5s mas pode ser ajustado em system_settings.fast_poll_interval_seconds.
 const watchedLinks = new Map<number, number>(); // linkId → timestamp do último heartbeat
 const WATCH_EXPIRY_MS = 60_000; // expira se não receber heartbeat em 60s
-const FAST_POLL_INTERVAL_MS = 5_000; // intervalo de coleta rápida: 5s
+let FAST_POLL_INTERVAL_MS = 5_000; // valor inicial; recarregado de system_settings periodicamente
 // Throttle para gravação no banco durante fast-poll: máximo 1 gravação a cada 25s por link
 // Isso evita acúmulo de pontos de alta frequência que causam "espigas" nos gráficos
 const FAST_POLL_DB_WRITE_THROTTLE_MS = 25_000;
@@ -4238,12 +4239,34 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
     collectAllLinksMetrics();
   }, effectiveInterval * 1000);
 
-  // Loop rápido de coleta para links sendo visualizados ativamente (5s)
-  if (fastPollInterval) clearInterval(fastPollInterval);
-  fastPollInterval = setInterval(() => {
-    if (watchedLinks.size > 0) collectWatchedLinksFast();
-  }, FAST_POLL_INTERVAL_MS);
-  console.log(`[Monitor] Fast-poll loop iniciado (${FAST_POLL_INTERVAL_MS / 1000}s para links assistidos)`);
+  // Loop rápido de coleta para links sendo visualizados ativamente.
+  // Intervalo configurável via system_settings.fast_poll_interval_seconds.
+  const startFastPoll = (intervalMs: number) => {
+    if (fastPollInterval) clearInterval(fastPollInterval);
+    FAST_POLL_INTERVAL_MS = intervalMs;
+    fastPollInterval = setInterval(() => {
+      if (watchedLinks.size > 0) collectWatchedLinksFast();
+    }, FAST_POLL_INTERVAL_MS);
+    console.log(`[Monitor] Fast-poll loop iniciado (${FAST_POLL_INTERVAL_MS / 1000}s para links assistidos)`);
+  };
+
+  const loadFastPollFromSettings = async () => {
+    try {
+      const { db } = await import("./db");
+      const { systemSettings } = await import("@shared/schema");
+      const [row] = await db.select().from(systemSettings).limit(1);
+      const seconds = Math.max(1, Math.min(60, row?.fastPollIntervalSeconds ?? 5));
+      const ms = seconds * 1000;
+      if (ms !== FAST_POLL_INTERVAL_MS) startFastPoll(ms);
+    } catch (e) {
+      // Se falhar, mantém valor atual.
+    }
+  };
+
+  startFastPoll(FAST_POLL_INTERVAL_MS);
+  loadFastPollFromSettings();
+  // Reaplica config a cada 60s (pega mudanças sem precisar reiniciar processo).
+  setInterval(loadFastPollFromSettings, 60_000);
 
   // Sincronização do Wanguard a cada 120 segundos (reduzido de 60s para economizar CPU)
   wanguardSyncInterval = setInterval(() => {
