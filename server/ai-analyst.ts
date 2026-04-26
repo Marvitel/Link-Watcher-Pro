@@ -77,6 +77,7 @@ const ALLOWED_FIELDS = new Set<string>([
   "linkType",
   "authType",
   "ipBlock",
+  "monitoringEnabled",
 ]);
 
 // =====================================================================
@@ -367,6 +368,17 @@ Quando terminar, chame OBRIGATORIAMENTE submit_proposal com:
     "config_error"  → o link está mal cadastrado (ex.: PPPoE errado, concentrador errado, IP errado, OLT/ONU errada)
     "network_issue" → cadastro está OK, problema é físico/operacional (ONU desligada, fibra cortada, queda de upstream)
     "inconclusive"  → não há evidência suficiente
+
+# Desativar monitoramento (campo monitoringEnabled)
+
+Quando você tiver evidência clara de que o link **NÃO deveria estar sendo monitorado**, proponha "monitoringEnabled": false. Casos típicos:
+- Contrato cancelado/bloqueado no Voalle (use voalle_get_contracts pra confirmar)
+- Cliente trocou de tecnologia (ex.: migrou de PPPoE pra link dedicado, mas o link antigo ficou cadastrado)
+- Link duplicado (mesmo cliente, mesmo PPPoE, dois cadastros — desativa o que não tem tráfego há semanas)
+- Link de teste/laboratório que ficou esquecido
+- Cliente sumiu há meses, sem sessão PPPoE recente nem tráfego
+
+Quando propuser monitoringEnabled=false, escreva no reasoning a justificativa específica e evite combinar com outros campos da whitelist (proposta dedicada). O reviewer vai entender que ao aprovar: "Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard."
 - proposedFields: objeto JSON apenas com os campos a alterar (whitelist abaixo). Vazio se inconclusive ou network_issue puro.
 - reasoning: explicação curta (3-6 linhas) em português, citando que ferramentas chamou e o que cada uma retornou
 - confidence: 0-100

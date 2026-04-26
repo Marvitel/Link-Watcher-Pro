@@ -106,6 +106,14 @@ Sistema de triagem automática de links com problema usando Anthropic Claude (mo
 
 **UI** (`client/src/components/admin/ai-analyst-tab.tsx`): nova aba "Analista IA" no admin com sub-seções Triagem (revisar/aprovar/editar/rejeitar propostas), Fila, Regras (CRUD em texto livre) e Configurações. Botões "Triagem IA (offline)" e "Triagem IA (degradados)" também no topo da aba "Diagnóstico de Links".
 
+**Desativar monitoramento via IA**: o campo `monitoringEnabled` está na whitelist `ALLOWED_FIELDS`. A IA pode propor `monitoringEnabled=false` quando há evidência clara de contrato cancelado, link duplicado, link de teste esquecido, ou cliente sumido sem tráfego. O system prompt orienta a evitar combinar com outros campos.
+
+### Links inativos (monitoringEnabled=false)
+Quando o monitoramento de um link é desativado (via UI ou pela IA):
+- `PATCH /api/links/:id` resolve automaticamente todos os eventos abertos do link e força `status='unknown'` + zera `failureReason`/`failureSource`
+- O endpoint `GET /api/super-admin/link-dashboard` filtra `monitoringEnabled=true`, então links inativos **não aparecem** em cards, contadores (Total/Online/Degradado/Offline) nem em "Alertas Ativos"
+- A coleta de métricas (`processLinkMetrics` em `server/monitoring.ts`) já ignora links com monitoramento desativado, então o status não volta a ser atualizado para "offline" sozinho
+
 ### Voalle Service Tag Mapping
 A dedicated table `voalle_service_tags` stores the mapping between numeric Voalle tag IDs and alphanumeric OZmap codes (e.g., 3401 → "JW37Y8NA"), populated by importing a CSV exported directly from the Voalle database (`contract_service_tags`). The admin UI (Diagnostics tab) includes a CSV upload button that sends the file as text to `POST /api/admin/voalle-service-tags/import`. The reconciliation engine uses this table as Fonte 3 (after the API and links table) to resolve service tags of deleted connections that could not be resolved from the API alone.
 

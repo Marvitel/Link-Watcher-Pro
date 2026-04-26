@@ -1183,7 +1183,29 @@ export async function registerRoutes(
         console.log(`[Link] Link ${linkId}: Concentrator changed (${previousLink?.concentratorId} -> ${filteredBody.concentratorId}). Cleared snmpInterfaceIndex to force re-discovery on new concentrator.`);
       }
       
+      // Quando o monitoramento for DESATIVADO, resolver eventos abertos e zerar status
+      // pra que o link não continue exibido como "offline" no dashboard / contadores.
+      const monitoringDisabledNow = (
+        'monitoringEnabled' in filteredBody &&
+        filteredBody.monitoringEnabled === false &&
+        previousLink?.monitoringEnabled === true
+      );
+      if (monitoringDisabledNow) {
+        filteredBody.status = 'unknown';
+        filteredBody.failureReason = null;
+        filteredBody.failureSource = null;
+      }
+
       await storage.updateLink(linkId, filteredBody);
+
+      if (monitoringDisabledNow) {
+        const resolvedRows = await db.update(eventsTable)
+          .set({ resolved: true, resolvedAt: new Date() })
+          .where(and(eq(eventsTable.linkId, linkId), eq(eventsTable.resolved, false)))
+          .returning({ id: eventsTable.id });
+        console.log(`[Link] Link ${linkId}: monitoramento desativado — ${resolvedRows.length} eventos abertos foram resolvidos automaticamente.`);
+      }
+
       const updatedLink = await storage.getLink(linkId);
       
       // Check if IP block was changed or removed - clear blacklist checks
@@ -4578,7 +4600,8 @@ export async function registerRoutes(
       if (cached) return res.json(cached);
 
       // Build WHERE conditions (all applied at DB level)
-      const baseConditions: any[] = [isNull(links.deletedAt)];
+      // Exclui links com monitoramento desativado — não devem aparecer em cards/contadores/alertas.
+      const baseConditions: any[] = [isNull(links.deletedAt), eq(links.monitoringEnabled, true)];
 
       // Only links from active clients
       const activeClients = await db.select({ id: clientsTable.id, name: clientsTable.name })
