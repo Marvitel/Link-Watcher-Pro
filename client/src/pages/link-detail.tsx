@@ -301,12 +301,12 @@ export default function LinkDetail() {
   const { toast } = useToast();
 
   const updateLinkMutation = useMutation({
-    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> }) => {
+    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean; useDynamicIp?: boolean }> }) => {
       const { _selectedCpes, ...linkData } = data;
       const res = await apiRequest("PATCH", `/api/links/${linkId}`, linkData);
       if (_selectedCpes !== undefined) {
         const existingRes = await apiRequest("GET", `/api/links/${linkId}/cpes`);
-        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean }> = await existingRes.json();
+        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean; useDynamicIp?: boolean }> = await existingRes.json();
         const selectedIds = _selectedCpes.map(s => s.cpeId);
         for (const e of existing) {
           if (!selectedIds.includes(e.cpeId)) {
@@ -315,23 +315,28 @@ export default function LinkDetail() {
         }
         for (const s of _selectedCpes) {
           const existingAssoc = existing.find(e => e.cpeId === s.cpeId);
+          const desiredIpOverride = s.useDynamicIp ? null : (s.ipOverride || null);
+          const desiredUseDynamic = s.useDynamicIp || false;
           if (!existingAssoc) {
             await apiRequest("POST", `/api/links/${linkId}/cpes`, {
               cpeId: s.cpeId,
               role: s.role,
-              ipOverride: s.ipOverride || null,
+              ipOverride: desiredIpOverride,
+              useDynamicIp: desiredUseDynamic,
               showInEquipmentTab: s.showInEquipmentTab || false
             });
           } else if (
             existingAssoc.role !== s.role ||
-            existingAssoc.ipOverride !== (s.ipOverride || null) ||
+            existingAssoc.ipOverride !== desiredIpOverride ||
+            (existingAssoc.useDynamicIp || false) !== desiredUseDynamic ||
             existingAssoc.showInEquipmentTab !== (s.showInEquipmentTab || false)
           ) {
             await apiRequest("DELETE", `/api/links/${linkId}/cpes/${s.cpeId}`);
             await apiRequest("POST", `/api/links/${linkId}/cpes`, {
               cpeId: s.cpeId,
               role: s.role,
-              ipOverride: s.ipOverride || null,
+              ipOverride: desiredIpOverride,
+              useDynamicIp: desiredUseDynamic,
               showInEquipmentTab: s.showInEquipmentTab || false
             });
           }

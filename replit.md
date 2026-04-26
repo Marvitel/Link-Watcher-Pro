@@ -54,6 +54,16 @@ This system supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom
 - **Limitação ODI XPON Sticks**: ONUs do tipo "STICK" (fabricante ODI, ex: XPON22050984) aparecem normalmente no MIB — confirmado ONU 53 (XPON22050984) com -26.38 dBm via SNMP. Não há limitação especial para esse tipo
 - **SNMP walk full**: Endpoint `GET /api/admin/olt/:oltId/snmp-walk?limit=500` disponível para diagnóstico. Decodificar índice: `onuId = (índice - slot×16777216) ÷ 256` (parte inteira), `portCLI = ((índice - slot×16777216) % 256) + 1`
 
+### CPE — IP dinâmico (PPPoE)
+Cada associação link↔CPE (`link_cpes`) tem o campo `useDynamicIp` (boolean, default false). Quando ativo, o sistema usa `links.monitoredIp` (atualizado pela coleta PPPoE/RADIUS) como o IP atual da CPE, em vez do `link_cpes.ip_override` estático.
+
+Helper centralizado: `server/cpe-ip.ts → resolveCpeIp(assoc, cpe, link)` — prioridade:
+1. `assoc.useDynamicIp` → `link.monitoredIp`
+2. `assoc.ipOverride`
+3. `cpe.ipAddress`
+
+Aplicado em: `/api/links/:id/devices`, `/api/cpe/:cpeId/ports/refresh`, `/api/cpe/:cpeId/enable-webfig`, `/api/cpe/:cpeId/backup`, `/api/cpe/backup/:backupId/restore`, scheduler semanal de backup (`server/cpe-backup.ts`) e coleta de métricas de CPE (`server/monitoring.ts → collectAllCpesMetrics`). A importação Voalle (`POST /api/admin/voalle-import`) agora marca `useDynamicIp=true` em CPEs vinculadas a links PPPoE/corporativos para acompanhar reatribuições de IP. UI: checkbox "IP PPPoE" no formulário de CPE (admin.tsx e link-detail.tsx) — quando marcado desabilita o input e zera `ipOverride`.
+
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists analysts with diagnostics. Templates support placeholders and can be copied to the clipboard.
 

@@ -420,6 +420,9 @@ export const linkCpes = pgTable("link_cpes", {
   role: varchar("role", { length: 30 }).default("primary"), // primary, backup, firewall
   // IP específico para este link (usado quando CPE é isStandard=true ou para override)
   ipOverride: varchar("ip_override", { length: 45 }),
+  // Se true, ignora ipOverride e usa o IP atual do link (links.monitoredIp), atualizado pela
+  // coleta de PPPoE/RADIUS. Útil pra CPEs em links com IP dinâmico via PPPoE.
+  useDynamicIp: boolean("use_dynamic_ip").notNull().default(false),
   // MAC address descoberto via API/SNMP durante importação
   macAddress: varchar("mac_address", { length: 17 }),
   // Se true, este CPE aparece na aba "Equipamento" nos detalhes do link

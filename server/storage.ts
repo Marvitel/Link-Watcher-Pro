@@ -3114,6 +3114,8 @@ export class DatabaseStorage {
     cpeId: number;
     linkId: number;
     ipOverride: string | null;
+    useDynamicIp: boolean | null;
+    linkMonitoredIp: string | null;
     ipAddress: string | null;
     sshUser: string | null;
     sshPassword: string | null;
@@ -3128,6 +3130,8 @@ export class DatabaseStorage {
         cpeId: cpes.id,
         linkId: linkCpes.linkId,
         ipOverride: linkCpes.ipOverride,
+        useDynamicIp: linkCpes.useDynamicIp,
+        linkMonitoredIp: links.monitoredIp,
         ipAddress: cpes.ipAddress,
         sshUser: cpes.sshUser,
         sshPassword: cpes.sshPassword,
@@ -3138,6 +3142,7 @@ export class DatabaseStorage {
       })
       .from(linkCpes)
       .innerJoin(cpes, eq(linkCpes.cpeId, cpes.id))
+      .innerJoin(links, eq(linkCpes.linkId, links.id))
       .leftJoin(equipmentVendors, eq(cpes.vendorId, equipmentVendors.id))
       .where(and(eq(cpes.isActive, true), sql`${cpes.sshUser} IS NOT NULL`));
     return results;

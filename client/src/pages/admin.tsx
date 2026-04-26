@@ -669,7 +669,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
   });
 
   // Estado para CPEs selecionados
-  const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }>>([]);
+  const [selectedCpes, setSelectedCpes] = useState<Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean; useDynamicIp?: boolean }>>([]);
 
   // Limpar CPEs selecionados quando muda de link (editar outro ou criar novo)
   useEffect(() => {
@@ -685,6 +685,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
         cpeId: a.cpeId,
         role: a.role || "primary",
         ipOverride: (a as any).ipOverride || "",
+        useDynamicIp: (a as any).useDynamicIp || false,
         showInEquipmentTab: (a as any).showInEquipmentTab || false
       })));
     }
@@ -2492,9 +2493,10 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                                 cpeId: cpe.id, 
                                 role: "primary",
                                 ipOverride: cpe.isStandard ? "" : (cpe.ipAddress || ""),
+                                useDynamicIp: false,
                                 showInEquipmentTab: selectedCpes.length === 0,
                                 instanceId: cpe.isStandard ? `${cpe.id}-${Date.now()}` : undefined
-                              }]);
+                              } as any]);
                             }}
                             data-testid={`command-item-cpe-${cpe.id}`}
                           >
@@ -2538,11 +2540,12 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                         </div>
                       </div>
                       
-                      {/* Campo de IP */}
+                      {/* Campo de IP (desabilitado quando usa IP dinâmico) */}
                       <div className="w-32">
                         <Input
-                          placeholder={isStandard ? "IP do link" : "IP"}
-                          value={(sel as any).ipOverride || ""}
+                          placeholder={(sel as any).useDynamicIp ? "IP do PPPoE" : (isStandard ? "IP do link" : "IP")}
+                          value={(sel as any).useDynamicIp ? "" : ((sel as any).ipOverride || "")}
+                          disabled={(sel as any).useDynamicIp || false}
                           onChange={(e) => {
                             setSelectedCpes(selectedCpes.map((s, i) =>
                               i === idx ? { ...s, ipOverride: e.target.value } : s
@@ -2552,6 +2555,25 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                           data-testid={`input-cpe-ip-${sel.cpeId}`}
                         />
                       </div>
+
+                      {/* Toggle "IP dinâmico (PPPoE)" */}
+                      <label
+                        className="flex items-center gap-1 text-xs whitespace-nowrap cursor-pointer"
+                        title="Usar o IP atual do link (PPPoE) — atualizado automaticamente pela coleta"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={(sel as any).useDynamicIp || false}
+                          onChange={(e) => {
+                            setSelectedCpes(selectedCpes.map((s, i) =>
+                              i === idx ? { ...s, useDynamicIp: e.target.checked, ipOverride: e.target.checked ? "" : ((s as any).ipOverride || "") } : s
+                            ));
+                          }}
+                          className="w-3 h-3"
+                          data-testid={`checkbox-dynamic-ip-${selKey}`}
+                        />
+                        <span className="text-muted-foreground">IP PPPoE</span>
+                      </label>
                       
                       {/* Role selector */}
                       <Select
@@ -5193,7 +5215,7 @@ export default function Admin() {
   });
 
   const createLinkMutation = useMutation({
-    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> }) => {
+    mutationFn: async (data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean; useDynamicIp?: boolean }> }) => {
       const { _selectedCpes, ...linkData } = data;
       const response = await apiRequest("POST", "/api/links", linkData);
       const newLink = await response.json();
@@ -5203,7 +5225,8 @@ export default function Admin() {
           await apiRequest("POST", `/api/links/${newLink.id}/cpes`, { 
             cpeId: cpe.cpeId, 
             role: cpe.role,
-            ipOverride: cpe.ipOverride || null,
+            ipOverride: cpe.useDynamicIp ? null : (cpe.ipOverride || null),
+            useDynamicIp: cpe.useDynamicIp || false,
             showInEquipmentTab: cpe.showInEquipmentTab || false
           });
         }
@@ -5222,13 +5245,13 @@ export default function Admin() {
   });
 
   const updateLinkMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean }> } }) => {
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Link> & { _selectedCpes?: Array<{ cpeId: number; role: string; ipOverride?: string; showInEquipmentTab?: boolean; useDynamicIp?: boolean }> } }) => {
       const { _selectedCpes, ...linkData } = data;
       const response = await apiRequest("PATCH", `/api/links/${id}`, linkData);
       // Sincronizar CPEs: buscar existentes, remover/adicionar/atualizar conforme necessário
       if (_selectedCpes !== undefined) {
         const existingRes = await apiRequest("GET", `/api/links/${id}/cpes`);
-        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean }> = await existingRes.json();
+        const existing: Array<{ cpeId: number; role: string | null; ipOverride?: string | null; showInEquipmentTab?: boolean; useDynamicIp?: boolean }> = await existingRes.json();
         const existingIds = existing.map(e => e.cpeId);
         const selectedIds = _selectedCpes.map(s => s.cpeId);
         // Remover os que não estão mais selecionados
@@ -5240,17 +5263,21 @@ export default function Admin() {
         // Adicionar novos ou recriar se dados mudaram (delete+add para atualizar)
         for (const s of _selectedCpes) {
           const existingAssoc = existing.find(e => e.cpeId === s.cpeId);
+          const desiredIpOverride = s.useDynamicIp ? null : (s.ipOverride || null);
+          const desiredUseDynamic = s.useDynamicIp || false;
           if (!existingAssoc) {
             // Novo CPE
             await apiRequest("POST", `/api/links/${id}/cpes`, { 
               cpeId: s.cpeId, 
               role: s.role,
-              ipOverride: s.ipOverride || null,
+              ipOverride: desiredIpOverride,
+              useDynamicIp: desiredUseDynamic,
               showInEquipmentTab: s.showInEquipmentTab || false
             });
           } else if (
             existingAssoc.role !== s.role || 
-            existingAssoc.ipOverride !== (s.ipOverride || null) ||
+            existingAssoc.ipOverride !== desiredIpOverride ||
+            (existingAssoc.useDynamicIp || false) !== desiredUseDynamic ||
             existingAssoc.showInEquipmentTab !== (s.showInEquipmentTab || false)
           ) {
             // Dados mudaram - remover e readicionar
@@ -5258,7 +5285,8 @@ export default function Admin() {
             await apiRequest("POST", `/api/links/${id}/cpes`, { 
               cpeId: s.cpeId, 
               role: s.role,
-              ipOverride: s.ipOverride || null,
+              ipOverride: desiredIpOverride,
+              useDynamicIp: desiredUseDynamic,
               showInEquipmentTab: s.showInEquipmentTab || false
             });
           }

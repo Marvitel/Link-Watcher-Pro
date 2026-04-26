@@ -395,10 +395,19 @@ async function runWeeklyBackupJob() {
     let ok = 0, fail = 0, skipped = 0;
 
     for (const assoc of associations) {
-      const ip = assoc.ipOverride || assoc.ipAddress;
+      // useDynamicIp tem prioridade (link.monitoredIp), depois ipOverride, depois IP do CPE
+      let ip: string | null = null;
+      if (assoc.useDynamicIp) {
+        ip = assoc.linkMonitoredIp ? (assoc.linkMonitoredIp.trim() || null) : null;
+      } else if (assoc.ipOverride && assoc.ipOverride.trim()) {
+        ip = assoc.ipOverride.trim();
+      } else {
+        ip = assoc.ipAddress || null;
+      }
       if (!ip) { fail++; continue; }
 
-      const dedupeKey = assoc.isStandard && assoc.ipOverride ? `${assoc.linkCpeId}:${ip}` : ip;
+      // Cada vínculo único de CPE padrão é tratado isoladamente (incluindo IPs dinâmicos por link)
+      const dedupeKey = assoc.isStandard && (assoc.useDynamicIp || assoc.ipOverride) ? `${assoc.linkCpeId}:${ip}` : ip;
       if (seenIps.has(dedupeKey)) { skipped++; continue; }
       seenIps.add(dedupeKey);
 

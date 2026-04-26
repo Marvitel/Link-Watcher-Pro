@@ -3697,32 +3697,54 @@ export async function collectAllCpesMetrics(): Promise<void> {
   try {
     console.log(`[Monitor/CPE] Iniciando coleta de métricas de CPEs...`);
     
-    // Buscar todos os CPEs ativos com IP (do CPE ou via ipOverride do linkCpes)
+    // Buscar todos os CPEs ativos com IP (do CPE ou via link_cpes — useDynamicIp/ipOverride)
     const allCpes = await db.select().from(cpes).where(eq(cpes.isActive, true));
-    
-    // Buscar relações linkCpes para obter ipOverride
-    const allLinkCpes = await db.select().from(linkCpes);
-    
+
+    // Buscar relações linkCpes (com IP monitorado do link, para useDynamicIp)
+    const allLinkCpesRaw = await db
+      .select({
+        id: linkCpes.id,
+        linkId: linkCpes.linkId,
+        cpeId: linkCpes.cpeId,
+        ipOverride: linkCpes.ipOverride,
+        useDynamicIp: linkCpes.useDynamicIp,
+        linkMonitoredIp: links.monitoredIp,
+      })
+      .from(linkCpes)
+      .innerJoin(links, eq(linkCpes.linkId, links.id));
+
+    // Resolve effective IP por associação (useDynamicIp tem prioridade)
+    type LinkCpeWithIp = typeof allLinkCpesRaw[0] & { resolvedIp: string | null };
+    const allLinkCpes: LinkCpeWithIp[] = allLinkCpesRaw.map(lc => {
+      let resolved: string | null = null;
+      if (lc.useDynamicIp) {
+        resolved = lc.linkMonitoredIp ? lc.linkMonitoredIp.trim() || null : null;
+      } else if (lc.ipOverride && lc.ipOverride.trim()) {
+        resolved = lc.ipOverride.trim();
+      }
+      return { ...lc, resolvedIp: resolved };
+    });
+
     // Para CPEs padrão (isStandard=true), cada associação link_cpe é uma instância separada
-    // Para CPEs não-padrão, usa o primeiro ipOverride encontrado ou o IP do próprio CPE
+    // Para CPEs não-padrão, usa o primeiro IP resolvido encontrado ou o IP do próprio CPE
     type CpeInstance = typeof allCpes[0] & { effectiveIp: string | null; ipSource: string; linkCpeId?: number };
     const cpeInstances: CpeInstance[] = [];
-    
+
     for (const cpe of allCpes) {
       if (cpe.isStandard) {
-        // CPE padrão: criar uma instância para cada associação com ipOverride
-        const associations = allLinkCpes.filter(lc => lc.cpeId === cpe.id && lc.ipOverride);
+        // CPE padrão: criar uma instância para cada associação com IP resolvido
+        const associations = allLinkCpes.filter(lc => lc.cpeId === cpe.id && lc.resolvedIp);
         if (associations.length > 0) {
           for (const assoc of associations) {
             cpeInstances.push({
               ...cpe,
-              effectiveIp: assoc.ipOverride,
-              ipSource: 'override',
+              effectiveIp: assoc.resolvedIp,
+              ipSource: assoc.useDynamicIp ? 'dynamic' : 'override',
               linkCpeId: assoc.id
             });
           }
         } else {
-          // CPE padrão sem override: usar IP do CPE se existir
+          // CPE padrão sem associação resolvida: usar IP do CPE se existir
           if (cpe.ipAddress) {
             cpeInstances.push({
               ...cpe,
@@ -3732,10 +3754,12 @@ export async function collectAllCpesMetrics(): Promise<void> {
           }
         }
       } else {
-        // CPE não-padrão: usar primeiro ipOverride ou IP do próprio CPE
-        const assocWithOverride = allLinkCpes.find(lc => lc.cpeId === cpe.id && lc.ipOverride);
-        const effectiveIp = assocWithOverride?.ipOverride || cpe.ipAddress || null;
-        const ipSource = assocWithOverride?.ipOverride ? 'override' : (cpe.ipAddress ? 'cpe' : 'none');
+        // CPE não-padrão: usar primeiro IP resolvido ou IP do próprio CPE
+        const assocWithIp = allLinkCpes.find(lc => lc.cpeId === cpe.id && lc.resolvedIp);
+        const effectiveIp = assocWithIp?.resolvedIp || cpe.ipAddress || null;
+        const ipSource = assocWithIp?.resolvedIp
+          ? (assocWithIp.useDynamicIp ? 'dynamic' : 'override')
+          : (cpe.ipAddress ? 'cpe' : 'none');
         cpeInstances.push({ ...cpe, effectiveIp, ipSource });
       }
     }

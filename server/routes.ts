@@ -64,6 +64,7 @@ import { db } from "./db";
 import { eq, and, or, isNull, isNotNull, sql, inArray } from "drizzle-orm";
 import { HetrixToolsAdapter, startBlacklistAutoCheck, checkBlacklistForLink } from "./hetrixtools";
 import { backupCpe, restoreMikrotikBackup, startCpeBackupScheduler } from "./cpe-backup";
+import { resolveCpeIp } from "./cpe-ip";
 import {
   getFlashmanConfigForClient,
   testFlashmanConnection,
@@ -1974,8 +1975,8 @@ export async function registerRoutes(
             console.error(`Failed to decrypt web password for CPE ${cpe.id}:`, e);
           }
         }
-        // IP efetivo: usa ipOverride se disponível, senão ipAddress do CPE
-        const effectiveIp = assoc.ipOverride || cpe.ipAddress;
+        // IP efetivo: respeita useDynamicIp (link.monitoredIp), depois ipOverride, senão ipAddress do CPE
+        const effectiveIp = resolveCpeIp(assoc, cpe, link);
         // Buscar nome do fabricante
         const vendor = cpe.vendorId ? vendorsMap.get(cpe.vendorId) : null;
         
@@ -5370,12 +5371,13 @@ export async function registerRoutes(
         return res.status(404).json({ error: "CPE não encontrado" });
       }
       
-      // Determinar IP a usar (override do linkCpe ou IP do CPE)
+      // Determinar IP a usar (useDynamicIp → link.monitoredIp; ou ipOverride; ou IP do CPE)
       let targetIp = cpe.ipAddress;
       if (linkCpeId) {
         const linkCpe = await storage.getLinkCpe(linkCpeId);
-        if (linkCpe?.ipOverride) {
-          targetIp = linkCpe.ipOverride;
+        if (linkCpe) {
+          const link = await storage.getLink(linkCpe.linkId);
+          targetIp = resolveCpeIp(linkCpe, cpe, link) || cpe.ipAddress;
         }
       }
       
@@ -5557,12 +5559,15 @@ export async function registerRoutes(
       const cpe = await storage.getCpe(cpeId);
       if (!cpe) return res.status(404).json({ error: "CPE não encontrado" });
 
-      // Determinar IP efetivo: ipOverride da associação link_cpe ou ipAddress do CPE
+      // Determinar IP efetivo: useDynamicIp → link.monitoredIp; ou ipOverride; ou ipAddress do CPE
       const { linkCpeId } = req.body as { linkCpeId?: number };
       let ip = cpe.ipAddress?.trim() || null;
       if (linkCpeId) {
         const linkCpe = await storage.getLinkCpe(linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
+        if (linkCpe) {
+          const link = await storage.getLink(linkCpe.linkId);
+          ip = resolveCpeIp(linkCpe, cpe, link) || ip;
+        }
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
@@ -5757,11 +5762,14 @@ export async function registerRoutes(
         resolvedVendorSlug = vendor?.slug || null;
       }
 
-      // Resolver IP efetivo
+      // Resolver IP efetivo: useDynamicIp → link.monitoredIp; ou ipOverride; ou ipAddress do CPE
       let ip = cpe.ipAddress?.trim() || null;
       if (linkCpeId) {
         const linkCpe = await storage.getLinkCpe(linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
+        if (linkCpe) {
+          const link = await storage.getLink(linkCpe.linkId);
+          ip = resolveCpeIp(linkCpe, cpe, link) || ip;
+        }
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
@@ -5938,7 +5946,10 @@ export async function registerRoutes(
       let ip = cpe.ipAddress?.trim() || null;
       if (backup.linkCpeId) {
         const linkCpe = await storage.getLinkCpe(backup.linkCpeId);
-        if (linkCpe?.ipOverride) ip = linkCpe.ipOverride.trim();
+        if (linkCpe) {
+          const link = await storage.getLink(linkCpe.linkId);
+          ip = resolveCpeIp(linkCpe, cpe, link) || ip;
+        }
       }
       if (!ip) return res.status(400).json({ error: "CPE sem IP configurado" });
 
@@ -7281,9 +7292,10 @@ export async function registerRoutes(
                   cpeId: linkedCpe.id,
                   role: 'primary',
                   ipOverride: link.monitoredIp,
+                  useDynamicIp: true,
                   macAddress: finalMac || undefined,
                   showInEquipmentTab: true,
-                });
+                } as any);
               }
             }
             
@@ -7413,9 +7425,10 @@ export async function registerRoutes(
                                     cpeId: vendorCpe.id,
                                     role: 'primary',
                                     ipOverride: corpInfo.ipAddress,
+                                    useDynamicIp: true,
                                     macAddress: corpInfo.macAddress || undefined,
                                     showInEquipmentTab: true,
-                                  });
+                                  } as any);
                                   console.log(`[Voalle Import] ${link.name}: CPE ${vendorCpe.name} vinculada`);
                                 }
                               }
@@ -7493,8 +7506,9 @@ export async function registerRoutes(
                   cpeId: standardCpe.id,
                   role: 'primary',
                   ipOverride: link.monitoredIp,
+                  useDynamicIp: true,
                   showInEquipmentTab: true,
-                });
+                } as any);
                 corpCpesLinked++;
               }
               
@@ -16168,6 +16182,7 @@ export async function registerRoutes(
                 cpeId: cpe.id,
                 role: 'primary',
                 ipOverride: link.monitoredIp!,
+                useDynamicIp: true,
                 macAddress: link.macAddress || null,
                 showInEquipmentTab: true,
               } as any);
