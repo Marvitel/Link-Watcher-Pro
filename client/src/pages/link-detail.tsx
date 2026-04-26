@@ -732,7 +732,24 @@ export default function LinkDetail() {
               Editar Link
             </Button>
           )}
-          <Button variant="outline" size="sm" data-testid="button-refresh">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "status-detail"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "mitigation-status"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "metrics"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "traffic-interface-metrics"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "events"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "incidents"] });
+              queryClient.invalidateQueries({ queryKey: [`/api/links/${linkId}/cpes`] });
+              queryClient.invalidateQueries({ queryKey: ["/api/links", linkId, "tools", "devices"] });
+              queryClient.invalidateQueries({ queryKey: [`/api/sla?linkId=${linkId}&type=accumulated`] });
+              toast({ title: "Dados atualizados" });
+            }}
+            data-testid="button-refresh"
+          >
             <RefreshCw className="w-4 h-4 mr-2" />
             Atualizar
           </Button>
