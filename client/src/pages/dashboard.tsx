@@ -1,4 +1,4 @@
-import { useQuery, useQueries, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueries, keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -671,6 +671,7 @@ function CompactLinkCard({ link, metricsHistory = [] }: {
 function DashboardContent() {
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
+  const queryClient = useQueryClient();
   
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = sessionStorage.getItem("link_monitor_view_mode");
@@ -887,7 +888,20 @@ function DashboardContent() {
             {isViewingAsClient && selectedClientName && ` - ${selectedClientName}`}
           </p>
         </div>
-        <Button variant="outline" size="sm" data-testid="button-refresh">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: [statsUrl] });
+            queryClient.invalidateQueries({ queryKey: [linksUrl] });
+            queryClient.invalidateQueries({ queryKey: [eventsUrl] });
+            queryClient.invalidateQueries({ queryKey: [slaUrl] });
+            queryClient.invalidateQueries({ queryKey: [ddosUrl] });
+            queryClient.invalidateQueries({ queryKey: [linkGroupsUrl] });
+            queryClient.invalidateQueries({ queryKey: [settingsUrl] });
+          }}
+          data-testid="button-refresh"
+        >
           <RefreshCw className="w-4 h-4 mr-2" />
           Atualizar
         </Button>

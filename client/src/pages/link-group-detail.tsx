@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,7 @@ export default function LinkGroupDetail() {
   const { id } = useParams<{ id: string }>();
   const groupId = parseInt(id || "0", 10);
   const [selectedPeriod, setSelectedPeriod] = useState("24h");
+  const queryClient = useQueryClient();
 
   const { data: group, isLoading: groupLoading } = useQuery<LinkGroup>({
     queryKey: [`/api/link-groups/${groupId}`],
@@ -199,7 +200,15 @@ export default function LinkGroupDetail() {
             </div>
           </div>
         </div>
-        <Button variant="outline" size="sm" data-testid="button-refresh-group">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: [`/api/link-groups/${groupId}`] });
+            queryClient.invalidateQueries({ queryKey: [`/api/link-groups/${groupId}/metrics`, selectedPeriod] });
+          }}
+          data-testid="button-refresh-group"
+        >
           <RefreshCw className="w-4 h-4 mr-2" />
           Atualizar
         </Button>
