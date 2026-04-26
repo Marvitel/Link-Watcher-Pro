@@ -1292,6 +1292,7 @@ const FIELD_META: Record<string, FieldMeta> = {
   authType: { kind: "select-auth-type", label: "Tipo de Autenticação" },
   defaultCpe: { kind: "object-default-cpe", label: "CPE Padrão" },
   oltSnmpEnable: { kind: "object-olt-snmp-enable", label: "Habilitar SNMP All (Datacom)" },
+  monitoringEnabled: { kind: "boolean", label: "Monitoramento Ativo" },
 };
 
 const ALLOWED_EDIT_FIELDS = Object.keys(FIELD_META).sort();
