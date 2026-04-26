@@ -376,12 +376,12 @@ Quando terminar, chame OBRIGATORIAMENTE submit_proposal com:
 Existem 2 cenários distintos:
 
 **A) Pausa temporária com auto-reabilitação** (PREFERIDO para PPPoE inativo recente):
-Quando o link aparece como caído mas o cliente provavelmente vai voltar (cliente em viagem, em ativação, sem sessão PPPoE há poucos dias). Proponha:
+Quando o link aparece como caído mas o cliente provavelmente vai voltar (cliente em viagem, em ativação, sem sessão PPPoE há poucos dias). Proponha **OS TRÊS CAMPOS JUNTOS** na mesma proposta:
 - "monitoringEnabled": false
 - "monitoringAutoResume": true
 - "monitoringPausedReason": texto curto explicando ("Cliente sem sessão PPPoE há X dias", "Aguardando ativação", etc.)
 
-O sistema vai consultar o RADIUS a cada 5 minutos e reabilitar automaticamente quando a sessão PPPoE voltar — registrando um evento informativo. Use isso quando há evidência de cliente PPPoE inativo recente que pode voltar.
+Esta é a única exceção à regra de "uma alteração por proposta" — esses 3 campos formam uma ação atômica de pausa temporária. O sistema vai consultar o RADIUS a cada 5 minutos e reabilitar automaticamente quando a sessão PPPoE voltar — registrando um evento informativo. Requisitos: o link precisa ter pppoeUser cadastrado (sem usuário PPPoE, o auto-resume não tem como funcionar — nesse caso prefira "inconclusive").
 
 **B) Desativação permanente** (sem auto-reabilitação):
 Quando você tiver evidência clara de que o link **NÃO deveria mais estar sendo monitorado**, proponha apenas "monitoringEnabled": false. Casos:
@@ -1846,9 +1846,46 @@ export async function applyProposal(
     }
   }
 
+  // Detecta transições de monitoringEnabled — replicar a lógica do PATCH /api/links/:id
+  // (auto-resolver eventos e zerar status quando desativa; limpar pausa quando reabilita)
+  const monitoringDisabledNow = (
+    "monitoringEnabled" in safeFields &&
+    safeFields.monitoringEnabled === false &&
+    link.monitoringEnabled === true
+  );
+  const monitoringReenabledNow = (
+    "monitoringEnabled" in safeFields &&
+    safeFields.monitoringEnabled === true &&
+    link.monitoringEnabled === false
+  );
+  if (monitoringDisabledNow) {
+    (safeFields as any).status = "unknown";
+    (safeFields as any).failureReason = null;
+    (safeFields as any).failureSource = null;
+  }
+  if (monitoringReenabledNow) {
+    // Reabilitação manual via aprovação da IA: limpa pausa
+    (safeFields as any).monitoringPausedReason = null;
+    (safeFields as any).monitoringAutoResume = false;
+  }
+
   // Aplica os campos
   if (Object.keys(safeFields).length > 0) {
     await storage.updateLink(link.id, safeFields as any);
+  }
+
+  // Pós-update: resolve eventos abertos quando monitoramento foi desativado
+  if (monitoringDisabledNow) {
+    try {
+      const { events: eventsTable } = await import("@shared/schema");
+      const resolvedRows = await db.update(eventsTable)
+        .set({ resolved: true, resolvedAt: new Date() })
+        .where(and(eq(eventsTable.linkId, link.id), eq(eventsTable.resolved, false)))
+        .returning({ id: eventsTable.id });
+      console.log(`[ai-analyst] Link ${link.id}: monitoramento desativado via IA — ${resolvedRows.length} eventos abertos foram resolvidos.`);
+    } catch (err) {
+      console.error("[ai-analyst] falha ao resolver eventos do link desativado:", err);
+    }
   }
 
   // Ação especial: defaultCpe (cria/atualiza CPE padrão associada ao link)
