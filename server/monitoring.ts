@@ -4005,6 +4005,7 @@ async function syncWanguardForAllClients(): Promise<void> {
 
 // Sincronização automática do OZmap para dados de splitter, OLT e rota de fibra
 let ozmapSyncInterval: ReturnType<typeof setInterval> | null = null;
+let pausedLinkCheckInterval: ReturnType<typeof setInterval> | null = null;
 let currentOzmapIntervalMinutes: number = 5;
 
 async function getOzmapSyncInterval(): Promise<number> {
@@ -4307,6 +4308,84 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
   });
   
   console.log(`[Wanguard Auto-Sync] Sincronização automática iniciada (120s)`);
+
+  // Reabilitação automática de monitoramento pra links pausados (cliente em viagem, etc.)
+  // Checa RADIUS a cada 5 minutos pra ver se a sessão PPPoE voltou.
+  pausedLinkCheckInterval = setInterval(() => {
+    checkPausedLinksForResume().catch((err) => {
+      console.error("[PausedLinks] Erro ao checar links pausados:", err);
+    });
+  }, 5 * 60 * 1000);
+  // Roda 1x logo após o boot (com 30s de atraso pra dar tempo do RADIUS conectar)
+  setTimeout(() => {
+    checkPausedLinksForResume().catch(() => {});
+  }, 30 * 1000);
+  console.log(`[PausedLinks] Verificação de auto-reabilitação iniciada (5min)`);
+}
+
+// =====================================================================
+// Auto-reabilitação de links pausados temporariamente
+// =====================================================================
+async function checkPausedLinksForResume(): Promise<void> {
+  // Pega todos os links com monitoramento desativado, auto-resume ligado e que tenham pppoeUser
+  const pausedLinks = await db.select({
+    id: links.id,
+    name: links.name,
+    clientId: links.clientId,
+    pppoeUser: links.pppoeUser,
+    monitoringPausedReason: links.monitoringPausedReason,
+  })
+    .from(links)
+    .where(and(
+      eq(links.monitoringEnabled, false),
+      eq(links.monitoringAutoResume, true),
+      isNotNull(links.pppoeUser),
+      isNull(links.deletedAt),
+    ));
+
+  if (pausedLinks.length === 0) return;
+
+  const { getRadiusSessionByUsername } = await import("./radius");
+  let resumedCount = 0;
+
+  for (const link of pausedLinks) {
+    if (!link.pppoeUser) continue;
+    try {
+      const session = await getRadiusSessionByUsername(link.pppoeUser);
+      if (!session) continue; // sem sessão ativa — segue pausado
+
+      // Sessão ativa! Reabilitar monitoramento.
+      await db.update(links)
+        .set({
+          monitoringEnabled: true,
+          monitoringPausedReason: null,
+          monitoringAutoResume: false,
+          status: "unknown", // próximo ciclo de coleta vai atualizar
+          lastUpdated: new Date(),
+        })
+        .where(eq(links.id, link.id));
+
+      const reasonSuffix = link.monitoringPausedReason ? ` (motivo anterior: "${link.monitoringPausedReason}")` : "";
+      await db.insert(events).values({
+        linkId: link.id,
+        clientId: link.clientId,
+        type: "info",
+        title: `Monitoramento reabilitado automaticamente em ${link.name}`,
+        description: `Sessão PPPoE de "${link.pppoeUser}" voltou ao ar (IP ${session.framedIpAddress || "?"}). O monitoramento foi reabilitado automaticamente${reasonSuffix}.`,
+        timestamp: new Date(),
+        resolved: false,
+      });
+
+      resumedCount++;
+      console.log(`[PausedLinks] Link ${link.id} (${link.name}): PPPoE "${link.pppoeUser}" voltou — monitoramento reabilitado.`);
+    } catch (err) {
+      console.error(`[PausedLinks] Erro ao checar link ${link.id} (${link.name}):`, err);
+    }
+  }
+
+  if (resumedCount > 0) {
+    console.log(`[PausedLinks] ${resumedCount} link(s) reabilitado(s) automaticamente em ${pausedLinks.length} verificado(s).`);
+  }
 }
 
 export function stopMonitoring(): void {
@@ -4328,5 +4407,10 @@ export function stopMonitoring(): void {
     clearInterval(ozmapSyncInterval);
     ozmapSyncInterval = null;
     console.log("[OZmap Auto-Sync] Sincronização automática parada");
+  }
+  if (pausedLinkCheckInterval) {
+    clearInterval(pausedLinkCheckInterval);
+    pausedLinkCheckInterval = null;
+    console.log("[PausedLinks] Verificação de auto-reabilitação parada");
   }
 }

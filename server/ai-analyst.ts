@@ -78,6 +78,8 @@ const ALLOWED_FIELDS = new Set<string>([
   "authType",
   "ipBlock",
   "monitoringEnabled",
+  "monitoringPausedReason",
+  "monitoringAutoResume",
 ]);
 
 // =====================================================================
@@ -371,14 +373,25 @@ Quando terminar, chame OBRIGATORIAMENTE submit_proposal com:
 
 # Desativar monitoramento (campo monitoringEnabled)
 
-Quando você tiver evidência clara de que o link **NÃO deveria estar sendo monitorado**, proponha "monitoringEnabled": false. Casos típicos:
+Existem 2 cenários distintos:
+
+**A) Pausa temporária com auto-reabilitação** (PREFERIDO para PPPoE inativo recente):
+Quando o link aparece como caído mas o cliente provavelmente vai voltar (cliente em viagem, em ativação, sem sessão PPPoE há poucos dias). Proponha:
+- "monitoringEnabled": false
+- "monitoringAutoResume": true
+- "monitoringPausedReason": texto curto explicando ("Cliente sem sessão PPPoE há X dias", "Aguardando ativação", etc.)
+
+O sistema vai consultar o RADIUS a cada 5 minutos e reabilitar automaticamente quando a sessão PPPoE voltar — registrando um evento informativo. Use isso quando há evidência de cliente PPPoE inativo recente que pode voltar.
+
+**B) Desativação permanente** (sem auto-reabilitação):
+Quando você tiver evidência clara de que o link **NÃO deveria mais estar sendo monitorado**, proponha apenas "monitoringEnabled": false. Casos:
 - Contrato cancelado/bloqueado no Voalle (use voalle_get_contracts pra confirmar)
 - Cliente trocou de tecnologia (ex.: migrou de PPPoE pra link dedicado, mas o link antigo ficou cadastrado)
 - Link duplicado (mesmo cliente, mesmo PPPoE, dois cadastros — desativa o que não tem tráfego há semanas)
 - Link de teste/laboratório que ficou esquecido
 - Cliente sumiu há meses, sem sessão PPPoE recente nem tráfego
 
-Quando propuser monitoringEnabled=false, escreva no reasoning a justificativa específica e evite combinar com outros campos da whitelist (proposta dedicada). O reviewer vai entender que ao aprovar: "Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard."
+Quando propuser desativação, escreva no reasoning a justificativa específica e evite combinar com outros campos da whitelist (proposta dedicada). O reviewer vai entender que ao aprovar: "Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard."
 - proposedFields: objeto JSON apenas com os campos a alterar (whitelist abaixo). Vazio se inconclusive ou network_issue puro.
 - reasoning: explicação curta (3-6 linhas) em português, citando que ferramentas chamou e o que cada uma retornou
 - confidence: 0-100

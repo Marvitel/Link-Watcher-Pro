@@ -707,6 +707,8 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     usableIps: link?.usableIps || 6,
     bandwidth: link?.bandwidth || 200,
     monitoringEnabled: link?.monitoringEnabled ?? true,
+    monitoringPausedReason: (link as any)?.monitoringPausedReason || "",
+    monitoringAutoResume: (link as any)?.monitoringAutoResume ?? false,
     icmpInterval: link?.icmpInterval || 30,
     snmpProfileId: link?.snmpProfileId || null,
     snmpRouterIp: link?.snmpRouterIp || "",
@@ -2176,15 +2178,47 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
             </span>
             <Switch
               checked={formData.monitoringEnabled}
-              onCheckedChange={(checked) => setFormData({ ...formData, monitoringEnabled: checked })}
+              onCheckedChange={(checked) => setFormData({
+                ...formData,
+                monitoringEnabled: checked,
+                ...(checked ? { monitoringPausedReason: "", monitoringAutoResume: false } : {}),
+              })}
               data-testid="switch-monitoring-enabled"
             />
           </div>
         </div>
         {!formData.monitoringEnabled && (
-          <div className="mb-3 flex items-center gap-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-300">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard.
+          <div className="mb-3 space-y-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-3 text-sm text-yellow-800 dark:text-yellow-300">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              Este link está com monitoramento desativado — não será pingado, não gerará alertas e não aparecerá no dashboard.
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-yellow-200 dark:border-yellow-800">
+              <div className="space-y-1">
+                <Label htmlFor="monitoringPausedReason" className="text-xs text-yellow-900 dark:text-yellow-200">
+                  Motivo da pausa (opcional)
+                </Label>
+                <Input
+                  id="monitoringPausedReason"
+                  value={formData.monitoringPausedReason}
+                  onChange={(e) => setFormData({ ...formData, monitoringPausedReason: e.target.value })}
+                  placeholder="Ex: Cliente em viagem, Aguardando ativação"
+                  className="h-8 bg-white dark:bg-background"
+                  data-testid="input-monitoring-paused-reason"
+                />
+              </div>
+              <div className="flex items-end gap-2 pb-1">
+                <Switch
+                  id="monitoringAutoResume"
+                  checked={formData.monitoringAutoResume}
+                  onCheckedChange={(checked) => setFormData({ ...formData, monitoringAutoResume: checked })}
+                  data-testid="switch-monitoring-auto-resume"
+                />
+                <Label htmlFor="monitoringAutoResume" className="text-xs text-yellow-900 dark:text-yellow-200 cursor-pointer">
+                  Reabilitar automaticamente quando a sessão PPPoE voltar
+                </Label>
+              </div>
+            </div>
           </div>
         )}
         <div className={`grid grid-cols-3 gap-4 ${!formData.monitoringEnabled ? "opacity-50 pointer-events-none" : ""}`}>

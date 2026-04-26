@@ -1293,6 +1293,8 @@ const FIELD_META: Record<string, FieldMeta> = {
   defaultCpe: { kind: "object-default-cpe", label: "CPE Padrão" },
   oltSnmpEnable: { kind: "object-olt-snmp-enable", label: "Habilitar SNMP All (Datacom)" },
   monitoringEnabled: { kind: "boolean", label: "Monitoramento Ativo" },
+  monitoringAutoResume: { kind: "boolean", label: "Auto-reabilitar quando PPPoE voltar" },
+  monitoringPausedReason: { kind: "text", label: "Motivo da pausa" },
 };
 
 const ALLOWED_EDIT_FIELDS = Object.keys(FIELD_META).sort();

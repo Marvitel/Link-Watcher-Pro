@@ -1190,10 +1190,20 @@ export async function registerRoutes(
         filteredBody.monitoringEnabled === false &&
         previousLink?.monitoringEnabled === true
       );
+      const monitoringReenabledNow = (
+        'monitoringEnabled' in filteredBody &&
+        filteredBody.monitoringEnabled === true &&
+        previousLink?.monitoringEnabled === false
+      );
       if (monitoringDisabledNow) {
         filteredBody.status = 'unknown';
         filteredBody.failureReason = null;
         filteredBody.failureSource = null;
+      }
+      if (monitoringReenabledNow) {
+        // Ao reabilitar, sempre limpa pausa/auto-resume — começa "limpo"
+        filteredBody.monitoringPausedReason = null;
+        filteredBody.monitoringAutoResume = false;
       }
 
       await storage.updateLink(linkId, filteredBody);

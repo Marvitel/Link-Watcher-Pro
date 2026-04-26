@@ -99,6 +99,8 @@ export const links = pgTable("links", {
   lastFailureReason: varchar("last_failure_reason", { length: 255 }),
   lastFailureSource: text("last_failure_source"),
   monitoringEnabled: boolean("monitoring_enabled").notNull().default(true),
+  monitoringPausedReason: varchar("monitoring_paused_reason", { length: 255 }),
+  monitoringAutoResume: boolean("monitoring_auto_resume").notNull().default(false),
   oltEndpoint: text("olt_endpoint"),
   snmpCommunity: varchar("snmp_community", { length: 100 }),
   icmpInterval: integer("icmp_interval").notNull().default(30),
