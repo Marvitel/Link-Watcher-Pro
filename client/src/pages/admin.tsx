@@ -5531,25 +5531,11 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
-          <p className="text-muted-foreground">
-            Gerenciamento de clientes, links e hosts monitorados
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            queryClient.invalidateQueries();
-            toast({ title: "Dados atualizados" });
-          }}
-          data-testid="button-refresh-admin"
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
+        <p className="text-muted-foreground">
+          Gerenciamento de clientes, links e hosts monitorados
+        </p>
       </div>
 
       <Tabs defaultValue="links" className="space-y-4">
