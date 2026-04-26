@@ -2215,7 +2215,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                   data-testid="switch-monitoring-auto-resume"
                 />
                 <Label htmlFor="monitoringAutoResume" className="text-xs text-yellow-900 dark:text-yellow-200 cursor-pointer">
-                  Reabilitar automaticamente quando a sessão PPPoE voltar
+                  Reabilitar automaticamente quando o link voltar ao ar (sessão PPPoE no RADIUS ou ping no IP)
                 </Label>
               </div>
             </div>

@@ -375,13 +375,17 @@ Quando terminar, chame OBRIGATORIAMENTE submit_proposal com:
 
 Existem 2 cenários distintos:
 
-**A) Pausa temporária com auto-reabilitação** (PREFERIDO para PPPoE inativo recente):
-Quando o link aparece como caído mas o cliente provavelmente vai voltar (cliente em viagem, em ativação, sem sessão PPPoE há poucos dias). Proponha **OS TRÊS CAMPOS JUNTOS** na mesma proposta:
+**A) Pausa temporária com auto-reabilitação** (PREFERIDO para link caído com chance de voltar):
+Quando o link aparece como caído mas o cliente provavelmente vai voltar (cliente em viagem, em ativação, sem sessão PPPoE há poucos dias, link corporativo derrubado temporariamente). Proponha **OS TRÊS CAMPOS JUNTOS** na mesma proposta:
 - "monitoringEnabled": false
 - "monitoringAutoResume": true
-- "monitoringPausedReason": texto curto explicando ("Cliente sem sessão PPPoE há X dias", "Aguardando ativação", etc.)
+- "monitoringPausedReason": texto curto explicando ("Cliente sem sessão PPPoE há X dias", "Aguardando ativação", "Link corporativo derrubado para manutenção", etc.)
 
-Esta é a única exceção à regra de "uma alteração por proposta" — esses 3 campos formam uma ação atômica de pausa temporária. O sistema vai consultar o RADIUS a cada 5 minutos e reabilitar automaticamente quando a sessão PPPoE voltar — registrando um evento informativo. Requisitos: o link precisa ter pppoeUser cadastrado (sem usuário PPPoE, o auto-resume não tem como funcionar — nesse caso prefira "inconclusive").
+Esta é a única exceção à regra de "uma alteração por proposta" — esses 3 campos formam uma ação atômica de pausa temporária. A cada 5 minutos o sistema verifica:
+- **Para links com pppoeUser**: consulta o RADIUS por sessão ativa do usuário
+- **Para links ponto-a-ponto / corporativos (sem pppoeUser)**: faz ping no monitoredIp
+
+Quando um dos dois detectar que voltou, reabilita automaticamente e registra um evento informativo. Requisito: o link precisa ter pppoeUser OU monitoredIp preenchido. Se não tiver nenhum dos dois, o auto-resume não vai funcionar — nesse caso prefira "inconclusive".
 
 **B) Desativação permanente** (sem auto-reabilitação):
 Quando você tiver evidência clara de que o link **NÃO deveria mais estar sendo monitorado**, proponha apenas "monitoringEnabled": false. Casos:

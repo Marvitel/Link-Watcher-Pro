@@ -4327,19 +4327,22 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
 // Auto-reabilitação de links pausados temporariamente
 // =====================================================================
 async function checkPausedLinksForResume(): Promise<void> {
-  // Pega todos os links com monitoramento desativado, auto-resume ligado e que tenham pppoeUser
+  // Pega todos os links com monitoramento desativado e auto-resume ligado.
+  // Cobre 2 cenários:
+  //   - PPPoE: checa RADIUS por sessão ativa do pppoeUser
+  //   - Ponto-a-ponto / corporativo: faz ping no monitoredIp
   const pausedLinks = await db.select({
     id: links.id,
     name: links.name,
     clientId: links.clientId,
     pppoeUser: links.pppoeUser,
+    monitoredIp: links.monitoredIp,
     monitoringPausedReason: links.monitoringPausedReason,
   })
     .from(links)
     .where(and(
       eq(links.monitoringEnabled, false),
       eq(links.monitoringAutoResume, true),
-      isNotNull(links.pppoeUser),
       isNull(links.deletedAt),
     ));
 
@@ -4349,12 +4352,29 @@ async function checkPausedLinksForResume(): Promise<void> {
   let resumedCount = 0;
 
   for (const link of pausedLinks) {
-    if (!link.pppoeUser) continue;
     try {
-      const session = await getRadiusSessionByUsername(link.pppoeUser);
-      if (!session) continue; // sem sessão ativa — segue pausado
+      let trigger: { kind: "pppoe"; ip: string | null } | { kind: "ping"; latency: number } | null = null;
 
-      // Sessão ativa! Reabilitar monitoramento.
+      // Cenário PPPoE: tem usuário cadastrado → consulta RADIUS
+      if (link.pppoeUser) {
+        const session = await getRadiusSessionByUsername(link.pppoeUser);
+        if (session) {
+          trigger = { kind: "pppoe", ip: session.framedIpAddress };
+        }
+      }
+      // Cenário ponto-a-ponto / corporativo: sem PPPoE mas com IP de monitoramento → ping
+      // (PPPoE tem precedência; se RADIUS já confirmou, não pinga)
+      else if (link.monitoredIp && link.monitoredIp.trim().length > 0) {
+        const ping = await pingHost(link.monitoredIp, 4);
+        // Só considera "voltou" se houve resposta consistente (perda < 50%)
+        if (ping.packetLoss < 50 && ping.latency > 0) {
+          trigger = { kind: "ping", latency: ping.latency };
+        }
+      }
+
+      if (!trigger) continue; // segue pausado
+
+      // Reabilitar monitoramento
       await db.update(links)
         .set({
           monitoringEnabled: true,
@@ -4366,18 +4386,23 @@ async function checkPausedLinksForResume(): Promise<void> {
         .where(eq(links.id, link.id));
 
       const reasonSuffix = link.monitoringPausedReason ? ` (motivo anterior: "${link.monitoringPausedReason}")` : "";
+      const eventDescription = trigger.kind === "pppoe"
+        ? `Sessão PPPoE de "${link.pppoeUser}" voltou ao ar (IP ${trigger.ip || "?"}). O monitoramento foi reabilitado automaticamente${reasonSuffix}.`
+        : `IP de monitoramento ${link.monitoredIp} voltou a responder (latência ${trigger.latency.toFixed(1)}ms). O monitoramento foi reabilitado automaticamente${reasonSuffix}.`;
+
       await db.insert(events).values({
         linkId: link.id,
         clientId: link.clientId,
         type: "info",
         title: `Monitoramento reabilitado automaticamente em ${link.name}`,
-        description: `Sessão PPPoE de "${link.pppoeUser}" voltou ao ar (IP ${session.framedIpAddress || "?"}). O monitoramento foi reabilitado automaticamente${reasonSuffix}.`,
+        description: eventDescription,
         timestamp: new Date(),
         resolved: false,
       });
 
       resumedCount++;
-      console.log(`[PausedLinks] Link ${link.id} (${link.name}): PPPoE "${link.pppoeUser}" voltou — monitoramento reabilitado.`);
+      const triggerLabel = trigger.kind === "pppoe" ? `PPPoE "${link.pppoeUser}"` : `ping em ${link.monitoredIp}`;
+      console.log(`[PausedLinks] Link ${link.id} (${link.name}): ${triggerLabel} voltou — monitoramento reabilitado.`);
     } catch (err) {
       console.error(`[PausedLinks] Erro ao checar link ${link.id} (${link.name}):`, err);
     }

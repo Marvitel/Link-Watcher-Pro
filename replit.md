@@ -69,7 +69,7 @@ An automatic link triage system uses Anthropic Claude (`claude-sonnet-4-5`) with
 -   **Monitoring Deactivation**: The AI can propose `monitoringEnabled=false` for cancelled or duplicate links, and temporary pauses with auto-rehabilitation for PPPoE links.
 
 ### Inactive Links & Temporary Pauses
-Links with `monitoringEnabled=false` are automatically resolved of open events, set to `status='unknown'`, and excluded from dashboard counts. Temporary pauses for PPPoE clients (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation based on RADIUS session activity. A scheduler checks for resumed sessions every 5 minutes.
+Links with `monitoringEnabled=false` are automatically resolved of open events, set to `status='unknown'`, and excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation: a scheduler runs every 5 minutes and reabilita o link automaticamente quando — para links PPPoE — a sessão volta no RADIUS, ou — para links ponto-a-ponto/corporativos — o `monitoredIp` volta a responder ping (perda <50%). Em ambos os casos cria um evento informativo no link.
 
 ### Voalle Service Tag Mapping
 A `voalle_service_tags` table stores mappings between numeric Voalle tag IDs and alphanumeric OZmap codes, populated by CSV import. This is used by the reconciliation engine to resolve service tags.
