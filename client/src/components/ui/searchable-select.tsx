@@ -92,13 +92,21 @@ export function SearchableSelect({
       </PopoverTrigger>
       <PopoverContent
         className={cn(
-          "p-0 w-[min(90vw,32rem)]",
+          "p-0 flex flex-col overflow-hidden",
           contentClassName
         )}
         align="start"
-        style={{ width: "var(--radix-popover-trigger-width)", minWidth: "min(90vw, 24rem)" }}
+        sideOffset={4}
+        collisionPadding={8}
+        style={{
+          width: "var(--radix-popover-trigger-width)",
+          minWidth: "min(90vw, 24rem)",
+          maxWidth: "min(90vw, 32rem)",
+          maxHeight: "min(var(--radix-popover-content-available-height), 70vh)",
+        }}
       >
         <Command
+          className="flex flex-col overflow-hidden max-h-[inherit]"
           filter={(itemValue, search) => {
             const text = itemValue.toLowerCase();
             const q = search.toLowerCase().trim();
@@ -107,7 +115,7 @@ export function SearchableSelect({
           }}
         >
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList className="max-h-[min(60vh,400px)]">
+          <CommandList className="flex-1 max-h-none overflow-y-auto overscroll-contain">
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
