@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
@@ -314,20 +315,18 @@ function LinkGroupsTab({ clients }: { clients: Client[] }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select
+          <SearchableSelect
             value={selectedClientId?.toString() || "all"}
             onValueChange={(v) => setSelectedClientId(v === "all" ? undefined : parseInt(v))}
-          >
-            <SelectTrigger className="w-48" data-testid="select-filter-client">
-              <SelectValue placeholder="Todos os clientes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os clientes</SelectItem>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            triggerClassName="w-64"
+            placeholder="Todos os clientes"
+            searchPlaceholder="Buscar cliente..."
+            data-testid="select-filter-client"
+            options={[
+              { value: "all", label: "Todos os clientes" },
+              ...clients.map((c) => ({ value: c.id.toString(), label: c.name })),
+            ]}
+          />
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
@@ -1299,7 +1298,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-96 p-0" align="start">
+            <PopoverContent className="w-[min(90vw,32rem)] p-0" align="start">
               <div className="p-2 border-b">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -1312,7 +1311,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                   />
                 </div>
               </div>
-              <ScrollArea className="max-h-64">
+              <ScrollArea className="max-h-[60vh]">
                 <div className="p-1">
                   <Button
                     variant="ghost"
@@ -1579,31 +1578,31 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
               <>
                 <Label htmlFor="concentratorId">Concentrador</Label>
                 <div className="flex gap-2">
-                  <Select
+                  <SearchableSelect
                     value={formData.concentratorId?.toString() || "none"}
                     onValueChange={(v) => {
                       const concId = v === "none" ? null : parseInt(v, 10);
                       const selectedConc = concId ? activeConcentrators?.find(c => c.id === concId) : null;
-                      setFormData({ 
-                        ...formData, 
+                      setFormData({
+                        ...formData,
                         concentratorId: concId,
                         snmpProfileId: selectedConc?.snmpProfileId || formData.snmpProfileId,
-                        snmpRouterIp: selectedConc?.ipAddress || formData.snmpRouterIp
+                        snmpRouterIp: selectedConc?.ipAddress || formData.snmpRouterIp,
                       });
                     }}
-                  >
-                    <SelectTrigger data-testid="select-snmp-concentrator" className="flex-1">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {activeConcentrators?.map((c) => (
-                        <SelectItem key={c.id} value={c.id.toString()}>
-                          {c.name} ({c.ipAddress})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="flex-1"
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar concentrador..."
+                    data-testid="select-snmp-concentrator"
+                    options={[
+                      { value: "none", label: "Nenhum" },
+                      ...(activeConcentrators?.map((c) => ({
+                        value: c.id.toString(),
+                        label: c.name,
+                        description: c.ipAddress,
+                      })) || []),
+                    ]}
+                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -1644,30 +1643,30 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
               <>
                 <Label htmlFor="accessPointId">Switch de Acesso / PE</Label>
                 <div className="flex gap-2">
-                  <Select
+                  <SearchableSelect
                     value={formData.accessPointId?.toString() || "none"}
                     onValueChange={(v) => {
                       const swId = v === "none" ? null : parseInt(v, 10);
                       const selectedSwitch = swId ? activeSwitches?.find((s: any) => s.id === swId) : null;
-                      setFormData({ 
-                        ...formData, 
+                      setFormData({
+                        ...formData,
                         accessPointId: swId,
-                        snmpProfileId: selectedSwitch?.snmpProfileId || formData.snmpProfileId
+                        snmpProfileId: selectedSwitch?.snmpProfileId || formData.snmpProfileId,
                       });
                     }}
-                  >
-                    <SelectTrigger data-testid="select-access-point" className="flex-1">
-                      <SelectValue placeholder="Selecione o switch..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {activeSwitches?.map((s: any) => (
-                        <SelectItem key={s.id} value={s.id.toString()}>
-                          {s.name} ({s.ipAddress})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="flex-1"
+                    placeholder="Selecione o switch..."
+                    searchPlaceholder="Buscar switch..."
+                    data-testid="select-access-point"
+                    options={[
+                      { value: "none", label: "Nenhum" },
+                      ...((activeSwitches as any[])?.map((s: any) => ({
+                        value: s.id.toString(),
+                        label: s.name,
+                        description: s.ipAddress,
+                      })) || []),
+                    ]}
+                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -1706,25 +1705,25 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                 )}
                 <div className="mt-3">
                   <Label htmlFor="concentratorIdAccessPoint">Concentrador (opcional)</Label>
-                  <Select
+                  <SearchableSelect
                     value={formData.concentratorId?.toString() || "none"}
                     onValueChange={(v) => {
                       const concId = v === "none" ? null : parseInt(v, 10);
                       setFormData({ ...formData, concentratorId: concId });
                     }}
-                  >
-                    <SelectTrigger data-testid="select-concentrator-accesspoint" className="mt-1">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {activeConcentrators?.map((c) => (
-                        <SelectItem key={c.id} value={c.id.toString()}>
-                          {c.name} ({c.ipAddress})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="mt-1"
+                    placeholder="Selecione..."
+                    searchPlaceholder="Buscar concentrador..."
+                    data-testid="select-concentrator-accesspoint"
+                    options={[
+                      { value: "none", label: "Nenhum" },
+                      ...(activeConcentrators?.map((c) => ({
+                        value: c.id.toString(),
+                        label: c.name,
+                        description: c.ipAddress,
+                      })) || []),
+                    ]}
+                  />
                 </div>
               </>
             )}
@@ -2077,22 +2076,21 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="switchId">Switch</Label>
-                <Select
+                <SearchableSelect
                   value={formData.switchId?.toString() || "none"}
                   onValueChange={(value) => setFormData({ ...formData, switchId: value === "none" ? null : parseInt(value, 10) })}
-                >
-                  <SelectTrigger data-testid="select-switch">
-                    <SelectValue placeholder="Selecione o Switch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum Switch</SelectItem>
-                    {switches?.filter(s => s.isActive).map((sw) => (
-                      <SelectItem key={sw.id} value={sw.id.toString()}>
-                        {sw.name} ({sw.ipAddress})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Selecione o Switch"
+                  searchPlaceholder="Buscar switch..."
+                  data-testid="select-switch"
+                  options={[
+                    { value: "none", label: "Nenhum Switch" },
+                    ...((switches?.filter(s => s.isActive) || []).map((sw) => ({
+                      value: sw.id.toString(),
+                      label: sw.name,
+                      description: sw.ipAddress,
+                    }))),
+                  ]}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="switchPort">Porta do Switch</Label>
@@ -2476,7 +2474,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                   Adicionar equipamento...
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
+              <PopoverContent className="w-[min(90vw,32rem)] p-0" align="start">
                 <Command>
                   <CommandInput placeholder="Buscar equipamento..." data-testid="input-search-cpe" />
                   <CommandList>
@@ -6431,24 +6429,21 @@ function SnmpConfigTab({ clients }: { clients: Client[] }) {
             Gerencie perfis SNMP e configurações MIB por cliente
           </p>
         </div>
-        <Select
+        <SearchableSelect
           value={selectedClient?.id?.toString() || ""}
           onValueChange={(val) => {
             const client = clients.find(c => c.id.toString() === val);
             setSelectedClient(client || null);
           }}
-        >
-          <SelectTrigger className="w-[280px]" data-testid="select-client-for-snmp">
-            <SelectValue placeholder="Selecione um cliente" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id.toString()}>
-                {client.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          triggerClassName="w-[320px]"
+          placeholder="Selecione um cliente"
+          searchPlaceholder="Buscar cliente..."
+          data-testid="select-client-for-snmp"
+          options={clients.map((client) => ({
+            value: client.id.toString(),
+            label: client.name,
+          }))}
+        />
       </div>
 
       {!selectedClient ? (
@@ -6981,7 +6976,7 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
               : "Gerencie usuários e grupos de permissões por cliente"}
           </p>
         </div>
-        <Select
+        <SearchableSelect
           value={isSuperAdminMode ? "superadmins" : (selectedClient?.id?.toString() || "")}
           onValueChange={(val) => {
             if (val === "superadmins") {
@@ -6993,22 +6988,18 @@ function UsersAndGroupsTab({ clients }: { clients: Client[] }) {
               setSelectedClient(client || null);
             }
           }}
-        >
-          <SelectTrigger className="w-[280px]" data-testid="select-client-for-groups">
-            <SelectValue placeholder="Selecione um cliente" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="superadmins" className="font-medium text-primary">
-              Super Admins Marvitel
-            </SelectItem>
-            <div className="my-1 border-t" />
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id.toString()}>
-                {client.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          triggerClassName="w-[320px]"
+          placeholder="Selecione um cliente"
+          searchPlaceholder="Buscar cliente..."
+          data-testid="select-client-for-groups"
+          options={[
+            { value: "superadmins", label: "Super Admins Marvitel" },
+            ...clients.map((client) => ({
+              value: client.id.toString(),
+              label: client.name,
+            })),
+          ]}
+        />
       </div>
 
       {!selectedClient && !isSuperAdminMode ? (
@@ -11094,22 +11085,20 @@ function AuditLogsTab() {
               
               <div className="space-y-2">
                 <Label>Cliente</Label>
-                <Select 
-                  value={filters.clientId} 
-                  onValueChange={(v) => { setFilters({...filters, clientId: v}); setPage(1); }}
-                >
-                  <SelectTrigger data-testid="select-filter-client">
-                    <SelectValue placeholder="Todos os clientes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
-                    {clients?.map(client => (
-                      <SelectItem key={client.id} value={client.id.toString()}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={filters.clientId || "__all__"}
+                  onValueChange={(v) => { setFilters({...filters, clientId: v === "__all__" ? "" : v}); setPage(1); }}
+                  placeholder="Todos os clientes"
+                  searchPlaceholder="Buscar cliente..."
+                  data-testid="select-filter-client"
+                  options={[
+                    { value: "__all__", label: "Todos" },
+                    ...(clients?.map(client => ({
+                      value: client.id.toString(),
+                      label: client.name,
+                    })) || []),
+                  ]}
+                />
               </div>
               
               <div className="space-y-2">
