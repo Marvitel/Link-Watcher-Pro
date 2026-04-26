@@ -202,6 +202,29 @@
     @apply hidden;
   }
 
+  /* Always-visible scrollbar for dropdown menus (macOS hides them by default) */
+  .scrollbar-always {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+  .scrollbar-always::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-always::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-always::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.4);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .scrollbar-always::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+    background-clip: content-box;
+  }
+
   /* Placeholder styling for contentEditable div */
   [contenteditable][data-placeholder]:empty::before {
     content: attr(data-placeholder);

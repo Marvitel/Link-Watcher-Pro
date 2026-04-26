@@ -115,7 +115,7 @@ export function SearchableSelect({
           }}
         >
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList className="flex-1 max-h-none overflow-y-auto overscroll-contain">
+          <CommandList className="flex-1 max-h-none overflow-y-auto overscroll-contain scrollbar-always">
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

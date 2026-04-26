@@ -1311,7 +1311,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                   />
                 </div>
               </div>
-              <ScrollArea className="max-h-[60vh]">
+              <div className="overflow-y-auto overscroll-contain scrollbar-always" style={{ maxHeight: "min(60vh, 480px)" }}>
                 <div className="p-1">
                   <Button
                     variant="ghost"
@@ -1873,22 +1873,22 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="oltId">OLT</Label>
-            <Select
+            <SearchableSelect
               value={formData.oltId?.toString() || "none"}
               onValueChange={(value) => setFormData({ ...formData, oltId: value === "none" ? null : parseInt(value, 10) })}
-            >
-              <SelectTrigger data-testid="select-olt">
-                <SelectValue placeholder="Selecione a OLT" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhuma OLT</SelectItem>
-                {filteredOlts?.map((olt) => (
-                  <SelectItem key={olt.id} value={olt.id.toString()}>
-                    {olt.name} ({olt.ipAddress})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Selecione a OLT"
+              searchPlaceholder="Buscar OLT..."
+              data-testid="select-olt"
+              options={[
+                { value: "none", label: "Nenhuma OLT" },
+                ...(filteredOlts?.map((olt) => ({
+                  value: olt.id.toString(),
+                  label: olt.name,
+                  description: olt.ipAddress,
+                  searchText: `${olt.name} ${olt.ipAddress}`,
+                })) || []),
+              ]}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="onuId">ID da ONU</Label>
@@ -2474,10 +2474,10 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                   Adicionar equipamento...
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[min(90vw,32rem)] p-0" align="start">
-                <Command>
+              <PopoverContent className="w-[min(90vw,32rem)] p-0 flex flex-col overflow-hidden" align="start" sideOffset={4} collisionPadding={8} style={{ maxHeight: "min(var(--radix-popover-content-available-height), 70vh)" }}>
+                <Command className="flex flex-col overflow-hidden max-h-[inherit]">
                   <CommandInput placeholder="Buscar equipamento..." data-testid="input-search-cpe" />
-                  <CommandList>
+                  <CommandList className="flex-1 max-h-none overflow-y-auto overscroll-contain scrollbar-always">
                     <CommandEmpty>Nenhum equipamento encontrado.</CommandEmpty>
                     <CommandGroup heading="Equipamentos disponíveis">
                       {allCpes
