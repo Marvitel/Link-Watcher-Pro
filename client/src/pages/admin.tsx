@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth, getAuthToken } from "@/lib/auth";
 import { formatDateBR } from "@/lib/utils";
@@ -5085,6 +5085,7 @@ function ErpIntegrationsManager({ clients }: { clients: Client[] }) {
 export default function Admin() {
   const { toast } = useToast();
   const { isSuperAdmin, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   const [editLinkProcessed, setEditLinkProcessed] = useState(false);
   const [editLinkReturnId, setEditLinkReturnId] = useState<number | null>(null);
@@ -5532,11 +5533,25 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
-        <p className="text-muted-foreground">
-          Gerenciamento de clientes, links e hosts monitorados
-        </p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold">Painel Marvitel</h1>
+          <p className="text-muted-foreground">
+            Gerenciamento de clientes, links e hosts monitorados
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            queryClient.invalidateQueries();
+            toast({ title: "Dados atualizados" });
+          }}
+          data-testid="button-refresh-admin"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Atualizar
+        </Button>
       </div>
 
       <Tabs defaultValue="links" className="space-y-4">
