@@ -1,0 +1,152 @@
+✓ 914 modules transformed.
+✗ Build failed in 6.56s
+[vite:esbuild] Transform failed with 1 error:
+/opt/link-monitor/client/src/pages/admin.tsx:1367:16: ERROR: Unexpected closing "ScrollArea" tag does not match opening "div" tag
+file: /opt/link-monitor/client/src/pages/admin.tsx:1367:16
+
+Unexpected closing "ScrollArea" tag does not match opening "div" tag
+1365 |                    )}
+1366 |                  </div>
+1367 |                </ScrollArea>
+     |                  ^
+1368 |              </PopoverContent>
+1369 |            </Popover>
+
+    at failureErrorWithLog (/opt/link-monitor/node_modules/vite/node_modules/esbuild/lib/main.js:1467:15)
+    at /opt/link-monitor/node_modules/vite/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/opt/link-monitor/node_modules/vite/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/opt/link-monitor/node_modules/vite/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/opt/link-monitor/node_modules/vite/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter],
+  frame: '\n' +
+    '\x1B[33mUnexpected closing "ScrollArea" tag does not match opening "div" tag\x1B[39m\n' +
+    '1365 |                    )}\n' +
+    '1366 |                  </div>\n' +
+    '1367 |                </ScrollArea>\n' +
+    '     |                  ^\n' +
+    '1368 |              </PopoverContent>\n' +
+    '1369 |            </Popover>\n',
+  loc: {
+    column: 16,
+    file: '/opt/link-monitor/client/src/pages/admin.tsx',
+    length: 10,
+    line: 1367,
+    lineText: '              </ScrollArea>',
+    namespace: '',
+    suggestion: 'div'
+  },
+  code: 'PLUGIN_ERROR',
+  plugin: 'vite:esbuild',
+  hook: 'transform',
+  id: '/opt/link-monitor/client/src/pages/admin.tsx',
+  watchFiles: [
+    '/opt/link-monitor/client/index.html',
+    '/opt/link-monitor/client/src/main.tsx',
+    '/opt/link-monitor/package.json',
+    '/opt/link-monitor/node_modules/react/jsx-runtime.js',
+    '/opt/link-monitor/node_modules/react-dom/client.js',
+    '/opt/link-monitor/client/src/App.tsx',
+    '/opt/link-monitor/client/src/index.css',
+    '/opt/link-monitor/node_modules/react-dom/index.js',
+    '/opt/link-monitor/node_modules/react/cjs/react-jsx-runtime.production.min.js',
+    '/opt/link-monitor/node_modules/wouter/esm/index.js',
+    '/opt/link-monitor/node_modules/react/index.js',
+    '/opt/link-monitor/node_modules/@tanstack/react-query/build/modern/index.js',
+    '/opt/link-monitor/node_modules/lucide-react/dist/esm/lucide-react.js',
+    '/opt/link-monitor/client/src/lib/queryClient.ts',
+    '/opt/link-monitor/client/src/components/ui/toaster.tsx',
+    '/opt/link-monitor/client/src/components/ui/tooltip.tsx',
+    '/opt/link-monitor/client/src/components/ui/sidebar.tsx',
+    '/opt/link-monitor/client/src/components/app-sidebar.tsx',
+    '/opt/link-monitor/client/src/lib/theme.tsx',
+    '/opt/link-monitor/client/src/components/theme-toggle.tsx',
+    '/opt/link-monitor/client/src/lib/auth.tsx',
+    '/opt/link-monitor/client/src/components/ui/button.tsx',
+    '/opt/link-monitor/client/src/lib/client-context.tsx',
+    '/opt/link-monitor/client/src/components/client-selector.tsx',
+    '/opt/link-monitor/client/src/hooks/use-version-check.ts',
+    '/opt/link-monitor/client/src/pages/not-found.tsx',
+    '/opt/link-monitor/client/src/pages/dashboard.tsx',
+    '/opt/link-monitor/client/src/pages/links.tsx',
+    '/opt/link-monitor/client/src/pages/link-detail.tsx',
+    '/opt/link-monitor/client/src/pages/link-group-detail.tsx',
+    '/opt/link-monitor/client/src/pages/security.tsx',
+    '/opt/link-monitor/client/src/pages/events.tsx',
+    '/opt/link-monitor/client/src/pages/reports.tsx',
+    '/opt/link-monitor/client/src/pages/settings.tsx',
+    '/opt/link-monitor/client/src/pages/admin.tsx',
+    '/opt/link-monitor/client/src/pages/client-users.tsx',
+    '/opt/link-monitor/client/src/pages/login.tsx',
+    '/opt/link-monitor/client/src/pages/admin-login.tsx',
+    '/opt/link-monitor/node_modules/react-dom/cjs/react-dom.production.min.js',
+    '/opt/link-monitor/client/src/hooks/use-toast.ts',
+    '/opt/link-monitor/client/src/lib/export-utils.ts',
+    '/opt/link-monitor/client/src/lib/utils.ts',
+    '/opt/link-monitor/client/src/components/admin/ai-analyst-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/command-templates-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/cpes-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/diagnostic-targets-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/link-diagnostics-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/pending-items-tab.tsx',
+    '/opt/link-monitor/client/src/components/admin/voalle-import-tab.tsx',
+    '/opt/link-monitor/client/src/components/bandwidth-chart.tsx',
+    '/opt/link-monitor/client/src/components/burst-counter-card.tsx',
+    '/opt/link-monitor/client/src/components/cpe-backup-dialog.tsx',
+    '/opt/link-monitor/client/src/components/cpe-command-library.tsx',
+    '/opt/link-monitor/client/src/components/cpe-port-status.tsx',
+    '/opt/link-monitor/client/src/components/dashboard-alerts.tsx',
+    '/opt/link-monitor/client/src/components/ddos-panel.tsx',
+    '/opt/link-monitor/client/src/components/error-boundary.tsx',
+    '/opt/link-monitor/client/src/components/events-table.tsx',
+    '/opt/link-monitor/client/src/components/firewall-manager.tsx',
+    '/opt/link-monitor/client/src/components/flashman-panel.tsx',
+    '/opt/link-monitor/client/src/components/link-card.tsx',
+    '/opt/link-monitor/client/src/components/link-group-card.tsx',
+    '/opt/link-monitor/client/src/components/links-table.tsx',
+    '/opt/link-monitor/client/src/components/massive-outage-card.tsx',
+    '/opt/link-monitor/client/src/components/massive-outage-detail-dialog.tsx',
+    '/opt/link-monitor/client/src/components/metric-card.tsx',
+    '/opt/link-monitor/client/src/components/multi-traffic-chart.tsx',
+    '/opt/link-monitor/client/src/components/optical-signal-section.tsx',
+    '/opt/link-monitor/client/src/components/ozmap-route-section.tsx',
+    '/opt/link-monitor/client/src/components/route-diagram.tsx',
+    '/opt/link-monitor/client/src/components/sla-indicators.tsx',
+    '/opt/link-monitor/client/src/components/sparkline.tsx',
+    '/opt/link-monitor/client/src/components/status-badge.tsx',
+    '/opt/link-monitor/client/src/components/traffic-interfaces-manager.tsx',
+    '/opt/link-monitor/client/src/components/ui/accordion.tsx',
+    '/opt/link-monitor/client/src/components/ui/alert-dialog.tsx',
+    '/opt/link-monitor/client/src/components/ui/alert.tsx',
+    '/opt/link-monitor/client/src/components/ui/aspect-ratio.tsx',
+    '/opt/link-monitor/client/src/components/ui/avatar.tsx',
+    '/opt/link-monitor/client/src/components/ui/badge.tsx',
+    '/opt/link-monitor/client/src/components/ui/breadcrumb.tsx',
+    '/opt/link-monitor/client/src/components/ui/calendar.tsx',
+    '/opt/link-monitor/client/src/components/ui/card.tsx',
+    '/opt/link-monitor/client/src/components/ui/carousel.tsx',
+    '/opt/link-monitor/client/src/components/ui/chart.tsx',
+    '/opt/link-monitor/client/src/components/ui/checkbox.tsx',
+    '/opt/link-monitor/client/src/components/ui/collapsible.tsx',
+    '/opt/link-monitor/client/src/components/ui/command.tsx',
+    '/opt/link-monitor/client/src/components/ui/context-menu.tsx',
+    '/opt/link-monitor/client/src/components/ui/dialog.tsx',
+    '/opt/link-monitor/client/src/components/ui/drawer.tsx',
+    '/opt/link-monitor/client/src/components/ui/dropdown-menu.tsx',
+    '/opt/link-monitor/client/src/components/ui/form.tsx',
+    '/opt/link-monitor/client/src/components/ui/hover-card.tsx',
+    '/opt/link-monitor/client/src/components/ui/input-otp.tsx',
+    '/opt/link-monitor/client/src/components/ui/input.tsx',
+    '/opt/link-monitor/client/src/components/ui/label.tsx',
+    '/opt/link-monitor/client/src/components/ui/menubar.tsx',
+    '/opt/link-monitor/client/src/components/ui/navigation-menu.tsx',
+    '/opt/link-monitor/client/src/components/ui/pagination.tsx',
+    ... 903 more items
+  ]
+}
+root@link-monitor:/opt/link-monitor# 

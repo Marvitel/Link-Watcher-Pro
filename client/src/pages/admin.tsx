@@ -1364,7 +1364,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </PopoverContent>
           </Popover>
         ) : (
