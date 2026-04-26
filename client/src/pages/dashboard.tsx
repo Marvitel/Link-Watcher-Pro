@@ -846,7 +846,21 @@ function DashboardContent() {
               Monitoramento em tempo real de todos os links - Clique em um cliente para ver detalhes
             </p>
           </div>
-          <DashboardAlerts />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                queryClient.invalidateQueries();
+                toast({ title: "Dados atualizados" });
+              }}
+              data-testid="button-refresh-superadmin"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+            <DashboardAlerts />
+          </div>
         </div>
 
         {clientsLoading ? (
