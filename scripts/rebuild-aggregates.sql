@@ -3,15 +3,22 @@
 -- =============================================================================
 -- Quando rodar: depois de scripts/cleanup-outlier-metrics.sql, pra reconstruir
 -- buckets que foram apagados pelo cleanup. Sem esse rebuild, o gráfico fica
--- num "platô" (Recharts conecta os poucos buckets restantes com linha reta).
---
--- O agregador automático (server/aggregation.ts) só processa o bucket da
--- última hora completa e usa ON CONFLICT DO NOTHING, então NÃO recria buckets
--- antigos sozinho. Este script faz o backfill explicitamente.
+-- num "platô" porque o agregador automático só processa o bucket da última
+-- hora completa (com ON CONFLICT DO NOTHING) e não recria buckets antigos.
 --
 -- Cobertura:
---   metrics_hourly: últimas 7 dias (limite da retenção raw)
---   metrics_daily : últimas 8 dias (a partir do hourly já reconstruído)
+--   metrics_hourly: últimos 7 dias (limite da retenção raw)
+--   metrics_daily : últimos 8 dias (a partir do hourly já reconstruído)
+--
+-- Bonus: deduplica buckets históricos. Como a tabela metrics_hourly não tem
+-- UNIQUE (link_id, bucket_start), o agregador acumulou cópias do mesmo bucket
+-- em cada execução (`ON CONFLICT DO NOTHING` só evita conflito no id auto-
+-- gerado, que nunca conflita). Isso atrapalha o gráfico — múltiplas séries
+-- sobrepostas no mesmo timestamp.
+--
+-- Princípio: só apaga (link, hora) que pode ser reconstruído pelo raw atual.
+-- Buckets de links sem raw recente são preservados (ex: links pausados, ou
+-- coleta intermitente).
 --
 -- Importante: rode SEMPRE em transação. Faça backup antes em produção.
 -- =============================================================================
@@ -19,14 +26,20 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- 1) HOURLY — apaga e recria os buckets das últimas 7 dias a partir do raw
+-- 1) HOURLY — recria buckets das últimas 7 dias
 -- ---------------------------------------------------------------------------
--- Janela: [hoje - 7d 00:00, hora corrente truncada). A hora "corrente"
--- (ainda incompleta) é deixada para o agregador automático cobrir mais tarde.
+-- Apaga só buckets onde HÁ raw correspondente; preserva buckets de links cujo
+-- raw já caiu pela retenção mas o bucket histórico ainda é válido.
 
-DELETE FROM metrics_hourly
-WHERE bucket_start >= date_trunc('hour', NOW() - INTERVAL '7 days')
-  AND bucket_start <  date_trunc('hour', NOW());
+DELETE FROM metrics_hourly mh
+WHERE mh.bucket_start >= date_trunc('hour', NOW() - INTERVAL '7 days')
+  AND mh.bucket_start <  date_trunc('hour', NOW())
+  AND EXISTS (
+    SELECT 1 FROM metrics m
+    WHERE m.link_id   =  mh.link_id
+      AND m.timestamp >= mh.bucket_start
+      AND m.timestamp <  mh.bucket_start + INTERVAL '1 hour'
+  );
 
 INSERT INTO metrics_hourly (
   link_id, client_id, bucket_start,
@@ -55,14 +68,19 @@ WHERE timestamp >= date_trunc('hour', NOW() - INTERVAL '7 days')
 GROUP BY link_id, client_id, date_trunc('hour', timestamp);
 
 -- ---------------------------------------------------------------------------
--- 2) DAILY — apaga e recria os buckets das últimas 8 dias a partir do hourly
+-- 2) DAILY — recria buckets dos últimos 8 dias a partir do hourly
 -- ---------------------------------------------------------------------------
--- Inclui o dia de hoje (ainda incompleto) — o agregador vai sobrescrever
--- mais tarde com dado completo. Cobre 8 dias para pegar boundary do timezone.
+-- Mesma lógica: só apaga onde há hourly recém-reconstruído pra repor.
 
-DELETE FROM metrics_daily
-WHERE bucket_start >= date_trunc('day', NOW() - INTERVAL '8 days')
-  AND bucket_start <  date_trunc('day', NOW());
+DELETE FROM metrics_daily md
+WHERE md.bucket_start >= date_trunc('day', NOW() - INTERVAL '8 days')
+  AND md.bucket_start <  date_trunc('day', NOW())
+  AND EXISTS (
+    SELECT 1 FROM metrics_hourly mh
+    WHERE mh.link_id      =  md.link_id
+      AND mh.bucket_start >= md.bucket_start
+      AND mh.bucket_start <  md.bucket_start + INTERVAL '1 day'
+  );
 
 INSERT INTO metrics_daily (
   link_id, client_id, bucket_start,
@@ -77,7 +95,7 @@ INSERT INTO metrics_daily (
 SELECT
   link_id, client_id,
   date_trunc('day', bucket_start) AS bucket_start,
-  -- AVG ponderado pelo sample_count de cada hora (mesma lógica do agregador)
+  -- AVG ponderado pelo sample_count (mesma fórmula do agregador automático)
   SUM(download_avg * sample_count) / NULLIF(SUM(sample_count), 0), MAX(download_max), MIN(download_min),
   SUM(upload_avg   * sample_count) / NULLIF(SUM(sample_count), 0), MAX(upload_max),   MIN(upload_min),
   SUM(latency_avg  * sample_count) / NULLIF(SUM(sample_count), 0), MAX(latency_max),  MIN(latency_min),
@@ -96,17 +114,27 @@ WHERE bucket_start >= date_trunc('day', NOW() - INTERVAL '8 days')
 GROUP BY link_id, client_id, date_trunc('day', bucket_start);
 
 -- ---------------------------------------------------------------------------
--- 3) Verificação — compare antes/depois
+-- 3) Verificação — totais e duplicatas remanescentes
 -- ---------------------------------------------------------------------------
-SELECT 'metrics_hourly buckets'  AS tabela, COUNT(*) AS total,
+SELECT 'metrics_hourly buckets (últimos 7d)' AS info, COUNT(*) AS total,
        MIN(bucket_start) AS desde, MAX(bucket_start) AS ate
 FROM metrics_hourly
 WHERE bucket_start >= date_trunc('hour', NOW() - INTERVAL '7 days');
 
-SELECT 'metrics_daily buckets'   AS tabela, COUNT(*) AS total,
+SELECT 'metrics_daily buckets (últimos 8d)' AS info, COUNT(*) AS total,
        MIN(bucket_start) AS desde, MAX(bucket_start) AS ate
 FROM metrics_daily
 WHERE bucket_start >= date_trunc('day', NOW() - INTERVAL '8 days');
 
--- Se algo parecer errado, dá ROLLBACK em vez de COMMIT.
+-- Duplicatas (deve ser zero nas janelas reconstruídas)
+SELECT 'duplicatas hourly (últimos 7d)' AS info, COUNT(*) AS dup_pares
+FROM (
+  SELECT link_id, bucket_start
+  FROM metrics_hourly
+  WHERE bucket_start >= date_trunc('hour', NOW() - INTERVAL '7 days')
+  GROUP BY link_id, bucket_start
+  HAVING COUNT(*) > 1
+) d;
+
+-- Se algo parecer errado, ROLLBACK em vez de COMMIT.
 COMMIT;
