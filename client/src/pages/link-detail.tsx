@@ -880,11 +880,15 @@ export default function LinkDetail() {
           unit="%"
           icon={Activity}
           trend={{
-            value: Math.abs(safeUptime - 99),
+            value: Number(Math.abs(safeUptime - 99).toFixed(2)),
             direction: safeUptime >= 99 ? "up" : "down",
             isGood: safeUptime >= 99,
           }}
-          subtitle="acumulado 6 meses"
+          subtitle={
+            safeUptime >= 99
+              ? "acima do alvo (≥99%) — 6 meses"
+              : "abaixo do alvo (≥99%) — 6 meses"
+          }
           testId="metric-uptime"
         />
         <MetricCard
@@ -892,8 +896,11 @@ export default function LinkDetail() {
           value={safeLatency.toFixed(0)}
           unit="ms"
           icon={Clock}
-          trend={{ value: 1.5, direction: "down", isGood: true }}
-          subtitle="média atual"
+          subtitle={
+            safeLatency <= 80
+              ? "dentro do SLA (≤80 ms)"
+              : "acima do SLA (>80 ms)"
+          }
           testId="metric-latency"
         />
         <MetricCard
@@ -901,8 +908,11 @@ export default function LinkDetail() {
           value={safePacketLoss.toFixed(2)}
           unit="%"
           icon={Percent}
-          trend={{ value: 0.1, direction: "down", isGood: true }}
-          subtitle="limite: 2%"
+          subtitle={
+            safePacketLoss <= 2
+              ? "dentro do SLA (≤2%)"
+              : "acima do SLA (>2%)"
+          }
           testId="metric-packet-loss"
         />
         <MetricCard
