@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/metric-card";
 import { LinkCard } from "@/components/link-card";
-import { BandwidthChart } from "@/components/bandwidth-chart";
 import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
@@ -41,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import type { Link as LinkType, Event, DashboardStats, Metric, Client, SLAIndicator, LinkDashboardResponse, LinkDashboardItem } from "@shared/schema";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -501,56 +501,66 @@ function SuperAdminLinkDashboard({
 
 type ViewMode = "cards" | "compact" | "table";
 
-// Card compacto para visualização resumida com métricas em tempo real
-function CompactLinkCardWithMetrics({ link }: { link: LinkType }) {
-  const { data: metrics } = useQuery<Metric[]>({
-    queryKey: [`/api/links/${link.id}/metrics`],
-    refetchInterval: 30000,
-    staleTime: 25000,
-  });
+// Card compacto para visualização resumida (estilo Marvitel/Super Admin)
+function CompactLinkCard({ link }: { link: LinkType }) {
+  const isOffline = link.status === "offline" || (link.status as string) === "down";
+  const isDegraded = link.status === "degraded";
+  const isOnline = link.status === "operational";
+  const isBlocked = (link as any).contractStatus === "blocked";
+  const isCancelled = (link as any).contractStatus === "cancelled";
 
-  const metricsHistory = metrics ? [...metrics]
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    .map((m) => ({
-      timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
-      download: m.download,
-      upload: m.upload,
-      status: m.status,
-    })) : [];
+  // Cor da borda superior — contractStatus tem prioridade sobre status técnico
+  const topBorder = isCancelled
+    ? "border-t-gray-400"
+    : isBlocked
+    ? "border-t-orange-500"
+    : isOnline
+    ? "border-t-green-500"
+    : isDegraded
+    ? "border-t-yellow-500"
+    : isOffline
+    ? "border-t-red-500"
+    : "border-t-gray-400";
 
-  return <CompactLinkCard link={link} metricsHistory={metricsHistory} />;
-}
+  // Badge circular: ✓ se online, ! se há alerta de status, ou ícone de contrato
+  const badgeBg = isCancelled
+    ? "bg-gray-500"
+    : isBlocked
+    ? "bg-orange-500"
+    : isOnline
+    ? "bg-green-500"
+    : isDegraded
+    ? "bg-yellow-500"
+    : isOffline
+    ? "bg-red-500"
+    : "bg-gray-400";
 
-function CompactLinkCard({ link, metricsHistory = [] }: { 
-  link: LinkType; 
-  metricsHistory?: Array<{ timestamp: string; download: number; upload: number; status?: string }>;
-}) {
-  const statusColors: Record<string, string> = {
-    operational: "border-l-green-500",
-    degraded: "border-l-yellow-500",
-    offline: "border-l-red-500",
-    down: "border-l-red-500",
-  };
+  const hasAlert = isOffline || isDegraded || isBlocked || isCancelled;
+  const badgeContent = isCancelled ? "✕" : isBlocked ? "B" : hasAlert ? "!" : "✓";
 
-  const statusInfo = link.status === "operational" 
-    ? { label: "Online", className: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20" }
-    : link.status === "degraded"
-    ? { label: "Degradado", className: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" }
-    : { label: "Offline", className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20" };
+  const statusLabel = isCancelled
+    ? "Cancelado"
+    : isBlocked
+    ? "Bloqueado"
+    : isOnline
+    ? "Online"
+    : isDegraded
+    ? "Degradado"
+    : isOffline
+    ? "Offline"
+    : "Sem Monit.";
 
-  const borderColor = statusColors[link.status] || "border-l-gray-400";
-
-  const getLatencyColor = (lat: number) => {
-    if (lat <= 50) return "text-green-600 dark:text-green-400";
-    if (lat <= 80) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
-
-  const getLossColor = (loss: number) => {
-    if (loss <= 1) return "text-green-600 dark:text-green-400";
-    if (loss <= 2) return "text-yellow-600 dark:text-yellow-400";
-    return "text-red-600 dark:text-red-400";
-  };
+  const statusTextColor = isCancelled
+    ? "text-gray-500 dark:text-gray-400"
+    : isBlocked
+    ? "text-orange-600 dark:text-orange-400"
+    : isOnline
+    ? "text-green-600 dark:text-green-400"
+    : isDegraded
+    ? "text-yellow-600 dark:text-yellow-400"
+    : isOffline
+    ? "text-red-500 dark:text-red-400"
+    : "text-muted-foreground";
 
   // Inversão de banda (padrão para concentradores)
   const rawDownload = link.currentDownload ?? 0;
@@ -561,109 +571,110 @@ function CompactLinkCard({ link, metricsHistory = [] }: {
   const latency = link.latency ?? 0;
   const packetLoss = link.packetLoss ?? 0;
   const uptime = link.uptime ?? 0;
+  const bandwidth = link.bandwidth ?? 0;
 
-  const formatBw = (mbps: number): string => {
-    if (mbps >= 1000) return `${(mbps / 1000).toFixed(1)} Gbps`;
-    return `${mbps.toFixed(0)} Mbps`;
-  };
+  const latColor = latency <= 50
+    ? "text-green-600 dark:text-green-400"
+    : latency <= 80
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
+
+  const lossColor = packetLoss <= 1
+    ? "text-green-600 dark:text-green-400"
+    : packetLoss <= 2
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
+
+  const uptimeColor = uptime >= 99
+    ? "text-green-600 dark:text-green-400"
+    : uptime >= 95
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-red-500 dark:text-red-400";
 
   return (
     <Link href={`/link/${link.id}`}>
-      <Card 
-        className={`border-l-4 ${borderColor} hover-elevate cursor-pointer transition-all h-full`}
+      <div
+        className={`bg-card border border-border border-t-4 ${topBorder} rounded-lg overflow-hidden cursor-pointer hover:shadow-lg transition-all h-full`}
+        style={{ width: 240, height: 156 }}
         data-testid={`card-compact-link-${link.id}`}
       >
-        <CardContent className="p-3 space-y-2">
-          {/* Header: Nome e Status */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                {link.status === "operational" ? (
-                  <Wifi className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                ) : link.status === "degraded" ? (
-                  <Wifi className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
-                ) : (
-                  <WifiOff className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                )}
-                <span className="font-medium text-sm truncate" title={link.name}>
-                  {link.name}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground truncate mt-0.5" title={link.location || ""}>
-                {link.location || "Sem localização"}
-              </p>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {(link as any).contractStatus === "blocked" && (
-                <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20" data-testid={`badge-blocked-${link.id}`}>
-                  Bloqueado
-                </Badge>
-              )}
-              {(link as any).contractStatus === "cancelled" && (
-                <Badge variant="outline" className="text-[10px] bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20" data-testid={`badge-cancelled-${link.id}`}>
-                  Cancelado
-                </Badge>
-              )}
-              <Badge variant="outline" className={`text-[10px] ${statusInfo.className}`}>
-                {statusInfo.label}
-              </Badge>
-            </div>
-          </div>
+        <div className="px-3 py-2 flex flex-col h-full gap-1">
 
-          {/* Mini Gráfico de Banda */}
-          {metricsHistory.length > 0 && (
-            <div className="h-12 -mx-1">
-              <BandwidthChart data={metricsHistory} height={48} invertBandwidth={(link as any).invertBandwidth} />
-            </div>
-          )}
-          
-          {/* Banda Atual */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center gap-1.5 bg-blue-500/5 rounded px-2 py-1">
-              <Download className="h-3 w-3 text-blue-500" />
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">Download</p>
-                <p className="text-xs font-mono font-medium truncate">{formatBw(currentDownload)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-green-500/5 rounded px-2 py-1">
-              <Upload className="h-3 w-3 text-green-500" />
-              <div className="min-w-0">
-                <p className="text-[10px] text-muted-foreground">Upload</p>
-                <p className="text-xs font-mono font-medium truncate">{formatBw(currentUpload)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Métricas: Latência, Perda, Uptime */}
-          <div className="grid grid-cols-3 gap-1 text-center pt-1 border-t">
-            <div>
-              <p className="text-[10px] text-muted-foreground">Latência</p>
-              <p className={`text-xs font-mono font-medium ${getLatencyColor(latency)}`}>
-                {latency.toFixed(0)}ms
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">Perda</p>
-              <p className={`text-xs font-mono font-medium ${getLossColor(packetLoss)}`}>
-                {packetLoss.toFixed(2)}%
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">Uptime</p>
-              <p className="text-xs font-mono font-medium">{uptime.toFixed(2)}%</p>
-            </div>
-          </div>
-
-          {/* Footer: IP */}
-          <div className="flex items-center justify-between pt-1 border-t text-[10px] text-muted-foreground">
-            <span className="font-medium">IP:</span>
-            <span className="font-mono truncate ml-1" title={link.ipBlock || ""}>
-              {link.ipBlock || "N/A"}
+          {/* Linha 1: nome do link + badge */}
+          <div className="flex items-start gap-1.5 min-w-0">
+            <h3
+              className="font-extrabold leading-snug flex-1 min-w-0 line-clamp-2"
+              style={{ fontSize: 13 }}
+              title={link.name}
+            >
+              {link.name}
+            </h3>
+            <span
+              className={`${badgeBg} text-white font-bold rounded-full shrink-0 flex items-center justify-center`}
+              style={{ width: 22, height: 22, fontSize: 11, marginTop: 1 }}
+              title={statusLabel}
+            >
+              {badgeContent}
             </span>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Linha 2: status + IP */}
+          <div className="flex items-center justify-between gap-1">
+            <span className={`font-bold ${statusTextColor}`} style={{ fontSize: 11 }}>
+              {statusLabel}
+            </span>
+            <span
+              className="font-mono font-semibold text-muted-foreground truncate text-right"
+              style={{ fontSize: 11 }}
+              title={link.ipBlock || ""}
+            >
+              {link.ipBlock || "—"}
+            </span>
+          </div>
+
+          {/* Divisor */}
+          <div className="border-t border-border/40" />
+
+          {/* Linha 3: DL + UL + banda contratada */}
+          <div className="flex items-center justify-between gap-1" style={{ fontSize: 11 }}>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-500 font-mono font-bold">↓ {formatBandwidth(currentDownload)}</span>
+              <span className="text-emerald-500 font-mono font-bold">↑ {formatBandwidth(currentUpload)}</span>
+            </div>
+            <span className="text-muted-foreground shrink-0 font-bold" style={{ fontSize: 11 }}>
+              {bandwidth}M
+            </span>
+          </div>
+
+          {/* Linha 4: latência / perda / uptime */}
+          <div className="flex items-center gap-3" style={{ fontSize: 11 }}>
+            <span>
+              <span className="text-muted-foreground font-semibold">Lat </span>
+              <span className={`font-mono font-bold ${latColor}`}>{latency.toFixed(0)}ms</span>
+            </span>
+            <span>
+              <span className="text-muted-foreground font-semibold">Perd </span>
+              <span className={`font-mono font-bold ${lossColor}`}>{packetLoss.toFixed(1)}%</span>
+            </span>
+            <span className={`font-mono font-bold ml-auto ${uptimeColor}`} style={{ fontSize: 11 }}>
+              {uptime.toFixed(1)}%
+            </span>
+          </div>
+
+          {/* Linha 5: localização */}
+          <div className="flex items-center gap-1 min-w-0 mt-auto">
+            <span
+              className="text-muted-foreground truncate flex-1 text-left leading-tight font-medium"
+              style={{ fontSize: 10 }}
+              title={link.location || ""}
+            >
+              {link.location || "Sem localização"}
+            </span>
+            {isOffline && <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />}
+          </div>
+
+        </div>
+      </div>
     </Link>
   );
 }
@@ -672,6 +683,7 @@ function DashboardContent() {
   const { isSuperAdmin } = useAuth();
   const { selectedClientId, selectedClientName, setSelectedClient, isViewingAsClient } = useClientContext();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = sessionStorage.getItem("link_monitor_view_mode");
@@ -1109,9 +1121,12 @@ function DashboardContent() {
             viewMode === "table" ? (
               <LinksTable links={filteredLinksArray} metricsMap={metricsMap} pageSize={10} />
             ) : viewMode === "compact" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div
+                className="grid gap-3 justify-start"
+                style={{ gridTemplateColumns: "repeat(auto-fill, 240px)" }}
+              >
                 {filteredLinksArray.map((link) => (
-                  <CompactLinkCardWithMetrics key={link.id} link={link} />
+                  <CompactLinkCard key={link.id} link={link} />
                 ))}
               </div>
             ) : (
