@@ -990,9 +990,9 @@ export class DatabaseStorage {
 
     if (linkId) {
       conditions.push(eq(metrics.linkId, linkId));
-    } else if (clientId) {
-      conditions.push(eq(metrics.clientId, clientId));
     } else if (targetLinkIds.length > 0) {
+      // Sempre filtra pelos linkIds elegíveis (já exclui blocked/cancelled).
+      // Isso vale tanto para clientId definido quanto para visão global.
       conditions.push(sql`${metrics.linkId} IN (${sql.join(targetLinkIds.map(id => sql`${id}`), sql`, `)})`);
     }
 
@@ -1070,12 +1070,16 @@ export class DatabaseStorage {
   async getDashboardStats(clientId?: number): Promise<DashboardStats> {
     const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
     const operationalLinks = allLinks.filter((l) => l.status === "operational").length;
-    const avgUptime = allLinks.length > 0 
-      ? allLinks.reduce((sum, l) => sum + l.uptime, 0) / allLinks.length 
-      : 0;
-    const avgLatency = allLinks.length > 0 
-      ? allLinks.reduce((sum, l) => sum + l.latency, 0) / allLinks.length 
-      : 0;
+
+    // Disponibilidade Média e Latência Média: calcula a partir das métricas reais
+    // dos últimos 30 dias (mesma fórmula do SLA — DE = operacional/total × 100).
+    // Filtra contratos blocked/cancelled (já feito por calculateSLAFromMetrics).
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const sla = await this.calculateSLAFromMetrics(clientId, thirtyDaysAgo, new Date());
+    const avgUptime = sla.availability;
+    const avgLatency = sla.avgLatency;
+
     const totalBandwidth = allLinks.reduce((sum, l) => sum + l.bandwidth, 0);
     
     const unresolvedEventsQuery = clientId 

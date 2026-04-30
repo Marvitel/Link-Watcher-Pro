@@ -50,6 +50,13 @@ A library of pre-configured command templates for CPE devices, categorized by ma
 ### Link Status & SLA Monitoring
 Link statuses include `operational`, `degraded`, `offline`, and `unknown` (note: `online` is not used). SLA compliance is monitored for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours), excluding blocked or cancelled links.
 
+**Cálculo de disponibilidade (uniforme em todo o sistema)**: a fórmula oficial é `availability = (operationalCount / totalCount) × 100` aplicada sobre a tabela `metrics` em uma janela definida — implementada em `calculateSLAFromMetrics(clientId?, fromDate?, toDate?, linkId?)` (server/storage.ts). Filtra contratos `blocked`/`cancelled`. Janelas usadas:
+- **Dashboard ("Disponibilidade Média")**: últimos 30 dias — `getDashboardStats` chama `calculateSLAFromMetrics` com janela de 30 dias
+- **SLA Mensal (relatórios)**: mês selecionado — `getSLAIndicatorsMonthly`
+- **SLA Acumulado (link detail / relatórios)**: últimos 6 meses — `getSLAIndicatorsAccumulated`
+
+O campo `links.uptime` (atualizado por `processLinkMetrics` com +0.001/-0.01 a cada coleta) é usado APENAS como fallback quando não há métricas no período. **Não deve ser usado para exibir disponibilidade** — é só um indicador instantâneo de saúde.
+
 ### Voalle Webhook Processing
 The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, creating/updating/soft-deleting links, mapping contract statuses, and enriching data via Portal and OZmap APIs. It adjusts monitoring based on link status.
 

@@ -968,9 +968,9 @@ function DashboardContent() {
               unit="%"
               icon={Gauge}
               trend={{
-                value: 0.5,
-                direction: "up",
-                isGood: true,
+                value: Math.abs((stats?.averageUptime || 0) - 99),
+                direction: (stats?.averageUptime || 0) >= 99 ? "up" : "down",
+                isGood: (stats?.averageUptime || 0) >= 99,
               }}
               subtitle="últimos 30 dias"
               testId="metric-uptime"
@@ -981,11 +981,11 @@ function DashboardContent() {
               unit="ms"
               icon={Clock}
               trend={{
-                value: 2.1,
-                direction: "down",
-                isGood: true,
+                value: Math.abs((stats?.averageLatency || 0) - 80),
+                direction: (stats?.averageLatency || 0) <= 80 ? "down" : "up",
+                isGood: (stats?.averageLatency || 0) <= 80,
               }}
-              subtitle="dentro do SLA"
+              subtitle={(stats?.averageLatency || 0) <= 80 ? "dentro do SLA" : "acima do SLA"}
               testId="metric-latency"
             />
             <MetricCard

@@ -879,8 +879,12 @@ export default function LinkDetail() {
           value={safeUptime.toFixed(2)}
           unit="%"
           icon={Activity}
-          trend={{ value: 0.1, direction: "up", isGood: true }}
-          subtitle="últimos 30 dias"
+          trend={{
+            value: Math.abs(safeUptime - 99),
+            direction: safeUptime >= 99 ? "up" : "down",
+            isGood: safeUptime >= 99,
+          }}
+          subtitle="acumulado 6 meses"
           testId="metric-uptime"
         />
         <MetricCard
