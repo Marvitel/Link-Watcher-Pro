@@ -35,6 +35,8 @@ The project uses a monorepo structure (`client/`, `server/`, `shared/`) with pat
 ### SNMP Traffic Collection
 The system supports multiple traffic data sources (Manual IP, Concentrator, Access Point) and collects metrics from additional interfaces, ensuring per-minute timestamp alignment.
 
+**Cross-interface delta protection** (`server/monitoring.ts`): SNMP octet counters are per-interface. When `handleIfIndexAutoDiscovery` returns a new `ifIndex`, the cached `previousTrafficData` is from the OLD interface — computing `delta = new_ifIndex_counter - old_ifIndex_counter` produces physically impossible spikes (e.g., 35 Tbps). The post-discovery branch in `runOnce` now `delete()`s the cache before fetching with the new ifIndex and stores the sample as a fresh baseline (no delta this cycle; the next cycle calculates correctly). A sanity clamp in `calculateBandwidth` (`MAX_REASONABLE_MBPS = 200_000`) discards any sample above 200 Gbps as a safety net for counter wraps or other corrupted samples.
+
 ### Concentrator Integration
 Integration with Cisco ASR/ISR routers supports PPPoE concentrator functions, including interface discovery, PPPoE username retrieval, and MAC address limitations. It collects ONU ID via OLT and supports vendor auto-detection.
 

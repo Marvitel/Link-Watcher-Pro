@@ -1119,6 +1119,11 @@ export async function getSystemResources(
   });
 }
 
+// Limite sanitário: descarta amostras fisicamente impossíveis (ex.: cross-interface
+// delta após troca de ifIndex, counter wrap não detectado, sample corrompido).
+// 200 Gbps cobre até clientes 100GE com folga; valores acima disso são bug.
+const MAX_REASONABLE_MBPS = 200_000;
+
 function calculateBandwidth(
   current: TrafficResult,
   previous: TrafficResult
@@ -1142,8 +1147,19 @@ function calculateBandwidth(
   const downloadBps = inOctetsDiff * 8 / timeDiffSeconds;
   const uploadBps = outOctetsDiff * 8 / timeDiffSeconds;
 
-  const downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
-  const uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
+  let downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
+  let uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
+
+  // Sanity clamp: valores acima do teto são amostras corrompidas — descarta
+  // (devolve 0) em vez de propagar para o gráfico e distorcer toda a escala.
+  if (downloadMbps > MAX_REASONABLE_MBPS) {
+    console.warn(`[calculateBandwidth] Discarding absurd download sample: ${downloadMbps.toFixed(0)} Mbps (>${MAX_REASONABLE_MBPS}) — counter wrap or cross-interface delta`);
+    downloadMbps = 0;
+  }
+  if (uploadMbps > MAX_REASONABLE_MBPS) {
+    console.warn(`[calculateBandwidth] Discarding absurd upload sample: ${uploadMbps.toFixed(0)} Mbps (>${MAX_REASONABLE_MBPS}) — counter wrap or cross-interface delta`);
+    uploadMbps = 0;
+  }
 
   return { downloadMbps, uploadMbps };
 }
@@ -2247,19 +2263,21 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           const discoveryResult = await handleIfIndexAutoDiscovery(link, profile, trafficDataSuccess);
           
           if (discoveryResult.updated && discoveryResult.newIfIndex) {
+            // ifIndex mudou: o counter SNMP é específico por interface, então
+            // o `previousTrafficData` cacheado é de OUTRA interface. Comparar
+            // octets entre interfaces diferentes gera picos absurdos (ex.: 35Tbps).
+            // Limpa o cache e trata esta coleta como "primeira amostra" do novo
+            // ifIndex — só armazena, não calcula delta. A próxima coleta calculará.
+            previousTrafficData.delete(link.id);
+            console.log(`[Monitor] ${link.name}: ifIndex changed via auto-discovery to ${discoveryResult.newIfIndex} — clearing previous traffic cache to avoid cross-interface delta spike. Bandwidth will be calculated from next sample.`);
+
             const retryTrafficData = await getInterfaceTraffic(
               trafficSourceIp!,
               profile,
               discoveryResult.newIfIndex
             );
-            
+
             if (retryTrafficData) {
-              const previousData = previousTrafficData.get(link.id);
-              if (previousData) {
-                const bandwidth = calculateBandwidth(retryTrafficData, previousData);
-                downloadMbps = bandwidth.downloadMbps;
-                uploadMbps = bandwidth.uploadMbps;
-              }
               previousTrafficData.set(link.id, retryTrafficData);
             }
           }
