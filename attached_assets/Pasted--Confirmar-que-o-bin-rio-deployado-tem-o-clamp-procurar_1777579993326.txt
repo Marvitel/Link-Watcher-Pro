@@ -1,0 +1,64 @@
+# Confirmar que o binário deployado tem o clamp (procurar a string única)
+grep -c "Discarding absurd" /opt/link-monitor/dist/index.js
+grep -c "LINK_BANDWIDTH_CLAMP_MULTIPLIER" /opt/link-monitor/dist/index.js
+abr 30 16:49:49 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 10120710 Mbps (>2000 = 5× link bandwidth 400 Mbps) — counter wrap or cross-interface delta
+abr 30 16:49:49 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 58062432 Mbps (>2000 = 5× link bandwidth 400 Mbps) — counter wrap or cross-interface delta
+abr 30 16:51:20 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 13060028 Mbps (>2000 = 5× link bandwidth 400 Mbps) — counter wrap or cross-interface delta
+abr 30 16:51:20 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 74925257 Mbps (>2000 = 5× link bandwidth 400 Mbps) — counter wrap or cross-interface delta
+abr 30 16:56:15 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2574 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 16:56:15 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1475 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 16:56:29 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2545 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 16:56:29 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1456 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 16:57:24 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 589 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 16:57:24 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 577 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 17:03:49 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2314 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 17:03:49 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1339 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 17:04:02 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2321 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 17:04:02 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1343 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 17:09:58 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2549 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 17:09:58 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1580 Mbps (>500 = 5× link bandwidth 100 Mbps) — counter wrap or cross-interface delta
+abr 30 17:10:12 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd download sample: 2563 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 17:10:12 link-monitor npm[2392486]: [calculateBandwidth] Discarding absurd upload sample: 1583 Mbps (>200 = 5× link bandwidth 30 Mbps) — counter wrap or cross-interface delta
+abr 30 16:42:55 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL: Using concentrator (CE: AJU-MVT-BORDA-HSP) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.248.245, ifIndex: 533, profileId: 7
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL: ifIndex 533 verified OK - "sfpplus1-vlan1611-PETROX-SEDE-BEIRAMAR-CO2134" matches "sfpplus1-vlan1611-PETROX-SEDE-BEIRAMAR-CO2134" (alias: "PTP SEDE BEIRA MAR PETROX")
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=5 onu=13
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL - Óptico: tentando fallback completo Zabbix por serial DACM91FAA4DF...
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL - Óptico Zabbix OK: RX=-21.55dBm TX=1.92dBm OLT_RX=-26.2dBm
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA): ifIndex 299 verified OK - "sfp-sfpplus1-OLT-DATACOM-TG-1/1/1-gpon.8-vlan3116-PTX-ATALAIA" matches "sfp-sfpplus1-OLT-DATACOM-TG-1/1/1-gpon.8-vlan3116-PTX-ATALAIA"
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA) - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=8 onu=8
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA) - Óptico OK: RX=-27dBm TX=2dBm OLT_RX=nulldBm
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACMED01E8E4...
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA) - Óptico Zabbix: OLT_RX=-40dBm
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX-SEDE-LINK-PRINCIPAL: lat=0.9ms, loss=0.0%, status=operational
+abr 30 16:42:56 link-monitor npm[2351689]: [Monitor] PETROX COMERCIAL LTDA (PE ATALAIA): lat=2.3ms, loss=0.0%, status=operational
+abr 30 16:42:57 link-monitor npm[2351689]: [Monitor] PETROX MARCOS FREIRE: Using concentrator (CE: AJU-MVT-BORDA-OSPF2) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.10, ifIndex: 240, profileId: 7
+abr 30 16:42:57 link-monitor npm[2351689]: [Monitor] PETROX MARCOS FREIRE: ifIndex 240 verified OK - "sfpplus1-vlan3218-PTX-MFR2" matches "sfpplus1-vlan3218-PTX-MFR2" (alias: "PTX-MF2")
+abr 30 16:42:57 link-monitor npm[2351689]: [Monitor] PETROX MARCOS FREIRE - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=PTX-MF2)...
+abr 30 16:42:57 link-monitor npm[2351689]: [Monitor] PETROX MARCOS FREIRE - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 30 16:42:57 link-monitor npm[2351689]: [Monitor] PETROX MARCOS FREIRE: lat=0.9ms, loss=0.0%, status=operational
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9: Using concentrator (CE: CISCO ASR1002) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.255.254, ifIndex: null, profileId: 7
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9 - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=4 onu=2
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9 - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9 - Óptico: tentando fallback completo Zabbix por serial DACM91FAA4DE...
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9 - Óptico Zabbix OK: RX=-14.83dBm TX=1.98dBm OLT_RX=-20.86dBm
+abr 30 16:43:11 link-monitor npm[2351689]: [Monitor] PETROX_TANCREDO=== FIOG540058D9: lat=2.9ms, loss=0.0%, status=operational
+abr 30 16:43:12 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: Using concentrator (CE: CISCO ASR1002) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.255.254, ifIndex: 18, profileId: 7
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: ifIndex 18 verified OK - "Vt1" matches "Vt1" (alias: "%U")
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=8 onu=2
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico OK: RX=-19.7dBm TX=2.9dBm OLT_RX=nulldBm
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial FIOG540051CD...
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico Zabbix: OLT_RX=-24.56dBm
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: Ping failed but optical signal OK (RX=-19.7dBm), no traffic yet - setting DEGRADED
+abr 30 16:43:14 link-monitor npm[2351689]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: lat=0.0ms, loss=100.0%, status=degraded
+abr 30 16:43:21 link-monitor npm[2351689]: [OZmap Auto-Sync] Link PETROX FAROLANDIA - SUPERTEM: 3 elementos na rota
+abr 30 16:43:22 link-monitor npm[2351689]: [OZmap Auto-Sync] Link PETROX FAROLANDIA - SUPERTEM: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.5062274054384224
+abr 30 16:43:24 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM: Using concentrator (CE: AJU-MVT-BORDA-HSP) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.245, ifIndex: 600, profileId: 7
+abr 30 16:43:24 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM: ifIndex 600 verified OK - "sfpplus1-vlan1647-PETROX_FAROL-SUPERTEM" matches "sfpplus1-vlan1647-PETROX_FAROL-SUPERTEM"
+abr 30 16:43:24 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=1 onu=20
+abr 30 16:43:25 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM - Óptico OK: RX=-18dBm TX=1.9dBm OLT_RX=nulldBm
+abr 30 16:43:25 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACMED020030...
+abr 30 16:43:25 link-monitor npm[2351689]: [Monitor] PETROX FAROLANDIA - SUPERTEM - Óptico Zabbix: OLT_RX=-25.23dBm
+grep: /opt/link-monitor/dist/index.js: Arquivo ou diretório inexistente
+grep: /opt/link-monitor/dist/index.js: Arquivo ou diretório inexistente
+root@link-monitor:/opt/link-monitor# 

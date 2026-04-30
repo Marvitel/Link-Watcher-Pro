@@ -1135,6 +1135,44 @@ const LINK_BANDWIDTH_CLAMP_MULTIPLIER = 5;
 // SNMP que podem dar leves picos acima do contratado.
 const MIN_PER_LINK_CLAMP_MBPS = 200;
 
+/**
+ * Retorna o teto sanitário em Mbps para um link.
+ * Usa max(banda contratada × MULTIPLIER, MIN_PER_LINK_CLAMP_MBPS) quando a
+ * banda do link é conhecida; caso contrário cai no MAX_REASONABLE_MBPS global.
+ */
+function getClampCeilingMbps(linkBandwidthMbps?: number | null): number {
+  return linkBandwidthMbps && linkBandwidthMbps > 0
+    ? Math.max(linkBandwidthMbps * LINK_BANDWIDTH_CLAMP_MULTIPLIER, MIN_PER_LINK_CLAMP_MBPS)
+    : MAX_REASONABLE_MBPS;
+}
+
+/**
+ * Aplica o teto sanitário em uma amostra de download/upload já em Mbps.
+ * Devolve `0` (em vez de logar e descartar como `calculateBandwidth`) para
+ * preservar a outra direção quando só uma estoura — usado no caminho
+ * mainGraphMode (aggregate/single) que soma várias interfaces sem reaplicar
+ * o clamp por amostra. `context` aparece no warning para facilitar diagnóstico.
+ */
+function clampBandwidthSample(
+  downloadMbps: number,
+  uploadMbps: number,
+  linkBandwidthMbps: number | null | undefined,
+  context: string
+): { downloadMbps: number; uploadMbps: number } {
+  const ceiling = getClampCeilingMbps(linkBandwidthMbps);
+  let dl = isFinite(downloadMbps) ? downloadMbps : 0;
+  let ul = isFinite(uploadMbps) ? uploadMbps : 0;
+  if (dl > ceiling) {
+    console.warn(`[clampBandwidthSample] ${context}: discarding absurd download ${dl.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+    dl = 0;
+  }
+  if (ul > ceiling) {
+    console.warn(`[clampBandwidthSample] ${context}: discarding absurd upload ${ul.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+    ul = 0;
+  }
+  return { downloadMbps: dl, uploadMbps: ul };
+}
+
 function calculateBandwidth(
   current: TrafficResult,
   previous: TrafficResult,
@@ -1159,28 +1197,20 @@ function calculateBandwidth(
   const downloadBps = inOctetsDiff * 8 / timeDiffSeconds;
   const uploadBps = outOctetsDiff * 8 / timeDiffSeconds;
 
-  let downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
-  let uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
+  const downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
+  const uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
 
-  // Teto sanitário: se a banda contratada está disponível, usa 5x dela
-  // (mínimo 200 Mbps). Cliente de 50M nunca passa de 250 Mbps; cliente de
-  // 1G nunca passa de 5 Gbps; uplink BGP 20G nunca passa de 100 Gbps.
-  // Outliers do bug sempre dão >100x → sempre detectados. Picos legítimos
-  // de DDoS saturam no teto físico do link → sempre dentro do clamp.
-  const effectiveMaxMbps = linkBandwidthMbps && linkBandwidthMbps > 0
-    ? Math.max(linkBandwidthMbps * LINK_BANDWIDTH_CLAMP_MULTIPLIER, MIN_PER_LINK_CLAMP_MBPS)
-    : MAX_REASONABLE_MBPS;
-
-  if (downloadMbps > effectiveMaxMbps) {
-    console.warn(`[calculateBandwidth] Discarding absurd download sample: ${downloadMbps.toFixed(0)} Mbps (>${effectiveMaxMbps} = ${linkBandwidthMbps ? `${LINK_BANDWIDTH_CLAMP_MULTIPLIER}× link bandwidth ${linkBandwidthMbps} Mbps` : 'global default'}) — counter wrap or cross-interface delta`);
-    downloadMbps = 0;
-  }
-  if (uploadMbps > effectiveMaxMbps) {
-    console.warn(`[calculateBandwidth] Discarding absurd upload sample: ${uploadMbps.toFixed(0)} Mbps (>${effectiveMaxMbps} = ${linkBandwidthMbps ? `${LINK_BANDWIDTH_CLAMP_MULTIPLIER}× link bandwidth ${linkBandwidthMbps} Mbps` : 'global default'}) — counter wrap or cross-interface delta`);
-    uploadMbps = 0;
-  }
-
-  return { downloadMbps, uploadMbps };
+  // Teto sanitário (delegado ao helper compartilhado): se a banda contratada
+  // está disponível, usa 5x dela (mínimo 200 Mbps). Cliente de 50M nunca passa
+  // de 250 Mbps; cliente de 1G nunca passa de 5 Gbps; uplink BGP 20G nunca
+  // passa de 100 Gbps. Outliers do bug sempre dão >100x → sempre detectados.
+  // Picos legítimos de DDoS saturam no teto físico do link → sempre dentro.
+  return clampBandwidthSample(
+    downloadMbps,
+    uploadMbps,
+    linkBandwidthMbps,
+    'calculateBandwidth (counter wrap or cross-interface delta)'
+  );
 }
 
 const snmpProfileCache = new Map<number, { profile: SnmpProfile; cachedAt: number }>();
@@ -3600,6 +3630,23 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
               mainUpload = singleMetric.upload / 1000000;
               console.log(`[Monitor] ${link.name}: Gráfico principal usando interface ${singleMetric.trafficInterfaceId}: DL=${mainDownload.toFixed(2)}Mbps, UL=${mainUpload.toFixed(2)}Mbps`);
             }
+
+            // Reaplicar teto sanitário no agregado/single antes de persistir.
+            // O clamp por interface (em calculateBandwidth) evita amostras
+            // absurdas individuais, mas a SOMA de várias interfaces (modo
+            // aggregate) ou a cópia direta (modo single, quando a interface
+            // adicional aponta pra um uplink/switch maior que o link "pai")
+            // pode estourar o teto físico do link e sobrescrever a métrica
+            // já clampada pela coleta principal. Ver replit.md (Cross-interface
+            // delta protection) para o histórico do incidente.
+            const clamped = clampBandwidthSample(
+              mainDownload,
+              mainUpload,
+              link.bandwidth,
+              `mainGraphMode=${link.mainGraphMode} link=${link.name}`
+            );
+            mainDownload = clamped.downloadMbps;
+            mainUpload = clamped.uploadMbps;
             
             // Atualizar link com valores do gráfico principal
             await db.update(links).set({
