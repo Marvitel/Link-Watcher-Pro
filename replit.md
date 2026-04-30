@@ -55,6 +55,8 @@ Link statuses include `operational`, `degraded`, `offline`, and `unknown`. SLA c
 ### Metric Charts (Bandwidth/Latency/Loss) — MRTG/Cacti pattern
 Charts utilize shared utilities (`client/src/lib/chart-time.ts`) for deterministic X-axis scaling and consistent tick formatting (≤36h → hourly ticks, >36h → daily ticks aligned to 00:00).
 
+**Bucket integrity** (`metrics_hourly`/`metrics_daily`): both tables have `UNIQUE (link_id, bucket_start)` indexes (`metrics_hourly_link_bucket_unique` / `metrics_daily_link_bucket_unique`). The aggregator (`server/aggregation.ts`) uses `ON CONFLICT (link_id, bucket_start) DO UPDATE SET ...` — re-running the aggregator for an existing bucket overwrites the row (idempotent) instead of duplicating it. Maintenance scripts: `scripts/dedup-aggregates.sql` (one-shot global dedup, run before adding the UNIQUE), `scripts/rebuild-aggregates.sql` (rebuilds last 7d hourly + 8d daily from raw — needed after outlier cleanup, since the auto aggregator only processes the previous full hour).
+
 **Backend aggregation strategy** (`server/storage.ts` `getLinkMetrics()`):
 - `<7d` → `metrics` table (raw, 1 sample/min)
 - `≥7d` and `≤90d` → `metrics_hourly` direct (7d=168, 30d=720, 90d=2160 points)

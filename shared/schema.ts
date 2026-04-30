@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, jsonb, bigint, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -610,7 +610,9 @@ export const metricsHourly = pgTable("metrics_hourly", {
   operationalCount: integer("operational_count").notNull().default(0),
   degradedCount: integer("degraded_count").notNull().default(0),
   offlineCount: integer("offline_count").notNull().default(0),
-});
+}, (t) => ({
+  uniqLinkBucket: uniqueIndex("metrics_hourly_link_bucket_unique").on(t.linkId, t.bucketStart),
+}));
 
 export const metricsDaily = pgTable("metrics_daily", {
   id: serial("id").primaryKey(),
@@ -635,7 +637,9 @@ export const metricsDaily = pgTable("metrics_daily", {
   degradedCount: integer("degraded_count").notNull().default(0),
   offlineCount: integer("offline_count").notNull().default(0),
   uptimePercentage: real("uptime_percentage").notNull().default(100),
-});
+}, (t) => ({
+  uniqLinkBucket: uniqueIndex("metrics_daily_link_bucket_unique").on(t.linkId, t.bucketStart),
+}));
 
 export const events = pgTable("events", {
   id: serial("id").primaryKey(),

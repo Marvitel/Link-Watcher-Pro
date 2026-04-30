@@ -60,7 +60,25 @@ export async function aggregateHourlyMetrics(): Promise<number> {
     FROM metrics
     WHERE timestamp >= ${bucketStart} AND timestamp < ${bucketEnd}
     GROUP BY link_id, client_id
-    ON CONFLICT DO NOTHING
+    ON CONFLICT (link_id, bucket_start) DO UPDATE SET
+      client_id        = EXCLUDED.client_id,
+      download_avg     = EXCLUDED.download_avg,
+      download_max     = EXCLUDED.download_max,
+      download_min     = EXCLUDED.download_min,
+      upload_avg       = EXCLUDED.upload_avg,
+      upload_max       = EXCLUDED.upload_max,
+      upload_min       = EXCLUDED.upload_min,
+      latency_avg      = EXCLUDED.latency_avg,
+      latency_max      = EXCLUDED.latency_max,
+      latency_min      = EXCLUDED.latency_min,
+      packet_loss_avg  = EXCLUDED.packet_loss_avg,
+      packet_loss_max  = EXCLUDED.packet_loss_max,
+      cpu_usage_avg    = EXCLUDED.cpu_usage_avg,
+      memory_usage_avg = EXCLUDED.memory_usage_avg,
+      sample_count     = EXCLUDED.sample_count,
+      operational_count = EXCLUDED.operational_count,
+      degraded_count   = EXCLUDED.degraded_count,
+      offline_count    = EXCLUDED.offline_count
   `);
 
   console.log(`[Aggregation] Hourly metrics aggregated for bucket ${bucketStart.toISOString()}`);
@@ -103,7 +121,26 @@ export async function aggregateDailyMetrics(): Promise<number> {
     FROM metrics_hourly
     WHERE bucket_start >= ${bucketStart} AND bucket_start < ${bucketEnd}
     GROUP BY link_id, client_id
-    ON CONFLICT DO NOTHING
+    ON CONFLICT (link_id, bucket_start) DO UPDATE SET
+      client_id         = EXCLUDED.client_id,
+      download_avg      = EXCLUDED.download_avg,
+      download_max      = EXCLUDED.download_max,
+      download_min      = EXCLUDED.download_min,
+      upload_avg        = EXCLUDED.upload_avg,
+      upload_max        = EXCLUDED.upload_max,
+      upload_min        = EXCLUDED.upload_min,
+      latency_avg       = EXCLUDED.latency_avg,
+      latency_max       = EXCLUDED.latency_max,
+      latency_min       = EXCLUDED.latency_min,
+      packet_loss_avg   = EXCLUDED.packet_loss_avg,
+      packet_loss_max   = EXCLUDED.packet_loss_max,
+      cpu_usage_avg     = EXCLUDED.cpu_usage_avg,
+      memory_usage_avg  = EXCLUDED.memory_usage_avg,
+      sample_count      = EXCLUDED.sample_count,
+      operational_count = EXCLUDED.operational_count,
+      degraded_count    = EXCLUDED.degraded_count,
+      offline_count     = EXCLUDED.offline_count,
+      uptime_percentage = EXCLUDED.uptime_percentage
   `);
 
   console.log(`[Aggregation] Daily metrics aggregated for bucket ${bucketStart.toISOString()}`);
