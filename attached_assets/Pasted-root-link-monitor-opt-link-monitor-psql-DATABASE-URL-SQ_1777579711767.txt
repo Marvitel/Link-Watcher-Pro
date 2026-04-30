@@ -1,0 +1,43 @@
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" <<'SQL'
+-- Mostra um bucket típico pra ver em que unidade está o download_max
+SELECT mh.link_id, l.name, l.bandwidth AS banda_mbps,
+       mh.download_max, mh.download_avg,
+       mh.bucket_start
+FROM metrics_hourly mh
+JOIN links l ON l.id = mh.link_id
+WHERE mh.bucket_start >= NOW() - INTERVAL '2 hours'
+  AND l.bandwidth = 100
+  AND mh.download_max > 0
+ORDER BY mh.download_max DESC
+LIMIT 5;
+
+-- Mesma coisa no raw pra comparar unidade
+SELECT m.link_id, l.name, l.bandwidth AS banda_mbps,
+       m.download AS download_raw, m.timestamp
+FROM metrics m
+JOIN links l ON l.id = m.link_id
+WHERE m.timestamp >= NOW() - INTERVAL '15 min'
+  AND l.bandwidth = 100
+  AND m.download > 0
+ORDER BY m.download DESC
+LIMIT 5;
+SQL
+ link_id |           name           | banda_mbps | download_max | download_avg |    bucket_start     
+---------+--------------------------+------------+--------------+--------------+---------------------
+    1062 | PETROX_13===FIOG08009D7D |        100 |    2993.2346 |    1816.8634 | 2026-04-30 16:00:00
+     899 | PETROX_SKINA             |        100 |    644.98505 |    422.33948 | 2026-04-30 16:00:00
+     999 | PTX-SEDE                 |        100 |   127.663574 |    57.669342 | 2026-04-30 16:00:00
+     412 | SESI-CETAF-AJU           |        100 |    127.35137 |      65.0814 | 2026-04-30 16:00:00
+     789 | SESI-SEDE                |        100 |    117.79114 |     49.38374 | 2026-04-30 16:00:00
+(5 rows)
+
+ link_id |           name           | banda_mbps | download_raw |        timestamp        
+---------+--------------------------+------------+--------------+-------------------------
+    1062 | PETROX_13===FIOG08009D7D |        100 |    3252.3738 | 2026-04-30 17:24:30.417
+    1062 | PETROX_13===FIOG08009D7D |        100 |    2972.7395 | 2026-04-30 17:10:55.59
+    1062 | PETROX_13===FIOG08009D7D |        100 |    2969.5942 | 2026-04-30 17:31:30.63
+    1062 | PETROX_13===FIOG08009D7D |        100 |     2968.745 | 2026-04-30 18:37:41.026
+    1062 | PETROX_13===FIOG08009D7D |        100 |    2965.7073 | 2026-04-30 19:13:45.174
+(5 rows)
+
+root@link-monitor:/opt/link-monitor# 
