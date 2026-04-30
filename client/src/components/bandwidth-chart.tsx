@@ -15,7 +15,53 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// ── Utilitários de suavização e detecção de gaps ──────────────────────────────
+// ── Utilitários de timeline, suavização e detecção de gaps ───────────────────
+
+/**
+ * Escolhe o formato de tick/tooltip de acordo com a duração da janela.
+ * - até 36h  → "HH:mm"          (1h, 6h, 24h)
+ * - 36h–14d  → "dd/MM HH:mm"    (7d, 30d "curto")
+ * - >14d     → "dd/MM"          (30d, personalizados longos)
+ */
+function pickTickFormat(spanMs: number): string {
+  if (spanMs <= 36 * 3600_000) return "HH:mm";
+  if (spanMs <= 14 * 24 * 3600_000) return "dd/MM HH:mm";
+  return "dd/MM";
+}
+
+/** Formato do tooltip — sempre mais detalhado que o tick. */
+function pickTooltipFormat(spanMs: number): string {
+  if (spanMs <= 36 * 3600_000) return "dd/MM HH:mm";
+  return "dd/MM/yy HH:mm";
+}
+
+/** Soma dos extremos: span coberto pelos pontos. */
+function getSpanMs(items: Array<{ tsNum?: number; timestamp?: string }>): number {
+  if (!items.length) return 0;
+  const first = items[0];
+  const last = items[items.length - 1];
+  const a = first.tsNum ?? (first.timestamp ? new Date(first.timestamp).getTime() : 0);
+  const b = last.tsNum ?? (last.timestamp ? new Date(last.timestamp).getTime() : 0);
+  return Math.max(b - a, 0);
+}
+
+/** Número razoável de ticks no eixo X em função da largura/duração. */
+function pickTickCount(spanMs: number): number {
+  if (spanMs <= 6 * 3600_000) return 6;
+  if (spanMs <= 24 * 3600_000) return 8;
+  if (spanMs <= 7 * 24 * 3600_000) return 7;   // 1 tick / dia
+  return 6;                                     // 30d → ~1 tick / 5 dias
+}
+
+/** Janela de suavização proporcional ao volume — evita gráfico "peludo" em janelas longas. */
+function pickSmoothingWindow(n: number): number {
+  if (n > 5000) return 31;
+  if (n > 2000) return 21;
+  if (n > 800) return 11;
+  if (n > 200) return 5;
+  if (n > 60) return 3;
+  return 1;
+}
 
 /** Retorna a mediana dos gaps entre timestamps consecutivos (em ms). */
 function getExpectedGapMs(items: Array<{ timestamp: string }>): number {
@@ -81,8 +127,8 @@ export function BandwidthChart({
       const rawDls = filtered.map(it => shouldInvert ? (it.upload ?? 0) : (it.download ?? 0));
       const rawUls = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
 
-      // Média móvel: janela 5 quando há muitos pontos, senão 3
-      const win = filtered.length > 200 ? 5 : filtered.length > 60 ? 3 : 1;
+      // Média móvel: janela proporcional ao volume — evita "ruído" em 7d/30d
+      const win = pickSmoothingWindow(filtered.length);
       const smoothDls = win > 1 ? smoothValues(rawDls, win) : rawDls;
       const smoothUls = win > 1 ? smoothValues(rawUls, win) : rawUls;
 
@@ -183,6 +229,12 @@ export function BandwidthChart({
   const yAxisWidth = 60;
   const chartMarginLR = 10;
 
+  // Span da janela e formatos derivados
+  const spanMs = getSpanMs(chartData);
+  const tickFmt = pickTickFormat(spanMs);
+  const tooltipFmt = pickTooltipFormat(spanMs);
+  const tickCount = pickTickCount(spanMs);
+
   const chart = (
     <ResponsiveContainer width="100%" height={showAxes ? chartH : height}>
       <AreaChart data={chartData} margin={{ top: 4, right: chartMarginLR, left: chartMarginLR, bottom: 4 }}>
@@ -212,9 +264,10 @@ export function BandwidthChart({
               scale="time"
               domain={['dataMin', 'dataMax']}
               tickFormatter={(ts: number) => {
-                try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return ""; }
+                try { return format(new Date(ts), tickFmt, { locale: ptBR }); } catch { return ""; }
               }}
-              tickCount={7}
+              tickCount={tickCount}
+              minTickGap={40}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -237,7 +290,7 @@ export function BandwidthChart({
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
           labelFormatter={(ts: number) => {
-            try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return String(ts); }
+            try { return format(new Date(ts), tooltipFmt, { locale: ptBR }); } catch { return String(ts); }
           }}
           formatter={(value, name: string) => {
             if (value === null || value === undefined) return [null, null];
@@ -310,6 +363,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
       const filtered = data.filter((item) => item && item.timestamp);
       const result: Array<{
         time: string;
+        tsNum: number;
         threshold: number;
         latency: number | null;
         latencyDown: number | null;
@@ -325,13 +379,16 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
           
-          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const d = new Date(item.timestamp);
+          const time = format(d, "HH:mm", { locale: ptBR });
+          const tsNum = d.getTime();
           const lat = item.latency ?? 0;
           
           // Se mudou de status, adicionar ponto de transição
           if (prevItem && isDown !== wasDown) {
             result.push({
               time,
+              tsNum,
               threshold,
               latency: lat,
               latencyDown: lat,
@@ -339,6 +396,7 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           } else {
             result.push({
               time,
+              tsNum,
               threshold,
               latency: isDown ? null : lat,
               latencyDown: isDown ? lat : null,
@@ -366,6 +424,11 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
     );
   }
 
+  const latSpan = getSpanMs(chartData);
+  const latTickFmt = pickTickFormat(latSpan);
+  const latTooltipFmt = pickTooltipFormat(latSpan);
+  const latTickCount = pickTickCount(latSpan);
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
@@ -380,7 +443,15 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           </linearGradient>
         </defs>
         <XAxis
-          dataKey="time"
+          dataKey="tsNum"
+          type="number"
+          scale="time"
+          domain={['dataMin', 'dataMax']}
+          tickCount={latTickCount}
+          minTickGap={40}
+          tickFormatter={(ts: number) => {
+            try { return format(new Date(ts), latTickFmt, { locale: ptBR }); } catch { return ""; }
+          }}
           axisLine={false}
           tickLine={false}
           tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -400,6 +471,9 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
+          labelFormatter={(ts: number) => {
+            try { return format(new Date(ts), latTooltipFmt, { locale: ptBR }); } catch { return String(ts); }
+          }}
           formatter={(value, name: string) => {
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
@@ -457,6 +531,7 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
       const filtered = data.filter((item) => item && item.timestamp);
       const result: Array<{
         time: string;
+        tsNum: number;
         threshold: number;
         packetLoss: number | null;
         packetLossDown: number | null;
@@ -472,12 +547,15 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
           
-          const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
+          const d = new Date(item.timestamp);
+          const time = format(d, "HH:mm", { locale: ptBR });
+          const tsNum = d.getTime();
           const loss = item.packetLoss;
           
           if (loss === null || loss === undefined) {
             result.push({
               time,
+              tsNum,
               threshold,
               packetLoss: null,
               packetLossDown: null,
@@ -485,6 +563,7 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           } else if (prevItem && isDown !== wasDown) {
             result.push({
               time,
+              tsNum,
               threshold,
               packetLoss: loss,
               packetLossDown: loss,
@@ -492,6 +571,7 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           } else {
             result.push({
               time,
+              tsNum,
               threshold,
               packetLoss: isDown ? null : loss,
               packetLossDown: isDown ? loss : null,
@@ -519,6 +599,11 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
     );
   }
 
+  const lossSpan = getSpanMs(chartData);
+  const lossTickFmt = pickTickFormat(lossSpan);
+  const lossTooltipFmt = pickTooltipFormat(lossSpan);
+  const lossTickCount = pickTickCount(lossSpan);
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
@@ -533,7 +618,15 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           </linearGradient>
         </defs>
         <XAxis
-          dataKey="time"
+          dataKey="tsNum"
+          type="number"
+          scale="time"
+          domain={['dataMin', 'dataMax']}
+          tickCount={lossTickCount}
+          minTickGap={40}
+          tickFormatter={(ts: number) => {
+            try { return format(new Date(ts), lossTickFmt, { locale: ptBR }); } catch { return ""; }
+          }}
           axisLine={false}
           tickLine={false}
           tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -553,6 +646,9 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
             fontSize: "12px",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
+          labelFormatter={(ts: number) => {
+            try { return format(new Date(ts), lossTooltipFmt, { locale: ptBR }); } catch { return String(ts); }
+          }}
           formatter={(value, name: string) => {
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
@@ -640,7 +736,7 @@ export function UnifiedMetricsChart({
       const rawUls     = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
       const rawLats    = filtered.map(it => it.latency ?? 0);
 
-      const win = filtered.length > 200 ? 5 : filtered.length > 60 ? 3 : 1;
+      const win = pickSmoothingWindow(filtered.length);
       const smoothDls  = win > 1 ? smoothValues(rawDls,  win) : rawDls;
       const smoothUls  = win > 1 ? smoothValues(rawUls,  win) : rawUls;
       const smoothLats = win > 1 ? smoothValues(rawLats, win) : rawLats;
@@ -746,6 +842,12 @@ export function UnifiedMetricsChart({
   const availabilityBarHeight = 8;
   const mainChartHeight = height - availabilityBarHeight - 4;
 
+  // Span da janela e formatos derivados
+  const spanMs = getSpanMs(chartData);
+  const tickFmt = pickTickFormat(spanMs);
+  const tooltipFmt = pickTooltipFormat(spanMs);
+  const tickCount = pickTickCount(spanMs);
+
   return (
     <div className="w-full flex flex-col">
       {/* Gráfico principal */}
@@ -772,9 +874,10 @@ export function UnifiedMetricsChart({
               scale="time"
               domain={['dataMin', 'dataMax']}
               tickFormatter={(ts: number) => {
-                try { return format(new Date(ts), "HH:mm", { locale: ptBR }); } catch { return ""; }
+                try { return format(new Date(ts), tickFmt, { locale: ptBR }); } catch { return ""; }
               }}
-              tickCount={7}
+              tickCount={tickCount}
+              minTickGap={40}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
@@ -821,7 +924,7 @@ export function UnifiedMetricsChart({
                 return [null, null];
               }}
               labelFormatter={(ts: number) => {
-                try { return `Horário: ${format(new Date(ts), "HH:mm", { locale: ptBR })}`; } catch { return `Horário: ${ts}`; }
+                try { return `Horário: ${format(new Date(ts), tooltipFmt, { locale: ptBR })}`; } catch { return `Horário: ${ts}`; }
               }}
             />
             
