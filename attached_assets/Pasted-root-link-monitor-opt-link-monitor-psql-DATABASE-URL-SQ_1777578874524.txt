@@ -1,0 +1,140 @@
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" <<'SQL'
+BEGIN;
+
+DELETE FROM metrics_hourly mh USING links l
+WHERE l.id = mh.link_id
+  AND (mh.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                              THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+    OR mh.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                              THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END);
+
+DELETE FROM metrics_daily md USING links l
+WHERE l.id = md.link_id
+  AND (md.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                              THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+    OR md.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                              THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END);
+
+UPDATE metrics m SET download = 0 FROM links l
+WHERE l.id = m.link_id
+  AND m.download > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                        THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0;
+
+UPDATE metrics m SET upload = 0 FROM links l
+WHERE l.id = m.link_id
+  AND m.upload > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+                      THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0;
+
+-- Verificação: deve mostrar 0 outliers em todas as tabelas
+SELECT 'hourly restantes' AS info, COUNT(*) AS n FROM metrics_hourly mh JOIN links l ON l.id=mh.link_id
+WHERE mh.download_max > CASE WHEN l.bandwidth>0 THEN GREATEST(l.bandwidth*5,200) ELSE 30000 END
+   OR mh.upload_max   > CASE WHEN l.bandwidth>0 THEN GREATEST(l.bandwidth*5,200) ELSE 30000 END;
+
+SELECT 'daily restantes' AS info, COUNT(*) AS n FROM metrics_daily md JOIN links l ON l.id=md.link_id
+WHERE md.download_max > CASE WHEN l.bandwidth>0 THEN GREATEST(l.bandwidth*5,200) ELSE 30000 END
+   OR md.upload_max   > CASE WHEN l.bandwidth>0 THEN GREATEST(l.bandwidth*5,200) ELSE 30000 END;
+
+COMMIT;
+SQL
+BEGIN
+DELETE 3849
+DELETE 692
+UPDATE 2
+UPDATE 2
+       info       | n 
+------------------+---
+ hourly restantes | 0
+(1 row)
+
+      info       | n 
+-----------------+---
+ daily restantes | 0
+(1 row)
+
+COMMIT
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" -f scripts/rebuild-aggregates.sql
+BEGIN
+DELETE 208265
+INSERT 0 209093
+DELETE 9884
+INSERT 0 9981
+                info                 | total  |        desde        |         ate         
+-------------------------------------+--------+---------------------+---------------------
+ metrics_hourly buckets (últimos 7d) | 209093 | 2026-04-23 16:00:00 | 2026-04-30 15:00:00
+(1 row)
+
+                info                | total |        desde        |         ate         
+------------------------------------+-------+---------------------+---------------------
+ metrics_daily buckets (últimos 8d) |  9981 | 2026-04-22 00:00:00 | 2026-04-29 00:00:00
+(1 row)
+
+              info              | dup_pares 
+--------------------------------+-----------
+ duplicatas hourly (últimos 7d) |         0
+(1 row)
+
+COMMIT
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor && git pull
+psql "$DATABASE_URL" -f scripts/cleanup-outlier-metrics-apply.sql
+psql "$DATABASE_URL" -f scripts/rebuild-aggregates.sql
+remote: Enumerating objects: 17, done.
+remote: Counting objects: 100% (17/17), done.
+remote: Compressing objects: 100% (4/4), done.
+remote: Total 14 (delta 10), reused 14 (delta 10), pack-reused 0 (from 0)
+Unpacking objects: 100% (14/14), 6.24 KiB | 54.00 KiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   8244128..8e7313c  main       -> origin/main
+Updating 8244128..8e7313c
+Fast-forward
+ attached_assets/Pasted-BEGIN-info-total-unicos-duplicatas--1777578572661_1777578572661.txt       | 84 ++++++++++++++++++++++++++++++++++++++++++++++
+ attached_assets/Pasted-root-link-monitor-opt-link-monitor-1-Push-do-c-digo-nov_1777578468639.txt | 94 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ attached_assets/Pasted-root-link-monitor-opt-link-monitor-cd-opt-link-monitor-_1777578665140.txt | 38 +++++++++++++++++++++
+ scripts/cleanup-outlier-metrics-apply.sql                                                        | 66 ++++++++++++++++++++++++++++++++++++
+ 4 files changed, 282 insertions(+)
+ create mode 100644 attached_assets/Pasted-BEGIN-info-total-unicos-duplicatas--1777578572661_1777578572661.txt
+ create mode 100644 attached_assets/Pasted-root-link-monitor-opt-link-monitor-1-Push-do-c-digo-nov_1777578468639.txt
+ create mode 100644 attached_assets/Pasted-root-link-monitor-opt-link-monitor-cd-opt-link-monitor-_1777578665140.txt
+ create mode 100644 scripts/cleanup-outlier-metrics-apply.sql
+BEGIN
+DELETE 828
+DELETE 89
+UPDATE 0
+UPDATE 0
+           info            | n 
+---------------------------+---
+ hourly outliers restantes | 0
+(1 row)
+
+           info           | n 
+--------------------------+---
+ daily outliers restantes | 0
+(1 row)
+
+          info          | n 
+------------------------+---
+ raw outliers restantes | 0
+(1 row)
+
+COMMIT
+BEGIN
+DELETE 208265
+INSERT 0 209093
+DELETE 9892
+INSERT 0 9981
+                info                 | total  |        desde        |         ate         
+-------------------------------------+--------+---------------------+---------------------
+ metrics_hourly buckets (últimos 7d) | 209093 | 2026-04-23 16:00:00 | 2026-04-30 15:00:00
+(1 row)
+
+                info                | total |        desde        |         ate         
+------------------------------------+-------+---------------------+---------------------
+ metrics_daily buckets (últimos 8d) |  9981 | 2026-04-22 00:00:00 | 2026-04-29 00:00:00
+(1 row)
+
+              info              | dup_pares 
+--------------------------------+-----------
+ duplicatas hourly (últimos 7d) |         0
+(1 row)
+
+COMMIT
+root@link-monitor:/opt/link-monitor# 
