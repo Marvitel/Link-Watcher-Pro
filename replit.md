@@ -59,12 +59,32 @@ O campo `links.uptime` (atualizado por `processLinkMetrics` com +0.001/-0.01 a c
 
 **Disponibilidade por link (`availability30d`)**: para garantir que o mesmo link mostre o mesmo número em qualquer tela (lista de cards, dashboard agregado, página de detalhe), os endpoints `GET /api/links`, `GET /api/links/:id` e `GET /api/super-admin/link-dashboard` enriquecem cada link com o campo `availability30d` calculado por `storage.getAvailabilityByLink()` — uma única query agregada `GROUP BY link_id` sobre `metrics` nos últimos 30 dias, retornando `(operacional / total) × 100`. Os componentes `CompactLinkCard`, `LinkCard`, `SuperAdminLinkCard` e o card "Uptime" do `link-detail` usam `availability30d ?? link.uptime` (fallback para o contador instantâneo apenas quando ainda não há métricas no período). O SLA acumulado de 6 meses (`slaDE`) continua sendo usado em relatórios e na seção de indicadores SLA da página de detalhe.
 
-### Eixo X dos gráficos de métricas (Banda/Latência/Perda)
-`client/src/components/bandwidth-chart.tsx` exporta os utilitários `getSpanMs`, `pickTickFormat`, `pickTooltipFormat`, `pickSmoothingWindow` e `generateTimeTicks(spanMs, firstTs, lastTs)`. Todos os XAxis (BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart) usam `dataKey="tsNum"` + `type="number"` + `scale="time"` e recebem **ticks controlados** via `ticks={generateTimeTicks(...)}` + `interval={0}` — assim a quantidade e o passo do eixo X ficam determinísticos:
+### Gráficos de métricas (Banda/Latência/Perda) — padrão MRTG/Cacti
+**Utilitários compartilhados (`client/src/lib/chart-time.ts`)**: `getSpanMs`, `pickTickFormat`, `pickTooltipFormat`, `getExpectedGapMs` e `generateTimeTicks(spanMs, firstTs, lastTs)`. Todos os componentes que renderizam séries temporais (`BandwidthChart`, `LatencyChart`, `PacketLossChart`, `UnifiedMetricsChart` em `bandwidth-chart.tsx` e `MultiTrafficChart` em `multi-traffic-chart.tsx`) importam desse módulo único — não há mais reexport entre componentes.
+
+**Eixo X determinístico**: todos os XAxis usam `dataKey="tsNum"` + `type="number"` + `scale="time"` e recebem **ticks controlados** via `ticks={generateTimeTicks(...)}` + `interval={0}`:
 - ≤36h → ticks alinhados a hora cheia (passo 0,25/1/2/3/6h), formato `HH:mm`
 - >36h → ticks alinhados a 00:00 do dia (passo 1/2/4/7/14 dias), formato `dd/MM`
 
-A suavização aplicada nos valores também é proporcional ao volume (janela 1→3→5→11→21→31). Tooltip mostra a data completa via `pickTooltipFormat`.
+Tooltip mostra a data completa via `pickTooltipFormat`.
+
+**Backend agregado retorna MAX + AVG**: em `server/storage.ts`, `getLinkMetrics()` consulta:
+- `<7d` → tabela `metrics` (raw, 1 amostra por minuto)
+- `≥7d` → `metrics_hourly` (1 ponto/hora)
+- `≥30d` → `metrics_daily` (1 ponto/dia)
+- Fallback raw-bucket: se hourly/daily ainda não tem pontos suficientes (≥30%/50% do esperado, ex.: jobs de agregação atrasaram), agrega `metrics` em buckets dinâmicos no servidor.
+
+Em **todas** as janelas ≥7d (incluindo o fallback raw-bucket), o backend mapeia a linha principal para `*Max` (download/upload/latency/packetLoss = pico real do bucket — ninguém esconde mais o ataque DDoS de 5min na média de 1h) e anexa os campos opcionais `downloadAvg`, `uploadAvg`, `latencyAvg`, `packetLossAvg`, `isAggregated: true`, `aggregationLevel: "hourly"|"daily"|"raw-bucket"`. O tipo `MetricWithAggregates` em `shared/schema.ts` modela esses campos extras (estende `Metric`). A assinatura é `Promise<MetricWithAggregates[]>` e clientes legados continuam funcionando porque os campos novos são opcionais.
+
+**Atenção sobre `hoursSpan`**: o cálculo de quantos pontos esperar (`expectedDailyPoints`/`expectedHourlyPoints`) usa a janela REAL `[startDate, endDate ?? now]` — em ranges históricos personalizados (ex.: "1ª semana de janeiro"), usar `now` em vez de `endDate` daria meses de span e levaria a query a rejeitar agregados válidos achando que faltam pontos.
+
+**Frontend MRTG-style**: quando `isAggregated`, os componentes desenham **duas Areas/Lines empilhadas**:
+1. AVG ao fundo (gradient com opacidade ~0.55, `strokeWidth={1}`) — mostra o regime médio
+2. MAX por cima (cor sólida normal) — destaca o pico/pior caso
+
+Tooltip nesses casos exibe "X (pico)" e "Y (médio)" lado a lado. Em janelas raw (<7d) só desenha a série única. **Não há mais suavização (média móvel) aplicada no frontend** — o que vem do banco é o que o usuário vê, garantindo fidelidade tipo Cacti/Grafana.
+
+**Propagação dos campos**: `client/src/pages/link-detail.tsx` tipifica a query como `MetricWithAggregates[]` e propaga `downloadAvg`/`uploadAvg`/`latencyAvg`/`packetLossAvg`/`isAggregated` ao remapear `sortedMetrics` em `bandwidthData`/`latencyData`/`packetLossData`/`unifiedData` — sem essa propagação os campos eram silenciosamente descartados na transformação para os charts.
 
 ### Voalle Webhook Processing
 The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, creating/updating/soft-deleting links, mapping contract statuses, and enriching data via Portal and OZmap APIs. It adjusts monitoring based on link status.

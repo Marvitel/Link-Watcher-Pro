@@ -9,6 +9,12 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  pickTickFormat,
+  pickTooltipFormat,
+  getSpanMs,
+  generateTimeTicks,
+} from "@/lib/chart-time";
 
 interface TrafficInterfaceConfig {
   id: number;
@@ -132,16 +138,17 @@ export function MultiTrafficChart({
     };
     
     const result = filtered.map((item) => {
-      const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
       const mainTs = new Date(item.timestamp).getTime();
+      const time = format(new Date(item.timestamp), "HH:mm", { locale: ptBR });
       const rawDl = item.download ?? 0;
       const rawUl = item.upload ?? 0;
       const shouldInvert = !invertMainBandwidth;
       const dl = shouldInvert ? rawUl : rawDl;
       const ul = shouldInvert ? rawDl : rawUl;
-      
+
       const point: Record<string, unknown> = {
         time,
+        tsNum: mainTs,
         timestamp: item.timestamp,
         main_download: dl,
         main_upload: ul,
@@ -301,6 +308,16 @@ export function MultiTrafficChart({
     return gradients;
   };
 
+  // Eixo X com escala de tempo determinística (estilo Cacti/MRTG):
+  // ticks alinhados a hora cheia (≤36h) ou 00:00 do dia (>36h) — evita rótulos
+  // sobrepostos em janelas de 7d/30d quando há interfaces adicionais.
+  const spanMs = getSpanMs(chartData as Array<{ tsNum?: number; timestamp?: string }>);
+  const tickFmt = pickTickFormat(spanMs);
+  const tooltipFmt = pickTooltipFormat(spanMs);
+  const firstTs = (chartData[0]?.tsNum as number) ?? 0;
+  const lastTs = (chartData[chartData.length - 1]?.tsNum as number) ?? 0;
+  const xTicks = generateTimeTicks(spanMs, firstTs, lastTs);
+
   return (
     <div className="flex flex-col" data-testid="multi-traffic-chart">
       <ResponsiveContainer width="100%" height={height}>
@@ -309,11 +326,19 @@ export function MultiTrafficChart({
             {renderGradients()}
           </defs>
           <XAxis
-            dataKey="time"
+            dataKey="tsNum"
+            type="number"
+            scale="time"
+            domain={['dataMin', 'dataMax']}
+            ticks={xTicks}
+            interval={0}
+            minTickGap={40}
+            tickFormatter={(ts: number) => {
+              try { return format(new Date(ts), tickFmt, { locale: ptBR }); } catch { return ""; }
+            }}
             axisLine={false}
             tickLine={false}
             tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            interval="preserveStartEnd"
           />
           <YAxis
             axisLine={false}
@@ -337,17 +362,25 @@ export function MultiTrafficChart({
             formatter={(value, name: string) => {
               if (value === null || value === undefined) return [null, null];
               const numVal = typeof value === 'number' ? value : 0;
-              const formattedValue = numVal >= 1000 
-                ? `${(numVal / 1000).toFixed(2)} Gbps` 
+              const formattedValue = numVal >= 1000
+                ? `${(numVal / 1000).toFixed(2)} Gbps`
                 : `${numVal.toFixed(1)} Mbps`;
-              
+
               const parts = name.split(" (");
               const label = parts[0];
               const type = parts[1]?.replace(")", "") || "";
-              
+
               return [formattedValue, `${label} ${type}`];
             }}
-            labelFormatter={(label) => `Horário: ${label}`}
+            labelFormatter={(ts) => {
+              try {
+                const tsNum = typeof ts === "number" ? ts : Number(ts);
+                if (Number.isFinite(tsNum)) {
+                  return `Horário: ${format(new Date(tsNum), tooltipFmt, { locale: ptBR })}`;
+                }
+              } catch {}
+              return `Horário: ${ts}`;
+            }}
           />
           {renderAreas()}
         </AreaChart>

@@ -145,6 +145,7 @@ import {
   type InsertAiAnalystRule,
   type LinkPendingItem,
   type InsertLinkPendingItem,
+  type MetricWithAggregates,
 } from "@shared/schema";
 import { db } from "./db";
 import { startRealTimeMonitoring } from "./monitoring";
@@ -471,7 +472,7 @@ export class DatabaseStorage {
     await db.delete(hosts).where(eq(hosts.id, id));
   }
 
-  async getLinkMetrics(linkId: number, limit?: number, hours?: number, fromDate?: Date, toDate?: Date): Promise<Metric[]> {
+  async getLinkMetrics(linkId: number, limit?: number, hours?: number, fromDate?: Date, toDate?: Date): Promise<MetricWithAggregates[]> {
     let startDate: Date;
     let endDate: Date | undefined;
     
@@ -486,8 +487,14 @@ export class DatabaseStorage {
       startDate.setMonth(startDate.getMonth() - 6);
     }
     
+    // Span calculado sobre a janela REAL [startDate, endDate ?? now] — para
+    // ranges históricos personalizados (ex.: 1ª semana de janeiro), `now` daria
+    // meses de span e empurraria a query para o ramo daily inflando
+    // `expectedDailyPoints`/`expectedHourlyPoints`, fazendo a checagem de "pontos
+    // suficientes" rejeitar agregados válidos e cair no fallback raw.
     const now = new Date();
-    const hoursSpan = (now.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    const spanEnd = endDate ?? now;
+    const hoursSpan = (spanEnd.getTime() - startDate.getTime()) / (1000 * 60 * 60);
     
     // Mínimo de pontos esperados para considerar dados agregados suficientes
     const expectedDailyPoints = Math.ceil(hoursSpan / 24);
@@ -505,6 +512,7 @@ export class DatabaseStorage {
       
       // Usar dados diários somente se tiver pelo menos 50% dos pontos esperados
       if (dailyData.length >= expectedDailyPoints * 0.5) {
+        // Padrão MRTG/Cacti: linha principal = MAX (pico real), banda secundária = AVG.
         return dailyData.map(d => {
           const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
           const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
@@ -514,16 +522,22 @@ export class DatabaseStorage {
             linkId: d.linkId,
             clientId: d.clientId,
             timestamp: d.bucketStart,
-            download: d.downloadAvg,
-            upload: d.uploadAvg,
-            latency: d.latencyAvg,
-            packetLoss: d.packetLossAvg,
+            download: d.downloadMax,
+            upload: d.uploadMax,
+            latency: d.latencyMax,
+            packetLoss: d.packetLossMax,
             cpuUsage: d.cpuUsageAvg,
             memoryUsage: d.memoryUsageAvg,
             errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
             status: dominantStatus,
+            downloadAvg: d.downloadAvg,
+            uploadAvg: d.uploadAvg,
+            latencyAvg: d.latencyAvg,
+            packetLossAvg: d.packetLossAvg,
+            isAggregated: true,
+            aggregationLevel: "daily" as const,
           };
-        });
+        }) as unknown as MetricWithAggregates[];
       }
     }
     
@@ -539,6 +553,7 @@ export class DatabaseStorage {
       
       // Usar dados horários somente se tiver pelo menos 30% dos pontos esperados
       if (hourlyData.length >= expectedHourlyPoints * 0.3) {
+        // Padrão MRTG/Cacti: linha principal = MAX (pico real), banda secundária = AVG.
         return hourlyData.map(d => {
           const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
           const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
@@ -548,16 +563,22 @@ export class DatabaseStorage {
             linkId: d.linkId,
             clientId: d.clientId,
             timestamp: d.bucketStart,
-            download: d.downloadAvg,
-            upload: d.uploadAvg,
-            latency: d.latencyAvg,
-            packetLoss: d.packetLossAvg,
+            download: d.downloadMax,
+            upload: d.uploadMax,
+            latency: d.latencyMax,
+            packetLoss: d.packetLossMax,
             cpuUsage: d.cpuUsageAvg,
             memoryUsage: d.memoryUsageAvg,
             errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
             status: dominantStatus,
+            downloadAvg: d.downloadAvg,
+            uploadAvg: d.uploadAvg,
+            latencyAvg: d.latencyAvg,
+            packetLossAvg: d.packetLossAvg,
+            isAggregated: true,
+            aggregationLevel: "hourly" as const,
           };
-        });
+        }) as unknown as MetricWithAggregates[];
       }
     }
     
@@ -633,23 +654,58 @@ export class DatabaseStorage {
     }
 
     const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+    const max = (arr: number[]) => arr.length ? Math.max(...arr) : null;
+
+    // Padrão MRTG/Cacti: em janelas que entram aqui como fallback (>=7d, quando
+    // jobs de agregação atrasaram ou ainda não rodaram), também devolvemos o
+    // pico (MAX) como linha principal e a média no campo *Avg, para que o
+    // gráfico desenhe a banda secundária e os picos não sumam.
+    const useMaxAsPrimary = hoursSpan >= 24 * 7;
 
     return [...bucketMap.values()]
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .map((b) => ({
-        ...b.first,
-        timestamp: b.timestamp,
-        download:          avg(b.download),
-        upload:            avg(b.upload),
-        latency:           avg(b.latency),
-        packetLoss:        avg(b.packetLoss),
-        cpuUsage:          avg(b.cpuUsage),
-        memoryUsage:       avg(b.memoryUsage),
-        opticalRxPower:    avg(b.opticalRxPower),
-        opticalTxPower:    avg(b.opticalTxPower),
-        opticalOltRxPower: avg(b.opticalOltRxPower),
-        status:            b.status,
-      }));
+      .map((b) => {
+        const dlAvg = avg(b.download);
+        const ulAvg = avg(b.upload);
+        const latAvg = avg(b.latency);
+        const lossAvg = avg(b.packetLoss);
+        const dlMax = max(b.download);
+        const ulMax = max(b.upload);
+        const latMax = max(b.latency);
+        const lossMax = max(b.packetLoss);
+        const base = {
+          ...b.first,
+          timestamp: b.timestamp,
+          cpuUsage:          avg(b.cpuUsage),
+          memoryUsage:       avg(b.memoryUsage),
+          opticalRxPower:    avg(b.opticalRxPower),
+          opticalTxPower:    avg(b.opticalTxPower),
+          opticalOltRxPower: avg(b.opticalOltRxPower),
+          status:            b.status,
+        };
+        if (useMaxAsPrimary) {
+          return {
+            ...base,
+            download:      dlMax,
+            upload:        ulMax,
+            latency:       latMax,
+            packetLoss:    lossMax,
+            downloadAvg:   dlAvg,
+            uploadAvg:     ulAvg,
+            latencyAvg:    latAvg,
+            packetLossAvg: lossAvg,
+            isAggregated:  true,
+            aggregationLevel: "raw-bucket" as const,
+          };
+        }
+        return {
+          ...base,
+          download:   dlAvg,
+          upload:     ulAvg,
+          latency:    latAvg,
+          packetLoss: lossAvg,
+        };
+      }) as unknown as MetricWithAggregates[];
   }
 
   async getLinkEvents(linkId: number): Promise<(Event & { linkName?: string | null })[]> {

@@ -1068,6 +1068,21 @@ export type Host = typeof hosts.$inferSelect;
 export type Metric = typeof metrics.$inferSelect;
 export type MetricHourly = typeof metricsHourly.$inferSelect;
 export type MetricDaily = typeof metricsDaily.$inferSelect;
+
+/**
+ * Métrica enriquecida retornada pelo backend para janelas agregadas (>=7d hourly, >=30d daily).
+ * Linha principal (download/upload/latency/packetLoss) já vem como MAX (pico real do bucket),
+ * e os campos *Avg trazem a média do mesmo bucket — para o frontend desenhar o padrão MRTG/Cacti
+ * (linha de pico em destaque + banda de média ao fundo).
+ */
+export type MetricWithAggregates = Metric & {
+  downloadAvg?: number;
+  uploadAvg?: number;
+  latencyAvg?: number;
+  packetLossAvg?: number;
+  isAggregated?: boolean;
+  aggregationLevel?: "hourly" | "daily" | "raw-bucket";
+};
 export type Event = typeof events.$inferSelect;
 export type DDoSEvent = typeof ddosEvents.$inferSelect;
 export type Incident = typeof incidents.$inferSelect;

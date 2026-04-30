@@ -14,136 +14,19 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  pickTickFormat,
+  pickTooltipFormat,
+  getSpanMs,
+  generateTimeTicks,
+  getExpectedGapMs,
+} from "@/lib/chart-time";
 
-// ── Utilitários de timeline, suavização e detecção de gaps ───────────────────
-
-/**
- * Escolhe o formato de tick/tooltip de acordo com a duração da janela.
- * - até 36h → "HH:mm"   (1h, 6h, 24h)
- * - >36h    → "dd/MM"   (7d, 30d, personalizados longos)
- *
- * Observação: para janelas multi-dia o detalhe de hora no rótulo do eixo X só
- * polui visualmente — o usuário pega a hora exata pelo tooltip ao passar o mouse.
- */
-function pickTickFormat(spanMs: number): string {
-  if (spanMs <= 36 * 3600_000) return "HH:mm";
-  return "dd/MM";
-}
-
-/** Formato do tooltip — sempre mais detalhado que o tick. */
-function pickTooltipFormat(spanMs: number): string {
-  if (spanMs <= 36 * 3600_000) return "dd/MM HH:mm";
-  return "dd/MM/yy HH:mm";
-}
-
-/** Soma dos extremos: span coberto pelos pontos. */
-function getSpanMs(items: Array<{ tsNum?: number; timestamp?: string }>): number {
-  if (!items.length) return 0;
-  const first = items[0];
-  const last = items[items.length - 1];
-  const a = first.tsNum ?? (first.timestamp ? new Date(first.timestamp).getTime() : 0);
-  const b = last.tsNum ?? (last.timestamp ? new Date(last.timestamp).getTime() : 0);
-  return Math.max(b - a, 0);
-}
-
-/** Número razoável de ticks no eixo X em função da duração. */
-function pickTickCount(spanMs: number): number {
-  if (spanMs <= 6 * 3600_000) return 6;
-  if (spanMs <= 24 * 3600_000) return 8;
-  if (spanMs <= 7 * 24 * 3600_000) return 8;   // 7d → ~1 tick / dia
-  if (spanMs <= 31 * 24 * 3600_000) return 8;  // 30d → ~1 tick / 4 dias
-  return 7;                                     // janelas maiores
-}
-
-/**
- * Calcula gerador de ticks "redondos" no tempo (00:00 do dia, ou hora cheia).
- * Necessário porque, com `tickCount` em time scale, o Recharts às vezes
- * ignora o hint e gera muitos ticks sub-diários, poluindo o eixo.
- *
- * - até 36h → ticks a cada 1/2/3/6 horas
- * - >36h    → ticks alinhados a 00:00 do dia (1, 2, 4 ou 7 dias de passo)
- */
-function generateTimeTicks(spanMs: number, firstTs: number, lastTs: number): number[] {
-  if (lastTs <= firstTs) return [firstTs];
-  const ticks: number[] = [];
-  const ONE_HOUR = 3600_000;
-  const ONE_DAY = 24 * ONE_HOUR;
-
-  if (spanMs <= 36 * ONE_HOUR) {
-    // Modo "horas": passo escolhido para gerar ~6-8 ticks
-    const stepHours =
-      spanMs <= 1 * ONE_HOUR ? 0.25
-      : spanMs <= 6 * ONE_HOUR ? 1
-      : spanMs <= 12 * ONE_HOUR ? 2
-      : spanMs <= 24 * ONE_HOUR ? 3
-      : 6;
-    const stepMs = stepHours * ONE_HOUR;
-    // Alinha o primeiro tick à hora cheia >= firstTs
-    const d = new Date(firstTs);
-    d.setMinutes(0, 0, 0);
-    let t = d.getTime();
-    while (t < firstTs) t += stepMs;
-    while (t <= lastTs) {
-      ticks.push(t);
-      t += stepMs;
-    }
-  } else {
-    // Modo "dias": passo de 1 / 2 / 4 / 7 dias para manter ~6-8 ticks
-    const days = spanMs / ONE_DAY;
-    const stepDays =
-      days <= 8 ? 1
-      : days <= 16 ? 2
-      : days <= 32 ? 4
-      : days <= 64 ? 7
-      : 14;
-    // Alinha o primeiro tick a 00:00 do próximo dia >= firstTs
-    const d = new Date(firstTs);
-    d.setHours(0, 0, 0, 0);
-    let t = d.getTime();
-    const stepMs = stepDays * ONE_DAY;
-    while (t < firstTs) t += ONE_DAY;
-    while (t <= lastTs) {
-      ticks.push(t);
-      t += stepMs;
-    }
-  }
-  return ticks.length ? ticks : [firstTs, lastTs];
-}
-
-/** Janela de suavização proporcional ao volume — evita gráfico "peludo" em janelas longas. */
-function pickSmoothingWindow(n: number): number {
-  if (n > 5000) return 31;
-  if (n > 2000) return 21;
-  if (n > 800) return 11;
-  if (n > 200) return 5;
-  if (n > 60) return 3;
-  return 1;
-}
-
-/** Retorna a mediana dos gaps entre timestamps consecutivos (em ms). */
-function getExpectedGapMs(items: Array<{ timestamp: string }>): number {
-  if (items.length < 2) return 60_000;
-  const gaps: number[] = [];
-  for (let i = 1; i < Math.min(items.length, 40); i++) {
-    const g = new Date(items[i].timestamp).getTime() - new Date(items[i - 1].timestamp).getTime();
-    if (g > 0) gaps.push(g);
-  }
-  if (!gaps.length) return 60_000;
-  gaps.sort((a, b) => a - b);
-  return gaps[Math.floor(gaps.length / 2)];
-}
-
-/** Média móvel simples. Janela ajustada aos extremos para não encurtar o array. */
-function smoothValues(values: number[], window: number): number[] {
-  const half = Math.floor(window / 2);
-  return values.map((_, i) => {
-    const start = Math.max(0, i - half);
-    const end   = Math.min(values.length, i + half + 1);
-    const slice = values.slice(start, end);
-    return slice.reduce((a, b) => a + b, 0) / slice.length;
-  });
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Padrão de visualização (MRTG/Cacti/Grafana):
+//   - Janelas raw (<7d):  desenha o ponto bruto, sem suavização
+//   - Janelas agregadas (>=7d): linha principal = MAX do bucket (pico real)
+//                                + banda secundária mais transparente = AVG
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface BandwidthChartProps {
@@ -152,6 +35,12 @@ interface BandwidthChartProps {
     download: number;
     upload: number;
     status?: string;
+    // Quando o backend retorna dados agregados (>=7d), download/upload já vêm como
+    // MAX do bucket (pico real) e estes campos opcionais trazem a média do mesmo bucket
+    // para o desenho da banda secundária no padrão MRTG/Cacti.
+    downloadAvg?: number;
+    uploadAvg?: number;
+    isAggregated?: boolean;
   }>;
   height?: number;
   showAxes?: boolean;
@@ -160,7 +49,7 @@ interface BandwidthChartProps {
   invertBandwidth?: boolean;
 }
 
-const isDownStatus = (s: string | undefined) => 
+const isDownStatus = (s: string | undefined) =>
   s === "offline" || s === "critical" || s === "down";
 
 export function BandwidthChart({
@@ -179,31 +68,37 @@ export function BandwidthChart({
       const expectedGapMs = getExpectedGapMs(filtered);
       const gapThreshold = Math.max(expectedGapMs * 4, 3 * 60_000);
 
-      // Pré-calcular DL/UL já invertidos para suavização
+      // Inversão (sem suavização — sistemas profissionais de monitoramento mostram dado bruto)
       const shouldInvert = !invertBandwidth;
-      const rawDls = filtered.map(it => shouldInvert ? (it.upload ?? 0) : (it.download ?? 0));
-      const rawUls = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
-
-      // Média móvel: janela proporcional ao volume — evita "ruído" em 7d/30d
-      const win = pickSmoothingWindow(filtered.length);
-      const smoothDls = win > 1 ? smoothValues(rawDls, win) : rawDls;
-      const smoothUls = win > 1 ? smoothValues(rawUls, win) : rawUls;
+      const dls = filtered.map(it => shouldInvert ? (it.upload ?? 0) : (it.download ?? 0));
+      const uls = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
+      const dlsAvg = filtered.map(it => {
+        if (it.downloadAvg == null && it.uploadAvg == null) return null;
+        return shouldInvert ? (it.uploadAvg ?? null) : (it.downloadAvg ?? null);
+      });
+      const ulsAvg = filtered.map(it => {
+        if (it.downloadAvg == null && it.uploadAvg == null) return null;
+        return shouldInvert ? (it.downloadAvg ?? null) : (it.uploadAvg ?? null);
+      });
 
       const result: Array<{
         time: string;
         tsNum: number;
         download: number | null;
         upload: number | null;
+        downloadAvg: number | null;
+        uploadAvg: number | null;
         downloadDown: number | null;
         uploadDown: number | null;
         isDown: boolean;
         isDegraded: boolean;
+        isAggregated: boolean;
       }> = [];
-      
+
       for (let i = 0; i < filtered.length; i++) {
         const item = filtered[i];
         const prevItem = i > 0 ? filtered[i - 1] : null;
-        
+
         try {
           // Interpolar ponto médio quando há gap de restart/queda
           if (prevItem) {
@@ -211,12 +106,12 @@ export function BandwidthChart({
             const currTs = new Date(item.timestamp).getTime();
             if (currTs - prevTs > gapThreshold) {
               const midTs = Math.round((prevTs + currTs) / 2);
-              const prevDl = smoothDls[i - 1];
-              const prevUl = smoothUls[i - 1];
-              const currDl = smoothDls[i];
-              const currUl = smoothUls[i];
-              const midDl = (prevDl + currDl) / 2;
-              const midUl = (prevUl + currUl) / 2;
+              const midDl = (dls[i - 1] + dls[i]) / 2;
+              const midUl = (uls[i - 1] + uls[i]) / 2;
+              const pa = dlsAvg[i - 1], pb = dlsAvg[i];
+              const ua = ulsAvg[i - 1], ub = ulsAvg[i];
+              const midDlAvg = pa != null && pb != null ? (pa + pb) / 2 : null;
+              const midUlAvg = ua != null && ub != null ? (ua + ub) / 2 : null;
               const pointStatus = item.status || "operational";
               const isDown = isDownStatus(pointStatus);
               result.push({
@@ -224,10 +119,13 @@ export function BandwidthChart({
                 tsNum: midTs,
                 download: isDown ? null : midDl,
                 upload: isDown ? null : midUl,
+                downloadAvg: isDown ? null : midDlAvg,
+                uploadAvg: isDown ? null : midUlAvg,
                 downloadDown: isDown ? midDl : null,
                 uploadDown: isDown ? midUl : null,
                 isDown,
                 isDegraded: pointStatus === "degraded",
+                isAggregated: !!item.isAggregated,
               });
             }
           }
@@ -237,36 +135,54 @@ export function BandwidthChart({
           const isDegraded = pointStatus === "degraded";
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
-          
+
           const d = new Date(item.timestamp);
           const time = format(d, "HH:mm", { locale: ptBR });
           const tsNum = d.getTime();
-          const dl = smoothDls[i];
-          const ul = smoothUls[i];
-          
+          const dl = dls[i];
+          const ul = uls[i];
+          const dlAvg = dlsAvg[i];
+          const ulAvg = ulsAvg[i];
+
           if (prevItem && isDown !== wasDown) {
-            result.push({ time, tsNum, download: dl, upload: ul, downloadDown: dl, uploadDown: ul, isDown, isDegraded });
+            result.push({
+              time, tsNum,
+              download: dl, upload: ul,
+              downloadAvg: dlAvg, uploadAvg: ulAvg,
+              downloadDown: dl, uploadDown: ul,
+              isDown, isDegraded,
+              isAggregated: !!item.isAggregated,
+            });
           } else {
             result.push({
               time, tsNum,
               download: isDown ? null : dl,
               upload: isDown ? null : ul,
+              downloadAvg: isDown ? null : dlAvg,
+              uploadAvg: isDown ? null : ulAvg,
               downloadDown: isDown ? dl : null,
               uploadDown: isDown ? ul : null,
               isDown,
               isDegraded,
+              isAggregated: !!item.isAggregated,
             });
           }
         } catch {
           // skip invalid item
         }
       }
-      
+
       return result;
     } catch {
       return [];
     }
   }, [data, invertBandwidth]);
+
+  // Detecta se há dados agregados (algum ponto traz AVG separado do MAX)
+  const hasAggregates = useMemo(
+    () => chartData.some(p => p.isAggregated && (p.downloadAvg != null || p.uploadAvg != null)),
+    [chartData]
+  );
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -316,6 +232,15 @@ export function BandwidthChart({
             <stop offset="5%" stopColor="hsl(0, 70%, 50%)" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(0, 70%, 50%)" stopOpacity={0} />
           </linearGradient>
+          {/* Banda secundária = média do bucket (estilo MRTG) */}
+          <linearGradient id="colorDownloadAvg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(210, 85%, 50%)" stopOpacity={0.55} />
+            <stop offset="95%" stopColor="hsl(210, 85%, 50%)" stopOpacity={0.15} />
+          </linearGradient>
+          <linearGradient id="colorUploadAvg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0.55} />
+            <stop offset="95%" stopColor="hsl(142, 76%, 45%)" stopOpacity={0.15} />
+          </linearGradient>
         </defs>
         {showAxes && (
           <>
@@ -357,16 +282,30 @@ export function BandwidthChart({
           formatter={(value, name: string) => {
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
-            const label = name.includes("Down") 
-              ? (name.includes("download") ? "Download (Offline)" : "Upload (Offline)")
-              : (name === "download" ? "Download" : "Upload");
-            return [`${numVal.toFixed(1)} Mbps`, label];
+            const isAvg = name === "downloadAvg" || name === "uploadAvg";
+            const isDown = name.includes("Down") && !isAvg;
+            const baseLabel =
+              name === "download" || name === "downloadDown" || name === "downloadAvg"
+                ? "Download" : "Upload";
+            const suffix = isAvg
+              ? (hasAggregates ? " (médio)" : "")
+              : (hasAggregates ? " (pico)" : "");
+            const offlineSuffix = isDown ? " (Offline)" : "";
+            return [`${numVal.toFixed(1)} Mbps`, `${baseLabel}${suffix}${offlineSuffix}`];
           }}
         />
+        {/* Banda de MÉDIA (apenas em janelas agregadas) — desenhada por baixo */}
+        {hasAggregates && (
+          <>
+            <Area type="monotone" dataKey="downloadAvg" stroke="hsl(210, 85%, 50%)" strokeOpacity={0.55} strokeWidth={1} fill="url(#colorDownloadAvg)" connectNulls={false} isAnimationActive={false} />
+            <Area type="monotone" dataKey="uploadAvg"   stroke="hsl(142, 76%, 45%)" strokeOpacity={0.55} strokeWidth={1} fill="url(#colorUploadAvg)"   connectNulls={false} isAnimationActive={false} />
+          </>
+        )}
+        {/* Linha principal: dado bruto (raw) ou MAX (agregado) */}
         <Area type="monotone" dataKey="download" stroke="hsl(210, 85%, 50%)" strokeWidth={2} fill="url(#colorDownload)" connectNulls={false} isAnimationActive={false} />
-        <Area type="monotone" dataKey="upload" stroke="hsl(142, 76%, 45%)" strokeWidth={2} fill="url(#colorUpload)" connectNulls={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="upload"   stroke="hsl(142, 76%, 45%)" strokeWidth={2} fill="url(#colorUpload)"   connectNulls={false} isAnimationActive={false} />
         <Area type="monotone" dataKey="downloadDown" stroke="hsl(0, 84%, 60%)" strokeWidth={2} fill="url(#colorDownloadRed)" connectNulls={false} isAnimationActive={false} />
-        <Area type="monotone" dataKey="uploadDown" stroke="hsl(0, 70%, 50%)" strokeWidth={2} fill="url(#colorUploadRed)" connectNulls={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="uploadDown"   stroke="hsl(0, 70%, 50%)" strokeWidth={2} fill="url(#colorUploadRed)"   connectNulls={false} isAnimationActive={false} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -404,6 +343,9 @@ interface LatencyChartProps {
     latency: number;
     packetLoss?: number;
     status?: string;
+    // Janelas agregadas (>=7d): latency = MAX, latencyAvg = média do bucket
+    latencyAvg?: number;
+    isAggregated?: boolean;
   }>;
   height?: number;
   threshold?: number;
@@ -422,52 +364,60 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
         tsNum: number;
         threshold: number;
         latency: number | null;
+        latencyAvg: number | null;
         latencyDown: number | null;
+        isAggregated: boolean;
       }> = [];
-      
+
       for (let i = 0; i < filtered.length; i++) {
         const item = filtered[i];
         const prevItem = i > 0 ? filtered[i - 1] : null;
-        
+
         try {
           const pointStatus = item.status || "operational";
           const isDown = isDownStatus(pointStatus);
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
-          
+
           const d = new Date(item.timestamp);
           const time = format(d, "HH:mm", { locale: ptBR });
           const tsNum = d.getTime();
           const lat = item.latency ?? 0;
-          
-          // Se mudou de status, adicionar ponto de transição
+          const latAvg = item.latencyAvg ?? null;
+          const isAgg = !!item.isAggregated;
+
           if (prevItem && isDown !== wasDown) {
             result.push({
-              time,
-              tsNum,
-              threshold,
+              time, tsNum, threshold,
               latency: lat,
+              latencyAvg: latAvg,
               latencyDown: lat,
+              isAggregated: isAgg,
             });
           } else {
             result.push({
-              time,
-              tsNum,
-              threshold,
+              time, tsNum, threshold,
               latency: isDown ? null : lat,
+              latencyAvg: isDown ? null : latAvg,
               latencyDown: isDown ? lat : null,
+              isAggregated: isAgg,
             });
           }
         } catch {
           // skip invalid item
         }
       }
-      
+
       return result;
     } catch {
       return [];
     }
   }, [data, threshold]);
+
+  const latHasAggregates = useMemo(
+    () => chartData.some(p => p.isAggregated && p.latencyAvg != null),
+    [chartData]
+  );
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -498,6 +448,10 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           <linearGradient id="colorLatencyRed" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="colorLatencyAvg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.55} />
+            <stop offset="95%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.15} />
           </linearGradient>
         </defs>
         <XAxis
@@ -537,7 +491,9 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
             if (name === "threshold") return [`${numVal} ms`, "Limite SLA"];
-            const label = name === "latencyDown" ? "Latência (Down)" : "Latência";
+            if (name === "latencyAvg") return [`${numVal.toFixed(1)} ms`, "Latência (média)"];
+            if (name === "latencyDown") return [`${numVal.toFixed(1)} ms`, "Latência (Down)"];
+            const label = latHasAggregates ? "Latência (pico)" : "Latência";
             return [`${numVal.toFixed(1)} ms`, label];
           }}
         />
@@ -550,6 +506,18 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           fill="none"
           isAnimationActive={false}
         />
+        {latHasAggregates && (
+          <Area
+            type="monotone"
+            dataKey="latencyAvg"
+            stroke="hsl(38, 92%, 50%)"
+            strokeOpacity={0.55}
+            strokeWidth={1}
+            fill="url(#colorLatencyAvg)"
+            connectNulls={false}
+            isAnimationActive={false}
+          />
+        )}
         <Area
           type="monotone"
           dataKey="latency"
@@ -578,6 +546,8 @@ interface PacketLossChartProps {
     timestamp: string;
     packetLoss: number | null;
     status?: string;
+    packetLossAvg?: number;
+    isAggregated?: boolean;
   }>;
   height?: number;
   threshold?: number;
@@ -593,59 +563,68 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
         tsNum: number;
         threshold: number;
         packetLoss: number | null;
+        packetLossAvg: number | null;
         packetLossDown: number | null;
+        isAggregated: boolean;
       }> = [];
-      
+
       for (let i = 0; i < filtered.length; i++) {
         const item = filtered[i];
         const prevItem = i > 0 ? filtered[i - 1] : null;
-        
+
         try {
           const pointStatus = item.status || "operational";
           const isDown = isDownStatus(pointStatus);
           const prevStatus = prevItem?.status || "operational";
           const wasDown = isDownStatus(prevStatus);
-          
+
           const d = new Date(item.timestamp);
           const time = format(d, "HH:mm", { locale: ptBR });
           const tsNum = d.getTime();
           const loss = item.packetLoss;
-          
+          const lossAvg = item.packetLossAvg ?? null;
+          const isAgg = !!item.isAggregated;
+
           if (loss === null || loss === undefined) {
             result.push({
-              time,
-              tsNum,
-              threshold,
+              time, tsNum, threshold,
               packetLoss: null,
+              packetLossAvg: lossAvg,
               packetLossDown: null,
+              isAggregated: isAgg,
             });
           } else if (prevItem && isDown !== wasDown) {
             result.push({
-              time,
-              tsNum,
-              threshold,
+              time, tsNum, threshold,
               packetLoss: loss,
+              packetLossAvg: lossAvg,
               packetLossDown: loss,
+              isAggregated: isAgg,
             });
           } else {
             result.push({
-              time,
-              tsNum,
-              threshold,
+              time, tsNum, threshold,
               packetLoss: isDown ? null : loss,
+              packetLossAvg: isDown ? null : lossAvg,
               packetLossDown: isDown ? loss : null,
+              isAggregated: isAgg,
             });
           }
         } catch {
           // skip invalid item
         }
       }
-      
+
       return result;
     } catch {
       return [];
     }
   }, [data, threshold]);
+
+  const lossHasAggregates = useMemo(
+    () => chartData.some(p => p.isAggregated && p.packetLossAvg != null),
+    [chartData]
+  );
 
   if (!data || !Array.isArray(data) || data.length === 0 || chartData.length === 0) {
     return (
@@ -676,6 +655,10 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           <linearGradient id="colorPacketLossRed" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="colorPacketLossAvg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="hsl(280, 70%, 50%)" stopOpacity={0.55} />
+            <stop offset="95%" stopColor="hsl(280, 70%, 50%)" stopOpacity={0.15} />
           </linearGradient>
         </defs>
         <XAxis
@@ -715,7 +698,9 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
             if (value === null || value === undefined) return [null, null];
             const numVal = typeof value === 'number' ? value : 0;
             if (name === "threshold") return [`${numVal}%`, "Limite SLA"];
-            const label = name === "packetLossDown" ? "Perda (Down)" : "Perda de Pacotes";
+            if (name === "packetLossAvg") return [`${numVal.toFixed(1)}%`, "Perda (média)"];
+            if (name === "packetLossDown") return [`${numVal.toFixed(1)}%`, "Perda (Down)"];
+            const label = lossHasAggregates ? "Perda (pico)" : "Perda de Pacotes";
             return [`${numVal.toFixed(1)}%`, label];
           }}
         />
@@ -727,6 +712,17 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           strokeDasharray="5 5"
           fill="none"
         />
+        {lossHasAggregates && (
+          <Area
+            type="monotone"
+            dataKey="packetLossAvg"
+            stroke="hsl(280, 70%, 50%)"
+            strokeOpacity={0.55}
+            strokeWidth={1}
+            fill="url(#colorPacketLossAvg)"
+            connectNulls={false}
+          />
+        )}
         <Area
           type="monotone"
           dataKey="packetLoss"
@@ -765,6 +761,12 @@ interface UnifiedMetricsChartProps {
     latency?: number;
     packetLoss?: number;
     status?: string;
+    // Janelas agregadas (>=7d): valores principais já vêm como MAX e os *Avg como média do bucket
+    downloadAvg?: number;
+    uploadAvg?: number;
+    latencyAvg?: number;
+    packetLossAvg?: number;
+    isAggregated?: boolean;
   }>;
   height?: number;
   invertBandwidth?: boolean;
@@ -792,29 +794,39 @@ export function UnifiedMetricsChart({
       const expectedGapMs = getExpectedGapMs(filtered);
       const gapThreshold = Math.max(expectedGapMs * 4, 3 * 60_000);
 
-      // Pré-calcular séries para suavização
+      // Sem suavização — sistemas profissionais (MRTG/Cacti/Grafana) mostram dado bruto.
+      // Em janelas agregadas, o backend já entrega MAX como valor principal.
       const shouldInvert = !invertBandwidth;
-      const rawDls     = filtered.map(it => shouldInvert ? (it.upload ?? 0)   : (it.download ?? 0));
-      const rawUls     = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
-      const rawLats    = filtered.map(it => it.latency ?? 0);
-
-      const win = pickSmoothingWindow(filtered.length);
-      const smoothDls  = win > 1 ? smoothValues(rawDls,  win) : rawDls;
-      const smoothUls  = win > 1 ? smoothValues(rawUls,  win) : rawUls;
-      const smoothLats = win > 1 ? smoothValues(rawLats, win) : rawLats;
+      const dls   = filtered.map(it => shouldInvert ? (it.upload ?? 0)   : (it.download ?? 0));
+      const uls   = filtered.map(it => shouldInvert ? (it.download ?? 0) : (it.upload ?? 0));
+      const lats  = filtered.map(it => it.latency ?? 0);
+      const dlsAvg = filtered.map(it => {
+        if (it.downloadAvg == null && it.uploadAvg == null) return null;
+        return shouldInvert ? (it.uploadAvg ?? null) : (it.downloadAvg ?? null);
+      });
+      const ulsAvg = filtered.map(it => {
+        if (it.downloadAvg == null && it.uploadAvg == null) return null;
+        return shouldInvert ? (it.downloadAvg ?? null) : (it.uploadAvg ?? null);
+      });
+      const latsAvg  = filtered.map(it => it.latencyAvg ?? null);
+      const lossesAvg = filtered.map(it => it.packetLossAvg ?? null);
 
       const result: Array<{
         time: string; tsNum: number; timestamp: string;
         download: number | null; upload: number | null; latency: number | null;
         packetLoss: number | null;
+        downloadAvg: number | null; uploadAvg: number | null;
+        latencyAvg: number | null; packetLossAvg: number | null;
         availabilityOk: number; availabilityDegraded: number; availabilityDown: number;
         status: string;
         isGap?: boolean;
+        isAggregated: boolean;
       }> = [];
 
       for (let i = 0; i < filtered.length; i++) {
         const item = filtered[i];
         const prevItem = i > 0 ? filtered[i - 1] : null;
+        const isAgg = !!item.isAggregated;
 
         // Interpolar ponto médio quando há gap de restart/queda
         if (prevItem) {
@@ -822,17 +834,19 @@ export function UnifiedMetricsChart({
           const currTs = new Date(item.timestamp).getTime();
           if (currTs - prevTs > gapThreshold) {
             const midTs = Math.round((prevTs + currTs) / 2);
-            const midDl  = (smoothDls[i - 1]  + smoothDls[i])  / 2;
-            const midUl  = (smoothUls[i - 1]  + smoothUls[i])  / 2;
-            const midLat = (smoothLats[i - 1] + smoothLats[i]) / 2;
+            const midDl  = (dls[i - 1]  + dls[i])  / 2;
+            const midUl  = (uls[i - 1]  + uls[i])  / 2;
+            const midLat = (lats[i - 1] + lats[i]) / 2;
             const midLoss = ((prevItem.packetLoss ?? 0) + (item.packetLoss ?? 0)) / 2;
             result.push({
               time: format(new Date(midTs), "HH:mm", { locale: ptBR }),
               tsNum: midTs, timestamp: new Date(midTs).toISOString(),
               download: midDl, upload: midUl, latency: midLat,
               packetLoss: midLoss,
+              downloadAvg: null, uploadAvg: null, latencyAvg: null, packetLossAvg: null,
               availabilityOk: 0, availabilityDegraded: 0, availabilityDown: 0,
               status: "gap", isGap: true,
+              isAggregated: isAgg,
             });
           }
         }
@@ -840,7 +854,7 @@ export function UnifiedMetricsChart({
         const pointStatus = item.status || "operational";
         const isDown = isDownStatus(pointStatus);
         const isDegraded = pointStatus === "degraded";
-        
+
         let tsNum = 0;
         let timeLabel = "";
         try {
@@ -848,19 +862,24 @@ export function UnifiedMetricsChart({
           tsNum = d.getTime();
           timeLabel = format(d, "HH:mm", { locale: ptBR });
         } catch {}
-        
+
         result.push({
           time: timeLabel,
           tsNum,
           timestamp: item.timestamp,
-          download: smoothDls[i],
-          upload:   smoothUls[i],
-          latency:  smoothLats[i],
+          download: dls[i],
+          upload:   uls[i],
+          latency:  lats[i],
           packetLoss: isDown ? null : (item.packetLoss ?? 0),
+          downloadAvg: dlsAvg[i],
+          uploadAvg:   ulsAvg[i],
+          latencyAvg:  latsAvg[i],
+          packetLossAvg: isDown ? null : lossesAvg[i],
           availabilityOk: !isDown && !isDegraded ? 1 : 0,
           availabilityDegraded: isDegraded ? 1 : 0,
           availabilityDown: isDown ? 1 : 0,
           status: pointStatus,
+          isAggregated: isAgg,
         });
       }
 
@@ -869,6 +888,11 @@ export function UnifiedMetricsChart({
       return [];
     }
   }, [data, invertBandwidth]);
+
+  const uniHasAggregates = useMemo(
+    () => chartData.some(p => p.isAggregated && (p.downloadAvg != null || p.uploadAvg != null || p.latencyAvg != null)),
+    [chartData]
+  );
 
   // Calcular máximos para eixos
   const { maxBandwidth, maxLatency } = useMemo(() => {
@@ -930,6 +954,14 @@ export function UnifiedMetricsChart({
                 <stop offset="5%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.4} />
                 <stop offset="95%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.05} />
               </linearGradient>
+              <linearGradient id="gradDownloadAvg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.7} />
+                <stop offset="95%" stopColor="hsl(210, 85%, 55%)" stopOpacity={0.2} />
+              </linearGradient>
+              <linearGradient id="gradUploadAvg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.7} />
+                <stop offset="95%" stopColor="hsl(280, 70%, 60%)" stopOpacity={0.2} />
+              </linearGradient>
             </defs>
             
             <XAxis
@@ -982,10 +1014,16 @@ export function UnifiedMetricsChart({
               }}
               labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
               formatter={(value: number, name: string) => {
-                if (name === "download") return [`${value.toFixed(1)} Mbps`, "Download"];
-                if (name === "upload") return [`${value.toFixed(1)} Mbps`, "Upload"];
-                if (name === "latency") return [`${value.toFixed(1)} ms`, "Latência"];
-                if (name === "packetLoss") return [`${value.toFixed(2)}%`, "Perda"];
+                if (value == null) return [null, null];
+                const peakSuffix = uniHasAggregates ? " (pico)" : "";
+                if (name === "download")    return [`${value.toFixed(1)} Mbps`, `Download${peakSuffix}`];
+                if (name === "upload")      return [`${value.toFixed(1)} Mbps`, `Upload${peakSuffix}`];
+                if (name === "latency")     return [`${value.toFixed(1)} ms`,   `Latência${peakSuffix}`];
+                if (name === "packetLoss")  return [`${value.toFixed(2)}%`,     `Perda${peakSuffix}`];
+                if (name === "downloadAvg") return [`${value.toFixed(1)} Mbps`, "Download (médio)"];
+                if (name === "uploadAvg")   return [`${value.toFixed(1)} Mbps`, "Upload (médio)"];
+                if (name === "latencyAvg")  return [`${value.toFixed(1)} ms`,   "Latência (média)"];
+                if (name === "packetLossAvg") return [`${value.toFixed(2)}%`,   "Perda (média)"];
                 return [null, null];
               }}
               labelFormatter={(ts: number) => {
@@ -1004,7 +1042,35 @@ export function UnifiedMetricsChart({
               />
             )}
             
-            {/* Áreas de banda */}
+            {/* Banda secundária = MÉDIA (estilo MRTG) — só em janelas agregadas */}
+            {uniHasAggregates && visibleSeries.download && (
+              <Area
+                yAxisId="bandwidth"
+                type="monotone"
+                dataKey="downloadAvg"
+                stroke="hsl(210, 85%, 55%)"
+                strokeOpacity={0.6}
+                strokeWidth={1}
+                fill="url(#gradDownloadAvg)"
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            )}
+            {uniHasAggregates && visibleSeries.upload && (
+              <Area
+                yAxisId="bandwidth"
+                type="monotone"
+                dataKey="uploadAvg"
+                stroke="hsl(280, 70%, 60%)"
+                strokeOpacity={0.6}
+                strokeWidth={1}
+                fill="url(#gradUploadAvg)"
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            )}
+
+            {/* Áreas principais: dado bruto (raw) ou MAX (agregado) */}
             {visibleSeries.download && (
               <Area
                 yAxisId="bandwidth"
@@ -1029,8 +1095,23 @@ export function UnifiedMetricsChart({
                 isAnimationActive={false}
               />
             )}
-            
-            {/* Linha de latência */}
+
+            {/* Linha de latência média (sombra) */}
+            {uniHasAggregates && visibleSeries.latency && (
+              <Line
+                yAxisId="latency"
+                type="monotone"
+                dataKey="latencyAvg"
+                stroke="hsl(38, 92%, 50%)"
+                strokeOpacity={0.45}
+                strokeWidth={1}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            )}
+
+            {/* Linha de latência (pico em janelas agregadas, dado bruto em raw) */}
             {visibleSeries.latency && (
               <Line
                 yAxisId="latency"
@@ -1044,8 +1125,23 @@ export function UnifiedMetricsChart({
                 isAnimationActive={false}
               />
             )}
-            
-            {/* Linha de perda de pacotes */}
+
+            {/* Linha de perda de pacotes média (sombra) */}
+            {uniHasAggregates && visibleSeries.packetLoss && (
+              <Line
+                yAxisId="latency"
+                type="monotone"
+                dataKey="packetLossAvg"
+                stroke="hsl(0, 84%, 60%)"
+                strokeOpacity={0.4}
+                strokeWidth={1}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            )}
+
+            {/* Linha de perda de pacotes (pico em janelas agregadas) */}
             {visibleSeries.packetLoss && (
               <Line
                 yAxisId="latency"

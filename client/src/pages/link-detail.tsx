@@ -78,7 +78,7 @@ import {
   ArrowRight,
   Check,
 } from "lucide-react";
-import type { Link, Metric, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
+import type { Link, Metric, MetricWithAggregates, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -400,7 +400,7 @@ export default function LinkDetail() {
     : selectedPeriod <= 6  ? 15_000
     : 30_000;
 
-  const { data: metrics } = useQuery<Metric[]>({
+  const { data: metrics } = useQuery<MetricWithAggregates[]>({
     queryKey: ["/api/links", linkId, "metrics", { hours: selectedPeriod, dateRange, isCustomRange }],
     queryFn: async () => {
       const token = getAuthToken();
@@ -613,23 +613,34 @@ export default function LinkDetail() {
   // Inverter a ordem para timeline da esquerda (mais antigo) para direita (mais recente)
   const sortedMetrics = metrics ? [...metrics].reverse() : [];
 
+  // Padrão MRTG/Cacti: em janelas agregadas (>=7d), o backend retorna a linha
+  // principal como pico (MAX) e anexa *Avg + isAggregated para o frontend
+  // desenhar a banda de média ao fundo. Esses campos são opcionais — em janelas
+  // raw (<7d) eles vêm undefined e os componentes desenham só a série única.
   const bandwidthData = sortedMetrics.map((m) => ({
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     download: m.download,
     upload: m.upload,
     status: m.status,
+    downloadAvg: m.downloadAvg,
+    uploadAvg: m.uploadAvg,
+    isAggregated: m.isAggregated,
   }));
 
   const latencyData = sortedMetrics.map((m) => ({
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     latency: m.latency,
     status: m.status,
+    latencyAvg: m.latencyAvg,
+    isAggregated: m.isAggregated,
   }));
 
   const packetLossData = sortedMetrics.map((m) => ({
     timestamp: typeof m.timestamp === 'string' ? m.timestamp : new Date(m.timestamp).toISOString(),
     packetLoss: m.packetLoss != null ? m.packetLoss : null,
     status: m.status,
+    packetLossAvg: m.packetLossAvg,
+    isAggregated: m.isAggregated,
   }));
 
   // Dados unificados para o gráfico completo
@@ -640,6 +651,11 @@ export default function LinkDetail() {
     latency: m.latency ?? 0,
     packetLoss: m.packetLoss ?? 0,
     status: m.status,
+    downloadAvg: m.downloadAvg,
+    uploadAvg: m.uploadAvg,
+    latencyAvg: m.latencyAvg,
+    packetLossAvg: m.packetLossAvg,
+    isAggregated: m.isAggregated,
   }));
 
   if (linkLoading) {
