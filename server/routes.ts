@@ -1033,7 +1033,26 @@ export async function registerRoutes(
     try {
       const clientId = getEffectiveClientId(req);
       const linkList = await storage.getLinks(clientId);
-      res.json(linkList);
+
+      // Enriquece com disponibilidade real dos últimos 30 dias (operacional/total das métricas).
+      // Mesmo cálculo usado no SLA — garante consistência entre cards, lista e dashboard.
+      // Filtra blocked/cancelled e passa os IDs já carregados (evita getLinks() duplicado).
+      try {
+        const eligibleIds = linkList
+          .filter(l => l.contractStatus !== "blocked" && l.contractStatus !== "cancelled")
+          .map(l => l.id);
+        const availabilityMap = eligibleIds.length > 0
+          ? await storage.getAvailabilityByLink(undefined, undefined, undefined, eligibleIds)
+          : new Map<number, number>();
+        const enriched = linkList.map(l => ({
+          ...l,
+          availability30d: availabilityMap.get(l.id) ?? null,
+        }));
+        res.json(enriched);
+      } catch (enrichErr) {
+        console.error("[/api/links] availability enrichment failed, returning raw list:", enrichErr);
+        res.json(linkList);
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch links" });
     }
@@ -1058,7 +1077,18 @@ export async function registerRoutes(
       if (!allowed || !link) {
         return res.status(404).json({ error: "Link not found" });
       }
-      res.json(link);
+      // Enriquece com disponibilidade real dos últimos 30 dias para que o card
+      // "Uptime" do detalhe mostre o mesmo número que os cards da lista.
+      let availability30d: number | null = null;
+      try {
+        if (link.contractStatus !== "blocked" && link.contractStatus !== "cancelled") {
+          const map = await storage.getAvailabilityByLink(undefined, undefined, undefined, [linkId]);
+          availability30d = map.get(linkId) ?? null;
+        }
+      } catch (enrichErr) {
+        console.error(`[/api/links/${linkId}] availability enrichment failed:`, enrichErr);
+      }
+      res.json({ ...link, availability30d });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link" });
     }
@@ -4758,6 +4788,17 @@ export async function registerRoutes(
         }
       }
 
+      // Disponibilidade real dos últimos 30 dias para os links da página
+      // (mesma fórmula do SLA — operacional/total). Não bloqueia a resposta se falhar.
+      let availabilityMap = new Map<number, number>();
+      if (linkIds.length > 0) {
+        try {
+          availabilityMap = await storage.getAvailabilityByLink(undefined, undefined, undefined, linkIds);
+        } catch (availErr) {
+          console.error("[Link Dashboard] availability enrichment failed:", availErr);
+        }
+      }
+
       const items = paginatedLinks.map(link => {
         const displayDownload = link.invertBandwidth ? link.currentDownload : link.currentUpload;
         const displayUpload = link.invertBandwidth ? link.currentUpload : link.currentDownload;
@@ -4773,7 +4814,11 @@ export async function registerRoutes(
           currentUpload: displayUpload,
           latency: link.latency,
           packetLoss: link.packetLoss,
+          // uptime: contador instantâneo (mantido para compatibilidade).
+          // availability30d: disponibilidade real (operacional/total) últimos 30 dias.
+          // Frontends novos devem preferir availability30d e usar uptime como fallback.
           uptime: link.uptime,
+          availability30d: availabilityMap.get(link.id) ?? null,
           lastUpdated: link.lastUpdated,
           monitoringEnabled: link.monitoringEnabled,
           clientId: link.clientId,

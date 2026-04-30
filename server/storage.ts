@@ -1047,6 +1047,70 @@ export class DatabaseStorage {
     const calc = await this.calculateSLAFromMetrics(clientId, fromDate, toDate, linkId);
     return buildSLAIndicators(calc);
   }
+
+  /**
+   * Disponibilidade por link em uma janela (default: últimos 30 dias).
+   * Usa uma única query agregada GROUP BY link_id.
+   * Retorna Map<linkId, availability%> apenas para links com métricas no período.
+   *
+   * Use `linkIdsOverride` para limitar a um conjunto explícito de linkIds
+   * (ex.: dashboard super-admin paginado) sem precisar buscar/filtrar todos
+   * os links por contractStatus — economiza um getLinks() pesado.
+   */
+  async getAvailabilityByLink(
+    clientId?: number,
+    fromDate?: Date,
+    toDate?: Date,
+    linkIdsOverride?: number[],
+  ): Promise<Map<number, number>> {
+    const result = new Map<number, number>();
+
+    let targetLinkIds: number[];
+    if (linkIdsOverride && linkIdsOverride.length > 0) {
+      targetLinkIds = linkIdsOverride;
+    } else {
+      const allLinks = clientId ? await this.getLinks(clientId) : await this.getLinks();
+      const targetLinks = allLinks.filter(
+        l => l.contractStatus !== "blocked" && l.contractStatus !== "cancelled",
+      );
+      if (targetLinks.length === 0) return result;
+      targetLinkIds = targetLinks.map(l => l.id);
+    }
+    if (targetLinkIds.length === 0) return result;
+
+    const from = fromDate ?? (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d;
+    })();
+    const to = toDate ?? new Date();
+
+    const rows = await db
+      .select({
+        linkId: metrics.linkId,
+        totalCount: sql<number>`count(*)::int`,
+        operationalCount: sql<number>`count(*) filter (where ${metrics.status} = 'operational')::int`,
+      })
+      .from(metrics)
+      .where(
+        and(
+          gte(metrics.timestamp, from),
+          lte(metrics.timestamp, to),
+          sql`${metrics.linkId} IN (${sql.join(targetLinkIds.map(id => sql`${id}`), sql`, `)})`,
+        ),
+      )
+      .groupBy(metrics.linkId);
+
+    for (const row of rows) {
+      const total = row.totalCount ?? 0;
+      const op = row.operationalCount ?? 0;
+      if (total > 0 && row.linkId != null) {
+        result.set(row.linkId, (op / total) * 100);
+      }
+    }
+
+    return result;
+  }
   
   async getSLAIndicatorsMonthly(clientId?: number, year?: number, month?: number, linkId?: number): Promise<SLAIndicator[]> {
     const now = new Date();

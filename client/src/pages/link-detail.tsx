@@ -677,8 +677,14 @@ export default function LinkDetail() {
   const slaLAT = slaIndicators?.find(i => i.id === "sla-lat");
   const slaDP = slaIndicators?.find(i => i.id === "sla-dp");
   
-  // Proteção contra valores nulos/undefined - priorizar SLA calculado
-  const safeUptime = slaDE?.current ?? link.uptime ?? 0;
+  // Proteção contra valores nulos/undefined.
+  // Uptime: prioriza disponibilidade real dos últimos 30 dias (mesma fonte dos cards
+  // da lista e do dashboard) para garantir que o mesmo link mostre o mesmo número
+  // em todo lugar. Fallback: SLA acumulado 6m, depois contador instantâneo.
+  const availability30d = (link as any).availability30d as number | null | undefined;
+  const safeUptime = availability30d ?? slaDE?.current ?? link.uptime ?? 0;
+  const uptimeSource: "30d" | "6m" | "instant" =
+    availability30d != null ? "30d" : (slaDE?.current != null ? "6m" : "instant");
   const safeLatency = slaLAT?.current ?? link.latency ?? 0;
   const safePacketLoss = slaDP?.current ?? link.packetLoss ?? 0;
   // Inversão é o padrão (concentradores). invertBandwidth=true = manter original
@@ -884,11 +890,15 @@ export default function LinkDetail() {
             direction: safeUptime >= 99 ? "up" : "down",
             isGood: safeUptime >= 99,
           }}
-          subtitle={
-            safeUptime >= 99
-              ? "acima do alvo (≥99%) — 6 meses"
-              : "abaixo do alvo (≥99%) — 6 meses"
-          }
+          subtitle={(() => {
+            const window =
+              uptimeSource === "30d" ? "30 dias"
+              : uptimeSource === "6m" ? "6 meses"
+              : "instantâneo";
+            return safeUptime >= 99
+              ? `acima do alvo (≥99%) — ${window}`
+              : `abaixo do alvo (≥99%) — ${window}`;
+          })()}
           testId="metric-uptime"
         />
         <MetricCard

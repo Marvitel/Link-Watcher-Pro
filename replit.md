@@ -57,6 +57,8 @@ Link statuses include `operational`, `degraded`, `offline`, and `unknown` (note:
 
 O campo `links.uptime` (atualizado por `processLinkMetrics` com +0.001/-0.01 a cada coleta) é usado APENAS como fallback quando não há métricas no período. **Não deve ser usado para exibir disponibilidade** — é só um indicador instantâneo de saúde.
 
+**Disponibilidade por link (`availability30d`)**: para garantir que o mesmo link mostre o mesmo número em qualquer tela (lista de cards, dashboard agregado, página de detalhe), os endpoints `GET /api/links`, `GET /api/links/:id` e `GET /api/super-admin/link-dashboard` enriquecem cada link com o campo `availability30d` calculado por `storage.getAvailabilityByLink()` — uma única query agregada `GROUP BY link_id` sobre `metrics` nos últimos 30 dias, retornando `(operacional / total) × 100`. Os componentes `CompactLinkCard`, `LinkCard`, `SuperAdminLinkCard` e o card "Uptime" do `link-detail` usam `availability30d ?? link.uptime` (fallback para o contador instantâneo apenas quando ainda não há métricas no período). O SLA acumulado de 6 meses (`slaDE`) continua sendo usado em relatórios e na seção de indicadores SLA da página de detalhe.
+
 ### Voalle Webhook Processing
 The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, creating/updating/soft-deleting links, mapping contract statuses, and enriching data via Portal and OZmap APIs. It adjusts monitoring based on link status.
 

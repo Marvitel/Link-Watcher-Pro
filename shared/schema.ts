@@ -1371,6 +1371,12 @@ export interface LinkDashboardItem {
   latency: number;
   packetLoss: number;
   uptime: number;
+  /**
+   * Disponibilidade real dos últimos 30 dias (operacional/total das métricas).
+   * Mesma fórmula do SLA. Usar de preferência ao invés de `uptime`.
+   * `null` quando não há métricas no período (link recém-criado, etc).
+   */
+  availability30d?: number | null;
   lastUpdated: string | Date;
   monitoringEnabled: boolean;
   // Client info

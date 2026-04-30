@@ -24,7 +24,9 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
   const currentUpload = keepOriginal ? rawUpload : rawDownload;
   const latency = link.latency ?? 0;
   const packetLoss = link.packetLoss ?? 0;
-  const uptime = link.uptime ?? 0;
+  // Disponibilidade real dos últimos 30 dias (mesma fórmula do SLA).
+  // Fallback: link.uptime instantâneo se ainda não há métricas no período.
+  const uptime = (link as any).availability30d ?? link.uptime ?? 0;
 
   return (
     <Card className="overflow-visible" data-testid={`card-link-${link.id}`}>

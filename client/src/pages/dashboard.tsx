@@ -188,9 +188,12 @@ function SuperAdminLinkCard({ item, onViewClient }: {
     ? "text-red-500 dark:text-red-400"
     : "text-muted-foreground";
 
-  const uptimeColor = item.uptime >= 99
+  // Disponibilidade real dos últimos 30 dias (mesma fórmula do SLA).
+  // Fallback: contador instantâneo `uptime` se ainda não há métricas no período.
+  const displayUptime = item.availability30d ?? item.uptime;
+  const uptimeColor = displayUptime >= 99
     ? "text-green-600 dark:text-green-400"
-    : item.uptime >= 95
+    : displayUptime >= 95
     ? "text-yellow-600 dark:text-yellow-400"
     : "text-red-500 dark:text-red-400";
 
@@ -264,7 +267,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
               <span className={`font-mono font-bold ${lossColor}`}>{item.packetLoss.toFixed(1)}%</span>
             </span>
             <span className={`font-mono font-bold ml-auto ${uptimeColor}`} style={{ fontSize: 11 }}>
-              {item.uptime.toFixed(1)}%
+              {displayUptime.toFixed(1)}%
             </span>
           </div>
 
@@ -570,7 +573,9 @@ function CompactLinkCard({ link }: { link: LinkType }) {
   const currentUpload = keepOriginal ? rawUpload : rawDownload;
   const latency = link.latency ?? 0;
   const packetLoss = link.packetLoss ?? 0;
-  const uptime = link.uptime ?? 0;
+  // Disponibilidade real dos últimos 30 dias (mesma fórmula do SLA).
+  // Fallback: link.uptime instantâneo se ainda não há métricas no período.
+  const uptime = (link as any).availability30d ?? link.uptime ?? 0;
   const bandwidth = link.bandwidth ?? 0;
 
   const latColor = latency <= 50
