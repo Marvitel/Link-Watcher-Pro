@@ -1119,16 +1119,26 @@ export async function getSystemResources(
   });
 }
 
-// Limite sanitário: descarta amostras fisicamente impossíveis (ex.: cross-interface
-// delta após troca de ifIndex, counter wrap não detectado, sample corrompido).
-// Maior link da Marvitel hoje = 15 Gbps; 30 Gbps dá 2x de folga e ainda captura
-// picos legítimos (DDoS satura no teto físico do link, então acima disso é bug).
-// Ajuste conforme o maior link contratado em operação.
+// Limite sanitário GLOBAL: usado quando a banda contratada do link não está
+// disponível. Cobre links sem bandwidth definido (raros), interfaces adicionais
+// sem contrato vinculado, etc. 30 Gbps = 2x o maior link Marvitel atual (15G).
 const MAX_REASONABLE_MBPS = 30_000;
+
+// Multiplicador da banda contratada usado como teto sanitário POR LINK.
+// 5x cobre bursts legítimos de overshoot do CIR/PIR (raros mas comuns em
+// uplinks BGP) sem deixar passar outliers absurdos do bug de cross-interface
+// delta (que sempre dão >100x da capacidade — ex.: 50 Mbps virando 10 Gbps).
+const LINK_BANDWIDTH_CLAMP_MULTIPLIER = 5;
+
+// Mínimo absoluto do clamp por link, mesmo para links de banda muito baixa.
+// Evita falso-positivo em links de 1-50 Mbps por pequenos erros de timing
+// SNMP que podem dar leves picos acima do contratado.
+const MIN_PER_LINK_CLAMP_MBPS = 200;
 
 function calculateBandwidth(
   current: TrafficResult,
-  previous: TrafficResult
+  previous: TrafficResult,
+  linkBandwidthMbps?: number
 ): { downloadMbps: number; uploadMbps: number } {
   const timeDiffSeconds = (current.timestamp.getTime() - previous.timestamp.getTime()) / 1000;
 
@@ -1152,14 +1162,21 @@ function calculateBandwidth(
   let downloadMbps = isFinite(downloadBps) ? downloadBps / 1000000 : 0;
   let uploadMbps = isFinite(uploadBps) ? uploadBps / 1000000 : 0;
 
-  // Sanity clamp: valores acima do teto são amostras corrompidas — descarta
-  // (devolve 0) em vez de propagar para o gráfico e distorcer toda a escala.
-  if (downloadMbps > MAX_REASONABLE_MBPS) {
-    console.warn(`[calculateBandwidth] Discarding absurd download sample: ${downloadMbps.toFixed(0)} Mbps (>${MAX_REASONABLE_MBPS}) — counter wrap or cross-interface delta`);
+  // Teto sanitário: se a banda contratada está disponível, usa 5x dela
+  // (mínimo 200 Mbps). Cliente de 50M nunca passa de 250 Mbps; cliente de
+  // 1G nunca passa de 5 Gbps; uplink BGP 20G nunca passa de 100 Gbps.
+  // Outliers do bug sempre dão >100x → sempre detectados. Picos legítimos
+  // de DDoS saturam no teto físico do link → sempre dentro do clamp.
+  const effectiveMaxMbps = linkBandwidthMbps && linkBandwidthMbps > 0
+    ? Math.max(linkBandwidthMbps * LINK_BANDWIDTH_CLAMP_MULTIPLIER, MIN_PER_LINK_CLAMP_MBPS)
+    : MAX_REASONABLE_MBPS;
+
+  if (downloadMbps > effectiveMaxMbps) {
+    console.warn(`[calculateBandwidth] Discarding absurd download sample: ${downloadMbps.toFixed(0)} Mbps (>${effectiveMaxMbps} = ${linkBandwidthMbps ? `${LINK_BANDWIDTH_CLAMP_MULTIPLIER}× link bandwidth ${linkBandwidthMbps} Mbps` : 'global default'}) — counter wrap or cross-interface delta`);
     downloadMbps = 0;
   }
-  if (uploadMbps > MAX_REASONABLE_MBPS) {
-    console.warn(`[calculateBandwidth] Discarding absurd upload sample: ${uploadMbps.toFixed(0)} Mbps (>${MAX_REASONABLE_MBPS}) — counter wrap or cross-interface delta`);
+  if (uploadMbps > effectiveMaxMbps) {
+    console.warn(`[calculateBandwidth] Discarding absurd upload sample: ${uploadMbps.toFixed(0)} Mbps (>${effectiveMaxMbps} = ${linkBandwidthMbps ? `${LINK_BANDWIDTH_CLAMP_MULTIPLIER}× link bandwidth ${linkBandwidthMbps} Mbps` : 'global default'}) — counter wrap or cross-interface delta`);
     uploadMbps = 0;
   }
 
@@ -2147,7 +2164,7 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
           const previousData = previousTrafficData.get(link.id);
 
           if (previousData) {
-            const bandwidth = calculateBandwidth(trafficData, previousData);
+            const bandwidth = calculateBandwidth(trafficData, previousData, link.bandwidth);
             downloadMbps = bandwidth.downloadMbps;
             uploadMbps = bandwidth.uploadMbps;
             if (link.trafficSourceType === 'accessPoint') {
@@ -3521,7 +3538,10 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
             const previousData = previousAdditionalTrafficData.get(cacheKey);
             
             if (previousData) {
-              const bandwidth = calculateBandwidth(trafficData, previousData);
+              // Interfaces adicionais usam o bandwidth do link "pai" como referência
+              // do clamp — uma interface adicional não pode passar fisicamente da
+              // capacidade do link a que pertence.
+              const bandwidth = calculateBandwidth(trafficData, previousData, link.bandwidth);
               let download = bandwidth.downloadMbps;
               let upload = bandwidth.uploadMbps;
               

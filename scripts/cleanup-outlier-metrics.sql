@@ -1,62 +1,80 @@
 -- =============================================================================
--- Limpeza de outliers históricos em metrics, metrics_hourly e metrics_daily
+-- Limpeza de outliers históricos PROPORCIONAL à banda contratada de cada link
 -- =============================================================================
 -- Causa: bug de cross-interface delta no SNMP collector (corrigido no deploy).
--- Quando handleIfIndexAutoDiscovery descobria um novo ifIndex, a primeira
--- amostra calculava delta entre counters de interfaces DIFERENTES, gerando
--- picos absurdos (até 35 Tbps em casos vistos).
+-- A primeira amostra após troca de ifIndex calculava delta entre counters
+-- de interfaces DIFERENTES, gerando picos absurdos (multiplicadores de
+-- 10× a 1.000.000× a banda contratada do link).
 --
--- Este script:
---   1) Mostra um relatório do que será afetado (SELECTs)
---   2) Zera download/upload acima de 200 Gbps na tabela `metrics` (raw)
---   3) Reseta picos no metrics_hourly e metrics_daily afetados pelo bug
+-- Estratégia: filtra outlier por link individual usando o mesmo critério do
+-- coletor — `download_max > link.bandwidth × 5` (mesma fórmula do
+-- LINK_BANDWIDTH_CLAMP_MULTIPLIER em monitoring.ts). Cliente de 50 Mbps =
+-- corte em 250 Mbps; cliente de 1 Gbps = corte em 5 Gbps; uplink BGP 20G =
+-- corte em 100 Gbps. Preserva bursts legítimos, apaga só o lixo.
 --
 -- IMPORTANTE: rode primeiro os SELECTs de diagnóstico e veja o impacto.
--- Depois rode os UPDATEs em transação. Faça backup do banco antes.
+-- Depois rode o bloco de DELETE em transação. Faça backup antes.
 -- =============================================================================
 
--- Limite sanitário (alinhado com MAX_REASONABLE_MBPS no monitoring.ts)
--- 30 Gbps = 30_000 Mbps = 30_000_000_000 bps
--- (Maior link da Marvitel = 15 Gbps; 30 Gbps dá 2x de folga.)
+-- Constantes (alinhadas com monitoring.ts):
+--   LINK_BANDWIDTH_CLAMP_MULTIPLIER = 5
+--   MIN_PER_LINK_CLAMP_MBPS         = 200
+--   MAX_REASONABLE_MBPS (fallback)  = 30_000
+-- Fórmula:
+--   CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0
+--        THEN GREATEST(l.bandwidth * 5, 200)
+--        ELSE 30000  -- fallback global, igual ao runtime quando bandwidth ausente
+--   END
 -- Tabela `metrics` armazena em bps; metrics_hourly/daily armazenam em Mbps
--- (confira o schema antes de aplicar)
 
 -- =============================================================================
--- 1) DIAGNÓSTICO — quantas amostras serão afetadas
+-- 1) DIAGNÓSTICO — quantas amostras estão acima do teto proporcional do link
 -- =============================================================================
-SELECT 'metrics (raw, bps)' AS tabela,
-       COUNT(*) AS amostras_outlier,
-       MAX(GREATEST(download, upload)) AS pico_max_bps,
-       MIN(timestamp) AS primeiro,
-       MAX(timestamp) AS ultimo
-FROM metrics
-WHERE download > 30000000000 OR upload > 30000000000;
 
-SELECT 'metrics_hourly (Mbps)' AS tabela,
+-- metrics_hourly (Mbps): outlier se download_max > max(bandwidth × 5, 200)
+SELECT 'metrics_hourly proporcional' AS tabela,
        COUNT(*) AS buckets_outlier,
-       MAX(GREATEST(download_max, upload_max)) AS pico_max_mbps,
-       MIN(bucket_start) AS primeiro,
-       MAX(bucket_start) AS ultimo
-FROM metrics_hourly
-WHERE download_max > 30000 OR upload_max > 30000;
+       MAX(GREATEST(mh.download_max, mh.upload_max)) AS pico_max_mbps,
+       MIN(mh.bucket_start) AS primeiro,
+       MAX(mh.bucket_start) AS ultimo
+FROM metrics_hourly mh
+JOIN links l ON l.id = mh.link_id
+WHERE mh.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+   OR mh.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END;
 
-SELECT 'metrics_daily (Mbps)' AS tabela,
+-- metrics_daily (Mbps): mesma lógica
+SELECT 'metrics_daily proporcional' AS tabela,
        COUNT(*) AS buckets_outlier,
-       MAX(GREATEST(download_max, upload_max)) AS pico_max_mbps,
-       MIN(bucket_start) AS primeiro,
-       MAX(bucket_start) AS ultimo
-FROM metrics_daily
-WHERE download_max > 30000 OR upload_max > 30000;
+       MAX(GREATEST(md.download_max, md.upload_max)) AS pico_max_mbps,
+       MIN(md.bucket_start) AS primeiro,
+       MAX(md.bucket_start) AS ultimo
+FROM metrics_daily md
+JOIN links l ON l.id = md.link_id
+WHERE md.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+   OR md.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END;
 
--- Top 10 links mais afetados
-SELECT l.id, l.name,
+-- metrics raw (bps): outlier se download > max(bandwidth × 5, 200) × 1_000_000
+SELECT 'metrics raw proporcional' AS tabela,
        COUNT(*) AS amostras_outlier,
-       MAX(GREATEST(m.download, m.upload)) / 1e9 AS pico_gbps
+       MAX(GREATEST(m.download, m.upload)) AS pico_max_bps,
+       MIN(m.timestamp) AS primeiro,
+       MAX(m.timestamp) AS ultimo
 FROM metrics m
 JOIN links l ON l.id = m.link_id
-WHERE m.download > 30000000000 OR m.upload > 30000000000
-GROUP BY l.id, l.name
-ORDER BY amostras_outlier DESC
+WHERE m.download > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0
+   OR m.upload   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0;
+
+-- Top 10 links com mais outliers (mostra link, banda contratada, qtd, pico)
+SELECT l.id, l.name, l.bandwidth AS banda_mbps,
+       COUNT(*) AS buckets_outlier,
+       MAX(GREATEST(mh.download_max, mh.upload_max)) AS pico_mbps,
+       MAX(GREATEST(mh.download_max, mh.upload_max)) / NULLIF(l.bandwidth, 0)::float AS multiplo_da_banda
+FROM metrics_hourly mh
+JOIN links l ON l.id = mh.link_id
+WHERE mh.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+   OR mh.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+GROUP BY l.id, l.name, l.bandwidth
+ORDER BY buckets_outlier DESC
 LIMIT 10;
 
 -- =============================================================================
@@ -64,27 +82,34 @@ LIMIT 10;
 -- =============================================================================
 -- BEGIN;
 --
--- -- Zera valores absurdos na tabela raw (mantém o registro para preservar
--- -- timeline; status/latency continuam válidos).
--- UPDATE metrics
+-- DELETE FROM metrics_hourly mh
+-- USING links l
+-- WHERE l.id = mh.link_id
+--   AND (mh.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+--     OR mh.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END);
+--
+-- DELETE FROM metrics_daily md
+-- USING links l
+-- WHERE l.id = md.link_id
+--   AND (md.download_max > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END
+--     OR md.upload_max   > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END);
+--
+-- -- Raw: zera apenas os campos download/upload (preserva o registro pra manter
+-- -- timeline, latency e status válidos).
+-- UPDATE metrics m
 -- SET download = 0
--- WHERE download > 30000000000;
+-- FROM links l
+-- WHERE l.id = m.link_id
+--   AND m.download > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0;
 --
--- UPDATE metrics
+-- UPDATE metrics m
 -- SET upload = 0
--- WHERE upload > 30000000000;
---
--- -- Recalcula buckets horários afetados a partir do raw já limpo.
--- -- (Se preferir não recalcular, basta zerar os campos *_max/*_avg dos
--- -- buckets afetados — mas perderá granularidade nas horas envolvidas.)
--- DELETE FROM metrics_hourly
--- WHERE download_max > 30000 OR upload_max > 30000;
---
--- DELETE FROM metrics_daily
--- WHERE download_max > 30000 OR upload_max > 30000;
+-- FROM links l
+-- WHERE l.id = m.link_id
+--   AND m.upload > CASE WHEN l.bandwidth IS NOT NULL AND l.bandwidth > 0 THEN GREATEST(l.bandwidth * 5, 200) ELSE 30000 END * 1000000.0;
 --
 -- COMMIT;
 --
--- Após o COMMIT, o agregador horário (que roda no minuto :05 de cada hora)
--- vai recriar automaticamente os buckets apagados a partir dos dados raw
--- já limpos. O agregador diário (01:05) faz o mesmo para metrics_daily.
+-- Após COMMIT, o agregador horário (minuto :05 de cada hora) recria buckets
+-- com base no raw já limpo. Dias mais antigos onde o raw já foi apagado pela
+-- retenção ficam como gap no gráfico — preferível a mostrar pico irreal.
