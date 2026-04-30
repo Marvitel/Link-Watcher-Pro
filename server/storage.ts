@@ -500,11 +500,11 @@ export class DatabaseStorage {
     const expectedDailyPoints = Math.ceil(hoursSpan / 24);
     const expectedHourlyPoints = Math.ceil(hoursSpan);
     
-    // Threshold 60d (não 30d): manter densidade horária no 30d para que picos
-    // apareçam como eventos pontuais, não platôs de 24h. Em janelas ≥60d, a
-    // quantidade de pontos horários (>1440) começa a pesar render/transferência,
-    // então caímos para diário.
-    if (hoursSpan >= 24 * 60) {
+    // Threshold 180d (não 30d): manter densidade horária para preservar
+    // picos como eventos pontuais. Entre 90d e 180d aplicamos decimação no
+    // servidor (bucket de 2-3h) para limitar a payload em ~2160 pontos sem
+    // perder MAX/AVG. Em janelas ≥180d caímos para a tabela diária.
+    if (hoursSpan >= 24 * 180) {
       const conditions = [eq(metricsDaily.linkId, linkId), gte(metricsDaily.bucketStart, startDate)];
       if (endDate) conditions.push(lte(metricsDaily.bucketStart, endDate));
       
@@ -555,12 +555,163 @@ export class DatabaseStorage {
         .where(and(...conditions))
         .orderBy(desc(metricsHourly.bucketStart));
       
-      // Usar dados horários somente se tiver pelo menos 30% dos pontos esperados
-      if (hourlyData.length >= expectedHourlyPoints * 0.3) {
-        // Padrão MRTG/Cacti: linha principal = MAX (pico real), banda secundária = AVG.
-        return hourlyData.map(d => {
+      // Usar hourly somente se cobrir o range pedido. Critério baseado em
+      // COBERTURA TEMPORAL (não em contagem): o bucket mais antigo precisa
+      // estar a no máximo 5% do span depois de startDate. Isso evita mostrar
+      // metade do gráfico vazia quando a base hourly só tem dados recentes
+      // (ex.: produção pré-fix tinha 30d de hourly; range de 60d antes passava
+      // em "30% dos pontos" e exibia só os últimos 30d cortando o histórico).
+      const oldestHourlyTs = hourlyData.length > 0
+        ? hourlyData[hourlyData.length - 1].bucketStart.getTime()
+        : null;
+      const coverageGapHours = oldestHourlyTs !== null
+        ? Math.max(0, (oldestHourlyTs - startDate.getTime()) / (1000 * 60 * 60))
+        : Infinity;
+      const hourlyCoversRange = oldestHourlyTs !== null
+        && coverageGapHours <= Math.max(2, hoursSpan * 0.05);
+
+      if (hourlyCoversRange) {
+        // Decimação: quando hoursSpan > 90d (2160h), agrupar buckets horários em
+        // janelas de N horas para limitar payload/render em ~2160 pontos sem
+        // perder fidelidade — MAX vira max(max) e AVG vira avg(avg) ponderado.
+        const HOURLY_TARGET = 2160;
+        const decimationHours = hoursSpan > HOURLY_TARGET
+          ? Math.ceil(hoursSpan / HOURLY_TARGET)
+          : 1;
+
+        if (decimationHours === 1) {
+          // Padrão MRTG/Cacti: linha principal = MAX (pico real), banda secundária = AVG.
+          return hourlyData.map(d => {
+            const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
+            const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+              : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+            return {
+              id: d.id,
+              linkId: d.linkId,
+              clientId: d.clientId,
+              timestamp: d.bucketStart,
+              download: d.downloadMax,
+              upload: d.uploadMax,
+              latency: d.latencyMax,
+              packetLoss: d.packetLossMax,
+              cpuUsage: d.cpuUsageAvg,
+              memoryUsage: d.memoryUsageAvg,
+              errorRate: d.offlineCount > 0 ? (d.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+              status: dominantStatus,
+              downloadAvg: d.downloadAvg,
+              uploadAvg: d.uploadAvg,
+              latencyAvg: d.latencyAvg,
+              packetLossAvg: d.packetLossAvg,
+              isAggregated: true,
+              aggregationLevel: "hourly" as const,
+            };
+          }) as unknown as MetricWithAggregates[];
+        }
+
+        // Decimação por bucketing horário (>90d). Agrega por janela de
+        // `decimationHours` horas mantendo MAX = max(*Max) e AVG = média ponderada
+        // dos *Avg pelo sample_count de cada bucket fonte (horas com mais
+        // amostras pesam mais — corrige fast-poll/coleta irregular). status
+        // dominante segue a regra de >50%/>30% offline/degraded.
+        const bucketMs = decimationHours * 60 * 60 * 1000;
+        type DecAcc = {
+          downloadMax: number; uploadMax: number; latencyMax: number; packetLossMax: number;
+          downloadAvgSum: number; uploadAvgSum: number; latencyAvgSum: number; packetLossAvgSum: number;
+          cpuAvgSum: number; memoryAvgSum: number; avgWeight: number;
+          operationalCount: number; degradedCount: number; offlineCount: number;
+          first: typeof hourlyData[0];
+          timestamp: Date;
+        };
+        const decMap = new Map<number, DecAcc>();
+        for (const d of hourlyData) {
+          const key = Math.floor(d.bucketStart.getTime() / bucketMs) * bucketMs;
+          let acc = decMap.get(key);
+          if (!acc) {
+            acc = {
+              downloadMax: 0, uploadMax: 0, latencyMax: 0, packetLossMax: 0,
+              downloadAvgSum: 0, uploadAvgSum: 0, latencyAvgSum: 0, packetLossAvgSum: 0,
+              cpuAvgSum: 0, memoryAvgSum: 0, avgWeight: 0,
+              operationalCount: 0, degradedCount: 0, offlineCount: 0,
+              first: d, timestamp: new Date(key),
+            };
+            decMap.set(key, acc);
+          }
+          if ((d.downloadMax ?? 0) > acc.downloadMax) acc.downloadMax = d.downloadMax ?? 0;
+          if ((d.uploadMax ?? 0) > acc.uploadMax) acc.uploadMax = d.uploadMax ?? 0;
+          if ((d.latencyMax ?? 0) > acc.latencyMax) acc.latencyMax = d.latencyMax ?? 0;
+          if ((d.packetLossMax ?? 0) > acc.packetLossMax) acc.packetLossMax = d.packetLossMax ?? 0;
+          // Peso = sample_count do bucket fonte (n. de amostras raw que originaram aquela hora).
+          // Fallback 1 quando a coluna estiver ausente/zero.
+          const weight = Math.max(1, d.sampleCount ?? 1);
+          acc.downloadAvgSum += (d.downloadAvg ?? 0) * weight;
+          acc.uploadAvgSum += (d.uploadAvg ?? 0) * weight;
+          acc.latencyAvgSum += (d.latencyAvg ?? 0) * weight;
+          acc.packetLossAvgSum += (d.packetLossAvg ?? 0) * weight;
+          acc.cpuAvgSum += (d.cpuUsageAvg ?? 0) * weight;
+          acc.memoryAvgSum += (d.memoryUsageAvg ?? 0) * weight;
+          acc.avgWeight += weight;
+          acc.operationalCount += d.operationalCount;
+          acc.degradedCount += d.degradedCount;
+          acc.offlineCount += d.offlineCount;
+        }
+
+        const decimated: MetricWithAggregates[] = [];
+        const sortedKeys = Array.from(decMap.keys()).sort((a, b) => b - a);
+        for (const k of sortedKeys) {
+          const acc = decMap.get(k)!;
+          const w = Math.max(1, acc.avgWeight);
+          const totalSamples = acc.operationalCount + acc.degradedCount + acc.offlineCount;
+          const dominantStatus = acc.offlineCount > totalSamples * 0.5 ? "offline"
+            : acc.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
+          decimated.push({
+            id: acc.first.id,
+            linkId: acc.first.linkId,
+            clientId: acc.first.clientId,
+            timestamp: acc.timestamp,
+            download: acc.downloadMax,
+            upload: acc.uploadMax,
+            latency: acc.latencyMax,
+            packetLoss: acc.packetLossMax,
+            cpuUsage: acc.cpuAvgSum / w,
+            memoryUsage: acc.memoryAvgSum / w,
+            errorRate: acc.offlineCount > 0 ? (acc.offlineCount / Math.max(1, totalSamples)) * 100 : 0,
+            status: dominantStatus,
+            downloadAvg: acc.downloadAvgSum / w,
+            uploadAvg: acc.uploadAvgSum / w,
+            latencyAvg: acc.latencyAvgSum / w,
+            packetLossAvg: acc.packetLossAvgSum / w,
+            isAggregated: true,
+            aggregationLevel: "hourly" as const,
+          } as unknown as MetricWithAggregates);
+        }
+        return decimated;
+      }
+
+      // Fallback diário: hourly insuficiente para o range solicitado (provavelmente
+      // dados antigos já apagados pelo cleanup quando MIN_RETENTION_HOURLY_DAYS
+      // ainda era 30d). Antes de cair pra raw — que só tem 7 dias — tenta daily.
+      const dailyConditions = [eq(metricsDaily.linkId, linkId), gte(metricsDaily.bucketStart, startDate)];
+      if (endDate) dailyConditions.push(lte(metricsDaily.bucketStart, endDate));
+      const dailyFallback = await db
+        .select()
+        .from(metricsDaily)
+        .where(and(...dailyConditions))
+        .orderBy(desc(metricsDaily.bucketStart));
+      // Mesma lógica de cobertura temporal do hourly: o bucket mais antigo
+      // precisa estar próximo de startDate. Daily tem retenção maior (≥180d),
+      // mas blindamos contra o caso patológico de daily também "só recente".
+      const oldestDailyTs = dailyFallback.length > 0
+        ? dailyFallback[dailyFallback.length - 1].bucketStart.getTime()
+        : null;
+      const dailyGapHours = oldestDailyTs !== null
+        ? Math.max(0, (oldestDailyTs - startDate.getTime()) / (1000 * 60 * 60))
+        : Infinity;
+      const dailyCoversRange = oldestDailyTs !== null
+        && dailyGapHours <= Math.max(48, hoursSpan * 0.1);
+      if (dailyCoversRange) {
+        return dailyFallback.map(d => {
           const totalSamples = d.operationalCount + d.degradedCount + d.offlineCount;
-          const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline" 
+          const dominantStatus = d.offlineCount > totalSamples * 0.5 ? "offline"
             : d.degradedCount > totalSamples * 0.3 ? "degraded" : "operational";
           return {
             id: d.id,
@@ -580,7 +731,7 @@ export class DatabaseStorage {
             latencyAvg: d.latencyAvg,
             packetLossAvg: d.packetLossAvg,
             isAggregated: true,
-            aggregationLevel: "hourly" as const,
+            aggregationLevel: "daily" as const,
           };
         }) as unknown as MetricWithAggregates[];
       }

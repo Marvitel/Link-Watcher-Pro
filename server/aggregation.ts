@@ -3,11 +3,15 @@ import { metrics, metricsHourly, metricsDaily, systemSettings } from "@shared/sc
 import { sql, and, gte, lt, eq } from "drizzle-orm";
 
 // Limites mínimos de retenção (raw e hourly não devem cair abaixo destes valores
-// pra preservar gráficos de curto prazo). O usuário ajusta o teto via
-// system_settings.dataRetentionMonths, que controla o cleanup do bucket diário
+// pra preservar gráficos de curto, médio e longo prazo). O usuário ajusta o teto
+// via system_settings.dataRetentionMonths, que controla o cleanup do bucket diário
 // (e amplia raw/hourly proporcionalmente quando configurado pra mais).
+//
+// HOURLY = 180 dias é necessário porque getLinkMetrics() usa metrics_hourly
+// (com decimação no servidor) para janelas até 180d. Reduzir abaixo disso quebra
+// o gráfico de Personalizado em ranges médios. Custo: ~500MB para 1000 links.
 const MIN_RETENTION_RAW_DAYS = 7;
-const MIN_RETENTION_HOURLY_DAYS = 30;
+const MIN_RETENTION_HOURLY_DAYS = 180;
 const DEFAULT_RETENTION_DAILY_DAYS = 180;
 
 async function getRetentionDaysFromSettings(): Promise<{ raw: number; hourly: number; daily: number }> {
@@ -83,11 +87,13 @@ export async function aggregateDailyMetrics(): Promise<number> {
     )
     SELECT 
       link_id, client_id, ${bucketStart}::timestamp,
-      AVG(download_avg), MAX(download_max), MIN(download_min),
-      AVG(upload_avg), MAX(upload_max), MIN(upload_min),
-      AVG(latency_avg), MAX(latency_max), MIN(latency_min),
-      AVG(packet_loss_avg), MAX(packet_loss_max),
-      AVG(cpu_usage_avg), AVG(memory_usage_avg),
+      -- AVG ponderado pelo sample_count: horas com mais coletas (fast-poll) pesam
+      -- mais que horas com poucas amostras. MAX/MIN seguem inalterados (extremos).
+      SUM(download_avg * sample_count) / NULLIF(SUM(sample_count), 0), MAX(download_max), MIN(download_min),
+      SUM(upload_avg * sample_count) / NULLIF(SUM(sample_count), 0), MAX(upload_max), MIN(upload_min),
+      SUM(latency_avg * sample_count) / NULLIF(SUM(sample_count), 0), MAX(latency_max), MIN(latency_min),
+      SUM(packet_loss_avg * sample_count) / NULLIF(SUM(sample_count), 0), MAX(packet_loss_max),
+      SUM(cpu_usage_avg * sample_count) / NULLIF(SUM(sample_count), 0), SUM(memory_usage_avg * sample_count) / NULLIF(SUM(sample_count), 0),
       SUM(sample_count),
       SUM(operational_count), SUM(degraded_count), SUM(offline_count),
       CASE WHEN SUM(sample_count) > 0 

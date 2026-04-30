@@ -1,7 +1,7 @@
 # Link Monitor
 
 ## Overview
-The Link Monitor, developed by Marvitel Telecomunicações, is a multi-tenant SaaS application for real-time monitoring of dedicated fiber optic internet links. Its core purpose is to ensure SLA/ANS compliance, detect DDoS attacks, and manage incidents for Marvitel's clients. This full-stack TypeScript application aims to provide a robust and scalable solution for network performance and security monitoring, aligning with Marvitel's business vision, market potential, and project ambitions in the telecommunications sector.
+The Link Monitor, developed by Marvitel Telecomunicações, is a multi-tenant SaaS application designed for real-time monitoring of dedicated fiber optic internet links. Its primary purpose is to ensure SLA/ANS compliance, detect DDoS attacks, and manage incidents for Marvitel's clients. This full-stack TypeScript application aims to provide a robust and scalable solution for network performance and security monitoring, supporting Marvitel's strategic objectives in the telecommunications sector.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language (Portuguese).
@@ -18,19 +18,19 @@ Preferred communication style: Simple, everyday language (Portuguese).
 ## System Architecture
 
 ### Multi-Tenant & Security
-The system features a multi-tenant architecture with client data isolation, role-based access control (RBAC), and a Super Admin role. Authentication uses localStorage and Express sessions. It employs a dual-port design for public and restricted admin portals, with optional IP whitelisting and an application firewall.
+The system employs a multi-tenant architecture with client data isolation, role-based access control (RBAC), and a Super Admin role. Authentication uses localStorage and Express sessions, featuring a dual-port design for public and restricted admin portals, with optional IP whitelisting and an application firewall.
 
 ### Frontend
-Built with React 18 and TypeScript, the frontend uses Wouter for routing, TanStack Query for real-time data, and shadcn/ui (Radix UI-based) components. Tailwind CSS handles styling, supporting light/dark modes and custom theming. Recharts is used for data visualization (bandwidth, latency), with a kiosk mode for 24/7 displays.
+Built with React 18 and TypeScript, the frontend utilizes Wouter for routing, TanStack Query for real-time data, and shadcn/ui (Radix UI-based) components. Tailwind CSS manages styling, including light/dark modes and custom theming. Recharts is used for data visualization (bandwidth, latency), with a kiosk mode available. The primary UI font is Inter, with JetBrains Mono for monospace elements.
 
 ### Backend
 The backend is developed with Node.js, Express, and TypeScript (ESM), providing RESTful API endpoints. `esbuild` is used for production bundling.
 
 ### Data Layer
-PostgreSQL is the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. Core tables manage clients, users, links, hosts, metrics, events, incidents, and RBAC. Data retention is 6 months, with an `audit_logs` table for system events.
+PostgreSQL serves as the primary database, accessed via Drizzle ORM with `drizzle-zod` for schema validation. Core tables manage clients, users, links, hosts, metrics, events, incidents, and RBAC. Data retention is set for 6 months, complemented by an `audit_logs` table for system events.
 
 ### Monorepo Structure & Design Patterns
-The project uses a monorepo structure (`client/`, `server/`, `shared/`) with path aliases, featuring bandwidth direction inversion, versioning with auto-reload for frontend updates, and a system for simulating real-time network metrics.
+The project uses a monorepo structure (`client/`, `server/`, `shared/`) with path aliases. Key features include bandwidth direction inversion, versioning with auto-reload for frontend updates, and a system for simulating real-time network metrics.
 
 ### SNMP Traffic Collection
 The system supports multiple traffic data sources (Manual IP, Concentrator, Access Point) and collects metrics from additional interfaces, ensuring per-minute timestamp alignment.
@@ -42,52 +42,37 @@ Integration with Cisco ASR/ISR routers supports PPPoE concentrator functions, in
 Per-link optical signal monitoring uses a cascading fallback mechanism: OLT via SNMP (primary), Zabbix MySQL (fallback), and Flashman ACS (fallback for neutral networks). It supports various OLT vendors (Huawei, ZTE, Fiberhome, Nokia, Datacom) and detects optical signal deltas. Cisco Nexus SFP optical sensors are auto-discovered.
 
 ### Dynamic IP (PPPoE) Handling
-The system supports dynamic IP addresses for CPEs via `useDynamicIp` field, prioritizing `links.monitoredIp` over static overrides. A centralized helper (`resolveCpeIp`) manages IP resolution across various functionalities. Voalle imports automatically enable `useDynamicIp` for PPPoE/corporate links.
+The system supports dynamic IP addresses for CPEs via a `useDynamicIp` field, prioritizing `links.monitoredIp` over static overrides. A centralized helper (`resolveCpeIp`) manages IP resolution across various functionalities. Voalle imports automatically enable `useDynamicIp` for PPPoE/corporate links.
 
 ### CPE Command Library
 A library of pre-configured command templates for CPE devices, categorized by manufacturer/model, assists with diagnostics, supporting placeholders and clipboard copying.
 
 ### Link Status & SLA Monitoring
-Link statuses include `operational`, `degraded`, `offline`, and `unknown` (note: `online` is not used). SLA compliance is monitored for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours), excluding blocked or cancelled links.
+Link statuses include `operational`, `degraded`, `offline`, and `unknown`. SLA compliance is monitored for Availability (≥99%), Latency (≤80ms), Packet Loss (≤2%), and Max Repair Time (6 hours), excluding blocked or cancelled links. Availability calculation uses the formula `availability = (operationalCount / totalCount) × 100` applied over the `metrics` table within defined windows (30 days for dashboard, monthly for reports, 6 months accumulated).
 
-**Cálculo de disponibilidade (uniforme em todo o sistema)**: a fórmula oficial é `availability = (operationalCount / totalCount) × 100` aplicada sobre a tabela `metrics` em uma janela definida — implementada em `calculateSLAFromMetrics(clientId?, fromDate?, toDate?, linkId?)` (server/storage.ts). Filtra contratos `blocked`/`cancelled`. Janelas usadas:
-- **Dashboard ("Disponibilidade Média")**: últimos 30 dias — `getDashboardStats` chama `calculateSLAFromMetrics` com janela de 30 dias
-- **SLA Mensal (relatórios)**: mês selecionado — `getSLAIndicatorsMonthly`
-- **SLA Acumulado (link detail / relatórios)**: últimos 6 meses — `getSLAIndicatorsAccumulated`
+### Metric Charts (Bandwidth/Latency/Loss) — MRTG/Cacti pattern
+Charts utilize shared utilities (`client/src/lib/chart-time.ts`) for deterministic X-axis scaling and consistent tick formatting (≤36h → hourly ticks, >36h → daily ticks aligned to 00:00).
 
-O campo `links.uptime` (atualizado por `processLinkMetrics` com +0.001/-0.01 a cada coleta) é usado APENAS como fallback quando não há métricas no período. **Não deve ser usado para exibir disponibilidade** — é só um indicador instantâneo de saúde.
+**Backend aggregation strategy** (`server/storage.ts` `getLinkMetrics()`):
+- `<7d` → `metrics` table (raw, 1 sample/min)
+- `≥7d` and `≤90d` → `metrics_hourly` direct (7d=168, 30d=720, 90d=2160 points)
+- `>90d` and `<180d` → `metrics_hourly` with **server-side decimation**: groups into N-hour buckets (`N = ceil(hoursSpan / 2160)`), keeping MAX = `max(downloadMax)` and AVG = `downloadAvg` weighted by each source hour's `sampleCount` (irregular fast-poll collection is corrected). Requires `MIN_RETENTION_HOURLY_DAYS = 180` in `server/aggregation.ts` — lowering this breaks Personalizado in mid-range windows.
+- `≥180d` → `metrics_daily` (1 point/day)
+- **Daily fallback** (coverage): if `metrics_hourly` lacks coverage for the requested range (e.g., old data already deleted when retention was still 30d), the query tries `metrics_daily` before falling back to raw — keeps 60-180d ranges working in production while the 180d hourly base rebuilds.
+- **Raw-bucket fallback**: if hourly/daily still don't have enough points (≥30%/50% expected, e.g., aggregation jobs delayed), aggregates `metrics` into dynamic buckets server-side.
 
-**Disponibilidade por link (`availability30d`)**: para garantir que o mesmo link mostre o mesmo número em qualquer tela (lista de cards, dashboard agregado, página de detalhe), os endpoints `GET /api/links`, `GET /api/links/:id` e `GET /api/super-admin/link-dashboard` enriquecem cada link com o campo `availability30d` calculado por `storage.getAvailabilityByLink()` — uma única query agregada `GROUP BY link_id` sobre `metrics` nos últimos 30 dias, retornando `(operacional / total) × 100`. Os componentes `CompactLinkCard`, `LinkCard`, `SuperAdminLinkCard` e o card "Uptime" do `link-detail` usam `availability30d ?? link.uptime` (fallback para o contador instantâneo apenas quando ainda não há métricas no período). O SLA acumulado de 6 meses (`slaDE`) continua sendo usado em relatórios e na seção de indicadores SLA da página de detalhe.
+In **all** windows ≥7d (including raw-bucket fallback), the primary line maps to `*Max` (real bucket peak — no more hiding 5min DDoS attacks in 1h averages) with optional `downloadAvg`/`uploadAvg`/`latencyAvg`/`packetLossAvg`, `isAggregated: true`, `aggregationLevel: "hourly"|"daily"|"raw-bucket"`. The `MetricWithAggregates` type in `shared/schema.ts` models these extras.
 
-### Gráficos de métricas (Banda/Latência/Perda) — padrão MRTG/Cacti
-**Utilitários compartilhados (`client/src/lib/chart-time.ts`)**: `getSpanMs`, `pickTickFormat`, `pickTooltipFormat`, `getExpectedGapMs` e `generateTimeTicks(spanMs, firstTs, lastTs)`. Todos os componentes que renderizam séries temporais (`BandwidthChart`, `LatencyChart`, `PacketLossChart`, `UnifiedMetricsChart` em `bandwidth-chart.tsx` e `MultiTrafficChart` em `multi-traffic-chart.tsx`) importam desse módulo único — não há mais reexport entre componentes.
+**`hoursSpan` correctness**: computed over the real `[startDate, endDate ?? now]` window — for custom historical ranges (e.g., "1st week of January"), using `now` instead of `endDate` would inflate `expectedDailyPoints`/`expectedHourlyPoints` and reject valid aggregates as "insufficient".
 
-**Eixo X determinístico**: todos os XAxis usam `dataKey="tsNum"` + `type="number"` + `scale="time"` e recebem **ticks controlados** via `ticks={generateTimeTicks(...)}` + `interval={0}`:
-- ≤36h → ticks alinhados a hora cheia (passo 0,25/1/2/3/6h), formato `HH:mm`
-- >36h → ticks alinhados a 00:00 do dia (passo 1/2/4/7/14 dias), formato `dd/MM`
+**Frontend MRTG-style** (`bandwidth-chart.tsx`, `multi-traffic-chart.tsx`): when `isAggregated`, draws two stacked Areas/Lines: AVG underneath (gradient with ~0.55 opacity, `strokeWidth={1}`) showing the average regime, MAX on top (solid color) highlighting peaks/worst-case. Tooltip shows "X (pico)" and "Y (médio)" side by side. In raw windows (<7d), draws single series. **No frontend smoothing** — what comes from DB is what user sees, ensuring Cacti/Grafana-like fidelity. All XAxis use `dataKey="tsNum"` + `type="number"` + `scale="time"` + `ticks={generateTimeTicks(...)}`.
 
-Tooltip mostra a data completa via `pickTooltipFormat`.
+**Field propagation**: `client/src/pages/link-detail.tsx` types the query as `MetricWithAggregates[]` and propagates `downloadAvg`/`uploadAvg`/`latencyAvg`/`packetLossAvg`/`isAggregated` into `bandwidthData`/`latencyData`/`packetLossData`/`unifiedData` — without this, the fields are silently dropped when shaping data for charts.
 
-**Backend agregado retorna MAX + AVG**: em `server/storage.ts`, `getLinkMetrics()` consulta:
-- `<7d` → tabela `metrics` (raw, 1 amostra por minuto)
-- `≥7d` e `<60d` → `metrics_hourly` (1 ponto/hora) — inclui o 30d (720 pontos), garantindo que picos curtos apareçam como eventos pontuais e não como platôs de 24h
-- `≥60d` → `metrics_daily` (1 ponto/dia) — só nesse range a granularidade diária vale a pena (>1440 pontos horários começam a pesar)
-- Fallback raw-bucket: se hourly/daily ainda não tem pontos suficientes (≥30%/50% do esperado, ex.: jobs de agregação atrasaram), agrega `metrics` em buckets dinâmicos no servidor.
-
-Em **todas** as janelas ≥7d (incluindo o fallback raw-bucket), o backend mapeia a linha principal para `*Max` (download/upload/latency/packetLoss = pico real do bucket — ninguém esconde mais o ataque DDoS de 5min na média de 1h) e anexa os campos opcionais `downloadAvg`, `uploadAvg`, `latencyAvg`, `packetLossAvg`, `isAggregated: true`, `aggregationLevel: "hourly"|"daily"|"raw-bucket"`. O tipo `MetricWithAggregates` em `shared/schema.ts` modela esses campos extras (estende `Metric`). A assinatura é `Promise<MetricWithAggregates[]>` e clientes legados continuam funcionando porque os campos novos são opcionais.
-
-**Atenção sobre `hoursSpan`**: o cálculo de quantos pontos esperar (`expectedDailyPoints`/`expectedHourlyPoints`) usa a janela REAL `[startDate, endDate ?? now]` — em ranges históricos personalizados (ex.: "1ª semana de janeiro"), usar `now` em vez de `endDate` daria meses de span e levaria a query a rejeitar agregados válidos achando que faltam pontos.
-
-**Frontend MRTG-style**: quando `isAggregated`, os componentes desenham **duas Areas/Lines empilhadas**:
-1. AVG ao fundo (gradient com opacidade ~0.55, `strokeWidth={1}`) — mostra o regime médio
-2. MAX por cima (cor sólida normal) — destaca o pico/pior caso
-
-Tooltip nesses casos exibe "X (pico)" e "Y (médio)" lado a lado. Em janelas raw (<7d) só desenha a série única. **Não há mais suavização (média móvel) aplicada no frontend** — o que vem do banco é o que o usuário vê, garantindo fidelidade tipo Cacti/Grafana.
-
-**Propagação dos campos**: `client/src/pages/link-detail.tsx` tipifica a query como `MetricWithAggregates[]` e propaga `downloadAvg`/`uploadAvg`/`latencyAvg`/`packetLossAvg`/`isAggregated` ao remapear `sortedMetrics` em `bandwidthData`/`latencyData`/`packetLossData`/`unifiedData` — sem essa propagação os campos eram silenciosamente descartados na transformação para os charts.
+**Per-link availability (`availability30d`)**: endpoints `GET /api/links`, `GET /api/links/:id` and `GET /api/super-admin/link-dashboard` enrich each link with `availability30d` calculated by `storage.getAvailabilityByLink()` — single aggregated `GROUP BY link_id` query over `metrics` for the last 30 days, returning `(operational / total) × 100`. The `links.uptime` field (incremented +0.001/-0.01 per collection) is used ONLY as fallback when no metrics exist in the period — not for displaying availability.
 
 ### Voalle Webhook Processing
-The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, creating/updating/soft-deleting links, mapping contract statuses, and enriching data via Portal and OZmap APIs. It adjusts monitoring based on link status.
+The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, managing link creation, updates, and soft-deletions, mapping contract statuses, and enriching data via Portal and OZmap APIs. Monitoring adjustments are based on link status.
 
 ### Link Groups
 The system supports grouping links for redundancy (Active/Passive), aggregation (Dual-Stack/Bonding), and shared bandwidth scenarios.
@@ -96,19 +81,13 @@ The system supports grouping links for redundancy (Active/Passive), aggregation 
 An admin tool provides batch diagnostics and enrichment, categorizing missing data and offering actions like `discover_voalle_login`, `discover_ips`, `assign_concentrators`, and `sync_ozmap`, including progress tracking and RADIUS connection tests.
 
 ### AI Analyst (Agentic Link Triage)
-An automatic link triage system uses Anthropic Claude (`claude-sonnet-4-5`) with function-calling. Key components include:
--   **Tables**: `ai_analyst_settings` (for config/keys/autonomy mode), `ai_analyst_tasks` (investigation queue), `ai_analyst_proposals` (AI's proposed actions), `ai_analyst_corrections` (learning from human input), and `ai_analyst_rules` (explicit, free-text rules).
--   **Module (`server/ai-analyst.ts`)**: Manages task queuing, processing, proposal application/rejection, context building for the AI (link fields, events, metrics, rules, learning memory), and `runLlmInvestigation()` with tool-use (e.g., `search_similar_links`, `submit_proposal`).
--   **Security**: Anthropic API key resolution prioritizes environment variables. Only whitelisted fields can be modified by the AI. Costs are tracked.
--   **Endpoints**: Admin routes (`/api/admin/ai-analyst/*`) for settings, API keys, queue management, proposals, and rules (requiring `requireSuperAdmin`).
--   **UI**: Dedicated "Analista IA" tab in admin for reviewing proposals, managing the queue and rules, and configuring settings.
--   **Monitoring Deactivation**: The AI can propose `monitoringEnabled=false` for cancelled or duplicate links, and temporary pauses with auto-rehabilitation for PPPoE links.
+An automatic link triage system uses Anthropic Claude (`claude-sonnet-4-5`) with function-calling capabilities. It includes tables for settings, tasks, proposals, corrections, and explicit rules. The `server/ai-analyst.ts` module manages task queuing, processing, proposal application/rejection, and context building for the AI with tool-use (e.g., `search_similar_links`, `submit_proposal`). Security measures include API key prioritization and whitelisted fields for AI modifications. Admin routes and a dedicated UI tab are available for management. The AI can propose deactivating monitoring or temporary pauses with auto-rehabilitation.
 
 ### Inactive Links & Temporary Pauses
-Links with `monitoringEnabled=false` are automatically resolved of open events, set to `status='unknown'`, and excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation: a scheduler runs every 5 minutes and reabilita o link automaticamente quando — para links PPPoE — a sessão volta no RADIUS, ou — para links ponto-a-ponto/corporativos — o `monitoredIp` volta a responder ping (perda <50%). Em ambos os casos cria um evento informativo no link.
+Links with `monitoringEnabled=false` have open events resolved, status set to 'unknown', and are excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation: a scheduler re-enables PPPoE links when the RADIUS session returns, or point-to-point/corporate links when the `monitoredIp` responds to pings (loss <50%). Informative events are created upon rehabilitation.
 
 ### Voalle Service Tag Mapping
-A `voalle_service_tags` table stores mappings between numeric Voalle tag IDs and alphanumeric OZmap codes, populated by CSV import. This is used by the reconciliation engine to resolve service tags.
+A `voalle_service_tags` table stores mappings between numeric Voalle tag IDs and alphanumeric OZmap codes, populated by CSV import for reconciliation.
 
 ## External Dependencies
 
@@ -118,30 +97,8 @@ A `voalle_service_tags` table stores mappings between numeric Voalle tag IDs and
 ### Third-Party Integrations
 -   **Wanguard (Andrisoft)**: DDoS detection and mitigation.
 -   **HetrixTools**: IP/CIDR blacklist monitoring.
--   **Voalle ERP**: Ticket/incident management, contract tags, client authentication, and bulk data import.
+-   **Voalle ERP**: Ticket/incident management, contract tags, client authentication, bulk data import.
 -   **OZmap**: Fiber optic route tracking and potency data.
 -   **FreeRADIUS PostgreSQL**: MAC address lookup.
 -   **Mikrotik API**: MAC discovery in PPPoE sessions.
 -   **Anthropic Claude**: AI Analyst functionality.
-
-### Third-Party Libraries
--   **Radix UI**: Accessible component primitives.
--   **Recharts**: Data visualization.
--   **Wouter**: Frontend routing.
--   **TanStack Query**: Real-time data polling.
--   **shadcn/ui**: UI components.
--   **Tailwind CSS**: Styling.
--   **date-fns**: Date formatting.
--   **Zod**: Runtime type validation.
--   **class-variance-authority**: Component variant styling.
--   **Drizzle ORM**: Database access.
--   **drizzle-zod**: Drizzle schema validation.
-
-### Development Tools
--   **Vite**: Frontend development server.
--   **esbuild**: Production bundling.
--   **Drizzle Kit**: Database migrations.
-
-### Fonts
--   **Inter**: Primary UI font.
--   **JetBrains Mono**: Monospace font.
