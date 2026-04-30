@@ -59,6 +59,13 @@ O campo `links.uptime` (atualizado por `processLinkMetrics` com +0.001/-0.01 a c
 
 **Disponibilidade por link (`availability30d`)**: para garantir que o mesmo link mostre o mesmo número em qualquer tela (lista de cards, dashboard agregado, página de detalhe), os endpoints `GET /api/links`, `GET /api/links/:id` e `GET /api/super-admin/link-dashboard` enriquecem cada link com o campo `availability30d` calculado por `storage.getAvailabilityByLink()` — uma única query agregada `GROUP BY link_id` sobre `metrics` nos últimos 30 dias, retornando `(operacional / total) × 100`. Os componentes `CompactLinkCard`, `LinkCard`, `SuperAdminLinkCard` e o card "Uptime" do `link-detail` usam `availability30d ?? link.uptime` (fallback para o contador instantâneo apenas quando ainda não há métricas no período). O SLA acumulado de 6 meses (`slaDE`) continua sendo usado em relatórios e na seção de indicadores SLA da página de detalhe.
 
+### Eixo X dos gráficos de métricas (Banda/Latência/Perda)
+`client/src/components/bandwidth-chart.tsx` exporta os utilitários `getSpanMs`, `pickTickFormat`, `pickTooltipFormat`, `pickSmoothingWindow` e `generateTimeTicks(spanMs, firstTs, lastTs)`. Todos os XAxis (BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart) usam `dataKey="tsNum"` + `type="number"` + `scale="time"` e recebem **ticks controlados** via `ticks={generateTimeTicks(...)}` + `interval={0}` — assim a quantidade e o passo do eixo X ficam determinísticos:
+- ≤36h → ticks alinhados a hora cheia (passo 0,25/1/2/3/6h), formato `HH:mm`
+- >36h → ticks alinhados a 00:00 do dia (passo 1/2/4/7/14 dias), formato `dd/MM`
+
+A suavização aplicada nos valores também é proporcional ao volume (janela 1→3→5→11→21→31). Tooltip mostra a data completa via `pickTooltipFormat`.
+
 ### Voalle Webhook Processing
 The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, creating/updating/soft-deleting links, mapping contract statuses, and enriching data via Portal and OZmap APIs. It adjusts monitoring based on link status.
 

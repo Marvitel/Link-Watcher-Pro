@@ -19,13 +19,14 @@ import { ptBR } from "date-fns/locale";
 
 /**
  * Escolhe o formato de tick/tooltip de acordo com a duração da janela.
- * - até 36h  → "HH:mm"          (1h, 6h, 24h)
- * - 36h–14d  → "dd/MM HH:mm"    (7d, 30d "curto")
- * - >14d     → "dd/MM"          (30d, personalizados longos)
+ * - até 36h → "HH:mm"   (1h, 6h, 24h)
+ * - >36h    → "dd/MM"   (7d, 30d, personalizados longos)
+ *
+ * Observação: para janelas multi-dia o detalhe de hora no rótulo do eixo X só
+ * polui visualmente — o usuário pega a hora exata pelo tooltip ao passar o mouse.
  */
 function pickTickFormat(spanMs: number): string {
   if (spanMs <= 36 * 3600_000) return "HH:mm";
-  if (spanMs <= 14 * 24 * 3600_000) return "dd/MM HH:mm";
   return "dd/MM";
 }
 
@@ -45,12 +46,68 @@ function getSpanMs(items: Array<{ tsNum?: number; timestamp?: string }>): number
   return Math.max(b - a, 0);
 }
 
-/** Número razoável de ticks no eixo X em função da largura/duração. */
+/** Número razoável de ticks no eixo X em função da duração. */
 function pickTickCount(spanMs: number): number {
   if (spanMs <= 6 * 3600_000) return 6;
   if (spanMs <= 24 * 3600_000) return 8;
-  if (spanMs <= 7 * 24 * 3600_000) return 7;   // 1 tick / dia
-  return 6;                                     // 30d → ~1 tick / 5 dias
+  if (spanMs <= 7 * 24 * 3600_000) return 8;   // 7d → ~1 tick / dia
+  if (spanMs <= 31 * 24 * 3600_000) return 8;  // 30d → ~1 tick / 4 dias
+  return 7;                                     // janelas maiores
+}
+
+/**
+ * Calcula gerador de ticks "redondos" no tempo (00:00 do dia, ou hora cheia).
+ * Necessário porque, com `tickCount` em time scale, o Recharts às vezes
+ * ignora o hint e gera muitos ticks sub-diários, poluindo o eixo.
+ *
+ * - até 36h → ticks a cada 1/2/3/6 horas
+ * - >36h    → ticks alinhados a 00:00 do dia (1, 2, 4 ou 7 dias de passo)
+ */
+function generateTimeTicks(spanMs: number, firstTs: number, lastTs: number): number[] {
+  if (lastTs <= firstTs) return [firstTs];
+  const ticks: number[] = [];
+  const ONE_HOUR = 3600_000;
+  const ONE_DAY = 24 * ONE_HOUR;
+
+  if (spanMs <= 36 * ONE_HOUR) {
+    // Modo "horas": passo escolhido para gerar ~6-8 ticks
+    const stepHours =
+      spanMs <= 1 * ONE_HOUR ? 0.25
+      : spanMs <= 6 * ONE_HOUR ? 1
+      : spanMs <= 12 * ONE_HOUR ? 2
+      : spanMs <= 24 * ONE_HOUR ? 3
+      : 6;
+    const stepMs = stepHours * ONE_HOUR;
+    // Alinha o primeiro tick à hora cheia >= firstTs
+    const d = new Date(firstTs);
+    d.setMinutes(0, 0, 0);
+    let t = d.getTime();
+    while (t < firstTs) t += stepMs;
+    while (t <= lastTs) {
+      ticks.push(t);
+      t += stepMs;
+    }
+  } else {
+    // Modo "dias": passo de 1 / 2 / 4 / 7 dias para manter ~6-8 ticks
+    const days = spanMs / ONE_DAY;
+    const stepDays =
+      days <= 8 ? 1
+      : days <= 16 ? 2
+      : days <= 32 ? 4
+      : days <= 64 ? 7
+      : 14;
+    // Alinha o primeiro tick a 00:00 do próximo dia >= firstTs
+    const d = new Date(firstTs);
+    d.setHours(0, 0, 0, 0);
+    let t = d.getTime();
+    const stepMs = stepDays * ONE_DAY;
+    while (t < firstTs) t += ONE_DAY;
+    while (t <= lastTs) {
+      ticks.push(t);
+      t += stepMs;
+    }
+  }
+  return ticks.length ? ticks : [firstTs, lastTs];
 }
 
 /** Janela de suavização proporcional ao volume — evita gráfico "peludo" em janelas longas. */
@@ -233,7 +290,11 @@ export function BandwidthChart({
   const spanMs = getSpanMs(chartData);
   const tickFmt = pickTickFormat(spanMs);
   const tooltipFmt = pickTooltipFormat(spanMs);
-  const tickCount = pickTickCount(spanMs);
+  const firstTs = chartData[0]?.tsNum ?? 0;
+  const lastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+  const totalMs = lastTs - firstTs || 1;
+  const avgGap = totalMs / Math.max(chartData.length - 1, 1);
+  const xTicks = generateTimeTicks(spanMs, firstTs, lastTs);
 
   const chart = (
     <ResponsiveContainer width="100%" height={showAxes ? chartH : height}>
@@ -266,7 +327,8 @@ export function BandwidthChart({
               tickFormatter={(ts: number) => {
                 try { return format(new Date(ts), tickFmt, { locale: ptBR }); } catch { return ""; }
               }}
-              tickCount={tickCount}
+              ticks={xTicks}
+              interval={0}
               minTickGap={40}
               axisLine={false}
               tickLine={false}
@@ -310,12 +372,6 @@ export function BandwidthChart({
   );
 
   if (!showAxes) return chart;
-
-  // Modo Separado: adiciona barra de disponibilidade proporcional ao tempo
-  const firstTs = chartData[0]?.tsNum ?? 0;
-  const lastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
-  const totalMs = lastTs - firstTs || 1;
-  const avgGap = totalMs / Math.max(chartData.length - 1, 1);
 
   return (
     <div className="w-full flex flex-col">
@@ -427,7 +483,9 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
   const latSpan = getSpanMs(chartData);
   const latTickFmt = pickTickFormat(latSpan);
   const latTooltipFmt = pickTooltipFormat(latSpan);
-  const latTickCount = pickTickCount(latSpan);
+  const latFirstTs = chartData[0]?.tsNum ?? 0;
+  const latLastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+  const latXTicks = generateTimeTicks(latSpan, latFirstTs, latLastTs);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -447,7 +505,8 @@ export function LatencyChart({ data, height = 200, threshold = 80 }: LatencyChar
           type="number"
           scale="time"
           domain={['dataMin', 'dataMax']}
-          tickCount={latTickCount}
+          ticks={latXTicks}
+          interval={0}
           minTickGap={40}
           tickFormatter={(ts: number) => {
             try { return format(new Date(ts), latTickFmt, { locale: ptBR }); } catch { return ""; }
@@ -602,7 +661,9 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
   const lossSpan = getSpanMs(chartData);
   const lossTickFmt = pickTickFormat(lossSpan);
   const lossTooltipFmt = pickTooltipFormat(lossSpan);
-  const lossTickCount = pickTickCount(lossSpan);
+  const lossFirstTs = chartData[0]?.tsNum ?? 0;
+  const lossLastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+  const lossXTicks = generateTimeTicks(lossSpan, lossFirstTs, lossLastTs);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -622,7 +683,8 @@ export function PacketLossChart({ data, height = 200, threshold = 2 }: PacketLos
           type="number"
           scale="time"
           domain={['dataMin', 'dataMax']}
-          tickCount={lossTickCount}
+          ticks={lossXTicks}
+          interval={0}
           minTickGap={40}
           tickFormatter={(ts: number) => {
             try { return format(new Date(ts), lossTickFmt, { locale: ptBR }); } catch { return ""; }
@@ -846,7 +908,9 @@ export function UnifiedMetricsChart({
   const spanMs = getSpanMs(chartData);
   const tickFmt = pickTickFormat(spanMs);
   const tooltipFmt = pickTooltipFormat(spanMs);
-  const tickCount = pickTickCount(spanMs);
+  const firstTs = chartData[0]?.tsNum ?? 0;
+  const lastTs = chartData[chartData.length - 1]?.tsNum ?? 0;
+  const xTicks = generateTimeTicks(spanMs, firstTs, lastTs);
 
   return (
     <div className="w-full flex flex-col">
@@ -876,7 +940,8 @@ export function UnifiedMetricsChart({
               tickFormatter={(ts: number) => {
                 try { return format(new Date(ts), tickFmt, { locale: ptBR }); } catch { return ""; }
               }}
-              tickCount={tickCount}
+              ticks={xTicks}
+              interval={0}
               minTickGap={40}
               axisLine={false}
               tickLine={false}
