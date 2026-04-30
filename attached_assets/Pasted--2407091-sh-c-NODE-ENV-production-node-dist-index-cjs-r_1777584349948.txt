@@ -1,0 +1,44 @@
+             ├─2407091 sh -c "NODE_ENV=production node dist/index.cjs"
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" -c "
+SELECT id, name, bandwidth, monitored_ip, snmp_router_ip, concentrator_id, snmp_interface_index
+FROM links WHERE id IN (1138, 1062, 899);
+"
+  id  |           name           | bandwidth |  monitored_ip  | snmp_router_ip | concentrator_id | snmp_interface_index 
+------+--------------------------+-----------+----------------+----------------+-----------------+----------------------
+ 1138 | 103 FM - LINK BACKUP     |        30 | 100.65.129.30  | 191.52.248.10  |               3 |                    1
+ 1062 | PETROX_13===FIOG08009D7D |       100 | 191.52.254.113 |                |               3 |                    1
+  899 | PETROX_SKINA             |       100 | 100.65.128.250 |                |              12 |                   18
+(3 rows)
+
+root@link-monitor:/opt/link-monitor# grep -n "Discarding absurd\|clampBandwidthSample" /opt/link-monitor/server/monitoring.ts | head
+1156:function clampBandwidthSample(
+1166:    console.warn(`[clampBandwidthSample] ${context}: discarding absurd download ${dl.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+1170:    console.warn(`[clampBandwidthSample] ${context}: discarding absurd upload ${ul.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+1208:  return clampBandwidthSample(
+3642:            const clamped = clampBandwidthSample(
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f --since "now" | grep -E "PETROX_13|PETROX_SKINA|103 FM|HC counter error|Discarding absurd" &
+sleep 180
+kill %1
+[1] 2433305
+abr 30 18:24:46 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:48 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:48 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:49 link-monitor npm[2407092]: [SNMP Fallback] 191.52.248.22: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:49 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:49 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:52 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:52 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:53 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:53 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:54 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:56 link-monitor npm[2407092]: [SNMP Fallback] 191.52.248.22: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:24:58 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:25:00 link-monitor npm[2407092]: [SNMP Fallback] 191.52.248.22: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:25:04 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:25:07 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 18:25:21 link-monitor npm[2407092]: [Monitor/CPE] CPE - PETROX_13===FIOG08009D7D: IP=191.52.254.113 (fonte: cpe)
+abr 30 18:25:21 link-monitor npm[2407092]: [Monitor/CPE] CPE - PETROX_SKINA: IP=100.65.128.250 (fonte: cpe)
+abr 30 18:25:27 link-monitor npm[2407092]: [OZmap Auto-Sync] Link PETROX_13===FIOG08009D7D: 3 elementos na rota
+abr 30 18:25:27 link-monitor npm[2407092]: [OZmap Auto-Sync] Link PETROX_13===FIOG08009D7D: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.1454228832384843
+^C
+root@link-monitor:/opt/link-monitor# 
