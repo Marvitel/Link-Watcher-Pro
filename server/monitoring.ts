@@ -1121,8 +1121,10 @@ export async function getSystemResources(
 
 // Limite sanitário: descarta amostras fisicamente impossíveis (ex.: cross-interface
 // delta após troca de ifIndex, counter wrap não detectado, sample corrompido).
-// 200 Gbps cobre até clientes 100GE com folga; valores acima disso são bug.
-const MAX_REASONABLE_MBPS = 200_000;
+// Maior link da Marvitel hoje = 15 Gbps; 30 Gbps dá 2x de folga e ainda captura
+// picos legítimos (DDoS satura no teto físico do link, então acima disso é bug).
+// Ajuste conforme o maior link contratado em operação.
+const MAX_REASONABLE_MBPS = 30_000;
 
 function calculateBandwidth(
   current: TrafficResult,

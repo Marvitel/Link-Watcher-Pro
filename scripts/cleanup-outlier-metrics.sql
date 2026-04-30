@@ -16,7 +16,8 @@
 -- =============================================================================
 
 -- Limite sanitário (alinhado com MAX_REASONABLE_MBPS no monitoring.ts)
--- 200 Gbps = 200_000 Mbps = 200_000_000_000 bps
+-- 30 Gbps = 30_000 Mbps = 30_000_000_000 bps
+-- (Maior link da Marvitel = 15 Gbps; 30 Gbps dá 2x de folga.)
 -- Tabela `metrics` armazena em bps; metrics_hourly/daily armazenam em Mbps
 -- (confira o schema antes de aplicar)
 
@@ -29,7 +30,7 @@ SELECT 'metrics (raw, bps)' AS tabela,
        MIN(timestamp) AS primeiro,
        MAX(timestamp) AS ultimo
 FROM metrics
-WHERE download > 200000000000 OR upload > 200000000000;
+WHERE download > 30000000000 OR upload > 30000000000;
 
 SELECT 'metrics_hourly (Mbps)' AS tabela,
        COUNT(*) AS buckets_outlier,
@@ -37,7 +38,7 @@ SELECT 'metrics_hourly (Mbps)' AS tabela,
        MIN(bucket_start) AS primeiro,
        MAX(bucket_start) AS ultimo
 FROM metrics_hourly
-WHERE download_max > 200000 OR upload_max > 200000;
+WHERE download_max > 30000 OR upload_max > 30000;
 
 SELECT 'metrics_daily (Mbps)' AS tabela,
        COUNT(*) AS buckets_outlier,
@@ -45,7 +46,7 @@ SELECT 'metrics_daily (Mbps)' AS tabela,
        MIN(bucket_start) AS primeiro,
        MAX(bucket_start) AS ultimo
 FROM metrics_daily
-WHERE download_max > 200000 OR upload_max > 200000;
+WHERE download_max > 30000 OR upload_max > 30000;
 
 -- Top 10 links mais afetados
 SELECT l.id, l.name,
@@ -53,7 +54,7 @@ SELECT l.id, l.name,
        MAX(GREATEST(m.download, m.upload)) / 1e9 AS pico_gbps
 FROM metrics m
 JOIN links l ON l.id = m.link_id
-WHERE m.download > 200000000000 OR m.upload > 200000000000
+WHERE m.download > 30000000000 OR m.upload > 30000000000
 GROUP BY l.id, l.name
 ORDER BY amostras_outlier DESC
 LIMIT 10;
@@ -67,20 +68,20 @@ LIMIT 10;
 -- -- timeline; status/latency continuam válidos).
 -- UPDATE metrics
 -- SET download = 0
--- WHERE download > 200000000000;
+-- WHERE download > 30000000000;
 --
 -- UPDATE metrics
 -- SET upload = 0
--- WHERE upload > 200000000000;
+-- WHERE upload > 30000000000;
 --
 -- -- Recalcula buckets horários afetados a partir do raw já limpo.
 -- -- (Se preferir não recalcular, basta zerar os campos *_max/*_avg dos
 -- -- buckets afetados — mas perderá granularidade nas horas envolvidas.)
 -- DELETE FROM metrics_hourly
--- WHERE download_max > 200000 OR upload_max > 200000;
+-- WHERE download_max > 30000 OR upload_max > 30000;
 --
 -- DELETE FROM metrics_daily
--- WHERE download_max > 200000 OR upload_max > 200000;
+-- WHERE download_max > 30000 OR upload_max > 30000;
 --
 -- COMMIT;
 --
