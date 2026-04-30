@@ -70,8 +70,8 @@ Tooltip mostra a data completa via `pickTooltipFormat`.
 
 **Backend agregado retorna MAX + AVG**: em `server/storage.ts`, `getLinkMetrics()` consulta:
 - `<7d` → tabela `metrics` (raw, 1 amostra por minuto)
-- `≥7d` → `metrics_hourly` (1 ponto/hora)
-- `≥30d` → `metrics_daily` (1 ponto/dia)
+- `≥7d` e `<60d` → `metrics_hourly` (1 ponto/hora) — inclui o 30d (720 pontos), garantindo que picos curtos apareçam como eventos pontuais e não como platôs de 24h
+- `≥60d` → `metrics_daily` (1 ponto/dia) — só nesse range a granularidade diária vale a pena (>1440 pontos horários começam a pesar)
 - Fallback raw-bucket: se hourly/daily ainda não tem pontos suficientes (≥30%/50% do esperado, ex.: jobs de agregação atrasaram), agrega `metrics` em buckets dinâmicos no servidor.
 
 Em **todas** as janelas ≥7d (incluindo o fallback raw-bucket), o backend mapeia a linha principal para `*Max` (download/upload/latency/packetLoss = pico real do bucket — ninguém esconde mais o ataque DDoS de 5min na média de 1h) e anexa os campos opcionais `downloadAvg`, `uploadAvg`, `latencyAvg`, `packetLossAvg`, `isAggregated: true`, `aggregationLevel: "hourly"|"daily"|"raw-bucket"`. O tipo `MetricWithAggregates` em `shared/schema.ts` modela esses campos extras (estende `Metric`). A assinatura é `Promise<MetricWithAggregates[]>` e clientes legados continuam funcionando porque os campos novos são opcionais.

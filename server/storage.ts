@@ -500,7 +500,11 @@ export class DatabaseStorage {
     const expectedDailyPoints = Math.ceil(hoursSpan / 24);
     const expectedHourlyPoints = Math.ceil(hoursSpan);
     
-    if (hoursSpan >= 24 * 30) {
+    // Threshold 60d (não 30d): manter densidade horária no 30d para que picos
+    // apareçam como eventos pontuais, não platôs de 24h. Em janelas ≥60d, a
+    // quantidade de pontos horários (>1440) começa a pesar render/transferência,
+    // então caímos para diário.
+    if (hoursSpan >= 24 * 60) {
       const conditions = [eq(metricsDaily.linkId, linkId), gte(metricsDaily.bucketStart, startDate)];
       if (endDate) conditions.push(lte(metricsDaily.bucketStart, endDate));
       
