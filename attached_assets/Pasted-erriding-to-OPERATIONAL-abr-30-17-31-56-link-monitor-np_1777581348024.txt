@@ -1,0 +1,226 @@
+erriding to OPERATIONAL
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] CASA05: Auto-resolved 2 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER: Auto-resolved 1 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa60: Auto-resolved 2 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] MAUI CASA 64: Auto-resolved 2 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa79: Auto-resolved 2 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: Ping failed for 100.80.10.91: Command failed: ping -c 5 -W 3 -i 0.3 100.80.10.91 2>&1
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50): Using concentrator (CE: AJU-PKV-RB-1009) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.251.102, ifIndex: 15748270, profileId: 7
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link CASA ESTA EM REFORMA: 3 elementos na rota
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50): ifIndex 15748270 verified OK - "<pppoe-casa_50>" matches "<pppoe-casa_50>"
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link CASA ESTA EM REFORMA: Salvo - Splitter: N/A, Porta: N/A, Potência: -0.14154745034630192
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50) - Óptico: coletando via OLT OLT-DATACOM-PARKVILLE (datacom) slot=1 port=2 onu=3
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para datacom: slot=1, port=2, onuId=3 -> index=16777985
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16777985, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16777985
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] CASA05: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] MAUI CASA 64: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa60: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa79: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50) - Óptico OK: RX=-15.1dBm TX=2.6dBm OLT_RX=nulldBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50) - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM91780EA0...
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM91780EA0 (variantes: DACM91780EA0, 4441434D91780EA0)...
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU DACM91780EA0 encontrada: RX=-15.12dBm TX=2.56dBm OLT_RX=-19.03dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50) - Óptico Zabbix: OLT_RX=-19.03dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 146 - Splitter atualizado: (vazio) porta (vazio) dist 0
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50): Ping failed but optical signal OK (RX=-15.1dBm) and SNMP traffic active (DL=0.06Mbps) - overriding to OPERATIONAL
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] VE-RAONI-SANTOS-304: ifIndex 15728654 verification skipped - SNMP timeout/unreachable on 191.52.251.70. Keeping current interface settings.
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] VE-RAONI-SANTOS-304: Using pppoeUser "raoni.santos" for auto-discovery (cross-vendor compatible)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50): Auto-resolved 2 packet loss events (loss normal: 0.0%)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] VE-RAONI-SANTOS-304: Auto-discovery triggered after 67 failures. Searching for interface "raoni.santos" on 191.52.251.70
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] VE-RAONI-SANTOS-304: Using PPPoE lookup for [raoni.santos] on CE: AJU-MVT-RB-VITTORIO-EMANUELE (vendor: mikrotik)
+abr 30 17:31:56 link-monitor npm[2407092]: [PPPoE SNMP] Buscando 1 sessões em CE: AJU-MVT-RB-VITTORIO-EMANUELE (mikrotik) via SNMP
+abr 30 17:31:56 link-monitor npm[2407092]: [PPPoE SNMP] Conectando em 191.52.251.70:161 (2c, community: marvitel)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] ONU ROUTER  User PPPoE (casa_50) senha: (casa_50): lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: Ping failed for 192.168.60.3: Command failed: ping -c 5 -W 3 -i 0.3 192.168.60.3 2>&1
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03: Using concentrator (CE: AJU-MVT-RB-MAUI) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.250.15, ifIndex: 15728790, profileId: 7
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link ONU ROUTER  User PPPoE (casa_34) senha: (casa_34): 3 elementos na rota
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link ONU ROUTER  User PPPoE (casa_34) senha: (casa_34): Salvo - Splitter: N/A, Porta: N/A, Potência: -0.13773975599810254
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03: ifIndex 15728790 verified OK - "<pppoe-maui_casa03>" matches "<pppoe-maui_casa03>"
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03 - Óptico: coletando via OLT PE: AJU-MVT-OLT-MAUI (intelbras) slot=1 port=2 onu=16
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para intelbras: slot=1, port=2, onuId=16 -> index=144
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.26138.1.2.1.1.1.9.144, 1.3.6.1.4.1.26138.1.2.1.1.1.8.144
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03 - Óptico OK: RX=-15.9dBm TX=nulldBm OLT_RX=-18.3dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03: Ping failed but optical signal OK (RX=-15.9dBm) and SNMP traffic active (DL=0.01Mbps) - overriding to OPERATIONAL
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO: Using concentrator (CE: LGT-MVT-RB-RPRG) for traffic collection (CiscoVi=false, corporate=true, sourceType=concentrator). IP: 191.52.248.243, ifIndex: 21, profileId: 7
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO: ifIndex 21 verified OK - "ether5-SW-EDD.vlan3209-JUSTICA-FEDERAL" matches "ether5-SW-EDD.vlan3209-JUSTICA-FEDERAL"
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO - Óptico PTP: usando OIDs do fabricante Datacom (divisor: 10)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO - Óptico PTP: usando perfil SNMP do switch
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO - Óptico PTP: coletando via Switch LGT-MVT-SW-DATACOM-EDD porta eth-1/3
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] Porta eth-1/3 -> índice 3
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] OID: "1.3.6.1.4.1.3709.3.5.201.1.28.1.1.9.3" (len=37, bytes=312e332e362e312e342e312e333730392e332e352e3230312e312e32382e312e312e392e33)
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] OID: "1.3.6.1.4.1.3709.3.5.201.1.28.1.1.10.3" (len=38, bytes=312e332e362e312e342e312e333730392e332e352e3230312e312e32382e312e312e31302e33)
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.5.201.1.28.1.1.9.3, 1.3.6.1.4.1.3709.3.5.201.1.28.1.1.10.3
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] rxPower: -17.6 dBm (raw: -176, divisor: 10)
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Switch Optical] txPower: -3.1 dBm (raw: -31, divisor: 10)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO - Óptico PTP OK: RX=-17.6dBm TX=-3.1dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] maui_casa03: lat=0.0ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] rxPower retornou -95 dBm - fora da faixa físicamente válida (-50 a +10), descartando
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Serviço Internet Dedicado 300 MEGA - SCM - Óptico OK: RX=nulldBm TX=-46.3dBm OLT_RX=nulldBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Serviço Internet Dedicado 300 MEGA - SCM - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial XPON25120261...
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial XPON25120261 (variantes: XPON25120261, 58504F4E25120261)...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422: ifIndex 18 verified OK - "Vt1" matches "Vt1" (alias: "%U")
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: ifIndex 18 verified OK - "Vt1" matches "Vt1" (alias: "%U")
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Fallback] 191.52.255.254: HC counter error, trying 32-bit counters (inHC=false, outHC=false)
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link rede.ltda: 16 elementos na rota
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link rede.ltda: Splitter: CEO FORUM, Porta: 7
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link rede.ltda: Splitter: CEO BARRA PISO E CIA, Porta: 2
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422 - Óptico: coletando via OLT AJU-MVT-OLT-DATACOM-MARVITEL (datacom) slot=1 port=5 onu=23
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para datacom: slot=1, port=5, onuId=23 -> index=16783108
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16783108, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16783108
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=8 onu=2
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para datacom: slot=1, port=8, onuId=2 -> index=16777735
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16777735, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16777735
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link rede.ltda: Salvo - Splitter: CEO BARRA PISO E CIA, Porta: 2, Potência: -22.24281022304706
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB: ifIndex 57 verified OK - "Vi1.30" alias "lucianoneto@celi.com.br" matches pppoeUser "lucianoneto@celi.com.br"
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Walk] Error on 1.3.6.1.2.1.1.1: Request timed out
+abr 30 17:31:56 link-monitor npm[2407092]: [PPPoE SNMP] AVISO: sysDescr vazio, SNMP pode ter restrições
+abr 30 17:31:56 link-monitor npm[2407092]: [PPPoE SNMP] Tentando OIDs: Mikrotik PPP Active
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LAGARTO: lat=2.6ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU XPON25120261 encontrada: RX=-95.02dBm TX=-46.34dBm OLT_RX=-23.57dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Serviço Internet Dedicado 300 MEGA - SCM - Óptico Zabbix: OLT_RX=-23.57dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico OK: RX=-20.8dBm TX=2.9dBm OLT_RX=nulldBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial FIOG540051CD...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 1517 - Splitter atualizado: (vazio) porta (vazio) dist 1
+abr 30 17:31:56 link-monitor npm[2407092]: [Corporate SNMP] Encontradas 95 interfaces via ifDescr, 95 via ifName
+abr 30 17:31:56 link-monitor npm[2407092]: [Corporate SNMP] Primeiras interfaces (ifName): Gi0/0/0, Gi0/0/1, Gi0/0/2, Gi0/0/3, Te0/1/0...
+abr 30 17:31:56 link-monitor npm[2407092]: [Corporate SNMP] Buscando normalizado: "ether9sw06psfp6vlan2106tsebraesedempls"
+abr 30 17:31:56 link-monitor npm[2407092]: [Corporate SNMP] Interface "ether9-sw06psfp6-vlan2106T-SEBRAE_SEDE-MPLS" não encontrada no concentrador (busca exata)
+abr 30 17:31:56 link-monitor npm[2407092]: [Corporate SNMP] Interface VLAN "ether9-sw06psfp6-vlan2106T-SEBRAE_SEDE-MPLS" não encontrada
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] GBIC XPON: Corporate VLAN interface "ether9-sw06psfp6-vlan2106T-SEBRAE_SEDE-MPLS" not found on concentrator
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Interface Search] Searching for interface "2724multservltda" (alias: "2724multservltda") on 191.52.255.254
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Starting discovery for 191.52.255.254 (community: marvitel, port: 161)
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Fetching ifIndex...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=3 onu=6
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para datacom: slot=1, port=3, onuId=6 -> index=16778754
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16778754, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16778754
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial FIOG540051CD (variantes: FIOG540051CD, 46494F47540051CD)...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] mpse.boquim: Using concentrator (CE: AJU-MVT-RB-CONCENTRADOR-PPPoE) for traffic collection (CiscoVi=false, corporate=false, sourceType=concentrator). IP: 191.52.248.22, ifIndex: 15812102, profileId: 7
+abr 30 17:31:56 link-monitor npm[2407092]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+abr 30 17:31:56 link-monitor npm[2407092]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU FIOG540051CD encontrada: RX=-20.46dBm TX=2.90dBm OLT_RX=-24.69dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS - Óptico Zabbix: OLT_RX=-24.69dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] Concentrador: id=1, name=CE: AJU-MVT-BORDA-HSP, sshUser=link.monitor
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] User logado: id=9, name=Marcus Melo
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] Credenciais RADIUS na sessão: user=marcus.melo
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] useRadiusForDevices: true
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] USANDO credenciais RADIUS (useRadiusForDevices=true): marcus.melo
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422 - Óptico OK: RX=-22.3dBm TX=3.1dBm OLT_RX=nulldBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422 - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM9121F422...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB - Óptico OK: RX=-18.1dBm TX=2.7dBm OLT_RX=nulldBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB - Óptico: OLT_RX vazio, tentando fallback Zabbix por serial DACM9170CDE0...
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] Link 824: encontrados 1 CPEs associados
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] mpse.boquim: ifIndex 15812102 verified OK - "<pppoe-mpse.boquim>" matches "<pppoe-mpse.boquim>"
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM9121F422 (variantes: DACM9121F422, 4441434D9121F422)...
+abr 30 17:31:56 link-monitor npm[2407092]: [Devices] CPE 613 (CPE - PTX-AEROPORTO): sem senha SSH cadastrada
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Found 95 interface indexes
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Fetching interface details...
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial DACM9170CDE0 (variantes: DACM9170CDE0, 4441434D9170CDE0)...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 1376 - Splitter atualizado: (vazio) porta (vazio) dist 9
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: Ping failed but optical signal OK (RX=-20.8dBm), no traffic yet - setting DEGRADED
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU DACM9121F422 encontrada: RX=-22.29dBm TX=2.92dBm OLT_RX=-40.00dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422 - Óptico Zabbix: OLT_RX=-40dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU DACM9170CDE0 encontrada: RX=-18.12dBm TX=2.68dBm OLT_RX=-21.08dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB - Óptico Zabbix: OLT_RX=-21.08dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Fetched ifAlias for 95 interfaces
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Discovery] Completed for 191.52.255.254 in 7016ms, found 95 interfaces
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Interface Search] No unique match found, returning 10 candidates
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: Interface "sfpplus1-vlan3254-TAHAA-BKP" NÃO ENCONTRADA no concentrador. trafficSourceType=concentrator, concentratorId=4, pppoeUser=null, effectivePppoeUser=null
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: Concentrador atual: CE: CISCO ASR1002, backupId=NÃO CONFIGURADO
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: ⚠️ Concentrador "CE: CISCO ASR1002" NÃO tem backup configurado. Se a sessão PPPoE migrou para outro concentrador, o sistema não consegue descobrir automaticamente. Configure o campo "Concentrador Backup" no cadastro do concentrador.
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: Could not auto-discover interface "sfpplus1-vlan3254-TAHAA-BKP". Concentrador "CE: CISCO ASR1002" não tem backup configurado - configure para permitir failover automático.
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 1000 - Splitter atualizado: (vazio) porta (vazio) dist 3
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 1054 - Splitter atualizado: (vazio) porta (vazio) dist 10
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Serviço Internet Dedicado 300 MEGA - SCM: lat=2.1ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link SOUTO-TELES: 15 elementos na rota
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link SOUTO-TELES: Splitter: CEO MVT 162, Porta: 1
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link SOUTO-TELES: Splitter: CEO MVT 157, Porta: 2
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP - Óptico: coletando via OLT OLT-DATACOM-HOSPITAL (datacom) slot=1 port=8 onu=30
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Índice calculado para datacom: slot=1, port=8, onuId=30 -> index=16784903
+abr 30 17:31:56 link-monitor npm[2407092]: [SNMP Optical] Consultando OIDs: 1.3.6.1.4.1.3709.3.6.2.1.1.22.16784903, 1.3.6.1.4.1.3709.3.6.2.1.1.21.16784903
+abr 30 17:31:56 link-monitor npm[2407092]: [OZmap Auto-Sync] Link SOUTO-TELES: Salvo - Splitter: CEO MVT 157, Porta: 2, Potência: -18.05563846593302
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] mpse.boquim: lat=3.9ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [VoalleAdapter] Campos disponíveis na solicitação: [
+abr 30 17:31:56 link-monitor npm[2407092]:   'assignmentId',
+abr 30 17:31:56 link-monitor npm[2407092]:   'title',
+abr 30 17:31:56 link-monitor npm[2407092]:   'protocol',
+abr 30 17:31:56 link-monitor npm[2407092]:   'status',
+abr 30 17:31:56 link-monitor npm[2407092]:   'team',
+abr 30 17:31:56 link-monitor npm[2407092]:   'sectorArea',
+abr 30 17:31:56 link-monitor npm[2407092]:   'beginningData',
+abr 30 17:31:56 link-monitor npm[2407092]:   'finalData'
+abr 30 17:31:56 link-monitor npm[2407092]: ]
+abr 30 17:31:56 link-monitor npm[2407092]: [VoalleAdapter] Encontradas 6 solicitações
+abr 30 17:31:56 link-monitor npm[2407092]: [Voalle Solicitations] Filtro aplicado: 6 total -> 0 para link PTX-AEROPORTO (serviceTag: 2VGA2TYR)
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP - Óptico: SNMP respondeu mas sem valores. Verifique OIDs configurados para datacom.
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP - Óptico: tentando fallback completo Zabbix por serial XPON23030540...
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] Consultando MySQL 100.66.128.122:3306 por serial XPON23030540 (variantes: XPON23030540, 58504F4E23030540)...
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] PETROX_ALG=== DACM9121F422: lat=2.1ms, loss=0.0%, status=operational
+^Cabr 30 17:31:56 link-monitor npm[2407092]: [Monitor] LUCIANO_FRANCO_NETO-MLB: lat=3.2ms, loss=0.0%, status=operational
+abr 30 17:31:56 link-monitor npm[2407092]: [OLT Zabbix Optical] ONU XPON23030540 encontrada: RX=-19.43dBm TX=2.69dBm OLT_RX=-26.78dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP - Óptico Zabbix OK: RX=-19.43dBm TX=2.69dBm OLT_RX=-26.78dBm
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] Link 1189 - Splitter atualizado: (vazio) porta (vazio) dist 15
+abr 30 17:31:56 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: Ping failed but optical signal OK (RX=-19.43dBm), no traffic yet - setting DEGRADED
+abr 30 17:31:57 link-monitor npm[2407092]: [Monitor] PETROX DISTRIBUIDORA SEDE DADOS: lat=0.0ms, loss=100.0%, status=degraded
+abr 30 17:31:57 link-monitor npm[2407092]: [Monitor] tjse.neopolis: ICMP blocked, TCP failed/skipped, no SNMP traffic - link is OFFLINE
+abr 30 17:31:57 link-monitor npm[2407092]: [Monitor] tjse.neopolis - Óptico: tentando fallback Flashman ACS (serial=N/A, pppoe=tjse.neopolis)...
+abr 30 17:31:57 link-monitor npm[2407092]: [Flashman/API] GET /api/v3/device/full/tjse.neopolis/ -> 404: {"success":false,"message":"Device not found"}
+abr 30 17:31:57 link-monitor npm[2407092]: [Flashman/Full] Endpoint /full/ not available for tjse.neopolis: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 30 17:31:57 link-monitor npm[2407092]: [OZmap Auto-Sync] Link GBIC  User PPPoE (casa_08) senha: (casa_08): Tag "BEPI0ENR" sem rota de fibra (HTTP 422)
+
+abr 30 17:31:57 link-monitor npm[2407092]: [Flashman/API] GET /api/v3/device/pppoe-username/tjse.neopolis/ -> 404: {"success":false,"message":"Device not found"}
+abr 30 17:31:57 link-monitor npm[2407092]: [Flashman] Optical lookup by PPPoE "tjse.neopolis" failed: Flashman API error 404: {"success":false,"message":"Device not found"}
+abr 30 17:31:57 link-monitor npm[2407092]: [Monitor] tjse.neopolis - Óptico Flashman: dispositivo não encontrado ou sem dados ópticos
+abr 30 17:31:57 link-monitor npm[2407092]: [Monitor] COND._TAHAA-BKP: lat=0.0ms, loss=100.0%, status=degraded
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" <<'SQL'
+SELECT timestamp, link_id, download
+FROM metrics
+WHERE link_id IN (1138, 1062)
+  AND timestamp >= NOW() - INTERVAL '5 minutes'
+ORDER BY timestamp DESC
+LIMIT 10;
+SQL
+        timestamp        | link_id | download 
+-------------------------+---------+----------
+ 2026-04-30 20:30:58.063 |    1062 |        0
+ 2026-04-30 20:30:27.344 |    1138 |        0
+ 2026-04-30 20:23:28.511 |    1062 |        0
+ 2026-04-30 20:22:57.148 |    1138 |        0
+ 2026-04-30 20:17:38.621 |    1138 |        0
+ 2026-04-30 20:17:23.738 |    1062 |        0
+ 2026-04-30 20:10:12.51  |    1138 |        0
+ 2026-04-30 20:09:58.812 |    1062 |        0
+ 2026-04-30 20:04:02.344 |    1138 |        0
+ 2026-04-30 20:03:49.627 |    1062 |        0
+(10 rows)
+
+[1]+  Terminado               journalctl -u link-monitor --since "10 min ago" -f
+root@link-monitor:/opt/link-monitor# 
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor && git log --oneline -3
+# 2) Ver se o arquivo no disco tem o clamp atual
+grep -n "Discarding absurd\|clampBandwidthSample\|getClampCeilingMbps" server/monitoring.ts | head
+# 3) Quando o serviço subiu pela última vez?
+systemctl status link-monitor --no-pager | head -10
+# 4) Processo node está usando o tsx do dist ou tsx em runtime?
+ps -ef | grep -E "tsx|node.*server" | grep -v grep
+917f69a (HEAD -> main, origin/main, origin/HEAD) Improve network traffic monitoring by preventing exaggerated bandwidth readings
+117acb4 Investigate why network speed limits are not being enforced
+12e017f Remove outlier data points from network performance metrics
+1143:function getClampCeilingMbps(linkBandwidthMbps?: number | null): number {
+1156:function clampBandwidthSample(
+1162:  const ceiling = getClampCeilingMbps(linkBandwidthMbps);
+1166:    console.warn(`[clampBandwidthSample] ${context}: discarding absurd download ${dl.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+1170:    console.warn(`[clampBandwidthSample] ${context}: discarding absurd upload ${ul.toFixed(0)} Mbps (>${ceiling} = teto sanitário)`);
+1208:  return clampBandwidthSample(
+3642:            const clamped = clampBandwidthSample(
+● link-monitor.service - Link Monitor - Marvitel
+     Loaded: loaded (/etc/systemd/system/link-monitor.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-04-30 17:22:43 -03; 12min ago
+   Main PID: 2407075 (npm start)
+      Tasks: 23 (limit: 9464)
+     Memory: 222.4M
+        CPU: 6min 7.362s
+     CGroup: /system.slice/link-monitor.service
+             ├─2407075 "npm start"
+             ├─2407091 sh -c "NODE_ENV=production node dist/index.cjs"
+root@link-monitor:/opt/link-monitor# 
