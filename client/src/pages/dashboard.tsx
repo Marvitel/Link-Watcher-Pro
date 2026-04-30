@@ -968,11 +968,15 @@ function DashboardContent() {
               unit="%"
               icon={Gauge}
               trend={{
-                value: Math.abs((stats?.averageUptime || 0) - 99),
+                value: Number(Math.abs((stats?.averageUptime || 0) - 99).toFixed(2)),
                 direction: (stats?.averageUptime || 0) >= 99 ? "up" : "down",
                 isGood: (stats?.averageUptime || 0) >= 99,
               }}
-              subtitle="últimos 30 dias"
+              subtitle={
+                (stats?.averageUptime || 0) >= 99
+                  ? "acima do alvo (≥99%) — 30 dias"
+                  : "abaixo do alvo (≥99%) — 30 dias"
+              }
               testId="metric-uptime"
             />
             <MetricCard
@@ -980,12 +984,11 @@ function DashboardContent() {
               value={(stats?.averageLatency || 0).toFixed(1)}
               unit="ms"
               icon={Clock}
-              trend={{
-                value: Math.abs((stats?.averageLatency || 0) - 80),
-                direction: (stats?.averageLatency || 0) <= 80 ? "down" : "up",
-                isGood: (stats?.averageLatency || 0) <= 80,
-              }}
-              subtitle={(stats?.averageLatency || 0) <= 80 ? "dentro do SLA" : "acima do SLA"}
+              subtitle={
+                (stats?.averageLatency || 0) <= 80
+                  ? "dentro do SLA (≤80 ms) — 30 dias"
+                  : "acima do SLA (>80 ms) — 30 dias"
+              }
               testId="metric-latency"
             />
             <MetricCard
