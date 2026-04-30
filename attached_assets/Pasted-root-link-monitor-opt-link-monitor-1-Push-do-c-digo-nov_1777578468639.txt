@@ -1,0 +1,94 @@
+root@link-monitor:/opt/link-monitor# # 1) Push do código novo (não causa downtime)
+cd /opt/link-monitor && git pull && rm -rf dist && npm run build
+
+# 2) Pausa o serviço por ~30s pra evitar colisão com job :05
+systemctl stop link-monitor
+
+# 3) Dedup global (1x)
+psql "$DATABASE_URL" -f scripts/dedup-aggregates.sql
+
+# 4) Aplica UNIQUE constraint via Drizzle
+npm run db:push   # confirma "Yes" se perguntar
+
+# 5) Sobe serviço com agregador novo (UPSERT)
+systemctl start link-monitor
+
+# 6) Cleanup outliers (proporcional)
+psql "$DATABASE_URL" -f scripts/cleanup-outlier-metrics.sql
+#    → revisar diagnóstico → descomentar BEGIN/COMMIT → rodar de novo
+
+# 7) Rebuild buckets dos últimos 7d/8d
+psql "$DATABASE_URL" -f scripts/rebuild-aggregates.sql
+remote: Enumerating objects: 38, done.
+remote: Counting objects: 100% (38/38), done.
+remote: Compressing objects: 100% (8/8), done.
+remote: Total 28 (delta 19), reused 28 (delta 19), pack-reused 0 (from 0)
+Unpacking objects: 100% (28/28), 368.03 KiB | 1.05 MiB/s, done.
+From https://github.com/Marvitel/Link-Watcher-Pro
+   9e2d5e5..8244128  main       -> origin/main
+Updating 9e2d5e5..8244128
+Fast-forward
+ "attached_assets/Captura_de_Tela_2026-04-30_a\314\200s_15.17.45_1777573086965.png" | Bin 0 -> 162524 bytes
+ "attached_assets/Captura_de_Tela_2026-04-30_a\314\200s_15.17.52_1777573086965.png" | Bin 0 -> 235605 bytes
+ replit.md                                                                          |   4 +-
+ scripts/cleanup-outlier-metrics.sql                                                | 139 +++++++++++++++++++++++++++++---------------------
+ scripts/dedup-aggregates.sql                                                       |  81 +++++++++++++++++++++++++++++
+ scripts/rebuild-aggregates.sql                                                     | 179 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ server/aggregation.ts                                                              |  41 ++++++++++++++-
+ server/monitoring.ts                                                               |  48 ++++++++++++------
+ shared/schema.ts                                                                   |  10 ++--
+ 9 files changed, 425 insertions(+), 77 deletions(-)
+ create mode 100644 "attached_assets/Captura_de_Tela_2026-04-30_a\314\200s_15.17.45_1777573086965.png"
+ create mode 100644 "attached_assets/Captura_de_Tela_2026-04-30_a\314\200s_15.17.52_1777573086965.png"
+ create mode 100644 scripts/dedup-aggregates.sql
+ create mode 100644 scripts/rebuild-aggregates.sql
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+[pre-build] Dropped legacy _timezone_migration table if it existed
+building client...
+vite v7.3.0 building client environment for production...
+transforming (1) src/main.tsxBrowserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+✓ 3491 modules transformed.
+../dist/public/index.html                              0.90 kB │ gzip:   0.49 kB
+../dist/public/assets/index-C9BK1PqP.css             109.72 kB │ gzip:  17.75 kB
+../dist/public/assets/purify.es-Bzr520pe.js           22.45 kB │ gzip:   8.63 kB
+../dist/public/assets/index.es-2Ag453PK.js           158.55 kB │ gzip:  52.90 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+../dist/public/assets/index-CZRcWsPY.js            2,521.88 kB │ gzip: 673.43 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 33.27s
+building server...
+▲ [WARNING] Using direct eval with a bundler is not recommended and may cause problems [direct-eval]
+
+    server/snmp.ts:1198:19:
+      1198 │     const result = eval(formula);
+           ╵                    ~~~~
+
+  You can read more about direct eval and bundling here: https://esbuild.github.io/link/direct-eval
+
+1 warning
+
+  dist/index.cjs  2.2mb ⚠️
+
+⚡ Done in 525ms
+BEGIN
+         info         |  total  | unicos | duplicatas 
+----------------------+---------+--------+------------
+ metrics_hourly antes | 2271214 | 918958 |    1352256
+(1 row)
+
+        info         | total  | unicos | duplicatas 
+---------------------+--------+--------+------------
+ metrics_daily antes | 163559 |  81833 |      81726
+(1 row)
+
