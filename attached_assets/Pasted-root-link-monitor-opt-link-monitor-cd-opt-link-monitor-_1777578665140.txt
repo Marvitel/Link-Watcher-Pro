@@ -1,0 +1,38 @@
+root@link-monitor:/opt/link-monitor# cd /opt/link-monitor
+sed -i 's/^-- BEGIN;/BEGIN;/; s/^-- COMMIT;/COMMIT;/; s/^-- \(DELETE\|UPDATE\|USING\|WHERE\|SET\|FROM\|AND\|OR\|--\)/\1/' scripts/cleanup-outlier-metrics.sql
+# Confere com: grep -E "^(BEGIN|DELETE|UPDATE|COMMIT)" scripts/cleanup-outlier-metrics.sql
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" -f scripts/cleanup-outlier-metrics.sql
+           tabela            | buckets_outlier | pico_max_mbps |      primeiro       |       ultimo        
+-----------------------------+-----------------+---------------+---------------------+---------------------
+ metrics_hourly proporcional |            3849 | 3.9379779e+09 | 2026-03-31 02:00:00 | 2026-04-30 15:00:00
+(1 row)
+
+           tabela           | buckets_outlier | pico_max_mbps |      primeiro       |       ultimo        
+----------------------------+-----------------+---------------+---------------------+---------------------
+ metrics_daily proporcional |             692 | 3.9379779e+09 | 2026-02-18 00:00:00 | 2026-04-29 00:00:00
+(1 row)
+
+          tabela          | amostras_outlier | pico_max_bps  |       primeiro        |         ultimo          
+--------------------------+------------------+---------------+-----------------------+-------------------------
+ metrics raw proporcional |                2 | 3.9379779e+09 | 2026-04-24 19:33:18.1 | 2026-04-29 19:22:43.752
+(1 row)
+
+  id  |                 name                  | banda_mbps | buckets_outlier |   pico_mbps   | multiplo_da_banda  
+------+---------------------------------------+------------+-----------------+---------------+--------------------
+ 1062 | PETROX_13===FIOG08009D7D              |        100 |             734 |     3849.3115 |    38.493115234375
+  468 | MASTERSERV - BACKUP                   |         50 |             729 |     3871.0571 |    77.421142578125
+ 1005 | DISCAR_STO_ANTONIO_DUPLA              |        100 |             714 | 1.3092712e+09 |        13092711.68
+ 1138 | 103 FM - LINK BACKUP                  |         30 |             296 | 3.9379779e+09 | 131265928.53333333
+  675 | MPLS-CE-TABAJARA                      |        100 |             249 |     3690.8062 |   36.9080615234375
+ 1369 | AGROVEL-OSVALDO-ARANHA                |         20 |             221 |     1043.2614 |  52.16306762695312
+ 1366 | AGROVEL-MATRIZ-COELHO-CAMPOS          |         40 |             203 |      951.9311 | 23.798277282714842
+  899 | PETROX_SKINA                          |        100 |             179 |     1112.5159 |  11.12515869140625
+ 1313 | HOSPITAL-CIRURGIA-LINK2-DESENBARGADOR |        100 |             139 |      949.9721 |  9.499721069335937
+  712 | REDE-PRESIDENTE-LARANJEIRAS           |         50 |             103 |     1286.4564 |  25.72912841796875
+(10 rows)
+
+BEGIN
+psql:scripts/cleanup-outlier-metrics.sql:111: ERROR:  syntax error at or near "DELETE"
+LINE 7: DELETE FROM metrics_daily md
+        ^
+root@link-monitor:/opt/link-monitor# 
