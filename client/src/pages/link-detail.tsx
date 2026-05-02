@@ -1888,8 +1888,9 @@ export default function LinkDetail() {
                     <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-sm text-amber-700 dark:text-amber-300" data-testid="alert-voalle-ungranular">
                       <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <p>
-                        O Voalle não retornou campos para identificar a qual link cada solicitação pertence.
-                        Mostrando todas as solicitações em aberto deste cliente.
+                        Não foi possível identificar quais solicitações pertencem a este link específico.
+                        Expanda cada uma para ver os detalhes (etiqueta de serviço, solicitante etc.) e
+                        confirmar o vínculo manualmente. Mostrando todas as solicitações em aberto deste cliente.
                       </p>
                     </div>
                   )}

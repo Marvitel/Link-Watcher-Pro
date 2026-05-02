@@ -41,6 +41,17 @@ export class VoalleAdapter implements ErpAdapter {
   private static allConnectionsCacheAt: number = 0;
   private static readonly ALL_CONNECTIONS_CACHE_TTL_MS = 10 * 60 * 1000;
 
+  // Cache de detalhes de solicitações (POST /projects/getsolicitationdata).
+  // TTL curto (60s) — usado tanto pelo enrichment do filtro quanto pela UI ao
+  // expandir o card. Deduplica requests in-flight pela Promise armazenada.
+  // Cache estático porque configureErpAdapter() cria nova instância por request.
+  // Multi-tenant: a chave é só assignmentId, mas a CHAMADA já passa por
+  // getOpenSolicitations(voalleCustomerId) com IDOR check antes — então só
+  // cachemos IDs já validados.
+  private static solicitationDataCache: Map<number, { promise: Promise<any>; at: number }> = new Map();
+  private static readonly SOLICITATION_DATA_CACHE_TTL_MS = 60 * 1000;
+  private static readonly SOLICITATION_DATA_CACHE_MAX_ENTRIES = 500;
+
   configure(config: ErpIntegration): void {
     let apiUrl = (config.apiUrl || "").trim();
     if (apiUrl.endsWith("/")) {
@@ -67,10 +78,11 @@ export class VoalleAdapter implements ErpAdapter {
     this.tokenExpiresAt = null;
     this.portalAccessToken = null;
     this.portalTokenExpiresAt = null;
-    // Invalida cache estático quando a integração é reconfigurada (troca de URL/credencial)
-    // pra não servir lista de Voalle anterior durante a janela de TTL.
+    // Invalida caches estáticos quando a integração é reconfigurada (troca de URL/credencial)
+    // pra não servir dados do Voalle anterior durante a janela de TTL.
     VoalleAdapter.allConnectionsCache = null;
     VoalleAdapter.allConnectionsCacheAt = 0;
+    VoalleAdapter.solicitationDataCache.clear();
   }
 
   isConfigured(): boolean {
@@ -1039,6 +1051,34 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       return null;
     }
 
+    // Cache hit: devolve a Promise existente (deduplica in-flight + reuso por TTL).
+    const now = Date.now();
+    const cached = VoalleAdapter.solicitationDataCache.get(assignmentId);
+    if (cached && (now - cached.at) < VoalleAdapter.SOLICITATION_DATA_CACHE_TTL_MS) {
+      return cached.promise;
+    }
+
+    const promise = this.getSolicitationDataUncached(assignmentId);
+    VoalleAdapter.solicitationDataCache.set(assignmentId, { promise, at: now });
+
+    // LRU simples: se passou do limite, descarta as mais antigas.
+    if (VoalleAdapter.solicitationDataCache.size > VoalleAdapter.SOLICITATION_DATA_CACHE_MAX_ENTRIES) {
+      const oldestKey = VoalleAdapter.solicitationDataCache.keys().next().value;
+      if (oldestKey !== undefined) VoalleAdapter.solicitationDataCache.delete(oldestKey);
+    }
+
+    // Em caso de erro, remove imediatamente do cache pra não travar 60s servindo falha.
+    promise.catch(() => {
+      const current = VoalleAdapter.solicitationDataCache.get(assignmentId);
+      if (current && current.promise === promise) {
+        VoalleAdapter.solicitationDataCache.delete(assignmentId);
+      }
+    });
+
+    return promise;
+  }
+
+  private async getSolicitationDataUncached(assignmentId: number): Promise<any> {
     const path = `/projects/getsolicitationdata?assignmentId=${assignmentId}`;
     console.log(`[VoalleAdapter] Buscando detalhes da solicitação: ${path}`);
 

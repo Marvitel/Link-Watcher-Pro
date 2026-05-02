@@ -3904,9 +3904,63 @@ export async function registerRoutes(
         filterApplied = true;
         console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'}, pppoeUser: ${link.pppoeUser || '-'})`);
 
-        // FALLBACK: se filtro zerou tudo E nenhum dos tickets tem campos granulares
-        // (connectionId/contractServiceTag), o Voalle não dá pra distinguir por link.
-        // Devolve TODAS as solicitações com flag pra UI mostrar aviso.
+        // ENRICHMENT: se o filtro inicial zerou e o link tem serviceTag ou pppoeUser,
+        // tenta buscar detalhes (/getsolicitationdata) de cada ticket em paralelo —
+        // esse endpoint thirdparty retorna contractServiceTag.serviceTag e requestor
+        // que /solicitationlist NÃO retorna. Limita a 50 tickets pra controlar custo.
+        const ENRICHMENT_MAX = 50;
+        if (
+          allSolicitations.length > 0 &&
+          solicitations.length === 0 &&
+          (linkServiceTag || linkPppoeUser) &&
+          allSolicitations.length <= ENRICHMENT_MAX &&
+          typeof adapter.getSolicitationData === 'function'
+        ) {
+          const enrichStart = Date.now();
+          console.log(`[Voalle Solicitations] Filtro inicial zerou para ${link.name}. Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
+
+          const enriched = await Promise.all(
+            allSolicitations.map(async (s: { id: number }) => {
+              try {
+                const details = await adapter.getSolicitationData(s.id);
+                return { sol: s, details };
+              } catch (err: any) {
+                return { sol: s, details: null, error: err?.message };
+              }
+            })
+          );
+
+          const failures = enriched.filter(e => e.error).length;
+          const matched = enriched.filter(({ details }) => {
+            if (!details) return false;
+            // Match por serviceTag dos detalhes (campo principal — o do alerta)
+            const detailTag = details.contractServiceTag?.serviceTag;
+            if (linkServiceTag && detailTag && detailTag.toLowerCase().trim() === linkServiceTag) {
+              return true;
+            }
+            // Match por requestor.name contendo pppoeUser/identifier (fallback fraco)
+            if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
+              const reqName = details.requestor.name.toLowerCase();
+              if (reqName.includes(linkPppoeUser)) return true;
+              const normalized = linkPppoeUser.replace(/_/g, ' ');
+              if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
+            }
+            return false;
+          });
+
+          const elapsed = Date.now() - enrichStart;
+          console.log(`[Voalle Solicitations] Enrichment concluído em ${elapsed}ms: ${matched.length}/${allSolicitations.length} casaram (${failures} falhas de fetch)`);
+
+          if (matched.length > 0) {
+            solicitations = matched.map(m => m.sol);
+          }
+        } else if (allSolicitations.length > ENRICHMENT_MAX) {
+          console.log(`[Voalle Solicitations] Enrichment ignorado: ${allSolicitations.length} solicitações > limite ${ENRICHMENT_MAX}`);
+        }
+
+        // FALLBACK: se filtro zerou tudo (mesmo após enrichment) E nenhum dos tickets
+        // tem campos granulares (connectionId/contractServiceTag), o Voalle não dá
+        // pra distinguir por link. Devolve TODAS as solicitações com flag pra UI mostrar aviso.
         if (allSolicitations.length > 0 && solicitations.length === 0) {
           const anyTicketHasGranularField = allSolicitations.some(
             (s: { contractServiceTag?: string; connectionId?: number }) =>
