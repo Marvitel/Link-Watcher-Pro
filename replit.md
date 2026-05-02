@@ -83,6 +83,14 @@ Discovery of `links.voalleConnectionId` (necessary to bind ERP solicitations to 
 
 **Why this fixes the solicitations binding**: the route `/api/links/:linkId/voalle/solicitations` filters by `link.voalleConnectionId` (among other strategies). When Portal v2 was 403 and the link never received `voalleConnectionId`, the only binding was via subject substring. With the fallback in place, the link receives the ID via `/voalle-sync` and structured binding works again.
 
+### Voalle Solicitation Drill-Down (Detalhes + Relatos)
+The `link-detail.tsx` "Solicitações no ERP" tab renders each open solicitation as a `SolicitationCard` with an expandable dropdown that lazy-loads two parallel queries:
+
+1. **Detalhes** — `GET /api/links/:linkId/voalle/solicitations/:assignmentId/details` calls `VoalleAdapter.getSolicitationData()` which posts to `/external/integrations/thirdparty/projects/getsolicitationdata?assignmentId=X` (thirdparty API, client_credentials auth — works without per-client Portal v2 credentials). Returns `{protocol, incidentType, incidentStatus, requestor, responsible, contractServiceTag, sectorArea, team, criticity, beginningDate, finalDate, companyPlace, catalogService...}` rendered as a 2-column grid via the `DetailField` helper that auto-hides null/empty fields.
+2. **Relatos** — `GET /api/links/:linkId/voalle/solicitations/:assignmentId/history` calls `VoalleAdapter.getSolicitationHistory()` (`/getsolicitationhistory?assignmentId=X`) for the chronological note thread.
+
+Both routes apply the same IDOR check: they call `getOpenSolicitations(voalleCustomerId)` and reject the request when the requested `assignmentId` does not belong to the client's solicitations list. This prevents users with access to one link from probing arbitrary Voalle assignment IDs.
+
 ### Voalle Service Tag Mapping
 A `voalle_service_tags` table stores mappings between numeric Voalle tag IDs and alphanumeric OZmap codes, populated by CSV import for reconciliation.
 

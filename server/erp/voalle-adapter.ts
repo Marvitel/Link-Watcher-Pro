@@ -946,6 +946,143 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
     }
   }
 
+  /**
+   * Sanitiza mensagens de erro vindas do Voalle para evitar vazamento de credenciais.
+   * Cobre 3 formatos: (1) JSON estruturado (parse + mask recursivo de chaves sensíveis),
+   * (2) `key=value` / `key: value` literais, (3) JSON-quoted `"key":"value"`.
+   */
+  private static readonly SENSITIVE_KEY_REGEX = /^(.*(token|password|secret|authorization|bearer|api[_-]?key).*)$/i;
+
+  private static maskSensitiveStructured(value: unknown, depth = 0): unknown {
+    if (depth > 6) return '[TRUNCATED]';
+    if (Array.isArray(value)) return value.map(v => VoalleAdapter.maskSensitiveStructured(v, depth + 1));
+    if (value && typeof value === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        out[k] = VoalleAdapter.SENSITIVE_KEY_REGEX.test(k)
+          ? '[REDACTED]'
+          : VoalleAdapter.maskSensitiveStructured(v, depth + 1);
+      }
+      return out;
+    }
+    return value;
+  }
+
+  /** Mascara segredos numa string literal (cobre key=value, key: value e "key":"value"). */
+  private static maskSensitiveString(s: string): string {
+    return s
+      // "key":"value" ou "key": "value"  (JSON quoted)
+      .replace(/"(token|password|secret|authorization|bearer|api[_-]?key|access[_-]?token|client[_-]?secret|refresh[_-]?token)"\s*:\s*"[^"]*"/gi,
+        '"$1":"[REDACTED]"')
+      // key=value ou key: value (sem aspas) — para até espaço, vírgula, & ou aspas
+      .replace(/(token|password|secret|authorization|bearer|api[_-]?key|access[_-]?token|client[_-]?secret|refresh[_-]?token)\s*[=:]\s*"?[^\s,&"']+"?/gi,
+        '$1=[REDACTED]');
+  }
+
+  static sanitizeErrorMessage(input: unknown): string {
+    if (input === undefined || input === null) return 'success=false sem mensagem';
+    // Se for objeto/array, mascara recursivamente e serializa.
+    if (typeof input === 'object') {
+      try {
+        return JSON.stringify(VoalleAdapter.maskSensitiveStructured(input));
+      } catch {
+        return '[mensagem não serializável]';
+      }
+    }
+    const str = String(input);
+    // Tenta tratar como JSON serializado: se parseia, mascara estrutural;
+    // caso contrário, mascara como string literal.
+    const trimmed = str.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return JSON.stringify(VoalleAdapter.maskSensitiveStructured(parsed));
+      } catch {
+        // não é JSON válido — cai no mascaramento literal abaixo
+      }
+    }
+    return VoalleAdapter.maskSensitiveString(str);
+  }
+
+  /**
+   * Busca os detalhes de uma solicitação específica via API ERPVOALLE de TERCEIROS.
+   * Endpoint: POST /external/integrations/thirdparty/projects/getsolicitationdata?assignmentId={id}
+   * Doc: https://documenter.getpostman.com/view/16282829/UVC3moiN
+   *
+   * Funciona com client_credentials (não exige credencial Portal v2 por cliente),
+   * complementa o /getsolicitationhistory com dados gerais (incidentType, requestor,
+   * responsible, contractServiceTag, sectorArea, criticity, datas...).
+   *
+   * Propaga erro pro caller — frontend trata via isError + mensagem.
+   */
+  async getSolicitationData(assignmentId: number): Promise<{
+    protocol?: number;
+    assignmentId?: number;
+    incidentType?: { id: number; title: string };
+    incidentStatus?: { id: number; title: string };
+    requestor?: { id: number; name: string; name2?: string };
+    client?: { id: number; name: string; name2?: string };
+    beginningDate?: string;
+    finalDate?: string;
+    criticity?: number;
+    contractServiceTag?: { id: number; title: string; serviceTag: string };
+    catalogService?: { id: number; title: string } | null;
+    catalogServiceItem?: { id: number; title: string } | null;
+    catalogServiceItemClass?: { id: number; title: string } | null;
+    sectorArea?: { id: number; title: string };
+    team?: { id: number; title: string };
+    responsible?: { id: number; name: string; name2?: string };
+    companyPlace?: { id: number; description: string };
+  } | null> {
+    if (!assignmentId) {
+      console.log("[VoalleAdapter] getSolicitationData: assignmentId não fornecido");
+      return null;
+    }
+
+    const path = `/projects/getsolicitationdata?assignmentId=${assignmentId}`;
+    console.log(`[VoalleAdapter] Buscando detalhes da solicitação: ${path}`);
+
+    // Conforme a doc, é POST com body vazio (parâmetros vão na query string).
+    const result = await this.apiRequest<{
+      success: boolean;
+      messages?: any;
+      response?: any;
+    }>("POST", path);
+
+    // Falhas lógicas do Voalle (success=false / payload inválido) viram erro propagado
+    // pro caller — frontend distingue isso de "sem dados" via isError + mensagem.
+    // Mensagens do Voalle são sanitizadas pra não vazar credencial em log/payload.
+    if (!result || result.success === false) {
+      const sanitized = VoalleAdapter.sanitizeErrorMessage(result?.messages);
+      throw new Error(`Voalle getSolicitationData falhou (assignmentId=${assignmentId}): ${sanitized}`);
+    }
+
+    const r = result.response;
+    if (!r || typeof r !== 'object') {
+      throw new Error(`Voalle getSolicitationData retornou payload inválido (assignmentId=${assignmentId}, response ausente)`);
+    }
+
+    return {
+      protocol: r.protocol,
+      assignmentId: r.assignmentId,
+      incidentType: r.incidentType,
+      incidentStatus: r.incidentStatus,
+      requestor: r.requestor,
+      client: r.client,
+      beginningDate: r.beginningDate,
+      finalDate: r.finalDate,
+      criticity: r.criticity,
+      contractServiceTag: r.contractServiceTag,
+      catalogService: r.catalogService,
+      catalogServiceItem: r.catalogServiceItem,
+      catalogServiceItemClass: r.catalogServiceItemClass,
+      sectorArea: r.sectorArea,
+      team: r.team,
+      responsible: r.responsible,
+      companyPlace: r.companyPlace,
+    };
+  }
+
   async getContractTags(
     params: { 
       voalleCustomerId?: string | null; 

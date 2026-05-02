@@ -82,6 +82,10 @@ import {
   ChevronUp,
   MessageSquare,
   Lock,
+  User,
+  Users,
+  Building2,
+  Tag,
 } from "lucide-react";
 import type { Link, Metric, MetricWithAggregates, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -140,15 +144,70 @@ interface VoalleSolicitationHistoryResponse {
   error?: string;
 }
 
-// Card de uma solicitação com expansão lazy dos relatos.
+// Detalhes gerais de uma solicitação Voalle (via /getsolicitationdata thirdparty)
+interface VoalleSolicitationDetails {
+  protocol?: number;
+  assignmentId?: number;
+  incidentType?: { id: number; title: string };
+  incidentStatus?: { id: number; title: string };
+  requestor?: { id: number; name: string; name2?: string };
+  client?: { id: number; name: string; name2?: string };
+  beginningDate?: string;
+  finalDate?: string;
+  criticity?: number;
+  contractServiceTag?: { id: number; title: string; serviceTag: string };
+  catalogService?: { id: number; title: string } | null;
+  catalogServiceItem?: { id: number; title: string } | null;
+  catalogServiceItemClass?: { id: number; title: string } | null;
+  sectorArea?: { id: number; title: string };
+  team?: { id: number; title: string };
+  responsible?: { id: number; name: string; name2?: string };
+  companyPlace?: { id: number; description: string };
+}
+
+interface VoalleSolicitationDetailsResponse {
+  details: VoalleSolicitationDetails | null;
+  assignmentId: number;
+  error?: string;
+}
+
+// Linha de detalhe (label + valor) usada no card expandido
+function DetailField({ icon: Icon, label, value, testId }: {
+  icon: typeof User;
+  label: string;
+  value: string | number | null | undefined;
+  testId: string;
+}) {
+  if (value === null || value === undefined || value === "") return null;
+  return (
+    <div className="flex items-start gap-2 min-w-0" data-testid={testId}>
+      <Icon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">{label}</div>
+        <div className="text-sm font-medium break-words">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// Card de uma solicitação com expansão lazy de detalhes + relatos.
 function SolicitationCard({ sol, linkId }: { sol: VoalleSolicitation; linkId: number }) {
   const [expanded, setExpanded] = useState(false);
+
+  const { data: detailsData, isLoading: detailsLoading, isError: detailsError, error: detailsErrorObj } = useQuery<VoalleSolicitationDetailsResponse>({
+    queryKey: ["/api/links", linkId, "voalle", "solicitations", sol.id, "details"],
+    enabled: expanded,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   const { data: historyData, isLoading: historyLoading, isError: historyError, error: historyErrorObj } = useQuery<VoalleSolicitationHistoryResponse>({
     queryKey: ["/api/links", linkId, "voalle", "solicitations", sol.id, "history"],
     enabled: expanded,
     staleTime: 60_000,
   });
+
+  const details = detailsData?.details;
 
   return (
     <div
@@ -203,7 +262,135 @@ function SolicitationCard({ sol, linkId }: { sol: VoalleSolicitation; linkId: nu
         </Button>
       </div>
       {expanded && (
-        <div className="border-t bg-muted/30 px-3 py-3" data-testid={`history-panel-${sol.id}`}>
+        <div className="border-t bg-muted/30" data-testid={`expanded-panel-${sol.id}`}>
+          {/* Seção: Detalhes da solicitação (via /getsolicitationdata thirdparty) */}
+          <div className="px-3 py-3 border-b" data-testid={`details-panel-${sol.id}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <FileWarning className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Detalhes da Solicitação
+              </span>
+            </div>
+            {detailsLoading ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Carregando detalhes...
+              </div>
+            ) : detailsError ? (
+              <div className="flex items-start gap-2 text-sm text-destructive">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <p>Falha ao carregar detalhes: {(detailsErrorObj as Error)?.message || "desconhecido"}</p>
+              </div>
+            ) : !details ? (
+              <div className="text-sm text-muted-foreground py-1">
+                Nenhum detalhe retornado pelo Voalle.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5">
+                <DetailField
+                  icon={Ticket}
+                  label="Tipo"
+                  value={details.incidentType?.title}
+                  testId={`detail-incident-type-${sol.id}`}
+                />
+                <DetailField
+                  icon={Activity}
+                  label="Status"
+                  value={details.incidentStatus?.title}
+                  testId={`detail-status-${sol.id}`}
+                />
+                <DetailField
+                  icon={User}
+                  label="Solicitante"
+                  value={details.requestor?.name}
+                  testId={`detail-requestor-${sol.id}`}
+                />
+                <DetailField
+                  icon={User}
+                  label="Responsável"
+                  value={details.responsible?.name}
+                  testId={`detail-responsible-${sol.id}`}
+                />
+                <DetailField
+                  icon={Layers}
+                  label="Setor"
+                  value={details.sectorArea?.title}
+                  testId={`detail-sector-${sol.id}`}
+                />
+                <DetailField
+                  icon={Users}
+                  label="Equipe"
+                  value={details.team?.title}
+                  testId={`detail-team-${sol.id}`}
+                />
+                <DetailField
+                  icon={Tag}
+                  label="Etiqueta de Serviço"
+                  value={
+                    details.contractServiceTag
+                      ? `${details.contractServiceTag.serviceTag} — ${details.contractServiceTag.title}`
+                      : null
+                  }
+                  testId={`detail-service-tag-${sol.id}`}
+                />
+                <DetailField
+                  icon={AlertTriangle}
+                  label="Criticidade"
+                  value={details.criticity ?? null}
+                  testId={`detail-criticity-${sol.id}`}
+                />
+                <DetailField
+                  icon={Building2}
+                  label="Empresa"
+                  value={details.companyPlace?.description}
+                  testId={`detail-company-${sol.id}`}
+                />
+                <DetailField
+                  icon={LayoutList}
+                  label="Categoria"
+                  value={
+                    [
+                      details.catalogService?.title,
+                      details.catalogServiceItem?.title,
+                      details.catalogServiceItemClass?.title,
+                    ]
+                      .filter(Boolean)
+                      .join(" › ") || null
+                  }
+                  testId={`detail-catalog-${sol.id}`}
+                />
+                <DetailField
+                  icon={CalendarIcon}
+                  label="Abertura"
+                  value={(() => {
+                    if (!details.beginningDate) return null;
+                    const d = new Date(details.beginningDate);
+                    return Number.isNaN(d.getTime()) ? null : format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+                  })()}
+                  testId={`detail-beginning-${sol.id}`}
+                />
+                <DetailField
+                  icon={Clock}
+                  label="Previsão / Encerramento"
+                  value={(() => {
+                    if (!details.finalDate) return null;
+                    const d = new Date(details.finalDate);
+                    return Number.isNaN(d.getTime()) ? null : format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+                  })()}
+                  testId={`detail-final-${sol.id}`}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Seção: Relatos (via /getsolicitationhistory thirdparty) */}
+          <div className="px-3 py-3" data-testid={`history-panel-${sol.id}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Relatos
+              </span>
+            </div>
           {historyLoading ? (
             <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -256,6 +443,7 @@ function SolicitationCard({ sol, linkId }: { sol: VoalleSolicitation; linkId: nu
               ))}
             </ul>
           )}
+          </div>
         </div>
       )}
     </div>

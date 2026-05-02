@@ -1,0 +1,145 @@
+preciso ajustar para o sistema exibir os detalhes das solicitacoes atraves de um menu dropdown na solicitacao:
+
+segue documentação da api para terceiros do voalle:
+
+https://documenter.getpostman.com/view/16282829/UVC3moiN#95b0502e-3209-41c9-932b-6cbc86ba42a5
+
+login:
+
+POST
+Autenticação
+{{url_do_ERP}}:45700/connect/token
+HEADERS
+Content-Type
+application/x-www-form-urlencoded
+Body
+urlencoded
+grant_type
+client_credentials
+Valor Fixo
+scope
+syngw
+Valor Fixo
+client_id
+Token Client_id
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Id" do usuário marcado como Integrador
+client_secret
+Token Client_secret
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Secret" do usuário marcado como Integrador
+syndata
+Token SynData
+Informado pelo cliente - “Suíte / Configurações / Parâmetros” menu “Integração/Mapa” ou solicitado a Voalle via protocolo
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45700/connect/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=client_credentials' \
+--data-urlencode 'scope=syngw' \
+--data-urlencode 'client_id=Token Client_id' \
+--data-urlencode 'client_secret=Token Client_secret' \
+--data-urlencode 'syndata=Token SynData'
+
+Example Response:
+
+{
+  "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "expires_in": 3600,
+  "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "token_type": "Bearer"
+}
+
+POST
+Busca detalhes da solicitação
+{{url}}:45715/external/integrations/thirdparty/projects/getsolicitationdata?assignmentId={{assignmentId}}&protocol={{protocol}}
+Busca as informações gerais de uma determinada solicitação.
+	•	Caso sejam informados ambos os campos na pesquisa, a mesma é realizada levando em consideração o campo "assignmentId".
+HEADERS
+Authorization
+Bearer {{access_token}}
+Token obtido no método de autenticação
+PARAMS
+assignmentId
+{{assignmentId}}
+ID do protocolo
+protocol
+{{protocol}}
+Número do protocolo
+
+Example Request:
+
+curl --location --request POST 'httpd://erp.cliente.com.br:45715/external/integrations/thirdparty/projects/getsolicitationdata?protocol=123' \
+--header 'Authorization: Bearer' \
+--data ''
+
+Example Response:
+
+{
+  "success": true,
+  "messages": null,
+  "response": {
+    "protocol": 484,
+    "assignmentId": 493,
+    "incidentTypeId": 21,
+    "incidentType": {
+      "id": 21,
+      "title": "Atendimento"
+    },
+    "incidentStatusId": 1,
+    "incidentStatus": {
+      "id": 1,
+      "title": "Abertura"
+    },
+    "requestorId": 116,
+    "requestor": {
+      "id": 116,
+      "name": "Teste",
+      "name2": "Teste"
+    },
+    "clientId": 116,
+    "client": {
+      "id": 116,
+      "name": "Teste",
+      "name2": "Teste"
+    },
+    "beginningDate": "2022-08-01T17:22:17.650367",
+    "finalDate": "2022-08-01T17:37:17.65037",
+    "criticity": 8,
+    "contractServiceTagId": 273,
+    "contractServiceTag": {
+      "id": 273,
+      "title": "Serviço de Internet - SCM - 10Mega",
+      "serviceTag": "ABCDE123"
+    },
+    "catalogServiceId": null,
+    "catalogService": null,
+    "catalogServiceItemId": null,
+    "catalogServiceItem": null,
+    "catalogServiceItemClassId": null,
+    "catalogServiceItemClass": null,
+    "sectorAreaId": 2,
+    "sectorArea": {
+      "id": 2,
+      "title": "Técnica"
+    },
+    "teamId": 3,
+    "team": {
+      "id": 3,
+      "title": "Suporte"
+    },
+    "responsibleId": 101,
+    "responsible": {
+      "id": 101,
+      "name": "Suporte à Clientes",
+      "name2": "Teste"
+    },
+    "companyPlaceId": 1,
+    "companyPlace": {
+      "id": 1,
+      "description": "EMPRESA"
+    }
+  },
+  "dataResponseType": "<>f__AnonymousType1021`29",
+  "elapsedTime": null
+}
+

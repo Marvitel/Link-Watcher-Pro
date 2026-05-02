@@ -4013,11 +4013,83 @@ export async function registerRoutes(
       const history = await adapter.getSolicitationHistory(assignmentId);
       res.json({ history, assignmentId });
     } catch (error: any) {
+      // Resposta pública genérica — detalhe fica só no log interno pra não vazar
+      // info de integração/credencial.
       console.error("[Voalle Solicitation History] Error:", error?.message || error);
       res.status(500).json({
         error: "Erro ao buscar relatos da solicitação",
-        details: error?.message || "Erro desconhecido",
         history: [],
+      });
+    }
+  });
+
+  // Busca detalhes gerais de uma solicitação Voalle via API thirdparty
+  // (incidentType, requestor, responsible, contractServiceTag, criticity, datas...).
+  // Mesmo IDOR check do /history: assignmentId precisa pertencer ao cliente Voalle do link.
+  app.get("/api/links/:linkId/voalle/solicitations/:assignmentId/details", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const assignmentId = parseInt(req.params.assignmentId, 10);
+
+      if (!Number.isFinite(linkId) || linkId <= 0 || !Number.isFinite(assignmentId) || assignmentId <= 0) {
+        return res.status(400).json({ error: "linkId e assignmentId são obrigatórios e devem ser positivos", details: null });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado", details: null });
+      }
+
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado", details: null });
+      }
+
+      const client = await storage.getClient(link.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado", details: null });
+      }
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ error: "Integração Voalle não configurada", details: null });
+      }
+
+      let voalleCustomerId = client.voalleCustomerId;
+      if (!voalleCustomerId) {
+        const voalleMapping = await storage.getClientErpMapping(link.clientId, voalleIntegration.id);
+        if (voalleMapping) {
+          voalleCustomerId = parseInt(voalleMapping.erpCustomerId, 10) || null;
+        }
+      }
+      if (!voalleCustomerId) {
+        return res.status(403).json({ error: "Cliente sem vínculo Voalle", details: null });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      if (!adapter || typeof adapter.getSolicitationData !== 'function' || typeof adapter.getOpenSolicitations !== 'function') {
+        return res.status(500).json({ error: "Adapter Voalle não suporta busca de detalhes", details: null });
+      }
+
+      // IDOR: assignmentId precisa pertencer ao cliente Voalle deste link.
+      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId);
+      const assignmentBelongsToCustomer = Array.isArray(customerSolicitations)
+        && customerSolicitations.some((s: { id?: number }) => s && s.id === assignmentId);
+
+      if (!assignmentBelongsToCustomer) {
+        console.warn(`[Voalle Solicitation Details] Tentativa de acesso a assignmentId=${assignmentId} fora do cliente Voalle ${voalleCustomerId} (link ${linkId}, user ${(req as any).user?.id || '-'})`);
+        return res.status(403).json({ error: "Solicitação não pertence a este cliente", details: null });
+      }
+
+      const details = await adapter.getSolicitationData(assignmentId);
+      res.json({ details, assignmentId });
+    } catch (error: any) {
+      // Log interno mantém detalhe (já sanitizado no adapter) p/ debug;
+      // resposta pública é genérica pra não vazar credencial/info de integração.
+      console.error("[Voalle Solicitation Details] Error:", error?.message || error);
+      res.status(500).json({
+        error: "Erro ao buscar detalhes da solicitação",
+        details: null,
       });
     }
   });
