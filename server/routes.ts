@@ -203,113 +203,20 @@ function setDashboardCache(key: string, data: any) {
   dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
 }
 
-/**
- * Filtra solicitações Voalle pra um link específico aplicando estratégias inline
- * (connectionId, serviceTag exato, substring no título por serviceTag/pppoeUser/identifier)
- * + enrichment via /getsolicitationdata quando inline zera. Reutilizado por
- * /voalle/solicitations (em aberto) e /voalle/solicitations/closed (encerradas).
- *
- * Retorna { matched, fallbackUngranular } onde:
- *  - matched: solicitações que casaram com o link
- *  - fallbackUngranular: true se ninguém casou MAS o Voalle não retornou campos
- *    granulares (caller decide se devolve TODAS como fallback)
- */
-async function applyVoalleSolicitationFilter(
-  allSolicitations: Array<{ id: number; subject?: string; contractServiceTag?: string; connectionId?: number }>,
-  link: { name: string; voalleConnectionId?: number | null; voalleContractTagServiceTag?: string | null; pppoeUser?: string | null; identifier?: string | null },
-  adapter: any,
-  logPrefix: string,
-): Promise<{ matched: Array<any>; fallbackUngranular: boolean }> {
-  const linkServiceTag = link.voalleContractTagServiceTag
-    ? link.voalleContractTagServiceTag.toLowerCase().trim()
-    : '';
-  const linkPppoeUser = link.pppoeUser ? link.pppoeUser.toLowerCase().trim() : '';
-  const linkIdentifier = link.identifier ? link.identifier.toLowerCase().trim() : '';
-
-  const hasAnyFilter = !!(linkServiceTag || link.voalleConnectionId || linkPppoeUser || linkIdentifier);
-
-  if (allSolicitations.length === 0) {
-    return { matched: [], fallbackUngranular: false };
-  }
-
-  // Sem QUALQUER critério de filtro, não há como discriminar tickets deste link
-  // dos demais. Sinaliza fallback ungranular pra que a rota chamadora devolva
-  // TODAS as solicitações como "deste link" (preserva comportamento legado da
-  // rota /voalle/solicitations antes da separação own/other).
-  if (!hasAnyFilter) {
-    console.log(`${logPrefix} Link ${link.name} sem critério de match — devolvendo fallback ungranular (mostra todas).`);
-    return { matched: [], fallbackUngranular: true };
-  }
-
-  let matched: Array<any> = allSolicitations.filter((s) => {
-    const subject = (s.subject || '').toLowerCase();
-    if (link.voalleConnectionId && s.connectionId && s.connectionId === link.voalleConnectionId) return true;
-    if (linkServiceTag && s.contractServiceTag && s.contractServiceTag.toLowerCase().trim() === linkServiceTag) return true;
-    if (linkServiceTag && subject.includes(linkServiceTag)) return true;
-    if (linkPppoeUser && linkPppoeUser.length >= 4) {
-      if (subject.includes(linkPppoeUser)) return true;
-      const normalized = linkPppoeUser.replace(/_/g, ' ');
-      if (normalized !== linkPppoeUser && subject.includes(normalized)) return true;
-    }
-    if (linkIdentifier && linkIdentifier.length >= 4 && subject.includes(linkIdentifier)) return true;
-    return false;
-  });
-
-  console.log(`${logPrefix} Filtro inline: ${allSolicitations.length} total -> ${matched.length} para link ${link.name}`);
-
-  const ENRICHMENT_MAX = 50;
-  if (
-    matched.length === 0 &&
-    (linkServiceTag || linkPppoeUser || linkIdentifier) &&
-    allSolicitations.length <= ENRICHMENT_MAX &&
-    typeof adapter.getSolicitationData === 'function'
-  ) {
-    const enrichStart = Date.now();
-    console.log(`${logPrefix} Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
-
-    const enriched = await Promise.all(
-      allSolicitations.map(async (s) => {
-        try {
-          const details = await adapter.getSolicitationData(s.id);
-          return { sol: s, details, error: undefined as string | undefined };
-        } catch (err: any) {
-          return { sol: s, details: null, error: err?.message as string | undefined };
-        }
-      })
-    );
-
-    const failures = enriched.filter((e) => !!e.error).length;
-    matched = enriched
-      .filter(({ details }) => {
-        if (!details) return false;
-        const detailTag = details.contractServiceTag?.serviceTag
-          ? details.contractServiceTag.serviceTag.toLowerCase().trim()
-          : '';
-        if (linkServiceTag && detailTag && detailTag === linkServiceTag) return true;
-        if (linkIdentifier && detailTag && detailTag === linkIdentifier) return true;
-        if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
-          const reqName = details.requestor.name.toLowerCase();
-          if (reqName.includes(linkPppoeUser)) return true;
-          const normalized = linkPppoeUser.replace(/_/g, ' ');
-          if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
-        }
-        return false;
-      })
-      .map((m) => m.sol);
-
-    console.log(`${logPrefix} Enrichment concluído em ${Date.now() - enrichStart}ms: ${matched.length}/${allSolicitations.length} casaram (${failures} falhas)`);
-  } else if (allSolicitations.length > ENRICHMENT_MAX && matched.length === 0) {
-    console.log(`${logPrefix} Enrichment ignorado: ${allSolicitations.length} solicitações > limite ${ENRICHMENT_MAX}`);
-  }
-
-  let fallbackUngranular = false;
-  if (matched.length === 0) {
-    const anyGranular = allSolicitations.some((s) => !!s.contractServiceTag || !!s.connectionId);
-    if (!anyGranular) fallbackUngranular = true;
-  }
-
-  return { matched, fallbackUngranular };
-}
+// Helper compartilhado de filtragem + classificação de status Voalle.
+// Mantido em módulo dedicado pra ser consumido tanto pelas rotas REST quanto
+// pelo Analista de IA sem ciclo de import.
+export {
+  applyVoalleSolicitationFilter,
+  OPEN_STATUSES,
+  KNOWN_CLOSED_STATUSES,
+  isOpenSolicitation,
+  partitionByStatus,
+} from "./voalle-solicitations-filter";
+import {
+  applyVoalleSolicitationFilter,
+  partitionByStatus,
+} from "./voalle-solicitations-filter";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -4202,25 +4109,9 @@ export async function registerRoutes(
       // allAssignments=true → lista TUDO (abertas + encerradas) do cliente.
       const allSolicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined, true);
 
-      // Filtra fechadas: tudo cujo status NÃO está na allowlist de "em aberto".
-      // Sem allowlist robusta no Voalle, usamos heurística por valores conhecidos
-      // (em PT). Status vazio é considerado encerrado pra não ocultar resultados.
-      const OPEN_STATUSES = new Set([
-        'abertura', 'andamento', 'em andamento', 'aberto', 'em aberto', 'reaberto', 'pendente'
-      ]);
-      const KNOWN_CLOSED_STATUSES = new Set([
-        'encerrado', 'encerrada', 'fechado', 'fechada', 'cancelado', 'cancelada',
-        'concluído', 'concluido', 'concluída', 'concluida', 'resolvido', 'resolvida',
-        'finalizado', 'finalizada'
-      ]);
-      const unknownStatuses = new Set<string>();
-      const closed = allSolicitations.filter((s: any) => {
-        const status = (s.status || '').toLowerCase().trim();
-        if (status && !OPEN_STATUSES.has(status) && !KNOWN_CLOSED_STATUSES.has(status)) {
-          unknownStatuses.add(status);
-        }
-        return !OPEN_STATUSES.has(status);
-      });
+      // Particiona por status usando helper compartilhado (mesmo critério do
+      // ai-analyst e da rota de abertas).
+      const { closed, unknownStatuses } = partitionByStatus(allSolicitations);
       if (unknownStatuses.size > 0) {
         console.warn(`[Voalle Solicitations Closed] Status desconhecidos classificados como ENCERRADOS para cliente ${client.name}: ${Array.from(unknownStatuses).join(', ')}. Considere atualizar OPEN_STATUSES/KNOWN_CLOSED_STATUSES.`);
       }

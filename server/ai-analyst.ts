@@ -683,6 +683,47 @@ const TOOLS = [
     },
   },
 
+  // -------------------- VOALLE (SOLICITAÇÕES / TICKETS DO ERP) --------------------
+  {
+    name: "voalle_list_link_solicitations",
+    description:
+      "Lista as solicitações (tickets) do Voalle ERP relacionadas a um link. Retorna três grupos: `open` (em andamento, vinculadas a este link), `otherOpen` (em andamento de outros contratos do mesmo cliente — útil pra entender se o cliente já tem outros chamados abertos) e, se `includeClosed=true`, `closed` (até 3 últimas encerradas deste link, ordenadas por closedAt DESC). Usa o mesmo filtro+enriquecimento da UI (serviceTag/connectionId/pppoeUser/identifier). Quando o link não tem critério de match suficiente, devolve `fallbackUngranular=true` e mostra todas as do cliente. Use sempre que precisar avaliar incidentes em curso, histórico recente do cliente no ERP, ou descobrir qual chamado pode estar relacionado ao problema atual.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        linkId: { type: "number", description: "ID do link no Link Monitor" },
+        includeClosed: { type: "boolean", description: "Se true, inclui também as últimas 3 solicitações encerradas (default false)" },
+      },
+      required: ["linkId"],
+    },
+  },
+  {
+    name: "voalle_get_solicitation_details",
+    description:
+      "Busca os detalhes completos de uma solicitação Voalle pelo `assignmentId` (ID retornado por voalle_list_link_solicitations). Retorna requestor, responsible, contractServiceTag, incidentType, criticity, datas (open/closed), endereço técnico, descrição. Requer `linkId` para validar que a solicitação pertence ao cliente do link (proteção IDOR).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        linkId: { type: "number", description: "ID do link no Link Monitor (escopo de validação)" },
+        assignmentId: { type: "number", description: "ID da solicitação no Voalle (campo `id` do retorno de voalle_list_link_solicitations)" },
+      },
+      required: ["linkId", "assignmentId"],
+    },
+  },
+  {
+    name: "voalle_get_solicitation_history",
+    description:
+      "Retorna os relatos (history) de uma solicitação Voalle pelo `assignmentId`. Cada relato traz autor, data, tipo (público/interno) e texto — útil pra entender o que já foi feito/registrado no ticket pelos atendentes. Requer `linkId` para IDOR check.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        linkId: { type: "number", description: "ID do link no Link Monitor (escopo de validação)" },
+        assignmentId: { type: "number", description: "ID da solicitação no Voalle" },
+      },
+      required: ["linkId", "assignmentId"],
+    },
+  },
+
   // -------------------- TERMINAL --------------------
   {
     name: "submit_proposal",
@@ -1157,6 +1198,152 @@ async function executeTool(name: string, input: any): Promise<unknown> {
       };
     } catch (e: any) {
       return { error: `voalle_get_link_connection: ${e?.message || e}` };
+    }
+  }
+
+  // -------------------- VOALLE (SOLICITAÇÕES / TICKETS DO ERP) --------------------
+  if (
+    name === "voalle_list_link_solicitations" ||
+    name === "voalle_get_solicitation_details" ||
+    name === "voalle_get_solicitation_history"
+  ) {
+    const linkId = Number(input?.linkId);
+    if (!Number.isFinite(linkId)) return { error: "linkId obrigatório" };
+    try {
+      const link = await storage.getLink(linkId);
+      if (!link) return { error: `link ${linkId} não encontrado` };
+      const client = await storage.getClient(link.clientId);
+      if (!client) return { error: "cliente não encontrado" };
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider("voalle");
+      if (!voalleIntegration || !(voalleIntegration as any).isActive) {
+        return { available: false, message: "integração Voalle não configurada" };
+      }
+
+      // Resolve voalleCustomerId (mesmo fluxo das rotas /voalle/solicitations*)
+      let voalleCustomerId: number | null = (client as any).voalleCustomerId ?? null;
+      if (!voalleCustomerId) {
+        const mapping = await storage.getClientErpMapping(link.clientId, (voalleIntegration as any).id);
+        if (mapping) voalleCustomerId = parseInt((mapping as any).erpCustomerId, 10) || null;
+      }
+      if (!voalleCustomerId) {
+        return { available: false, message: "cliente sem vínculo Voalle (voalleCustomerId)" };
+      }
+
+      const { configureErpAdapter } = await import("./erp");
+      const adapter = configureErpAdapter(voalleIntegration as any) as any;
+
+      // Helpers compartilhados: mesma classificação de status e mesma lógica
+      // de filtro/enrichment usadas pelas rotas REST. Importados de módulo
+      // dedicado (sem ciclo com routes.ts).
+      const {
+        applyVoalleSolicitationFilter,
+        partitionByStatus,
+      } = await import("./voalle-solicitations-filter");
+
+      // ===== voalle_list_link_solicitations =====
+      if (name === "voalle_list_link_solicitations") {
+        if (typeof adapter.getOpenSolicitations !== "function") {
+          return { error: "Adapter Voalle não suporta busca de solicitações" };
+        }
+        const includeClosed = !!input?.includeClosed;
+        const allAssignments = includeClosed; // se queremos encerradas, precisa allAssignments=true
+        const all = await adapter.getOpenSolicitations(voalleCustomerId, allAssignments);
+
+        // PASSO 1: separa abertas vs encerradas pela mesma allowlist da UI.
+        const { open: openAll, closed: closedAll, unknownStatuses } = partitionByStatus(all);
+        if (unknownStatuses.size > 0) {
+          console.warn(`[AiAnalyst Voalle] Status desconhecidos: ${Array.from(unknownStatuses).join(", ")}`);
+        }
+
+        // PASSO 2: aplica filtro+enrichment SEPARADAMENTE em cada subgrupo —
+        // mesma ordem da rota /voalle/solicitations/closed (filtra status antes
+        // do filtro por link). Isso garante que o enrichment dispare quando o
+        // inline zerar dentro do escopo certo.
+        const { matched: matchedOpen, fallbackUngranular: openFallback } =
+          await applyVoalleSolicitationFilter(
+            openAll,
+            link as any,
+            adapter,
+            "[AiAnalyst Voalle Open]",
+          );
+
+        const matchedOpenIds = new Set((matchedOpen as any[]).map((s) => s.id));
+        const openOwn: any[] = openFallback ? openAll : (matchedOpen as any[]);
+        const openOther: any[] = openFallback
+          ? []
+          : openAll.filter((s: any) => !matchedOpenIds.has(s.id));
+
+        const result: any = {
+          available: true,
+          clientName: (client as any).name,
+          voalleCustomerId,
+          fallbackUngranular: openFallback,
+          open: openOwn.slice(0, 30),
+          openCount: openOwn.length,
+          otherOpen: openOther.slice(0, 30),
+          otherOpenCount: openOther.length,
+        };
+
+        if (includeClosed) {
+          const { matched: matchedClosed, fallbackUngranular: closedFallback } =
+            await applyVoalleSolicitationFilter(
+              closedAll,
+              link as any,
+              adapter,
+              "[AiAnalyst Voalle Closed]",
+            );
+          const closedBase: any[] = closedFallback ? closedAll : (matchedClosed as any[]);
+          const top3Closed = closedBase
+            .slice()
+            .sort((a: any, b: any) => {
+              const da = a.closedAt ? Date.parse(a.closedAt) : a.createdAt ? Date.parse(a.createdAt) : 0;
+              const db = b.closedAt ? Date.parse(b.closedAt) : b.createdAt ? Date.parse(b.createdAt) : 0;
+              return db - da;
+            })
+            .slice(0, 3);
+          result.closed = top3Closed;
+          result.closedCount = closedBase.length;
+          result.closedFallbackUngranular = closedFallback;
+        }
+
+        return result;
+      }
+
+      // ===== voalle_get_solicitation_details / _history (com IDOR check) =====
+      const assignmentId = Number(input?.assignmentId);
+      if (!Number.isFinite(assignmentId)) return { error: "assignmentId obrigatório" };
+
+      if (typeof adapter.getOpenSolicitations !== "function") {
+        return { error: "Adapter Voalle não suporta validação de assignment" };
+      }
+
+      // IDOR: assignmentId precisa pertencer ao cliente Voalle deste link.
+      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId, true);
+      const belongs = Array.isArray(customerSolicitations)
+        && customerSolicitations.some((s: any) => s && s.id === assignmentId);
+      if (!belongs) {
+        return {
+          error: `assignmentId=${assignmentId} não pertence ao cliente Voalle ${voalleCustomerId} deste link`,
+        };
+      }
+
+      if (name === "voalle_get_solicitation_details") {
+        if (typeof adapter.getSolicitationData !== "function") {
+          return { error: "Adapter Voalle não suporta detalhes" };
+        }
+        const details = await adapter.getSolicitationData(assignmentId);
+        return { available: true, assignmentId, details };
+      }
+
+      // voalle_get_solicitation_history
+      if (typeof adapter.getSolicitationHistory !== "function") {
+        return { error: "Adapter Voalle não suporta relatos" };
+      }
+      const history = await adapter.getSolicitationHistory(assignmentId);
+      return { available: true, assignmentId, history, count: Array.isArray(history) ? history.length : 0 };
+    } catch (e: any) {
+      return { error: `${name}: ${e?.message || e}` };
     }
   }
 

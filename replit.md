@@ -65,6 +65,13 @@ An admin tool provides batch diagnostics and enrichment, categorizing missing da
 ### AI Analyst (Agentic Link Triage)
 An automatic link triage system uses Anthropic Claude (`claude-sonnet-4-5`) with function-calling capabilities. It includes tables for settings, tasks, proposals, corrections, and explicit rules. The `server/ai-analyst.ts` module manages task queuing, processing, proposal application/rejection, and context building for the AI with tool-use.
 
+**Voalle Solicitation Tools**: Além das tools de banco/rede/Voalle existentes, o Analista de IA tem 3 tools dedicadas a tickets do ERP, em paridade com a UI da aba "Solicitações no ERP":
+- `voalle_list_link_solicitations(linkId, includeClosed?)` — retorna `open` (deste link), `otherOpen` (de outros contratos do mesmo cliente) e, se `includeClosed=true`, `closed` (top 3 encerradas, ordenadas por `closedAt DESC`). Usa `partitionByStatus` para separar abertas/encerradas e aplica `applyVoalleSolicitationFilter` SEPARADAMENTE em cada subgrupo (ordem idêntica à rota /closed).
+- `voalle_get_solicitation_details(linkId, assignmentId)` — busca detalhes via `getSolicitationData` com IDOR check (assignment precisa pertencer ao cliente Voalle do link).
+- `voalle_get_solicitation_history(linkId, assignmentId)` — busca relatos via `getSolicitationHistory` com mesmo IDOR check.
+
+**Helper Compartilhado** (`server/voalle-solicitations-filter.ts`): centraliza `OPEN_STATUSES`, `KNOWN_CLOSED_STATUSES`, `isOpenSolicitation`, `partitionByStatus` e `applyVoalleSolicitationFilter`. Importado tanto pelas rotas REST (`server/routes.ts`) quanto pelo Analista de IA, garantindo paridade total entre o que a UI vê e o que a IA recebe. Status vazio é tratado como ENCERRADO (comportamento legado preservado pra não ocultar tickets sem status no Voalle).
+
 ### Inactive Links & Temporary Pauses
 Links with `monitoringEnabled=false` have open events resolved, status set to 'unknown', and are excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation.
 
