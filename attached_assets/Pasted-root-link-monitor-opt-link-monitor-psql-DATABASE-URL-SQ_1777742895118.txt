@@ -1,0 +1,28 @@
+root@link-monitor:/opt/link-monitor# psql "$DATABASE_URL" <<'SQL'
+BEGIN;
+UPDATE links
+SET snmp_interface_index = NULL,
+    if_index_mismatch_count = 0,
+    last_if_index_validation = NULL
+WHERE auth_type = 'pppoe'
+  AND traffic_source_type = 'concentrator'
+  AND deleted_at IS NULL
+  AND monitoring_enabled = true
+  AND snmp_interface_index IS NOT NULL
+  AND snmp_interface_name IN (
+    'sfp-sfpplus1-vlan.50-OSPF-CEs',
+    'sfpplus-vlan.3011-MVT_OSPF2',
+    'sfpplus-vlan.1526-CONDOMINIO_MAIKAI'
+  );
+COMMIT;
+SQL
+BEGIN
+UPDATE 154
+COMMIT
+root@link-monitor:/opt/link-monitor# journalctl -u link-monitor -f | grep -E "Found interface via|Rejeitando descoberta"
+mai 02 14:27:44 link-monitor npm[3478545]: [Monitor] ONU-ROUTER: IP route lookup retornou ifIndex=1376 (ifName="sfp-sfpplus1-vlan.50-OSPF-CEs", ifAlias="null") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.
+mai 02 14:27:44 link-monitor npm[3478545]: [Monitor] MAIKAI_Q21D10: IP route lookup retornou ifIndex=46 (ifName="sfp-sfpplus1-vlan.50-OSPF-CEs", ifAlias="null") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.
+mai 02 14:27:50 link-monitor npm[3478545]: [Monitor] ONU-BRIDGE: Found interface via IP route lookup: ifIndex=15847114, ifName="<pppoe-MAIKAI_Q16D04>", ifAlias="null"
+mai 02 14:27:52 link-monitor npm[3478545]: [Monitor] ONU ROUTER: IP route lookup retornou ifIndex=46 (ifName="sfp-sfpplus1-vlan.50-OSPF-CEs", ifAlias="null") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.
+mai 02 14:28:01 link-monitor npm[3478545]: [Monitor] MAIKAI_Q12D06-EMANOELLA-BRITO: IP route lookup retornou ifIndex=46 (ifName="sfp-sfpplus1-vlan.50-OSPF-CEs", ifAlias="null") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.
+mai 02 14:28:01 link-monitor npm[3478545]: [Monitor] ILMA.OLIVEIRA: IP route lookup retornou ifIndex=46 (ifName="sfp-sfpplus1-vlan.50-OSPF-CEs", ifAlias="null") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.
