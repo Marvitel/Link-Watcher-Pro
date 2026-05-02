@@ -4728,9 +4728,16 @@ export async function registerRoutes(
       const cached = getDashboardCache(cacheKey);
       if (cached) return res.json(cached);
 
-      // Build WHERE conditions (all applied at DB level)
-      // Exclui links com monitoramento desativado — não devem aparecer em cards/contadores/alertas.
-      const baseConditions: any[] = [isNull(links.deletedAt), eq(links.monitoringEnabled, true)];
+      // ─── Estratégia de WHERE ────────────────────────────────────────────────
+      // O filtro `status` agora cobre 3 dimensões diferentes:
+      //   • Status de rede (operational/degraded/offline) — só links com monitoramento ATIVO.
+      //   • Status técnico Voalle (blocked/deleted) — bloqueado exige monitoramento ATIVO,
+      //     deleted inclui ativos e inativos (estado terminal).
+      //   • Configuração local (inactive) — links com monitoringEnabled=false.
+      // Para cada dimensão precisamos relaxar/ajustar o filtro de monitoringEnabled.
+      // Os contadores do summary (online/degraded/offline/blocked/deleted/inactive) usam
+      // condições próprias que IGNORAM o filtro selecionado, pra que o user veja sempre
+      // quantos links existem em cada bucket.
 
       // Only links from active clients
       const activeClients = await db.select({ id: clientsTable.id, name: clientsTable.name })
@@ -4739,23 +4746,20 @@ export async function registerRoutes(
       const clientMap = new Map(activeClients.map(c => [c.id, c.name]));
 
       if (activeClientIds.length === 0) {
-        return res.json({ items: [], summary: { totalLinks: 0, onlineLinks: 0, degradedLinks: 0, offlineLinks: 0, activeAlerts: 0, openIncidents: 0 }, page: 1, pageSize, totalPages: 0, totalItems: 0 });
+        return res.json({ items: [], summary: { totalLinks: 0, onlineLinks: 0, degradedLinks: 0, offlineLinks: 0, activeAlerts: 0, openIncidents: 0, blockedLinks: 0, deletedLinks: 0, inactiveLinks: 0 }, page: 1, pageSize, totalPages: 0, totalItems: 0 });
       }
-      baseConditions.push(inArray(links.clientId, activeClientIds));
 
+      // Condições comuns (cliente ativo, não soft-deletado, filtro de cliente, busca)
+      // — aplicadas em TODAS as queries, inclusive nos contadores.
+      const commonConditions: any[] = [
+        isNull(links.deletedAt),
+        inArray(links.clientId, activeClientIds),
+      ];
       if (clientIdFilter) {
-        baseConditions.push(eq(links.clientId, clientIdFilter));
-      }
-      if (statusFilter && statusFilter !== 'all') {
-        if (statusFilter === 'offline') {
-          baseConditions.push(or(eq(links.status, 'offline'), eq(links.status, 'down')));
-        } else {
-          baseConditions.push(eq(links.status, statusFilter));
-        }
+        commonConditions.push(eq(links.clientId, clientIdFilter));
       }
       if (search) {
         const term = `%${search}%`;
-        // Clientes cujo nome bate com a busca (já estão em memória, sem query extra)
         const matchingClientIds = activeClients
           .filter(c => c.name.toLowerCase().includes(search))
           .map(c => c.id);
@@ -4769,21 +4773,51 @@ export async function registerRoutes(
         if (matchingClientIds.length > 0) {
           searchClauses.push(inArray(links.clientId, matchingClientIds));
         }
-        baseConditions.push(or(...searchClauses));
+        commonConditions.push(or(...searchClauses));
       }
 
-      const whereClause = and(...baseConditions);
+      // Contadores: online/degraded/offline/blocked exigem monitoramento ATIVO.
+      // deleted e inactive usam apenas commonConditions (não restringem por monitoring).
+      const monitoredConditions = [...commonConditions, eq(links.monitoringEnabled, true)];
+
+      // Condições específicas do filtro selecionado (whereClause da listagem paginada)
+      const filterConditions: any[] = [...commonConditions];
+      if (statusFilter === 'inactive') {
+        filterConditions.push(eq(links.monitoringEnabled, false));
+      } else if (statusFilter === 'deleted') {
+        filterConditions.push(eq(links.voalleConnectionStatus, 'deleted'));
+        // não filtra monitoringEnabled — cancelados podem estar com monitoramento desligado
+      } else if (statusFilter === 'blocked') {
+        filterConditions.push(eq(links.monitoringEnabled, true));
+        filterConditions.push(eq(links.voalleConnectionStatus, 'blocked'));
+      } else {
+        // status de rede (all/operational/degraded/offline) — sempre exige monitoramento ativo
+        filterConditions.push(eq(links.monitoringEnabled, true));
+        if (statusFilter === 'offline') {
+          filterConditions.push(or(eq(links.status, 'offline'), eq(links.status, 'down')));
+        } else if (statusFilter && statusFilter !== 'all') {
+          filterConditions.push(eq(links.status, statusFilter));
+        }
+      }
+
+      const whereClause = and(...filterConditions);
 
       // Run summary counts and paginated data in parallel
-      const [countRows, onlineRows, degradedRows, offlineRows, paginatedLinks] = await Promise.all([
-        // Total count (with all filters)
+      const [countRows, onlineRows, degradedRows, offlineRows, blockedRows, deletedRows, inactiveRows, paginatedLinks] = await Promise.all([
+        // Total count (com filtro selecionado aplicado — espelha o que será listado)
         db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(whereClause),
-        // Online count
-        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, eq(links.status, 'operational'))),
+        // Online count (links monitorados com status operational)
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...monitoredConditions, eq(links.status, 'operational'))),
         // Degraded count
-        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, eq(links.status, 'degraded'))),
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...monitoredConditions, eq(links.status, 'degraded'))),
         // Offline count
-        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...baseConditions, or(eq(links.status, 'offline'), eq(links.status, 'down')))),
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...monitoredConditions, or(eq(links.status, 'offline'), eq(links.status, 'down')))),
+        // Blocked count (Voalle status = blocked, monitoramento ativo)
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...monitoredConditions, eq(links.voalleConnectionStatus, 'blocked'))),
+        // Deleted/Cancelado count (Voalle status = deleted, ativo OU inativo)
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...commonConditions, eq(links.voalleConnectionStatus, 'deleted'))),
+        // Inactive count (monitoringEnabled = false)
+        db.select({ count: sql<number>`COUNT(*)::int` }).from(links).where(and(...commonConditions, eq(links.monitoringEnabled, false))),
         // Paginated links — select only the columns needed for the dashboard card
         db.select({
           id: links.id,
@@ -4821,6 +4855,9 @@ export async function registerRoutes(
         offlineLinks: offlineRows[0]?.count ?? 0,
         activeAlerts: 0,
         openIncidents: 0,
+        blockedLinks: blockedRows[0]?.count ?? 0,
+        deletedLinks: deletedRows[0]?.count ?? 0,
+        inactiveLinks: inactiveRows[0]?.count ?? 0,
       };
 
       // Fetch events and incidents only for the paginated set — queries filtradas por linkId

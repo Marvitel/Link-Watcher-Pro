@@ -1432,6 +1432,12 @@ export interface LinkDashboardSummary {
   offlineLinks: number;
   activeAlerts: number;
   openIncidents: number;
+  /** Bloqueados no Voalle (status técnico = "blocked") — só inclui links com monitoramento ativo. */
+  blockedLinks: number;
+  /** Cancelados/Excluídos no Voalle (status técnico = "deleted") — inclui ativos e inativos. */
+  deletedLinks: number;
+  /** Links com monitoramento desativado (monitoringEnabled=false). */
+  inactiveLinks: number;
 }
 
 // External Service Integrations (HetrixTools, etc.)

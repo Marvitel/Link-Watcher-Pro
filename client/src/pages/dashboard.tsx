@@ -36,6 +36,9 @@ import {
   Ticket,
   SquareStack,
   Zap,
+  Ban,
+  Trash2,
+  PowerOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -370,7 +373,7 @@ function SuperAdminLinkDashboard({
         </div>
 
         <Tabs value={statusFilter} onValueChange={handleStatusChange}>
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="all" data-testid="tab-status-all">
               Todos
               {data?.summary && (
@@ -396,6 +399,27 @@ function SuperAdminLinkDashboard({
               Offline
               {data?.summary && (
                 <span className="ml-1 text-xs opacity-70">({data.summary.offlineLinks})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="blocked" data-testid="tab-status-blocked">
+              <Ban className="w-3 h-3 mr-1" />
+              Bloqueados
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.blockedLinks ?? 0})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="deleted" data-testid="tab-status-deleted">
+              <Trash2 className="w-3 h-3 mr-1" />
+              Cancelados
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.deletedLinks ?? 0})</span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="inactive" data-testid="tab-status-inactive">
+              <PowerOff className="w-3 h-3 mr-1" />
+              Inativos
+              {data?.summary && (
+                <span className="ml-1 text-xs opacity-70">({data.summary.inactiveLinks ?? 0})</span>
               )}
             </TabsTrigger>
           </TabsList>

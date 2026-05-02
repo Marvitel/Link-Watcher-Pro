@@ -85,7 +85,7 @@ Sincronização horária do status técnico de cada conexão Voalle (distinto do
 - `bulkUpdateVoalleConnectionStatus()` em `server/storage.ts` faz UPDATE em batch num único query usando `CASE WHEN voalle_connection_id THEN status END WHERE voalle_connection_id IN (...)` (parametrizado via `sql.join`).
 - Scheduler iniciado em `server/index.ts` com primeira execução 60s após boot e intervalo de 1h, com flag `inFlight` anti-corrida.
 - Endpoints admin protegidos com `requireSuperAdmin`: `POST /api/admin/voalle/sync-connection-status` (refresh manual) e `GET /api/admin/voalle/sync-connection-status/last` (status do último sync).
-- Endpoint `GET /api/super-admin/link-dashboard` expõe `voalleConnectionStatus` no payload de cada item.
+- Endpoint `GET /api/super-admin/link-dashboard` expõe `voalleConnectionStatus` no payload de cada item e aceita 3 valores adicionais no parâmetro `status`: `blocked` (Voalle blocked + monitoramento ativo), `deleted` (Voalle deleted, com ou sem monitoramento) e `inactive` (`monitoringEnabled=false`). O `summary` inclui contadores `blockedLinks`, `deletedLinks`, `inactiveLinks` calculados independentes do filtro selecionado (refletem o universo total). Os contadores online/degraded/offline/blocked exigem `monitoringEnabled=true`; deleted/inactive não.
 
 **Frontend**:
 - `VoalleConnectionStatusBadge` (`client/src/components/voalle-connection-status-badge.tsx`): 4 cores (verde/vermelho/âmbar/azul) + ícones lucide. Por padrão esconde quando `normal`/`unknown` (props `showWhenNormal` para forçar exibição). Modo `iconOnly` mostra só ícone com tooltip — usado em todos os cards compactos.
