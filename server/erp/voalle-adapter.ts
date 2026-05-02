@@ -229,6 +229,48 @@ export class VoalleAdapter implements ErpAdapter {
     }));
   }
 
+  /**
+   * Lista conexões EXCLUÍDAS no Voalle (contrato cancelado / conexão removida).
+   * Endpoint: GET /external/map/connection/all/deleted
+   *
+   * Diferente de /all, o payload não traz o campo `status` no nível raiz —
+   * o estado é refletido em `contract.statusDescription` (ex.: "Cancelado").
+   * Para o sync, todas essas conexões são marcadas como "deleted" no Link Monitor,
+   * independentemente do status do contrato (a presença na lista de excluídas já
+   * indica que a conexão técnica não existe mais no Voalle).
+   *
+   * Propaga erro para o caller (mesmo tratamento de getAllConnectionStatus).
+   */
+  async getAllDeletedConnectionStatus(): Promise<Array<{
+    id: number;
+    user?: string;
+    serviceTag?: string;
+    contractStatusDescription?: string;
+  }>> {
+    const result = await this.mapApiRequest<{
+      success: boolean;
+      response: Array<{
+        id: number;
+        user?: string;
+        serviceTag?: string;
+        contract?: { id: number; status: number; statusDescription: string } | null;
+      }>;
+    }>("GET", "/external/map/connection/all/deleted");
+
+    if (!result.success || !Array.isArray(result.response)) {
+      throw new Error(
+        `Voalle retornou resposta inválida em /external/map/connection/all/deleted (success=${result.success}, response.isArray=${Array.isArray(result.response)})`
+      );
+    }
+
+    return result.response.map(c => ({
+      id: c.id,
+      user: c.user,
+      serviceTag: c.serviceTag,
+      contractStatusDescription: c.contract?.statusDescription,
+    }));
+  }
+
   private async apiRequest<T>(
     method: string,
     path: string,

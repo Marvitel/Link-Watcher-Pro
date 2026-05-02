@@ -1,0 +1,327 @@
+preciso ajustar a maneira como o sistema coleta e exibe informaçoões da conexão do cliente:
+
+preciso que o sistema informe quando a conexao estiver bloqueada ou normal, pode ser na aba ferramentas e nos cards quando estiver bloqueado;
+
+segue documentação da api do voalle:
+
+https://documenter.getpostman.com/view/16282829/UVC3moiN#95b0502e-3209-41c9-932b-6cbc86ba42a5
+
+login:
+
+POST
+Autenticação
+{{url_do_ERP}}:45700/connect/token
+HEADERS
+Content-Type
+application/x-www-form-urlencoded
+Body
+urlencoded
+grant_type
+client_credentials
+Valor Fixo
+scope
+syngw
+Valor Fixo
+client_id
+Token Client_id
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Id" do usuário marcado como Integrador
+client_secret
+Token Client_secret
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Secret" do usuário marcado como Integrador
+syndata
+Token SynData
+Informado pelo cliente - “Suíte / Configurações / Parâmetros” menu “Integração/Mapa” ou solicitado a Voalle via protocolo
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45700/connect/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=client_credentials' \
+--data-urlencode 'scope=syngw' \
+--data-urlencode 'client_id=Token Client_id' \
+--data-urlencode 'client_secret=Token Client_secret' \
+--data-urlencode 'syndata=Token SynData'
+
+Example Response:
+
+{
+  "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "expires_in": 3600,
+  "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "token_type": "Bearer"
+}
+
+status da conexão:
+
+GET
+Listagem de Conexões
+{{url_do_ERP}}:45715/external/map/connection/all
+Busca todos os registros.
+Lista de Status da Conexão:
+	•	1: Normal
+	•	2: Bloqueada
+	•	3: Aviso de Bloqueio
+	•	4: Aviso de Manutenção
+HEADERS
+Authorization
+Bearer {{access_token}}
+"access_token" obtido no método "Login"
+Content-Type
+application/json
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45715/external/map/connection/all' \
+--header 'Authorization: Bearer {{access_token}}' \
+--header 'Content-Type: application/json'
+
+Example Response:
+
+{
+  "success": true,
+  "messages": null,
+  "response": [
+    {
+      "id": 123,
+      "user": "user",
+      "integrationCode": "654321",
+      "serviceTag": "CLI0000-000",
+      "equipmentSerialNumber": "FHTT1123456",
+      "mac": "1C:C2:D3:04:5F:6E",
+      "integrationCodeMap": "123",
+      "status": 1,
+      "client": {
+        "id": 123,
+        "name": "CLIENTE",
+        "txId": "123456789"
+      },
+      "address": {
+        "street": "RUA",
+        "postalCode": "CEP",
+        "number": "123",
+        "neighborhood": "BAIRRO",
+        "city": "CIDADE",
+        "state": "XX",
+        "latitude": "-00.0000000",
+        "longitude": "-00.0000000",
+        "addressComplement": "COMPLEMENTO"
+      },
+      "splitter": {
+        "id": 321,
+        "title": "teste1",
+        "code": "321",
+        "integrationCode": "123123",
+        "port": 4,
+        "authenticationContractId": 123,
+        "olt": {
+          "code": "20",
+          "description": "",
+          "integrationCode": "321"
+        }
+      },
+      "contract": {
+        "id": 123,
+        "status": 3,
+        "statusDescription": "Cortesia",
+        "stage": 3,
+        "stageDescription": "Aprovado"
+      }
+    }
+  ],
+  "dataResponseType": "<>f__AnonymousType106`4[]"
+}
+
+Status de conexoes excluidas:
+
+GET
+Listagem de Conexões Excluídas
+{{url_do_ERP}}:45715/external/map/connection/all/deleted
+Busca todos as conexões excluídas.
+HEADERS
+Authorization
+Bearer {{access_token}}
+"access_token" obtido no método "Login"
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45715/external/map/connection/all/deleted' \
+--header 'Authorization: Bearer {{access_token}}'
+
+Example Response:
+
+{
+  "success": true,
+  "messages": null,
+  "response": [
+    {
+      "id": 1,
+      "user": "usuario",
+      "integrationCode": null,
+      "serviceTag": "123",
+      "equipmentSerialNumber": "",
+      "mac": null,
+      "client": {
+        "id": 123,
+        "name": "NOME DO CLIENTE",
+        "txId": "00000000000"
+      },
+      "address": {
+        "street": "RUA",
+        "postalCode": "00000000",
+        "number": "00",
+        "neighborhood": "BAIRRO",
+        "city": "CIDADE",
+        "state": "XX",
+        "latitude": "-00.000000",
+        "longitude": "-00.000000",
+        "addressComplement": "COMPLEMENTO"
+      },
+      "contract": {
+        "id": 1234,
+        "status": 4,
+        "statusDescription": "Cancelado"
+      }
+    }
+  ],
+  "dataResponseType": "List<AuthCanceledDto>",
+  "elapsedTime": null
+}
+
+POST
+Busca conexões pelo contrato, usuário, etiqueta e código de integração
+{{url_do_ERP}}:45715/external/map/connection/by/userdata
+Busca uma ou mais conexões com base no número do contrato, usuário da conexão ou etiqueta do contrato.
+Lista de Status da Conexão:
+	•	1: Normal
+	•	2: Bloqueada
+	•	3: Aviso de Bloqueio
+	•	4: Aviso de Manutenção
+HEADERS
+Authorization
+{{authorization}}
+Obtido no método de autenticação
+accept
+application/json
+Body
+raw (json)
+
+
+{
+    "contractIds": [
+        //191187
+    ],
+    "users": [
+        //"lucidio.inacio",
+        //"a90893c5"
+    ],
+    "serviceTags": [
+        //"LWBEL9HX"
+    ]
+}
+
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45715/external/map/connection/by/userdata' \
+--header 'Authorization: Bearer {{access_token}}' \
+--header 'accept: application/json' \
+--header 'Content-Type: application/json' \
+--data '{
+    "contractIds": [
+        52
+    ],
+    "users": [
+        "string"
+    ],
+    "serviceTags": [
+        "string"
+    ]
+}'
+
+Example Response:
+
+{
+  "success": true,
+  "messages": null,
+  "response": [
+    [
+      {
+        "id": 7,
+        "user": "user.2",
+        "integrationCode": null,
+        "serviceTag": "4XD6GA26",
+        "equipmentSerialNumber": null,
+        "mac": null,
+        "integrationCodeMap": null,
+        "status": 1,
+        "client": {
+          "id": 114,
+          "name": "User 2",
+          "txId": "00000000000"
+        },
+        "address": {
+          "street": "Rua",
+          "postalCode": "00000-010",
+          "number": "1",
+          "neighborhood": "Centro",
+          "city": "Cidade",
+          "state": "RS",
+          "latitude": null,
+          "longitude": null,
+          "addressComplement": null
+        },
+        "splitter": null,
+        "contract": {
+          "id": 52,
+          "status": 1,
+          "statusDescription": "Normal",
+          "stage": 2,
+          "stageDescription": "Em Aprovação"
+        },
+        "authenticationAccessPoint": null
+      }
+    ],
+    [
+      {
+        "id": 8,
+        "user": "user.2_1",
+        "integrationCode": null,
+        "serviceTag": "37DXN6HE",
+        "equipmentSerialNumber": null,
+        "mac": null,
+        "integrationCodeMap": null,
+        "status": 1,
+        "client": {
+          "id": 114,
+          "name": "User 3",
+          "txId": "00000000000"
+        },
+        "address": {
+          "street": "Rua",
+          "postalCode": "00000-000",
+          "number": "1",
+          "neighborhood": "Centro",
+          "city": "Cidade",
+          "state": "RS",
+          "latitude": null,
+          "longitude": null,
+          "addressComplement": null
+        },
+        "splitter": null,
+        "contract": {
+          "id": 54,
+          "status": 1,
+          "statusDescription": "Normal",
+          "stage": 3,
+          "stageDescription": "Aprovado"
+        },
+        "authenticationAccessPoint": null
+      }
+    ]
+  ],
+  "dataResponseType": "GroupedEnumerable`2",
+  "elapsedTime": null
+}
+
+
+

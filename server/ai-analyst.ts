@@ -389,7 +389,7 @@ Quando um dos dois detectar que voltou, reabilita automaticamente e registra um 
 
 **B) Desativação permanente** (sem auto-reabilitação):
 Quando você tiver evidência clara de que o link **NÃO deveria mais estar sendo monitorado**, proponha apenas "monitoringEnabled": false. Casos:
-- Contrato cancelado/bloqueado no Voalle (cheque o campo voalleConnectionStatus do link — "blocked" indica bloqueio técnico no Voalle; confirme adicionalmente com voalle_get_contracts antes de desativar permanentemente)
+- Contrato cancelado/bloqueado no Voalle (cheque o campo voalleConnectionStatus do link: "deleted" significa que a conexão foi EXCLUÍDA no Voalle — sinal mais forte para desativar; "blocked" significa bloqueio técnico — confirme adicionalmente com voalle_get_contracts antes de desativar permanentemente)
 - Cliente trocou de tecnologia (ex.: migrou de PPPoE pra link dedicado, mas o link antigo ficou cadastrado)
 - Link duplicado (mesmo cliente, mesmo PPPoE, dois cadastros — desativa o que não tem tráfego há semanas)
 - Link de teste/laboratório que ficou esquecido
@@ -1262,9 +1262,13 @@ function buildUserPrompt(ctx: LinkContext): string {
     voalleConnectionId: (link as any).voalleConnectionId ?? null,
     contractStatus: (link as any).contractStatus,
     // Status técnico Voalle sincronizado de hora em hora via /external/map/connection/all
-    // Valores: "normal" | "blocked" | "block_warning" | "maintenance_warning" | "unknown"
-    // Distinto de contractStatus (comercial). Se "blocked", é evidência forte de que o
-    // cliente foi bloqueado tecnicamente no Voalle — confirme com voalle_get_contracts.
+    // e /external/map/connection/all/deleted.
+    // Valores: "normal" | "blocked" | "block_warning" | "maintenance_warning" | "deleted" | "unknown"
+    // Distinto de contractStatus (comercial).
+    // - "blocked": bloqueio técnico no Voalle — confirme com voalle_get_contracts.
+    // - "deleted": a conexão foi EXCLUÍDA no Voalle (contrato cancelado/conexão removida).
+    //   É evidência muito forte de que o link não deveria mais existir no monitoramento;
+    //   considere desativação permanente (monitoringEnabled=false) após confirmar.
     voalleConnectionStatus: (link as any).voalleConnectionStatus ?? "unknown",
     voalleConnectionStatusUpdatedAt: (link as any).voalleConnectionStatusUpdatedAt ?? null,
     monitoringEnabled: (link as any).monitoringEnabled,

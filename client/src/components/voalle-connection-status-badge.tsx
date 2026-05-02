@@ -1,12 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CheckCircle2, AlertTriangle, AlertOctagon, Wrench } from "lucide-react";
+import { CheckCircle2, AlertTriangle, AlertOctagon, Wrench, Trash2 } from "lucide-react";
 
 export type VoalleConnectionStatus =
   | "normal"
   | "blocked"
   | "block_warning"
   | "maintenance_warning"
+  | "deleted"
   | "unknown";
 
 interface VoalleConnectionStatusBadgeProps {
@@ -50,6 +51,12 @@ const STATUS_CONFIG: Record<
     description: "Conexão com aviso de manutenção no Voalle",
     Icon: Wrench,
     className: "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400",
+  },
+  deleted: {
+    label: "Excluída",
+    description: "Conexão excluída no Voalle (contrato cancelado / conexão removida)",
+    Icon: Trash2,
+    className: "bg-zinc-500/10 text-zinc-700 border-zinc-500/40 dark:text-zinc-300",
   },
   unknown: {
     label: "Desconhecido",
