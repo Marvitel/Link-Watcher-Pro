@@ -3946,6 +3946,82 @@ export async function registerRoutes(
     }
   });
 
+  // Buscar relatos (history) de uma solicitação específica do Voalle
+  app.get("/api/links/:linkId/voalle/solicitations/:assignmentId/history", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      const assignmentId = parseInt(req.params.assignmentId, 10);
+
+      if (!Number.isFinite(linkId) || linkId <= 0) {
+        return res.status(400).json({ error: "linkId inválido", history: [] });
+      }
+      if (!Number.isFinite(assignmentId) || assignmentId <= 0) {
+        return res.status(400).json({ error: "assignmentId inválido", history: [] });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) {
+        return res.status(404).json({ error: "Link não encontrado", history: [] });
+      }
+
+      // Permissão: usuário precisa ter acesso ao link pra ver os relatos.
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) {
+        return res.status(403).json({ error: "Acesso negado", history: [] });
+      }
+
+      const client = await storage.getClient(link.clientId);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado", history: [] });
+      }
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ error: "Integração Voalle não configurada", history: [] });
+      }
+
+      // Resolve voalleCustomerId (mesmo fluxo da rota de solicitações)
+      let voalleCustomerId = client.voalleCustomerId;
+      if (!voalleCustomerId) {
+        const voalleMapping = await storage.getClientErpMapping(link.clientId, voalleIntegration.id);
+        if (voalleMapping) {
+          voalleCustomerId = parseInt(voalleMapping.erpCustomerId, 10) || null;
+        }
+      }
+      if (!voalleCustomerId) {
+        return res.status(403).json({ error: "Cliente sem vínculo Voalle", history: [] });
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      if (!adapter || typeof adapter.getSolicitationHistory !== 'function' || typeof adapter.getOpenSolicitations !== 'function') {
+        return res.status(500).json({ error: "Adapter Voalle não suporta busca de relatos", history: [] });
+      }
+
+      // AUTORIZAÇÃO DE RECURSO: assignmentId precisa pertencer ao cliente Voalle deste link.
+      // Sem isso, qualquer usuário com acesso a 1 link poderia consultar relatos de qualquer
+      // solicitação do ERP (IDOR). Validamos buscando as solicitações do cliente e exigindo
+      // que o assignmentId esteja na lista. Custo: 1 chamada ao Voalle (cacheada do lado dele).
+      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId);
+      const assignmentBelongsToCustomer = Array.isArray(customerSolicitations)
+        && customerSolicitations.some((s: { id?: number }) => s && s.id === assignmentId);
+
+      if (!assignmentBelongsToCustomer) {
+        console.warn(`[Voalle Solicitation History] Tentativa de acesso a assignmentId=${assignmentId} fora do cliente Voalle ${voalleCustomerId} (link ${linkId}, user ${(req as any).user?.id || '-'})`);
+        return res.status(403).json({ error: "Solicitação não pertence a este cliente", history: [] });
+      }
+
+      const history = await adapter.getSolicitationHistory(assignmentId);
+      res.json({ history, assignmentId });
+    } catch (error: any) {
+      console.error("[Voalle Solicitation History] Error:", error?.message || error);
+      res.status(500).json({
+        error: "Erro ao buscar relatos da solicitação",
+        details: error?.message || "Erro desconhecido",
+        history: [],
+      });
+    }
+  });
+
   // Buscar etiquetas de contrato (conexões) do Voalle para um cliente
   app.get("/api/clients/:clientId/voalle/contract-tags", requireAuth, async (req, res) => {
     try {

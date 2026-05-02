@@ -1,0 +1,91 @@
+preciso ajustar para o sistema exibir os relatos/conteudo das locicitacoes atraves de um menu dropdown na solicitacao:
+
+segue documentação da api do voalle:
+
+https://documenter.getpostman.com/view/16282829/UVC3moiN#95b0502e-3209-41c9-932b-6cbc86ba42a5
+
+login:
+
+POST
+Autenticação
+{{url_do_ERP}}:45700/connect/token
+HEADERS
+Content-Type
+application/x-www-form-urlencoded
+Body
+urlencoded
+grant_type
+client_credentials
+Valor Fixo
+scope
+syngw
+Valor Fixo
+client_id
+Token Client_id
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Id" do usuário marcado como Integrador
+client_secret
+Token Client_secret
+Informado pelo cliente - “Suíte / Configurações / Usuários”, campo "Client Secret" do usuário marcado como Integrador
+syndata
+Token SynData
+Informado pelo cliente - “Suíte / Configurações / Parâmetros” menu “Integração/Mapa” ou solicitado a Voalle via protocolo
+
+Example Request:
+
+curl --location 'https://erp.cliente.com.br:45700/connect/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=client_credentials' \
+--data-urlencode 'scope=syngw' \
+--data-urlencode 'client_id=Token Client_id' \
+--data-urlencode 'client_secret=Token Client_secret' \
+--data-urlencode 'syndata=Token SynData'
+
+Example Response:
+
+{
+  "access_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "expires_in": 3600,
+  "refresh_token": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "token_type": "Bearer"
+}
+
+GET
+Busca Relatos por Solicitação
+{{URL}}:45715/external/integrations/thirdparty/getsolicitationhistory?assignmentId={{idDaSolicitacao}}
+Busca a lista de relatos de uma determinada solicitação.
+HEADERS
+Authorization
+Bearer {{access_token}}
+Obtido no método de autenticação
+PARAMS
+assignmentId
+{{idDaSolicitacao}}
+
+Example Request:
+
+  curl --location 'https://erp.cliente.com.br:45715/external/integrations/thirdparty/getsolicitationhistory?assignmentId=XXXXXXXX' \
+--header 'Authorization: Bearer {{access_token}}'
+
+Example Response:
+
+[
+  {
+    "typeOperation": 1,
+    "id": 123456,
+    "title": "Atendimento de Solicitação - Primeiro Relato",
+    "description": "\r\nContato: XXX  \r\nFone 1: XXXXXXXXXX\r\nAssinante: XXXXXXXXXXXXX \r\nAtendente: XXXXXXX\r\n\r\n- Situação normalizada durante o atendimento. \r\n\r\nATENDIMENTO ENCERRADO.",
+    "beginningDate": "2017-12-13T07:53:51",
+    "finalDate": "2017-12-13T07:56:20",
+    "private": false,
+    "personId": 123,
+    "person": {
+      "id": 123,
+      "name": "XXXXXX"
+    },
+    "teamId": 321,
+    "team": {
+      "id": 321,
+      "name": "XXXXX"
+    }
+  }
+]

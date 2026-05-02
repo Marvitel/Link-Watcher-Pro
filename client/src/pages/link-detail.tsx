@@ -78,6 +78,10 @@ import {
   GitCompare,
   ArrowRight,
   Check,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  Lock,
 } from "lucide-react";
 import type { Link, Metric, MetricWithAggregates, Event, SLAIndicator, LinkStatusDetail, Incident, BlacklistCheck, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -115,6 +119,147 @@ interface VoalleSolicitationsResponse {
   message?: string;
   error?: string;
   filterFallbackUngranular?: boolean;
+}
+
+// Relato individual de uma solicitação Voalle
+interface VoalleSolicitationHistoryEntry {
+  id: number;
+  typeOperation?: number;
+  title: string;
+  description: string;
+  beginningDate?: string;
+  finalDate?: string;
+  private?: boolean;
+  personName?: string;
+  teamName?: string;
+}
+
+interface VoalleSolicitationHistoryResponse {
+  history: VoalleSolicitationHistoryEntry[];
+  assignmentId: number;
+  error?: string;
+}
+
+// Card de uma solicitação com expansão lazy dos relatos.
+function SolicitationCard({ sol, linkId }: { sol: VoalleSolicitation; linkId: number }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: historyData, isLoading: historyLoading, isError: historyError, error: historyErrorObj } = useQuery<VoalleSolicitationHistoryResponse>({
+    queryKey: ["/api/links", linkId, "voalle", "solicitations", sol.id, "history"],
+    enabled: expanded,
+    staleTime: 60_000,
+  });
+
+  return (
+    <div
+      className="rounded-md border bg-card"
+      data-testid={`solicitation-card-${sol.id}`}
+    >
+      <div className="flex items-start gap-3 p-3">
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+          <ExternalLink className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="font-mono text-sm font-medium">#{sol.protocol}</span>
+            <Badge variant="secondary" className="text-xs">
+              {sol.status}
+            </Badge>
+            {sol.team && (
+              <Badge variant="outline" className="text-xs">
+                {sol.team}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {sol.subject || sol.description || "Sem descrição"}
+          </p>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+            <span>
+              Aberto: {formatDistanceToNow(new Date(sol.createdAt), { addSuffix: true, locale: ptBR })}
+            </span>
+            {sol.sectorArea && (
+              <span className="text-muted-foreground/70">
+                {sol.sectorArea}
+              </span>
+            )}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-shrink-0 h-8 px-2"
+          onClick={() => setExpanded((v) => !v)}
+          data-testid={`button-toggle-history-${sol.id}`}
+          aria-expanded={expanded}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span className="ml-1 hidden sm:inline">Relatos</span>
+          {expanded ? (
+            <ChevronUp className="w-4 h-4 ml-1" />
+          ) : (
+            <ChevronDown className="w-4 h-4 ml-1" />
+          )}
+        </Button>
+      </div>
+      {expanded && (
+        <div className="border-t bg-muted/30 px-3 py-3" data-testid={`history-panel-${sol.id}`}>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Carregando relatos...
+            </div>
+          ) : historyError ? (
+            <div className="flex items-start gap-2 text-sm text-destructive">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <p>Erro ao carregar relatos: {(historyErrorObj as Error)?.message || "desconhecido"}</p>
+            </div>
+          ) : !historyData?.history || historyData.history.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-2 text-center">
+              Nenhum relato registrado para esta solicitação.
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {historyData.history.map((h) => (
+                <li
+                  key={h.id}
+                  className="rounded-md border bg-background p-3"
+                  data-testid={`history-entry-${h.id}`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    {h.title && (
+                      <span className="text-sm font-medium">{h.title}</span>
+                    )}
+                    {h.private && (
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Lock className="w-3 h-3" />
+                        Interno
+                      </Badge>
+                    )}
+                  </div>
+                  {h.description && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                      {h.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground mt-2">
+                    {h.personName && <span>Por: {h.personName}</span>}
+                    {h.teamName && <span>Equipe: {h.teamName}</span>}
+                    {h.beginningDate && (() => {
+                      const d = new Date(h.beginningDate);
+                      return Number.isNaN(d.getTime()) ? null : (
+                        <span>{format(d, "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                      );
+                    })()}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Opções de período para os gráficos
@@ -539,11 +684,18 @@ export default function LinkDetail() {
   });
 
   // Buscar solicitações em aberto do Voalle
-  const { data: voalleSolicitations, isLoading: voalleLoading, refetch: refetchVoalle } = useQuery<VoalleSolicitationsResponse>({
+  const {
+    data: voalleSolicitations,
+    isLoading: voalleLoading,
+    isError: voalleIsError,
+    error: voalleQueryError,
+    refetch: refetchVoalle,
+  } = useQuery<VoalleSolicitationsResponse>({
     queryKey: ["/api/links", linkId, "voalle", "solicitations"],
     enabled: !isNaN(linkId),
     refetchInterval: false, // Não atualizar automaticamente (consulta sob demanda)
     staleTime: 60000, // Cache por 1 minuto
+    retry: false,
   });
 
   // Buscar dispositivos do link (CPEs, OLT, Concentrador) para exibição na aba Equipamento
@@ -1519,6 +1671,14 @@ export default function LinkDetail() {
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   <span className="ml-2 text-muted-foreground">Consultando Voalle...</span>
                 </div>
+              ) : voalleIsError ? (
+                <div className="flex flex-col items-center justify-center py-6 text-destructive" data-testid="error-voalle-solicitations">
+                  <AlertTriangle className="w-8 h-8 mb-2 opacity-70" />
+                  <p className="font-medium">Falha ao consultar o Voalle</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {(voalleQueryError as Error)?.message || "Erro de integração desconhecido"}
+                  </p>
+                </div>
               ) : voalleSolicitations?.error ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
@@ -1546,41 +1706,7 @@ export default function LinkDetail() {
                     </div>
                   )}
                   {voalleSolicitations.solicitations.map((sol) => (
-                    <div 
-                      key={sol.id} 
-                      className="flex items-start gap-3 p-3 rounded-md border bg-card"
-                      data-testid={`solicitation-card-${sol.id}`}
-                    >
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <ExternalLink className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="font-mono text-sm font-medium">#{sol.protocol}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {sol.status}
-                          </Badge>
-                          {sol.team && (
-                            <Badge variant="outline" className="text-xs">
-                              {sol.team}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {sol.subject || sol.description || "Sem descrição"}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                          <span>
-                            Aberto: {formatDistanceToNow(new Date(sol.createdAt), { addSuffix: true, locale: ptBR })}
-                          </span>
-                          {sol.sectorArea && (
-                            <span className="text-muted-foreground/70">
-                              {sol.sectorArea}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <SolicitationCard key={sol.id} sol={sol} linkId={linkId} />
                   ))}
                 </div>
               )}

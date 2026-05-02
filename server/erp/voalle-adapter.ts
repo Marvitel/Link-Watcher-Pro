@@ -753,8 +753,79 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
       console.log(`[VoalleAdapter] Encontradas ${solicitations.length} solicitações`);
       return solicitations;
     } catch (error) {
+      // Propaga o erro pra rota chamadora poder diferenciar
+      // "0 solicitações" (sucesso) de "falha de integração" (5xx).
+      // Antes retornávamos [] silenciosamente, o que fazia a validação de IDOR
+      // confundir indisponibilidade do Voalle com "assignment não pertence ao cliente".
       console.error("[VoalleAdapter] Erro ao buscar solicitações abertas:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca os relatos (history) de uma solicitação específica.
+   * Endpoint: /external/integrations/thirdparty/getsolicitationhistory?assignmentId={id}
+   */
+  async getSolicitationHistory(assignmentId: number): Promise<Array<{
+    id: number;
+    typeOperation?: number;
+    title: string;
+    description: string;
+    beginningDate?: string;
+    finalDate?: string;
+    private?: boolean;
+    personId?: number;
+    personName?: string;
+    teamId?: number;
+    teamName?: string;
+  }>> {
+    if (!assignmentId) {
+      console.log("[VoalleAdapter] getSolicitationHistory: assignmentId não fornecido");
       return [];
+    }
+
+    try {
+      const path = `/getsolicitationhistory?assignmentId=${assignmentId}`;
+      console.log(`[VoalleAdapter] Buscando relatos: ${path}`);
+
+      // Este endpoint retorna array direto (sem wrapper response.data).
+      const result = await this.apiRequest<unknown>("GET", path);
+
+      // O Voalle às vezes embrulha em {response: {data: [...]}}, às vezes devolve array cru.
+      let rawList: any[] = [];
+      if (Array.isArray(result)) {
+        rawList = result;
+      } else if (result && typeof result === 'object') {
+        const r = result as any;
+        if (Array.isArray(r.response?.data)) rawList = r.response.data;
+        else if (Array.isArray(r.data)) rawList = r.data;
+        else if (Array.isArray(r.response)) rawList = r.response;
+      }
+
+      if (rawList.length === 0) {
+        console.log(`[VoalleAdapter] Nenhum relato encontrado para assignmentId=${assignmentId}`);
+        return [];
+      }
+
+      const history = rawList.map((raw: any) => ({
+        id: raw.id,
+        typeOperation: raw.typeOperation,
+        title: raw.title || '',
+        description: raw.description || '',
+        beginningDate: raw.beginningDate,
+        finalDate: raw.finalDate,
+        private: raw.private,
+        personId: raw.personId,
+        personName: raw.person?.name,
+        teamId: raw.teamId,
+        teamName: raw.team?.name,
+      }));
+
+      console.log(`[VoalleAdapter] ${history.length} relatos encontrados para assignmentId=${assignmentId}`);
+      return history;
+    } catch (error) {
+      console.error(`[VoalleAdapter] Erro ao buscar relatos da solicitação ${assignmentId}:`, error);
+      throw error;
     }
   }
 
