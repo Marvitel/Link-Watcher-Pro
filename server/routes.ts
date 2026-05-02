@@ -3904,20 +3904,22 @@ export async function registerRoutes(
         filterApplied = true;
         console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'}, pppoeUser: ${link.pppoeUser || '-'})`);
 
-        // ENRICHMENT: se o filtro inicial zerou e o link tem serviceTag ou pppoeUser,
+        // ENRICHMENT: se o filtro inicial zerou e o link tem QUALQUER tag/identificador,
         // tenta buscar detalhes (/getsolicitationdata) de cada ticket em paralelo —
         // esse endpoint thirdparty retorna contractServiceTag.serviceTag e requestor
         // que /solicitationlist NÃO retorna. Limita a 50 tickets pra controlar custo.
+        // Inclui linkIdentifier porque muitos links usam o campo "Etiqueta" (identifier)
+        // como service tag do Voalle quando voalleContractTagServiceTag está vazio.
         const ENRICHMENT_MAX = 50;
         if (
           allSolicitations.length > 0 &&
           solicitations.length === 0 &&
-          (linkServiceTag || linkPppoeUser) &&
+          (linkServiceTag || linkPppoeUser || linkIdentifier) &&
           allSolicitations.length <= ENRICHMENT_MAX &&
           typeof adapter.getSolicitationData === 'function'
         ) {
           const enrichStart = Date.now();
-          console.log(`[Voalle Solicitations] Filtro inicial zerou para ${link.name}. Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
+          console.log(`[Voalle Solicitations] Filtro inicial zerou para ${link.name}. Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
 
           const enriched = await Promise.all(
             allSolicitations.map(async (s: { id: number }) => {
@@ -3933,9 +3935,16 @@ export async function registerRoutes(
           const failures = enriched.filter(e => e.error).length;
           const matched = enriched.filter(({ details }) => {
             if (!details) return false;
+            const detailTag = details.contractServiceTag?.serviceTag
+              ? details.contractServiceTag.serviceTag.toLowerCase().trim()
+              : '';
             // Match por serviceTag dos detalhes (campo principal — o do alerta)
-            const detailTag = details.contractServiceTag?.serviceTag;
-            if (linkServiceTag && detailTag && detailTag.toLowerCase().trim() === linkServiceTag) {
+            if (linkServiceTag && detailTag && detailTag === linkServiceTag) {
+              return true;
+            }
+            // Match por identifier do link contra contractServiceTag.serviceTag
+            // (caso comum quando o usuário preencheu só o campo "Etiqueta" no formulário)
+            if (linkIdentifier && detailTag && detailTag === linkIdentifier) {
               return true;
             }
             // Match por requestor.name contendo pppoeUser/identifier (fallback fraco)
