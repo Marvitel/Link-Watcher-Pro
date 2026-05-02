@@ -2059,7 +2059,7 @@ interface OpenTerminals {
   "ssh-cpe": boolean;
 }
 
-function VoalleConnectionStatusCard({ link }: { link: Link }) {
+function VoalleConnectionStatusInline({ link }: { link: Link }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const status = ((link as any).voalleConnectionStatus as string | undefined) ?? "unknown";
@@ -2096,51 +2096,39 @@ function VoalleConnectionStatusCard({ link }: { link: Link }) {
     },
   });
 
-  const formattedDate = updatedAt ? formatDateBR(new Date(updatedAt)) : "Nunca sincronizado";
+  if (!voalleConnectionId) return null;
+
+  const formattedDate = updatedAt ? formatDateBR(new Date(updatedAt)) : "nunca sincronizado";
+  const label = getVoalleConnectionStatusLabel(status);
 
   return (
-    <Card data-testid="card-voalle-connection-status">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-base">Status da Conexão Voalle</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending || !voalleConnectionId}
-            data-testid="button-sync-voalle-connection-status"
-          >
-            {syncMutation.isPending ? (
-              <>
-                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                Sincronizando...
-              </>
-            ) : (
-              "Atualizar agora"
-            )}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {voalleConnectionId ? (
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <VoalleConnectionStatusBadge status={status} showWhenNormal />
-              <span className="text-sm text-muted-foreground">
-                {getVoalleConnectionStatusLabel(status)}
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Última atualização: <span data-testid="text-voalle-status-updated-at">{formattedDate}</span>
-            </div>
-          </div>
+    <div
+      className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-md border border-border bg-muted/30 text-xs"
+      data-testid="card-voalle-connection-status"
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <VoalleConnectionStatusBadge status={status} showWhenNormal />
+        <span className="text-muted-foreground truncate">
+          Voalle: <span className="font-medium text-foreground" data-testid="text-voalle-status-label">{label}</span>
+          <span className="ml-2 hidden sm:inline" data-testid="text-voalle-status-updated-at">· atualizado em {formattedDate}</span>
+        </span>
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() => syncMutation.mutate()}
+        disabled={syncMutation.isPending}
+        title="Atualizar status agora"
+        data-testid="button-sync-voalle-connection-status"
+      >
+        {syncMutation.isPending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Este link não possui ID de conexão Voalle vinculado, então não há status técnico para exibir.
-          </p>
+          <RefreshCw className="w-3.5 h-3.5" />
         )}
-      </CardContent>
-    </Card>
+      </Button>
+    </div>
   );
 }
 
@@ -2498,8 +2486,8 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   return (
     <div className="space-y-4">
-      {/* Status técnico da conexão Voalle */}
-      <VoalleConnectionStatusCard link={link} />
+      {/* Status técnico da conexão Voalle (linha discreta no topo) */}
+      <VoalleConnectionStatusInline link={link} />
 
       {/* Terminais - Grid 2x2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

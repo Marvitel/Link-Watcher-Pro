@@ -1403,6 +1403,8 @@ export interface LinkDashboardItem {
   availability30d?: number | null;
   lastUpdated: string | Date;
   monitoringEnabled: boolean;
+  /** Status técnico Voalle (normal/blocked/block_warning/maintenance_warning/unknown) */
+  voalleConnectionStatus?: string;
   // Client info
   clientId: number;
   clientName: string;

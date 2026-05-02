@@ -4740,6 +4740,7 @@ export async function registerRoutes(
           uptime: links.uptime,
           invertBandwidth: links.invertBandwidth,
           monitoringEnabled: links.monitoringEnabled,
+          voalleConnectionStatus: links.voalleConnectionStatus,
           lastUpdated: links.lastUpdated,
         })
           .from(links)
@@ -4849,6 +4850,7 @@ export async function registerRoutes(
           availability30d: availabilityMap.get(link.id) ?? null,
           lastUpdated: link.lastUpdated,
           monitoringEnabled: link.monitoringEnabled,
+          voalleConnectionStatus: link.voalleConnectionStatus,
           clientId: link.clientId,
           clientName: clientMap.get(link.clientId) || 'Desconhecido',
           activeEvent: activeEventsByLink.get(link.id) || null,

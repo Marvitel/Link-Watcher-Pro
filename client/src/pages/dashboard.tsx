@@ -8,6 +8,7 @@ import { LinksTable } from "@/components/links-table";
 import { EventsTable } from "@/components/events-table";
 import { SLACompactCard } from "@/components/sla-indicators";
 import { LinkGroupCard } from "@/components/link-group-card";
+import { VoalleConnectionStatusBadge } from "@/components/voalle-connection-status-badge";
 import { DashboardAlerts } from "@/components/dashboard-alerts";
 import { useClientContext } from "@/lib/client-context";
 import { useAuth } from "@/lib/auth";
@@ -284,6 +285,7 @@ function SuperAdminLinkCard({ item, onViewClient }: {
             </button>
             {item.activeEvent && <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />}
             {!item.activeEvent && item.openIncident && <Ticket className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+            <VoalleConnectionStatusBadge status={item.voalleConnectionStatus} iconOnly />
           </div>
 
         </div>
@@ -676,6 +678,7 @@ function CompactLinkCard({ link }: { link: LinkType }) {
               {link.location || "Sem localização"}
             </span>
             {isOffline && <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0" />}
+            <VoalleConnectionStatusBadge status={(link as any).voalleConnectionStatus} iconOnly />
           </div>
 
         </div>
