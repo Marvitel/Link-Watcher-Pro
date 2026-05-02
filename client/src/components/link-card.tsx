@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, StatusDot } from "./status-badge";
+import { VoalleConnectionStatusBadge } from "./voalle-connection-status-badge";
 import { Activity, ArrowDownToLine, ArrowUpFromLine, Clock, Gauge, Percent } from "lucide-react";
 import { Link as RouterLink } from "wouter";
 import type { Link } from "@shared/schema";
@@ -38,7 +39,10 @@ export function LinkCard({ link, metricsHistory = [] }: LinkCardProps) {
           </div>
           <p className="text-sm text-muted-foreground">{link.location}</p>
         </div>
-        <StatusBadge status={link.status} />
+        <div className="flex flex-col items-end gap-1">
+          <StatusBadge status={link.status} />
+          <VoalleConnectionStatusBadge status={(link as any).voalleConnectionStatus} iconOnly />
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="h-24">

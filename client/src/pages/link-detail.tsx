@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
+import { VoalleConnectionStatusBadge, getVoalleConnectionStatusLabel } from "@/components/voalle-connection-status-badge";
 import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart, ChartSeriesVisibility } from "@/components/bandwidth-chart";
 import { MultiTrafficChart } from "@/components/multi-traffic-chart";
@@ -2058,6 +2059,91 @@ interface OpenTerminals {
   "ssh-cpe": boolean;
 }
 
+function VoalleConnectionStatusCard({ link }: { link: Link }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const status = ((link as any).voalleConnectionStatus as string | undefined) ?? "unknown";
+  const updatedAt = (link as any).voalleConnectionStatusUpdatedAt as string | Date | null | undefined;
+  const voalleConnectionId = (link as any).voalleConnectionId as number | null | undefined;
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/admin/voalle/sync-connection-status`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        toast({
+          title: "Sincronização concluída",
+          description: `${data.fetched} conexões consultadas, ${data.updated} links atualizados.`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/links", link.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/links"] });
+      } else {
+        toast({
+          title: "Falha ao sincronizar",
+          description: data.error || "Erro desconhecido",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao sincronizar",
+        description: err?.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formattedDate = updatedAt ? formatDateBR(new Date(updatedAt)) : "Nunca sincronizado";
+
+  return (
+    <Card data-testid="card-voalle-connection-status">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-base">Status da Conexão Voalle</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending || !voalleConnectionId}
+            data-testid="button-sync-voalle-connection-status"
+          >
+            {syncMutation.isPending ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              "Atualizar agora"
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {voalleConnectionId ? (
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <VoalleConnectionStatusBadge status={status} showWhenNormal />
+              <span className="text-sm text-muted-foreground">
+                {getVoalleConnectionStatusLabel(status)}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Última atualização: <span data-testid="text-voalle-status-updated-at">{formattedDate}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Este link não possui ID de conexão Voalle vinculado, então não há status técnico para exibir.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ToolsSection({ linkId, link }: ToolsSectionProps) {
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [tracerouteResult, setTracerouteResult] = useState<TracerouteResult | null>(null);
@@ -2412,6 +2498,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
 
   return (
     <div className="space-y-4">
+      {/* Status técnico da conexão Voalle */}
+      <VoalleConnectionStatusCard link={link} />
+
       {/* Terminais - Grid 2x2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Terminal Shell */}

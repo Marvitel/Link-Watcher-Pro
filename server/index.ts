@@ -239,6 +239,14 @@ app.use((req, res, next) => {
     console.error("[index] falha ao iniciar burst detector:", err);
   }
 
+  // Sync horário do status técnico das conexões Voalle
+  try {
+    const { startVoalleConnectionSyncScheduler } = await import("./voalle-connection-sync");
+    startVoalleConnectionSyncScheduler();
+  } catch (err) {
+    console.error("[index] falha ao iniciar sync de status Voalle:", err);
+  }
+
   // Auto-resume do Analista IA: se havia tasks pendentes antes do restart, retoma o lote
   setTimeout(async () => {
     try {

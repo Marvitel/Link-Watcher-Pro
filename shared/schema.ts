@@ -239,6 +239,11 @@ export const links = pgTable("links", {
   contractStatusReason: text("contract_status_reason"), // Motivo do bloqueio/cancelamento
   contractStatusUpdatedAt: timestamp("contract_status_updated_at"), // Quando o status mudou
   voalleStatusRaw: varchar("voalle_status_raw", { length: 100 }), // Valor bruto do status no Voalle
+  // Status técnico da CONEXÃO no Voalle (distinto de contractStatus, que é o comercial).
+  // Vem do endpoint GET /external/map/connection/all — sincronizado de hora em hora.
+  // Valores: 'normal' (1), 'blocked' (2), 'block_warning' (3), 'maintenance_warning' (4), 'unknown'.
+  voalleConnectionStatus: varchar("voalle_connection_status", { length: 30 }).notNull().default("unknown"),
+  voalleConnectionStatusUpdatedAt: timestamp("voalle_connection_status_updated_at"),
   // Soft-delete
   deletedAt: timestamp("deleted_at"), // Se preenchido, link é considerado excluído
   deletedReason: varchar("deleted_reason", { length: 100 }), // "voalle_webhook", "manual", etc

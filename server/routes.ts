@@ -3230,6 +3230,34 @@ export async function registerRoutes(
     }
   });
 
+  // Sincroniza manualmente o status técnico das conexões Voalle (executado também 1x/h pelo scheduler)
+  app.post("/api/admin/voalle/sync-connection-status", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { syncVoalleConnectionStatuses, getLastVoalleConnectionSync } = await import("./voalle-connection-sync");
+      const result = await syncVoalleConnectionStatuses();
+      res.json({
+        success: result.ok,
+        fetched: result.fetched,
+        updated: result.updated,
+        durationMs: result.durationMs,
+        error: result.error,
+        lastSync: getLastVoalleConnectionSync(),
+      });
+    } catch (error: any) {
+      console.error("[Routes] Erro ao sincronizar status Voalle:", error);
+      res.status(500).json({ success: false, error: error?.message || "Erro desconhecido" });
+    }
+  });
+
+  app.get("/api/admin/voalle/sync-connection-status/last", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try {
+      const { getLastVoalleConnectionSync } = await import("./voalle-connection-sync");
+      res.json({ lastSync: getLastVoalleConnectionSync() });
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Erro desconhecido" });
+    }
+  });
+
   app.post("/api/admin/ozmap/sync-topology", requireAuth, requireSuperAdmin, async (req, res) => {
     try {
       const { syncOzmapTopologyForAllLinks } = await import("./ozmap-topology");

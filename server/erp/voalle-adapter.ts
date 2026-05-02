@@ -151,6 +151,84 @@ export class VoalleAdapter implements ErpAdapter {
     return this.accessToken;
   }
 
+  private async mapApiRequest<T>(
+    method: string,
+    path: string,
+    body?: unknown
+  ): Promise<T> {
+    if (!this.config || !this.config.apiUrl) {
+      throw new Error("Voalle não configurado");
+    }
+
+    const token = await this.authenticate();
+    const url = `${this.config.apiUrl}:45715${path}`;
+
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Voalle Map API error: ${response.status} - ${errorText}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  /**
+   * Lista o status técnico de TODAS as conexões no Voalle.
+   * Endpoint: GET /external/map/connection/all
+   * Status retornados: 1=Normal, 2=Bloqueada, 3=Aviso de Bloqueio, 4=Aviso de Manutenção
+   */
+  async getAllConnectionStatus(): Promise<Array<{
+    id: number;
+    status: "normal" | "blocked" | "block_warning" | "maintenance_warning" | "unknown";
+    statusRaw: number;
+    user?: string;
+    serviceTag?: string;
+  }>> {
+    // Propaga erro para o caller — quem chama (sync) precisa diferenciar
+    // "Voalle retornou 0 conexões" (sucesso legítimo) de "falha de integração"
+    // (token expirado, endpoint fora, payload inválido) para não silenciar regressões.
+    const result = await this.mapApiRequest<{
+      success: boolean;
+      response: Array<{
+        id: number;
+        user?: string;
+        serviceTag?: string;
+        status: number;
+      }>;
+    }>("GET", "/external/map/connection/all");
+
+    if (!result.success || !Array.isArray(result.response)) {
+      throw new Error(
+        `Voalle retornou resposta inválida em /external/map/connection/all (success=${result.success}, response.isArray=${Array.isArray(result.response)})`
+      );
+    }
+
+    const statusMap: Record<number, "normal" | "blocked" | "block_warning" | "maintenance_warning" | "unknown"> = {
+      1: "normal",
+      2: "blocked",
+      3: "block_warning",
+      4: "maintenance_warning",
+    };
+
+    return result.response.map(c => ({
+      id: c.id,
+      status: statusMap[c.status] ?? "unknown",
+      statusRaw: c.status,
+      user: c.user,
+      serviceTag: c.serviceTag,
+    }));
+  }
+
   private async apiRequest<T>(
     method: string,
     path: string,

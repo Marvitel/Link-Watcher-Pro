@@ -431,6 +431,44 @@ export class DatabaseStorage {
     await db.update(links).set({ ...data, lastUpdated: new Date() }).where(eq(links.id, id));
   }
 
+  /**
+   * Atualiza em batch o status técnico da conexão Voalle de vários links.
+   * Match feito por `voalleConnectionId` (id da conexão no Voalle).
+   * Usa CASE WHEN num único UPDATE para performance.
+   *
+   * Retorna o nº de linhas afetadas.
+   */
+  async bulkUpdateVoalleConnectionStatus(
+    updates: Array<{ voalleConnectionId: number; status: string }>
+  ): Promise<number> {
+    if (updates.length === 0) return 0;
+
+    // Filtra ids válidos e dedupica (Voalle pode retornar duplicatas)
+    const seen = new Map<number, string>();
+    for (const u of updates) {
+      if (Number.isFinite(u.voalleConnectionId) && u.voalleConnectionId > 0) {
+        seen.set(u.voalleConnectionId, u.status);
+      }
+    }
+    if (seen.size === 0) return 0;
+
+    const ids = Array.from(seen.keys());
+    // Constrói CASE WHEN id THEN status END
+    const cases = Array.from(seen.entries())
+      .map(([id, status]) => sql`WHEN ${id} THEN ${status}`);
+
+    const now = new Date();
+    const result = await db.execute(sql`
+      UPDATE links
+      SET
+        voalle_connection_status = CASE voalle_connection_id ${sql.join(cases, sql` `)} END,
+        voalle_connection_status_updated_at = ${now}
+      WHERE voalle_connection_id IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})
+    `);
+
+    return (result as any).rowCount ?? 0;
+  }
+
   async deleteLink(id: number): Promise<void> {
     // Delete all associated records from related tables
     await db.delete(events).where(eq(events.linkId, id));
