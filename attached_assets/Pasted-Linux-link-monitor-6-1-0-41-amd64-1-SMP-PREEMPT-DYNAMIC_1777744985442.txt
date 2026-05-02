@@ -1,0 +1,90 @@
+Linux link-monitor 6.1.0-41-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.158-1 (2025-11-09) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Sat May  2 11:33:16 2026 from 100.80.2.250
+gerencia@link-monitor:~$ su -
+Senha: 
+root@link-monitor:~# journalctl -u link-monitor -f --no-pager | grep -E "Voalle Solicitations|VoalleAdapter|solicitations"
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:19 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/5551?allAssignments=False
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 5551)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 5551, user: 57765588591)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 0 solicitações
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 0 total -> 0 para link cibelly.arimateia (serviceTag: F718YVN8)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 57765588591): /contractservicetagspaged?txId=57765588591&Page=1&PageSize=50
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:21 link-monitor npm[3478545]: [VoalleAdapter] API antiga: 3 etiquetas encontradas
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:40 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:58:26 link-monitor npm[3478545]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 3049, user: 349116504)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 00349116504): /contractservicetagspaged?txId=00349116504&Page=1&PageSize=50
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] API antiga: 1 etiquetas encontradas
+mai 02 15:01:12 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:12 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:20 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:20 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:21 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:21 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:21 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:21 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:26 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:26 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:32 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:32 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:02:11 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:02:11 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:12 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:12 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:02:12 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:02:12 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:02:29 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:02:29 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support). Amostra dos tickets brutos: [
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:02:38 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:02:38 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support). Amostra dos tickets brutos: [

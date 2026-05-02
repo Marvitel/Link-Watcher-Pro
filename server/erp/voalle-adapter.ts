@@ -728,9 +728,11 @@ Incidente #${incident.id} | Protocolo interno: ${incident.protocol || "N/A"}
         return [];
       }
 
-      // Log primeiro registro para debug dos campos disponíveis
+      // Log primeiro registro CRU para debug — mostra todos os campos e seus valores
+      // (em uma linha só pra journalctl não truncar). Útil para descobrir qual campo
+      // do Voalle liga o ticket ao link quando o filtro zera tudo.
       if (result.response.data.length > 0) {
-        console.log("[VoalleAdapter] Campos disponíveis na solicitação:", Object.keys(result.response.data[0]));
+        console.log(`[VoalleAdapter] Ticket cru #1 (de ${result.response.data.length}): ${JSON.stringify(result.response.data[0])}`);
       }
 
       // Mapear resposta bruta para formato normalizado

@@ -3886,17 +3886,18 @@ export async function registerRoutes(
         filterApplied = true;
         console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'})`);
 
-        // Log diagnóstico: quando filtro zera tudo apesar de haver tickets, mostra o conteúdo
-        // bruto pra investigar discrepância de campos (serviceTag vs connectionId vs subject).
+        // Log diagnóstico: quando filtro zera tudo apesar de haver tickets, mostra TODAS as
+        // chaves de cada ticket (para descobrir se há outro campo que liga ticket↔link).
+        // Em uma linha só pra journalctl não truncar.
         if (allSolicitations.length > 0 && solicitations.length === 0) {
-          const sample = allSolicitations.slice(0, 3).map((s: any) => ({
-            id: s.id,
-            protocol: s.protocol,
-            contractServiceTag: s.contractServiceTag,
-            connectionId: s.connectionId,
-            subject: s.subject,
-          }));
-          console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name}. Amostra dos tickets brutos:`, JSON.stringify(sample, null, 2));
+          const sample = allSolicitations.slice(0, 3).map((s: any) => {
+            const out: any = { id: s.id, protocol: s.protocol };
+            for (const k of Object.keys(s)) {
+              out[k] = s[k];
+            }
+            return out;
+          });
+          console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name} (linkConnId=${link.voalleConnectionId || '-'}, linkServiceTag=${link.voalleContractTagServiceTag || '-'}). Amostra: ${JSON.stringify(sample)}`);
         }
       }
 
