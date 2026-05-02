@@ -3238,6 +3238,7 @@ export async function registerRoutes(
       res.json({
         success: result.ok,
         fetched: result.fetched,
+        fetchedDeleted: result.fetchedDeleted,
         updated: result.updated,
         durationMs: result.durationMs,
         error: result.error,
@@ -3254,6 +3255,66 @@ export async function registerRoutes(
       const { getLastVoalleConnectionSync } = await import("./voalle-connection-sync");
       res.json({ lastSync: getLastVoalleConnectionSync() });
     } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Erro desconhecido" });
+    }
+  });
+
+  /**
+   * Diagnóstico: dado um voalleConnectionId, retorna se ele aparece em
+   * /external/map/connection/all (ativa) e/ou /external/map/connection/all/deleted (excluída).
+   * Útil para investigar divergências entre status técnico exibido vs. estado real no Voalle.
+   * Ex.: GET /api/admin/diagnostics/voalle-connection/123456
+   */
+  app.get("/api/admin/diagnostics/voalle-connection/:voalleId", requireDiagnosticsAccess, async (req, res) => {
+    try {
+      const voalleId = parseInt(req.params.voalleId, 10);
+      if (!Number.isFinite(voalleId) || voalleId <= 0) {
+        return res.status(400).json({ error: "voalleId inválido" });
+      }
+
+      const integration = await storage.getErpIntegrationByProvider("voalle");
+      if (!integration) {
+        return res.status(404).json({ error: "Integração Voalle não configurada" });
+      }
+      const { getErpAdapter } = await import("./erp");
+      const { VoalleAdapter } = await import("./erp/voalle-adapter");
+      const adapter = getErpAdapter(integration);
+      if (!(adapter instanceof VoalleAdapter)) {
+        return res.status(500).json({ error: "Adapter ativo não é Voalle" });
+      }
+
+      const [active, deleted] = await Promise.all([
+        adapter.getAllConnectionStatus(),
+        adapter.getAllDeletedConnectionStatus(),
+      ]);
+
+      const inActive = active.find(c => c.id === voalleId) || null;
+      const inDeleted = deleted.find(c => c.id === voalleId) || null;
+
+      // Também busca o link interno que referencia esse id, se houver
+      const linkRows = await db.execute(sql`
+        SELECT id, name, identifier, voalle_connection_status, voalle_connection_status_updated_at, contract_status
+        FROM links
+        WHERE voalle_connection_id = ${voalleId}
+        LIMIT 5
+      `);
+
+      res.json({
+        voalleId,
+        inActive,
+        inDeleted,
+        appearsInBoth: !!inActive && !!inDeleted,
+        linksInternos: (linkRows as any).rows ?? linkRows,
+        notas: !!inActive && !!inDeleted
+          ? "ID aparece em AMBAS listas — estado correto deve ser o de 'inActive'. Lista 'deleted' é histórica."
+          : inActive
+            ? "ID só na lista ativa — status atual = inActive.status"
+            : inDeleted
+              ? "ID só na lista deletada — sync vai marcar como 'deleted'"
+              : "ID não encontrado em nenhuma das duas listas Voalle",
+      });
+    } catch (error: any) {
+      console.error("[Diagnostics] voalle-connection error:", error);
       res.status(500).json({ error: error?.message || "Erro desconhecido" });
     }
   });

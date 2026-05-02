@@ -26,8 +26,13 @@ export interface VoalleConnectionSyncResult {
  * - GET /external/map/connection/all/deleted  → conexões excluídas (contrato cancelado)
  *   marcadas com status "deleted" no Link Monitor
  *
- * Conexões excluídas têm prioridade sobre ativas (caso, raro, alguma apareça nas duas listas)
- * porque o estado "deleted" é terminal — significa que a conexão técnica não existe mais.
+ * **Conflito ativa↔excluída — ATIVAS têm PRIORIDADE.**
+ * O Voalle pode retornar a mesma `voalleConnectionId` nas duas listas (ex.: conexão
+ * foi excluída no passado mas depois reativada/desbloqueada — o histórico em
+ * /all/deleted continua, mas a conexão atual está em /all com status `blocked`/`normal`).
+ * Nesse caso, usamos o status da lista ATIVA (estado atual do Voalle), descartando
+ * a entrada duplicada em /all/deleted. Só marca como `deleted` quem aparece
+ * EXCLUSIVAMENTE em /all/deleted.
  *
  * Usa o adapter Voalle ativo (provider='voalle' & isActive=true).
  */
@@ -67,12 +72,16 @@ export async function syncVoalleConnectionStatuses(): Promise<VoalleConnectionSy
       return result;
     }
 
-    // IMPORTANTE: deletadas vão por ÚLTIMO no array para que o dedup do
-    // bulkUpdateVoalleConnectionStatus (Map.set) sobrescreva o status ativo
-    // pelo "deleted" no caso improvável de uma conexão aparecer nos 2 endpoints.
+    // IMPORTANTE: ativas vencem deletadas. Se o mesmo voalleConnectionId vier
+    // nas duas listas (Voalle mantém histórico em /all/deleted mesmo depois de
+    // reativar a conexão), o estado verdadeiro é o da lista /all.
+    const activeIds = new Set<number>(activeConnections.map(c => c.id));
+    const deletedExclusivos = deletedConnections.filter(d => !activeIds.has(d.id));
+    const overlapCount = deletedConnections.length - deletedExclusivos.length;
+
     const updates = [
       ...activeConnections.map(c => ({ voalleConnectionId: c.id, status: c.status })),
-      ...deletedConnections.map(c => ({ voalleConnectionId: c.id, status: "deleted" })),
+      ...deletedExclusivos.map(c => ({ voalleConnectionId: c.id, status: "deleted" })),
     ];
 
     const updated = await storage.bulkUpdateVoalleConnectionStatus(updates);
@@ -80,7 +89,7 @@ export async function syncVoalleConnectionStatuses(): Promise<VoalleConnectionSy
 
     lastSync = { startedAt, endedAt: new Date(), ok: true, updated };
     console.log(
-      `[VoalleConnectionSync] OK — ${activeConnections.length} ativas + ${deletedConnections.length} excluídas recebidas, ${updated} links atualizados em ${durationMs}ms.`
+      `[VoalleConnectionSync] OK — ${activeConnections.length} ativas + ${deletedConnections.length} excluídas recebidas (${overlapCount} excluídas ignoradas por estarem também na lista ativa), ${updated} links atualizados em ${durationMs}ms.`
     );
     return { ok: true, fetched: activeConnections.length, fetchedDeleted: deletedConnections.length, updated, durationMs };
   } catch (error: any) {
