@@ -1,0 +1,31 @@
+root@link-monitor:~# journalctl -u link-monitor -f --no-pager | grep -E "Voalle Solicitations|VoalleAdapter|solicitations"
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:19 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/5551?allAssignments=False
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 5551)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 5551, user: 57765588591)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 0 solicitações
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 0 total -> 0 para link cibelly.arimateia (serviceTag: F718YVN8)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 57765588591): /contractservicetagspaged?txId=57765588591&Page=1&PageSize=50
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:21 link-monitor npm[3478545]: [VoalleAdapter] API antiga: 3 etiquetas encontradas
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:40 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)

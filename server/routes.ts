@@ -3859,28 +3859,45 @@ export async function registerRoutes(
       let solicitations = allSolicitations;
       let filterApplied = false;
       
-      if (link.voalleContractTagServiceTag) {
-        const linkServiceTag = link.voalleContractTagServiceTag.toLowerCase().trim();
-        
-        // Filtrar por serviceTag ou connectionId
+      if (link.voalleContractTagServiceTag || link.voalleConnectionId) {
+        const linkServiceTag = link.voalleContractTagServiceTag
+          ? link.voalleContractTagServiceTag.toLowerCase().trim()
+          : '';
+
+        // Tenta TODAS as estratégias de match — basta uma casar.
+        // (O bug anterior usava if/else em cascata: se o ticket tinha contractServiceTag
+        //  mas não casava, retornava false sem tentar connectionId nem subject.)
         solicitations = allSolicitations.filter((s: { contractServiceTag?: string; connectionId?: number; subject?: string }) => {
-          // Match por serviceTag
-          if (s.contractServiceTag) {
-            return s.contractServiceTag.toLowerCase().trim() === linkServiceTag;
+          // 1. Match por connectionId (caminho mais confiável quando ambos existem)
+          if (link.voalleConnectionId && s.connectionId && s.connectionId === link.voalleConnectionId) {
+            return true;
           }
-          // Match por connectionId se o link tiver voalleConnectionId
-          if (link.voalleConnectionId && s.connectionId) {
-            return s.connectionId === link.voalleConnectionId;
+          // 2. Match exato por serviceTag
+          if (linkServiceTag && s.contractServiceTag && s.contractServiceTag.toLowerCase().trim() === linkServiceTag) {
+            return true;
           }
-          // Match por texto no título (fallback: busca pelo serviceTag no título)
-          if (s.subject) {
-            return s.subject.toLowerCase().includes(linkServiceTag);
+          // 3. Fallback: serviceTag aparece no título do ticket
+          if (linkServiceTag && s.subject && s.subject.toLowerCase().includes(linkServiceTag)) {
+            return true;
           }
           return false;
         });
-        
+
         filterApplied = true;
-        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag})`);
+        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'})`);
+
+        // Log diagnóstico: quando filtro zera tudo apesar de haver tickets, mostra o conteúdo
+        // bruto pra investigar discrepância de campos (serviceTag vs connectionId vs subject).
+        if (allSolicitations.length > 0 && solicitations.length === 0) {
+          const sample = allSolicitations.slice(0, 3).map((s: any) => ({
+            id: s.id,
+            protocol: s.protocol,
+            contractServiceTag: s.contractServiceTag,
+            connectionId: s.connectionId,
+            subject: s.subject,
+          }));
+          console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name}. Amostra dos tickets brutos:`, JSON.stringify(sample, null, 2));
+        }
       }
 
       res.json({ 
