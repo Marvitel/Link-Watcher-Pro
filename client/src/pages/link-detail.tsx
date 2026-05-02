@@ -26,6 +26,7 @@ import { FlashmanPanel } from "@/components/flashman-panel";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import {
@@ -118,11 +119,22 @@ interface VoalleSolicitation {
 
 interface VoalleSolicitationsResponse {
   solicitations: VoalleSolicitation[];
+  otherLinkSolicitations?: VoalleSolicitation[];
   clientName?: string;
   voalleCustomerId?: number;
   message?: string;
   error?: string;
   filterFallbackUngranular?: boolean;
+}
+
+interface VoalleClosedSolicitationsResponse {
+  solicitations: VoalleSolicitation[];
+  totalClosedForLink?: number;
+  totalClosedForCustomer?: number;
+  filterFallbackUngranular?: boolean;
+  clientName?: string;
+  message?: string;
+  error?: string;
 }
 
 // Relato individual de uma solicitação Voalle
@@ -883,6 +895,21 @@ export default function LinkDetail() {
     enabled: !isNaN(linkId),
     refetchInterval: false, // Não atualizar automaticamente (consulta sob demanda)
     staleTime: 60000, // Cache por 1 minuto
+    retry: false,
+  });
+
+  // Buscar últimas 3 solicitações ENCERRADAS no Voalle pertencentes a este link
+  const {
+    data: voalleClosedSolicitations,
+    isLoading: voalleClosedLoading,
+    isError: voalleClosedIsError,
+    error: voalleClosedQueryError,
+    refetch: refetchVoalleClosed,
+  } = useQuery<VoalleClosedSolicitationsResponse>({
+    queryKey: ["/api/links", linkId, "voalle", "solicitations", "closed"],
+    enabled: !isNaN(linkId),
+    refetchInterval: false,
+    staleTime: 60000,
     retry: false,
   });
 
@@ -1877,24 +1904,148 @@ export default function LinkDetail() {
                   <Ticket className="w-8 h-8 mb-2 opacity-50" />
                   <p>{voalleSolicitations.message}</p>
                 </div>
-              ) : !voalleSolicitations?.solicitations || voalleSolicitations.solicitations.length === 0 ? (
+              ) : (() => {
+                const ownOpen = voalleSolicitations?.solicitations || [];
+                const otherOpen = voalleSolicitations?.otherLinkSolicitations || [];
+                const ungranular = !!voalleSolicitations?.filterFallbackUngranular;
+
+                if (ownOpen.length === 0 && otherOpen.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                      <Ticket className="w-8 h-8 mb-2 opacity-50" />
+                      <p>Nenhuma solicitação em aberto no ERP.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {ungranular && (
+                      <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-sm text-amber-700 dark:text-amber-300" data-testid="alert-voalle-ungranular">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <p>
+                          Não foi possível identificar quais solicitações pertencem a este link específico.
+                          Expanda cada uma para ver os detalhes (etiqueta de serviço, solicitante etc.) e
+                          confirmar o vínculo manualmente. Mostrando todas as solicitações em aberto deste cliente.
+                        </p>
+                      </div>
+                    )}
+
+                    {ownOpen.length > 0 ? (
+                      ownOpen.map((sol) => (
+                        <SolicitationCard key={sol.id} sol={sol} linkId={linkId} />
+                      ))
+                    ) : !ungranular && (
+                      <div className="flex items-center gap-2 p-3 rounded-md border bg-muted/30 text-sm text-muted-foreground" data-testid="empty-own-solicitations">
+                        <Ticket className="w-4 h-4 flex-shrink-0" />
+                        <p>Nenhuma solicitação em aberto vinculada a este link.</p>
+                      </div>
+                    )}
+
+                    {otherOpen.length > 0 && (
+                      <Collapsible className="rounded-md border bg-muted/20" data-testid="collapsible-other-link-solicitations">
+                        <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm hover-elevate active-elevate-2 rounded-md" data-testid="button-toggle-other-link-solicitations">
+                          <div className="flex items-center gap-2 text-left min-w-0">
+                            <Layers className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                            <span className="font-medium truncate">
+                              Em andamento de outros links{voalleSolicitations?.clientName ? ` de ${voalleSolicitations.clientName}` : ' do mesmo cliente'}
+                            </span>
+                            <Badge variant="secondary" className="text-xs flex-shrink-0">
+                              {otherOpen.length}
+                            </Badge>
+                          </div>
+                          <ChevronDown className="w-4 h-4 flex-shrink-0 text-muted-foreground transition-transform data-[state=open]:rotate-180" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="px-3 pb-3 pt-1 space-y-2">
+                          <p className="text-xs text-muted-foreground pb-1">
+                            Solicitações abertas no ERP que pertencem a outros contratos do mesmo cliente.
+                          </p>
+                          {otherOpen.map((sol) => (
+                            <SolicitationCard key={sol.id} sol={sol} linkId={linkId} />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Histórico de Solicitações no ERP (últimas 3 encerradas deste link) */}
+          <Card data-testid="card-voalle-closed-solicitations">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Ticket className="w-5 h-5" />
+                Histórico de Solicitações no ERP
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetchVoalleClosed()}
+                  disabled={voalleClosedLoading}
+                  data-testid="button-refresh-voalle-closed"
+                >
+                  {voalleClosedLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span className="ml-1">Atualizar</span>
+                </Button>
+                {voalleClosedSolicitations?.solicitations && (
+                  <Badge variant="outline" data-testid="badge-closed-solicitations-count">
+                    {voalleClosedSolicitations.totalClosedForLink ?? voalleClosedSolicitations.solicitations.length} encerradas
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {voalleClosedLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Consultando histórico no Voalle...</span>
+                </div>
+              ) : voalleClosedIsError ? (
+                <div className="flex flex-col items-center justify-center py-6 text-destructive" data-testid="error-voalle-closed-solicitations">
+                  <AlertTriangle className="w-8 h-8 mb-2 opacity-70" />
+                  <p className="font-medium">Falha ao consultar o histórico</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {(voalleClosedQueryError as Error)?.message || "Erro de integração desconhecido"}
+                  </p>
+                </div>
+              ) : voalleClosedSolicitations?.error ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                  <p>{voalleClosedSolicitations.error}</p>
+                </div>
+              ) : voalleClosedSolicitations?.message ? (
                 <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                   <Ticket className="w-8 h-8 mb-2 opacity-50" />
-                  <p>Nenhuma solicitação em aberto no ERP.</p>
+                  <p>{voalleClosedSolicitations.message}</p>
+                </div>
+              ) : !voalleClosedSolicitations?.solicitations || voalleClosedSolicitations.solicitations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                  <Ticket className="w-8 h-8 mb-2 opacity-50" />
+                  <p>Nenhuma solicitação encerrada encontrada para este link.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {voalleSolicitations.filterFallbackUngranular && (
-                    <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-sm text-amber-700 dark:text-amber-300" data-testid="alert-voalle-ungranular">
+                <div className="space-y-3" data-testid="list-closed-solicitations">
+                  {voalleClosedSolicitations.filterFallbackUngranular ? (
+                    <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-sm text-amber-700 dark:text-amber-300" data-testid="alert-voalle-closed-ungranular">
                       <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <p>
-                        Não foi possível identificar quais solicitações pertencem a este link específico.
-                        Expanda cada uma para ver os detalhes (etiqueta de serviço, solicitante etc.) e
-                        confirmar o vínculo manualmente. Mostrando todas as solicitações em aberto deste cliente.
+                        Não foi possível identificar quais encerradas pertencem a este link específico.
+                        Mostrando as últimas {voalleClosedSolicitations.solicitations.length} encerradas do cliente como referência.
                       </p>
                     </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Últimas {voalleClosedSolicitations.solicitations.length} solicitações encerradas no ERP vinculadas a este link.
+                    </p>
                   )}
-                  {voalleSolicitations.solicitations.map((sol) => (
+                  {voalleClosedSolicitations.solicitations.map((sol) => (
                     <SolicitationCard key={sol.id} sol={sol} linkId={linkId} />
                   ))}
                 </div>

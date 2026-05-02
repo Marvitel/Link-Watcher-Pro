@@ -203,6 +203,114 @@ function setDashboardCache(key: string, data: any) {
   dashboardCache.set(key, { data, expiresAt: Date.now() + DASHBOARD_CACHE_TTL });
 }
 
+/**
+ * Filtra solicitações Voalle pra um link específico aplicando estratégias inline
+ * (connectionId, serviceTag exato, substring no título por serviceTag/pppoeUser/identifier)
+ * + enrichment via /getsolicitationdata quando inline zera. Reutilizado por
+ * /voalle/solicitations (em aberto) e /voalle/solicitations/closed (encerradas).
+ *
+ * Retorna { matched, fallbackUngranular } onde:
+ *  - matched: solicitações que casaram com o link
+ *  - fallbackUngranular: true se ninguém casou MAS o Voalle não retornou campos
+ *    granulares (caller decide se devolve TODAS como fallback)
+ */
+async function applyVoalleSolicitationFilter(
+  allSolicitations: Array<{ id: number; subject?: string; contractServiceTag?: string; connectionId?: number }>,
+  link: { name: string; voalleConnectionId?: number | null; voalleContractTagServiceTag?: string | null; pppoeUser?: string | null; identifier?: string | null },
+  adapter: any,
+  logPrefix: string,
+): Promise<{ matched: Array<any>; fallbackUngranular: boolean }> {
+  const linkServiceTag = link.voalleContractTagServiceTag
+    ? link.voalleContractTagServiceTag.toLowerCase().trim()
+    : '';
+  const linkPppoeUser = link.pppoeUser ? link.pppoeUser.toLowerCase().trim() : '';
+  const linkIdentifier = link.identifier ? link.identifier.toLowerCase().trim() : '';
+
+  const hasAnyFilter = !!(linkServiceTag || link.voalleConnectionId || linkPppoeUser || linkIdentifier);
+
+  if (allSolicitations.length === 0) {
+    return { matched: [], fallbackUngranular: false };
+  }
+
+  // Sem QUALQUER critério de filtro, não há como discriminar tickets deste link
+  // dos demais. Sinaliza fallback ungranular pra que a rota chamadora devolva
+  // TODAS as solicitações como "deste link" (preserva comportamento legado da
+  // rota /voalle/solicitations antes da separação own/other).
+  if (!hasAnyFilter) {
+    console.log(`${logPrefix} Link ${link.name} sem critério de match — devolvendo fallback ungranular (mostra todas).`);
+    return { matched: [], fallbackUngranular: true };
+  }
+
+  let matched: Array<any> = allSolicitations.filter((s) => {
+    const subject = (s.subject || '').toLowerCase();
+    if (link.voalleConnectionId && s.connectionId && s.connectionId === link.voalleConnectionId) return true;
+    if (linkServiceTag && s.contractServiceTag && s.contractServiceTag.toLowerCase().trim() === linkServiceTag) return true;
+    if (linkServiceTag && subject.includes(linkServiceTag)) return true;
+    if (linkPppoeUser && linkPppoeUser.length >= 4) {
+      if (subject.includes(linkPppoeUser)) return true;
+      const normalized = linkPppoeUser.replace(/_/g, ' ');
+      if (normalized !== linkPppoeUser && subject.includes(normalized)) return true;
+    }
+    if (linkIdentifier && linkIdentifier.length >= 4 && subject.includes(linkIdentifier)) return true;
+    return false;
+  });
+
+  console.log(`${logPrefix} Filtro inline: ${allSolicitations.length} total -> ${matched.length} para link ${link.name}`);
+
+  const ENRICHMENT_MAX = 50;
+  if (
+    matched.length === 0 &&
+    (linkServiceTag || linkPppoeUser || linkIdentifier) &&
+    allSolicitations.length <= ENRICHMENT_MAX &&
+    typeof adapter.getSolicitationData === 'function'
+  ) {
+    const enrichStart = Date.now();
+    console.log(`${logPrefix} Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
+
+    const enriched = await Promise.all(
+      allSolicitations.map(async (s) => {
+        try {
+          const details = await adapter.getSolicitationData(s.id);
+          return { sol: s, details, error: undefined as string | undefined };
+        } catch (err: any) {
+          return { sol: s, details: null, error: err?.message as string | undefined };
+        }
+      })
+    );
+
+    const failures = enriched.filter((e) => !!e.error).length;
+    matched = enriched
+      .filter(({ details }) => {
+        if (!details) return false;
+        const detailTag = details.contractServiceTag?.serviceTag
+          ? details.contractServiceTag.serviceTag.toLowerCase().trim()
+          : '';
+        if (linkServiceTag && detailTag && detailTag === linkServiceTag) return true;
+        if (linkIdentifier && detailTag && detailTag === linkIdentifier) return true;
+        if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
+          const reqName = details.requestor.name.toLowerCase();
+          if (reqName.includes(linkPppoeUser)) return true;
+          const normalized = linkPppoeUser.replace(/_/g, ' ');
+          if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
+        }
+        return false;
+      })
+      .map((m) => m.sol);
+
+    console.log(`${logPrefix} Enrichment concluído em ${Date.now() - enrichStart}ms: ${matched.length}/${allSolicitations.length} casaram (${failures} falhas)`);
+  } else if (allSolicitations.length > ENRICHMENT_MAX && matched.length === 0) {
+    console.log(`${logPrefix} Enrichment ignorado: ${allSolicitations.length} solicitações > limite ${ENRICHMENT_MAX}`);
+  }
+
+  let fallbackUngranular = false;
+  if (matched.length === 0) {
+    const anyGranular = allSolicitations.some((s) => !!s.contractServiceTag || !!s.connectionId);
+    if (!anyGranular) fallbackUngranular = true;
+  }
+
+  return { matched, fallbackUngranular };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3855,145 +3963,37 @@ export async function registerRoutes(
       // Buscar solicitações em aberto usando o adapter
       const allSolicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined);
 
-      // Filtrar solicitações pelo serviceTag/connectionId/pppoeUser do link.
-      // O endpoint /solicitationlist/{customerId} do Voalle nem sempre retorna
-      // campos granulares (contractServiceTag, connectionId) — quando isso
-      // ocorre, fallback é mostrar TODAS as solicitações do cliente com aviso.
-      let solicitations = allSolicitations;
-      let filterApplied = false;
-      let filterFallbackUngranular = false;
+      // Aplica filtro+enrichment via helper compartilhado.
+      const { matched, fallbackUngranular } = await applyVoalleSolicitationFilter(
+        allSolicitations,
+        link,
+        adapter,
+        '[Voalle Solicitations]',
+      );
 
-      const linkServiceTag = link.voalleContractTagServiceTag
-        ? link.voalleContractTagServiceTag.toLowerCase().trim()
-        : '';
-      const linkPppoeUser = link.pppoeUser ? link.pppoeUser.toLowerCase().trim() : '';
-      const linkIdentifier = link.identifier ? link.identifier.toLowerCase().trim() : '';
+      // Separa em "deste link" vs "de outros links do mesmo cliente".
+      // Se cair em fallback ungranular (Voalle não retornou nada granular),
+      // mostra tudo na lista principal e deixa "outros" vazio — não é seguro
+      // assumir que algum dos tickets é de outro link.
+      let solicitations: any[];
+      let otherLinkSolicitations: any[];
+      const filterFallbackUngranular = fallbackUngranular;
 
-      const hasAnyFilter = !!(linkServiceTag || link.voalleConnectionId || linkPppoeUser || linkIdentifier);
-
-      if (hasAnyFilter) {
-        // Tenta TODAS as estratégias de match — basta uma casar.
-        solicitations = allSolicitations.filter((s: { contractServiceTag?: string; connectionId?: number; subject?: string }) => {
-          const subject = (s.subject || '').toLowerCase();
-
-          // 1. Match estruturado por connectionId
-          if (link.voalleConnectionId && s.connectionId && s.connectionId === link.voalleConnectionId) {
-            return true;
-          }
-          // 2. Match estruturado exato por serviceTag
-          if (linkServiceTag && s.contractServiceTag && s.contractServiceTag.toLowerCase().trim() === linkServiceTag) {
-            return true;
-          }
-          // 3. Substring no título: serviceTag
-          if (linkServiceTag && subject.includes(linkServiceTag)) {
-            return true;
-          }
-          // 4. Substring no título: pppoeUser (forma original e com underscore↔espaço)
-          if (linkPppoeUser && linkPppoeUser.length >= 4) {
-            if (subject.includes(linkPppoeUser)) return true;
-            const normalized = linkPppoeUser.replace(/_/g, ' ');
-            if (normalized !== linkPppoeUser && subject.includes(normalized)) return true;
-          }
-          // 5. Substring no título: identifier
-          if (linkIdentifier && linkIdentifier.length >= 4 && subject.includes(linkIdentifier)) {
-            return true;
-          }
-          return false;
-        });
-
-        filterApplied = true;
-        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'}, pppoeUser: ${link.pppoeUser || '-'})`);
-
-        // ENRICHMENT: se o filtro inicial zerou e o link tem QUALQUER tag/identificador,
-        // tenta buscar detalhes (/getsolicitationdata) de cada ticket em paralelo —
-        // esse endpoint thirdparty retorna contractServiceTag.serviceTag e requestor
-        // que /solicitationlist NÃO retorna. Limita a 50 tickets pra controlar custo.
-        // Inclui linkIdentifier porque muitos links usam o campo "Etiqueta" (identifier)
-        // como service tag do Voalle quando voalleContractTagServiceTag está vazio.
-        const ENRICHMENT_MAX = 50;
-        if (
-          allSolicitations.length > 0 &&
-          solicitations.length === 0 &&
-          (linkServiceTag || linkPppoeUser || linkIdentifier) &&
-          allSolicitations.length <= ENRICHMENT_MAX &&
-          typeof adapter.getSolicitationData === 'function'
-        ) {
-          const enrichStart = Date.now();
-          console.log(`[Voalle Solicitations] Filtro inicial zerou para ${link.name}. Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
-
-          const enriched = await Promise.all(
-            allSolicitations.map(async (s: { id: number }) => {
-              try {
-                const details = await adapter.getSolicitationData(s.id);
-                return { sol: s, details };
-              } catch (err: any) {
-                return { sol: s, details: null, error: err?.message };
-              }
-            })
-          );
-
-          const failures = enriched.filter(e => e.error).length;
-          const matched = enriched.filter(({ details }) => {
-            if (!details) return false;
-            const detailTag = details.contractServiceTag?.serviceTag
-              ? details.contractServiceTag.serviceTag.toLowerCase().trim()
-              : '';
-            // Match por serviceTag dos detalhes (campo principal — o do alerta)
-            if (linkServiceTag && detailTag && detailTag === linkServiceTag) {
-              return true;
-            }
-            // Match por identifier do link contra contractServiceTag.serviceTag
-            // (caso comum quando o usuário preencheu só o campo "Etiqueta" no formulário)
-            if (linkIdentifier && detailTag && detailTag === linkIdentifier) {
-              return true;
-            }
-            // Match por requestor.name contendo pppoeUser/identifier (fallback fraco)
-            if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
-              const reqName = details.requestor.name.toLowerCase();
-              if (reqName.includes(linkPppoeUser)) return true;
-              const normalized = linkPppoeUser.replace(/_/g, ' ');
-              if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
-            }
-            return false;
-          });
-
-          const elapsed = Date.now() - enrichStart;
-          console.log(`[Voalle Solicitations] Enrichment concluído em ${elapsed}ms: ${matched.length}/${allSolicitations.length} casaram (${failures} falhas de fetch)`);
-
-          if (matched.length > 0) {
-            solicitations = matched.map(m => m.sol);
-          }
-        } else if (allSolicitations.length > ENRICHMENT_MAX) {
-          console.log(`[Voalle Solicitations] Enrichment ignorado: ${allSolicitations.length} solicitações > limite ${ENRICHMENT_MAX}`);
-        }
-
-        // FALLBACK: se filtro zerou tudo (mesmo após enrichment) E nenhum dos tickets
-        // tem campos granulares (connectionId/contractServiceTag), o Voalle não dá
-        // pra distinguir por link. Devolve TODAS as solicitações com flag pra UI mostrar aviso.
-        if (allSolicitations.length > 0 && solicitations.length === 0) {
-          const anyTicketHasGranularField = allSolicitations.some(
-            (s: { contractServiceTag?: string; connectionId?: number }) =>
-              !!s.contractServiceTag || !!s.connectionId,
-          );
-          if (!anyTicketHasGranularField) {
-            solicitations = allSolicitations;
-            filterFallbackUngranular = true;
-            console.warn(`[Voalle Solicitations] Voalle não retornou campos granulares para link ${link.name} — devolvendo TODAS as ${allSolicitations.length} solicitações do cliente como fallback.`);
-          } else {
-            const sample = allSolicitations.slice(0, 3).map((s: any) => {
-              const out: any = { id: s.id, protocol: s.protocol };
-              for (const k of Object.keys(s)) out[k] = s[k];
-              return out;
-            });
-            console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name} APESAR de existirem campos granulares (linkConnId=${link.voalleConnectionId || '-'}, linkServiceTag=${link.voalleContractTagServiceTag || '-'}). Amostra: ${JSON.stringify(sample)}`);
-          }
-        }
+      if (fallbackUngranular) {
+        solicitations = allSolicitations;
+        otherLinkSolicitations = [];
+        console.warn(`[Voalle Solicitations] Fallback ungranular ativo para ${link.name}: devolvendo todas as ${allSolicitations.length} solicitações do cliente.`);
+      } else {
+        const matchedIds = new Set(matched.map((s: any) => s.id));
+        solicitations = matched;
+        otherLinkSolicitations = allSolicitations.filter((s: any) => !matchedIds.has(s.id));
+        console.log(`[Voalle Solicitations] Resultado final: ${solicitations.length} deste link + ${otherLinkSolicitations.length} de outros links (cliente ${client.name}).`);
       }
 
       res.json({
         solicitations,
-        allSolicitations: filterApplied ? allSolicitations : undefined,
-        filterApplied,
+        otherLinkSolicitations,
+        filterApplied: true,
         filterFallbackUngranular,
         filterCriteria: link.voalleContractTagServiceTag || null,
         clientName: client.name,
@@ -4062,9 +4062,10 @@ export async function registerRoutes(
 
       // AUTORIZAÇÃO DE RECURSO: assignmentId precisa pertencer ao cliente Voalle deste link.
       // Sem isso, qualquer usuário com acesso a 1 link poderia consultar relatos de qualquer
-      // solicitação do ERP (IDOR). Validamos buscando as solicitações do cliente e exigindo
-      // que o assignmentId esteja na lista. Custo: 1 chamada ao Voalle (cacheada do lado dele).
-      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId);
+      // solicitação do ERP (IDOR). Validamos buscando as solicitações do cliente (incluindo
+      // encerradas via allAssignments=true, pois o card "Histórico de Solicitações no ERP"
+      // expande relatos de tickets fechados) e exigindo que o assignmentId esteja na lista.
+      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId, true);
       const assignmentBelongsToCustomer = Array.isArray(customerSolicitations)
         && customerSolicitations.some((s: { id?: number }) => s && s.id === assignmentId);
 
@@ -4135,7 +4136,9 @@ export async function registerRoutes(
       }
 
       // IDOR: assignmentId precisa pertencer ao cliente Voalle deste link.
-      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId);
+      // allAssignments=true inclui encerradas — necessário pro drill-down do card
+      // "Histórico de Solicitações no ERP" funcionar em tickets fechados.
+      const customerSolicitations = await adapter.getOpenSolicitations(voalleCustomerId, true);
       const assignmentBelongsToCustomer = Array.isArray(customerSolicitations)
         && customerSolicitations.some((s: { id?: number }) => s && s.id === assignmentId);
 
@@ -4153,6 +4156,113 @@ export async function registerRoutes(
       res.status(500).json({
         error: "Erro ao buscar detalhes da solicitação",
         details: null,
+      });
+    }
+  });
+
+  // Histórico: últimas N solicitações ENCERRADAS no Voalle pertencentes a este link.
+  // Usa /solicitationlist?allAssignments=True (que inclui fechadas), filtra por status
+  // de encerramento, aplica o mesmo helper de filtro+enrichment do endpoint de abertas
+  // e devolve as 3 mais recentes ordenadas por closedAt DESC.
+  app.get("/api/links/:linkId/voalle/solicitations/closed", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.linkId, 10);
+      if (!Number.isFinite(linkId) || linkId <= 0) {
+        return res.status(400).json({ error: "linkId inválido", solicitations: [] });
+      }
+
+      const link = await storage.getLink(linkId);
+      if (!link) return res.status(404).json({ error: "Link não encontrado", solicitations: [] });
+
+      const { allowed } = await validateLinkAccess(req, linkId);
+      if (!allowed) return res.status(403).json({ error: "Acesso negado", solicitations: [] });
+
+      const client = await storage.getClient(link.clientId);
+      if (!client) return res.status(404).json({ error: "Cliente não encontrado", solicitations: [] });
+
+      const voalleIntegration = await storage.getErpIntegrationByProvider('voalle');
+      if (!voalleIntegration || !voalleIntegration.isActive) {
+        return res.status(400).json({ error: "Integração Voalle não configurada", solicitations: [] });
+      }
+
+      let voalleCustomerId = client.voalleCustomerId;
+      if (!voalleCustomerId) {
+        const voalleMapping = await storage.getClientErpMapping(link.clientId, voalleIntegration.id);
+        if (!voalleMapping) {
+          return res.json({ solicitations: [], message: "Cliente não mapeado no Voalle" });
+        }
+        voalleCustomerId = parseInt(voalleMapping.erpCustomerId, 10) || null;
+      }
+
+      const adapter = configureErpAdapter(voalleIntegration) as any;
+      if (!adapter || typeof adapter.getOpenSolicitations !== 'function') {
+        return res.status(500).json({ error: "Adapter Voalle não suporta busca de solicitações", solicitations: [] });
+      }
+
+      // allAssignments=true → lista TUDO (abertas + encerradas) do cliente.
+      const allSolicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined, true);
+
+      // Filtra fechadas: tudo cujo status NÃO está na allowlist de "em aberto".
+      // Sem allowlist robusta no Voalle, usamos heurística por valores conhecidos
+      // (em PT). Status vazio é considerado encerrado pra não ocultar resultados.
+      const OPEN_STATUSES = new Set([
+        'abertura', 'andamento', 'em andamento', 'aberto', 'em aberto', 'reaberto', 'pendente'
+      ]);
+      const KNOWN_CLOSED_STATUSES = new Set([
+        'encerrado', 'encerrada', 'fechado', 'fechada', 'cancelado', 'cancelada',
+        'concluído', 'concluido', 'concluída', 'concluida', 'resolvido', 'resolvida',
+        'finalizado', 'finalizada'
+      ]);
+      const unknownStatuses = new Set<string>();
+      const closed = allSolicitations.filter((s: any) => {
+        const status = (s.status || '').toLowerCase().trim();
+        if (status && !OPEN_STATUSES.has(status) && !KNOWN_CLOSED_STATUSES.has(status)) {
+          unknownStatuses.add(status);
+        }
+        return !OPEN_STATUSES.has(status);
+      });
+      if (unknownStatuses.size > 0) {
+        console.warn(`[Voalle Solicitations Closed] Status desconhecidos classificados como ENCERRADOS para cliente ${client.name}: ${Array.from(unknownStatuses).join(', ')}. Considere atualizar OPEN_STATUSES/KNOWN_CLOSED_STATUSES.`);
+      }
+
+      console.log(`[Voalle Solicitations Closed] ${allSolicitations.length} total, ${closed.length} encerradas para cliente ${client.name}`);
+
+      // Aplica mesmo filtro+enrichment pra pegar só as deste link.
+      const { matched, fallbackUngranular } = await applyVoalleSolicitationFilter(
+        closed,
+        link,
+        adapter,
+        '[Voalle Solicitations Closed]',
+      );
+
+      // Em fallback ungranular (link sem critério OU Voalle sem campos granulares
+      // após enrichment), usa todas as encerradas do cliente como base — consistente
+      // com a rota de abertas. UI sinaliza via filterFallbackUngranular.
+      const baseForRanking = fallbackUngranular ? closed : matched;
+
+      // Top 3 por closedAt DESC (fallback createdAt).
+      const top3 = baseForRanking
+        .slice()
+        .sort((a: any, b: any) => {
+          const da = a.closedAt ? Date.parse(a.closedAt) : (a.createdAt ? Date.parse(a.createdAt) : 0);
+          const db = b.closedAt ? Date.parse(b.closedAt) : (b.createdAt ? Date.parse(b.createdAt) : 0);
+          return db - da;
+        })
+        .slice(0, 3);
+
+      res.json({
+        solicitations: top3,
+        totalClosedForLink: baseForRanking.length,
+        totalClosedForCustomer: closed.length,
+        filterFallbackUngranular: fallbackUngranular,
+        clientName: client.name,
+      });
+    } catch (error: any) {
+      console.error("[Voalle Solicitations Closed] Error:", error?.message || error);
+      res.status(500).json({
+        error: "Erro ao buscar solicitações encerradas no Voalle",
+        details: error?.message || "Erro desconhecido",
+        solicitations: [],
       });
     }
   });
