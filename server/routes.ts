@@ -4212,37 +4212,90 @@ export async function registerRoutes(
         portalPassword = null;
       }
 
-      if (!voalleCustomerId || !portalUsername || !portalPassword) {
-        return res.json({ available: false, message: "Cliente não possui credenciais do portal Voalle configuradas" });
-      }
+      // Tenta Portal v2 PRIMEIRO (mais completa: traz contratos, endereços, OLT, slot/porta...).
+      // Se Portal v2 falhar (ex: 403 Bad Credentials) ou cliente não tem credencial,
+      // cai pra fallback via API ERPVOALLE de terceiros (só descobre id+serviceTag+user,
+      // suficiente para vincular o link à solicitação).
+      let result: { success: boolean; connections?: any[]; message?: string } = { success: false, connections: [] };
+      let portalV2Failed = false;
+      let portalV2ErrorMsg = "";
 
-      const result = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
-      if (!result.success || !result.connections?.length) {
-        return res.json({ available: false, message: result.message || "Não foi possível buscar conexões do Voalle" });
+      if (voalleCustomerId && portalUsername && portalPassword) {
+        try {
+          result = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+        } catch (err: any) {
+          portalV2Failed = true;
+          portalV2ErrorMsg = err?.message || "erro desconhecido";
+          console.warn(`[Voalle Compare] Link ${linkId}: Portal v2 falhou (${portalV2ErrorMsg}), tentando fallback thirdparty`);
+        }
+        if (!result.success) {
+          portalV2Failed = true;
+          portalV2ErrorMsg = result.message || "Portal v2 retornou success=false";
+        }
+      } else {
+        portalV2Failed = true;
+        portalV2ErrorMsg = "Cliente sem credenciais Portal Voalle";
       }
 
       let voalleConn: any = null;
-      if (link.voalleConnectionId) {
-        voalleConn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
-      }
-      if (!voalleConn && link.voalleContractTagServiceTag) {
-        voalleConn = result.connections.find((c: any) => c.contractServiceTag?.serviceTag === link.voalleContractTagServiceTag);
-        if (voalleConn && !link.voalleConnectionId) {
-          await storage.updateLink(linkId, { voalleConnectionId: voalleConn.id });
-          console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via etiqueta: ${voalleConn.id}`);
+
+      if (!portalV2Failed && result.success && result.connections?.length) {
+        if (link.voalleConnectionId) {
+          voalleConn = result.connections.find((c: any) => c.id === link.voalleConnectionId);
         }
-      }
-      if (!voalleConn && link.voalleContractTagId) {
-        voalleConn = result.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
-        if (voalleConn) {
-          const updates: Record<string, any> = { voalleConnectionId: voalleConn.id };
-          if (voalleConn.contractServiceTag?.serviceTag) {
-            updates.voalleContractTagServiceTag = voalleConn.contractServiceTag.serviceTag;
+        if (!voalleConn && link.voalleContractTagServiceTag) {
+          voalleConn = result.connections.find((c: any) => c.contractServiceTag?.serviceTag === link.voalleContractTagServiceTag);
+          if (voalleConn && !link.voalleConnectionId) {
+            await storage.updateLink(linkId, { voalleConnectionId: voalleConn.id });
+            console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via etiqueta (Portal v2): ${voalleConn.id}`);
           }
-          await storage.updateLink(linkId, updates);
-          console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via contractTagId ${link.voalleContractTagId}: ${voalleConn.id}`);
+        }
+        if (!voalleConn && link.voalleContractTagId) {
+          voalleConn = result.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
+          if (voalleConn) {
+            const updates: Record<string, any> = { voalleConnectionId: voalleConn.id };
+            if (voalleConn.contractServiceTag?.serviceTag) {
+              updates.voalleContractTagServiceTag = voalleConn.contractServiceTag.serviceTag;
+            }
+            await storage.updateLink(linkId, updates);
+            console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId descoberto via contractTagId ${link.voalleContractTagId} (Portal v2): ${voalleConn.id}`);
+          }
         }
       }
+
+      // Fallback thirdparty: só preenche voalleConnectionId no link (não tem dados ricos
+      // pra fazer compare de slot/porta/OLT/endereço — devolve available:false com aviso).
+      if (!voalleConn && portalV2Failed) {
+        try {
+          const fb = await adapter.findConnectionViaThirdparty({
+            serviceTag: link.voalleContractTagServiceTag,
+            pppoeUser: link.pppoeUser,
+            expectedVoalleCustomerId: client.voalleCustomerId,
+          });
+          if (fb && !link.voalleConnectionId) {
+            await storage.updateLink(linkId, { voalleConnectionId: fb.id });
+            console.log(`[Voalle Compare] Link ${linkId}: voalleConnectionId ${fb.id} descoberto via FALLBACK thirdparty (Portal v2 indisponível: ${portalV2ErrorMsg})`);
+          }
+          return res.json({
+            available: false,
+            message: fb
+              ? `Comparação completa não disponível (Portal v2 indisponível). connectionId vinculado via API de terceiros: ${fb.id}.`
+              : `Conexão não encontrada nem via Portal v2 nem via API de terceiros (Tag: ${link.voalleContractTagServiceTag || '-'}, pppoeUser: ${link.pppoeUser || '-'})`,
+            portalV2Error: portalV2ErrorMsg,
+            fallbackUsed: true,
+            fallbackConnectionId: fb?.id ?? null,
+          });
+        } catch (fbErr: any) {
+          console.error(`[Voalle Compare] Link ${linkId}: fallback thirdparty também falhou: ${fbErr?.message || fbErr}`);
+          return res.json({
+            available: false,
+            message: `Portal v2 indisponível (${portalV2ErrorMsg}) e fallback de terceiros também falhou.`,
+            portalV2Error: portalV2ErrorMsg,
+            fallbackError: fbErr?.message || String(fbErr),
+          });
+        }
+      }
+
       if (!voalleConn) {
         return res.json({ available: false, message: `Conexão não encontrada no Voalle (ID: ${link.voalleConnectionId || 'N/A'}, Tag: ${link.voalleContractTagServiceTag || 'N/A'}, TagId: ${link.voalleContractTagId || 'N/A'})` });
       }
@@ -4480,43 +4533,67 @@ export async function registerRoutes(
           portalPassword = null;
         }
 
-        if (!voalleCustomerId || !portalUsername || !portalPassword) {
-          if (!link.voalleContractTagServiceTag && !link.voalleContractTagId) {
-            return res.json({ success: false, message: "Link não possui ID de conexão nem etiqueta Voalle" });
-          }
-          return res.json({ success: false, message: "Cliente sem credenciais do portal Voalle para descobrir conexão" });
+        if (!link.voalleContractTagServiceTag && !link.voalleContractTagId && !link.pppoeUser) {
+          return res.json({ success: false, message: "Link não possui etiqueta Voalle nem usuário PPPoE para descobrir a conexão" });
         }
 
-        if (link.voalleContractTagServiceTag) {
-          const lookupResult = await adapter.findConnectionByServiceTag({
-            voalleCustomerId, portalUsername, portalPassword,
-            serviceTag: link.voalleContractTagServiceTag,
-          });
-          if (lookupResult.success && lookupResult.connection) {
-            connectionId = lookupResult.connection.id;
-            await storage.updateLink(linkId, { voalleConnectionId: connectionId });
-            console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via etiqueta: ${connectionId}`);
-          }
-        }
-
-        if (!connectionId && link.voalleContractTagId) {
-          const connResult = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
-          if (connResult.success && connResult.connections?.length) {
-            const match = connResult.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
-            if (match) {
-              connectionId = match.id;
-              const serviceTag = match.contractServiceTag?.serviceTag || null;
-              await storage.updateLink(linkId, { 
-                voalleConnectionId: connectionId,
-                ...(serviceTag ? { voalleContractTagServiceTag: serviceTag } : {}),
+        // Tenta Portal v2 PRIMEIRO (mais completa). Se falhar/sem credencial, usa fallback thirdparty.
+        let portalV2Tried = false;
+        if (voalleCustomerId && portalUsername && portalPassword) {
+          portalV2Tried = true;
+          try {
+            if (link.voalleContractTagServiceTag) {
+              const lookupResult = await adapter.findConnectionByServiceTag({
+                voalleCustomerId, portalUsername, portalPassword,
+                serviceTag: link.voalleContractTagServiceTag,
               });
-              console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via contractTagId ${link.voalleContractTagId}: ${connectionId}`);
+              if (lookupResult.success && lookupResult.connection) {
+                connectionId = lookupResult.connection.id;
+                await storage.updateLink(linkId, { voalleConnectionId: connectionId });
+                console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via etiqueta (Portal v2): ${connectionId}`);
+              }
             }
+
+            if (!connectionId && link.voalleContractTagId) {
+              const connResult = await adapter.getConnections({ voalleCustomerId, portalUsername, portalPassword });
+              if (connResult.success && connResult.connections?.length) {
+                const match = connResult.connections.find((c: any) => c.contractServiceTag?.id === link.voalleContractTagId);
+                if (match) {
+                  connectionId = match.id;
+                  const serviceTag = match.contractServiceTag?.serviceTag || null;
+                  await storage.updateLink(linkId, {
+                    voalleConnectionId: connectionId,
+                    ...(serviceTag ? { voalleContractTagServiceTag: serviceTag } : {}),
+                  });
+                  console.log(`[Voalle Sync] Link ${linkId}: connectionId descoberto via contractTagId ${link.voalleContractTagId} (Portal v2): ${connectionId}`);
+                }
+              }
+            }
+          } catch (err: any) {
+            console.warn(`[Voalle Sync] Link ${linkId}: Portal v2 falhou (${err?.message || err}), tentando fallback thirdparty`);
+          }
+        }
+
+        // Fallback thirdparty (API ERPVOALLE) — só descobre o id, sem dados ricos.
+        if (!connectionId) {
+          try {
+            const fb = await adapter.findConnectionViaThirdparty({
+              serviceTag: link.voalleContractTagServiceTag,
+              pppoeUser: link.pppoeUser,
+              expectedVoalleCustomerId: client.voalleCustomerId,
+            });
+            if (fb) {
+              connectionId = fb.id;
+              await storage.updateLink(linkId, { voalleConnectionId: connectionId });
+              console.log(`[Voalle Sync] Link ${linkId}: connectionId ${connectionId} descoberto via FALLBACK thirdparty${portalV2Tried ? ' (Portal v2 falhou)' : ' (sem credenciais Portal v2)'}`);
+            }
+          } catch (fbErr: any) {
+            console.error(`[Voalle Sync] Link ${linkId}: fallback thirdparty falhou: ${fbErr?.message || fbErr}`);
           }
         }
 
         if (!connectionId) {
-          return res.json({ success: false, message: "Conexão não encontrada no Voalle para este link" });
+          return res.json({ success: false, message: "Conexão não encontrada no Voalle (Portal v2 e fallback de terceiros sem resultado)" });
         }
       }
 

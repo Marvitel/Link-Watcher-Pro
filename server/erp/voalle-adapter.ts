@@ -30,6 +30,16 @@ export class VoalleAdapter implements ErpAdapter {
   // Portal API token (segunda API)
   private portalAccessToken: string | null = null;
   private portalTokenExpiresAt: Date | null = null;
+  // Cache da lista global de conexões (/external/map/connection/all) usada como
+  // fallback de descoberta de voalleConnectionId quando o Portal v2 falha.
+  // Endpoint pesado (retorna TODAS as conexões do Voalle), por isso TTL de 10min.
+  // ESTÁTICO: configureErpAdapter() cria nova instância a cada request, então
+  // o cache PRECISA ser compartilhado entre instâncias para o TTL ter efeito.
+  // A lista é global do Voalle (não por cliente), então não há vazamento entre
+  // tenants — o multi-tenancy é resolvido na hora do MATCH pelo caller, não no cache.
+  private static allConnectionsCache: Array<{ id: number; user?: string; serviceTag?: string; peopleId?: number }> | null = null;
+  private static allConnectionsCacheAt: number = 0;
+  private static readonly ALL_CONNECTIONS_CACHE_TTL_MS = 10 * 60 * 1000;
 
   configure(config: ErpIntegration): void {
     let apiUrl = (config.apiUrl || "").trim();
@@ -57,6 +67,10 @@ export class VoalleAdapter implements ErpAdapter {
     this.tokenExpiresAt = null;
     this.portalAccessToken = null;
     this.portalTokenExpiresAt = null;
+    // Invalida cache estático quando a integração é reconfigurada (troca de URL/credencial)
+    // pra não servir lista de Voalle anterior durante a janela de TTL.
+    VoalleAdapter.allConnectionsCache = null;
+    VoalleAdapter.allConnectionsCacheAt = 0;
   }
 
   isConfigured(): boolean {
@@ -193,10 +207,13 @@ export class VoalleAdapter implements ErpAdapter {
     statusRaw: number;
     user?: string;
     serviceTag?: string;
+    peopleId?: number;
   }>> {
     // Propaga erro para o caller — quem chama (sync) precisa diferenciar
     // "Voalle retornou 0 conexões" (sucesso legítimo) de "falha de integração"
     // (token expirado, endpoint fora, payload inválido) para não silenciar regressões.
+    // peopleId/personId/customerId é capturado quando vier no payload — usado pelo
+    // fallback de descoberta para validar pertencimento ao cliente esperado.
     const result = await this.mapApiRequest<{
       success: boolean;
       response: Array<{
@@ -204,6 +221,9 @@ export class VoalleAdapter implements ErpAdapter {
         user?: string;
         serviceTag?: string;
         status: number;
+        peopleId?: number;
+        personId?: number;
+        customerId?: number;
       }>;
     }>("GET", "/external/map/connection/all");
 
@@ -226,7 +246,104 @@ export class VoalleAdapter implements ErpAdapter {
       statusRaw: c.status,
       user: c.user,
       serviceTag: c.serviceTag,
+      // Tolera variações de nome (Voalle nem sempre documenta — capta qualquer um)
+      peopleId: c.peopleId ?? c.personId ?? c.customerId,
     }));
+  }
+
+  /**
+   * Fallback de descoberta de connectionId via API ERPVOALLE de TERCEIROS,
+   * usado quando o Portal v2 NÃO está disponível (cliente sem credencial OU
+   * Portal v2 retornou 403 Bad Credentials).
+   *
+   * Estratégia: chama /external/map/connection/all (que já é usado pelo sync
+   * horário de status) e filtra LOCALMENTE pelo serviceTag (preferido) ou pelo
+   * pppoeUser. A lista é cacheada estaticamente por 10min — o endpoint retorna
+   * TODAS as conexões do Voalle, então NÃO pode ser chamado por link.
+   *
+   * Multi-tenant: quando `expectedVoalleCustomerId` é passado E o payload do Voalle
+   * traz `peopleId` (pode vir como peopleId/personId/customerId), o match é VALIDADO
+   * contra o cliente esperado — REJEITA a conexão se o peopleId não bater (proteção
+   * contra colisão de pppoeUser/serviceTag entre clientes diferentes). Quando o
+   * payload NÃO traz peopleId, a busca cai apenas em match exato de serviceTag/user
+   * (que no domínio Voalle são identificadores únicos de contrato/autenticação).
+   *
+   * Retorna `null` quando não encontra (sem throw — caller decide o que fazer).
+   * Propaga erro APENAS se a chamada à API falhar.
+   */
+  async findConnectionViaThirdparty(criteria: {
+    serviceTag?: string | null;
+    pppoeUser?: string | null;
+    expectedVoalleCustomerId?: number | string | null;
+  }): Promise<{ id: number; user?: string; serviceTag?: string; peopleId?: number } | null> {
+    const wantedTag = criteria.serviceTag?.toLowerCase().trim() || "";
+    const wantedUser = criteria.pppoeUser?.toLowerCase().trim() || "";
+    const expectedCustomerId = criteria.expectedVoalleCustomerId
+      ? Number(criteria.expectedVoalleCustomerId)
+      : null;
+
+    if (!wantedTag && !wantedUser) {
+      return null;
+    }
+
+    const now = Date.now();
+    const cacheValid =
+      VoalleAdapter.allConnectionsCache !== null &&
+      (now - VoalleAdapter.allConnectionsCacheAt) < VoalleAdapter.ALL_CONNECTIONS_CACHE_TTL_MS;
+
+    if (!cacheValid) {
+      console.log(`[VoalleAdapter] Fallback thirdparty: recarregando lista global de conexões (cache estático expirou ou vazio)`);
+      const all = await this.getAllConnectionStatus();
+      VoalleAdapter.allConnectionsCache = all.map(c => ({
+        id: c.id,
+        user: c.user,
+        serviceTag: c.serviceTag,
+        peopleId: c.peopleId,
+      }));
+      VoalleAdapter.allConnectionsCacheAt = now;
+      console.log(`[VoalleAdapter] Fallback thirdparty: ${VoalleAdapter.allConnectionsCache.length} conexões em cache (peopleId presente em ${VoalleAdapter.allConnectionsCache.filter(c => c.peopleId !== undefined).length})`);
+    }
+
+    const list = VoalleAdapter.allConnectionsCache!;
+
+    // Helper de validação multi-tenant: aceita conexão APENAS se peopleId bater
+    // com o cliente esperado (quando ambos os lados estiverem disponíveis).
+    // Quando peopleId não vier no payload do Voalle, aceita o match (degraded mode).
+    const passesTenantCheck = (conn: { peopleId?: number }, label: string): boolean => {
+      if (!expectedCustomerId) return true; // caller não passou cliente esperado
+      if (conn.peopleId === undefined) {
+        console.warn(`[VoalleAdapter] Fallback thirdparty: ${label} — payload sem peopleId, pulando validação de tenant (degraded)`);
+        return true;
+      }
+      if (conn.peopleId !== expectedCustomerId) {
+        console.warn(`[VoalleAdapter] Fallback thirdparty: REJEITADO ${label} — peopleId=${conn.peopleId} ≠ esperado=${expectedCustomerId} (proteção multi-tenant)`);
+        return false;
+      }
+      return true;
+    };
+
+    if (wantedTag) {
+      const matchByTag = list.find(
+        c => c.serviceTag && c.serviceTag.toLowerCase().trim() === wantedTag,
+      );
+      if (matchByTag && passesTenantCheck(matchByTag, `match por serviceTag '${wantedTag}'`)) {
+        console.log(`[VoalleAdapter] Fallback thirdparty: connectionId ${matchByTag.id} descoberto via serviceTag '${wantedTag}'`);
+        return matchByTag;
+      }
+    }
+
+    if (wantedUser) {
+      const matchByUser = list.find(
+        c => c.user && c.user.toLowerCase().trim() === wantedUser,
+      );
+      if (matchByUser && passesTenantCheck(matchByUser, `match por pppoeUser '${wantedUser}'`)) {
+        console.log(`[VoalleAdapter] Fallback thirdparty: connectionId ${matchByUser.id} descoberto via pppoeUser '${wantedUser}'`);
+        return matchByUser;
+      }
+    }
+
+    console.log(`[VoalleAdapter] Fallback thirdparty: nenhuma conexão encontrada (serviceTag='${wantedTag || '-'}', pppoeUser='${wantedUser || '-'}', expectedCustomerId=${expectedCustomerId || '-'})`);
+    return null;
   }
 
   /**
