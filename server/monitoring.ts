@@ -1270,6 +1270,42 @@ export function invalidateSnmpProfileCache(profileId?: number): void {
   }
 }
 
+// Heurística de validação de interface descoberta via IP route lookup.
+// Retorna true se o nome/alias da interface candidata parece uma interface de SESSÃO
+// PPPoE/dinâmica (Vi*, Virtual-Access*, BVI*, Dialer*, pppoe-*, <pppoe-...>, ppp\d) OU
+// se contém o pppoeUser como substring. Caso contrário (sfpplus-vlan*, ether*, gigabit*,
+// vlan*, bridge*, bond*, etc) é quase certo que veio de uma rota AGREGADA do pool PPPoE
+// apontando para o uplink do BNG — aceitar essa descoberta troca a interface do assinante
+// pela interface de uplink, fazendo o link medir o tráfego de centenas de clientes.
+function isPlausibleSubscriberInterface(
+  ifName: string | null | undefined,
+  ifAlias: string | null | undefined,
+  pppoeUser: string | null | undefined,
+): boolean {
+  const name = (ifName || '').toLowerCase().trim();
+  const alias = (ifAlias || '').toLowerCase().trim();
+  const user = (pppoeUser || '').toLowerCase().trim();
+
+  // Vendor-agnostic subscriber-session patterns
+  const sessionPatterns: RegExp[] = [
+    /^vi\d/,                  // Cisco Vi3, Vi3.123
+    /^virtual-access/,        // Cisco Virtual-Access3.123
+    /^virtual-template/,      // Huawei Virtual-Template
+    /^bvi/,                   // Cisco BVI
+    /^dialer/,                // Cisco Dialer
+    /^pppoe[-_]/,             // Mikrotik pppoe-out_xxx, pppoe-in_xxx
+    /^<ppp(oe)?[-_]/,         // Mikrotik <pppoe-username>
+    /^ppp\d/,                 // Generic ppp0/ppp1
+  ];
+  if (sessionPatterns.some((re) => re.test(name))) return true;
+  if (sessionPatterns.some((re) => re.test(alias))) return true;
+
+  // Sinal forte: ifName/ifAlias contém o pppoeUser
+  if (user && user.length >= 3 && (name.includes(user) || alias.includes(user))) return true;
+
+  return false;
+}
+
 // Auto-discovery: Check and fix ifIndex when SNMP collection fails
 async function handleIfIndexAutoDiscovery(
   link: typeof links.$inferSelect,
@@ -1757,18 +1793,36 @@ async function handleIfIndexAutoDiscovery(
         const ipResult = await lookupIfIndexByIp(concentrator, link.monitoredIp, ipLookupProfile);
         
         if (ipResult.ifIndex) {
-          searchResult = {
-            found: true,
-            ifIndex: ipResult.ifIndex,
-            ifName: ipResult.ifName || undefined,
-            ifAlias: ipResult.ifAlias || undefined,
-            matchType: 'ip-route-lookup',
-          };
-          console.log(`[Monitor] ${link.name}: Found interface via IP route lookup: ifIndex=${ipResult.ifIndex}, ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}"`);
-          
-          if (!link.pppoeUser && ipResult.ifAlias) {
-            await db.update(links).set({ pppoeUser: ipResult.ifAlias }).where(eq(links.id, link.id));
-            console.log(`[Monitor] ${link.name}: Stored pppoeUser="${ipResult.ifAlias}" discovered via IP route lookup`);
+          // Sanity: para links PPPoE, a interface descoberta TEM que parecer interface de
+          // sessão (Vi*, pppoe-*, etc) ou conter o pppoeUser. Senão, é quase certeza
+          // uma rota agregada do pool /24 apontando para o uplink do BNG.
+          const isPppoeStyle =
+            link.authType === 'pppoe' ||
+            !!link.pppoeUser ||
+            !!effectivePppoeUser ||
+            link.trafficSourceType === 'concentrator';
+          const candidatePppoeUser = link.pppoeUser || effectivePppoeUser;
+          const looksLikeSession = isPlausibleSubscriberInterface(
+            ipResult.ifName,
+            ipResult.ifAlias,
+            candidatePppoeUser,
+          );
+          if (isPppoeStyle && !looksLikeSession) {
+            console.warn(`[Monitor] ${link.name}: IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.`);
+          } else {
+            searchResult = {
+              found: true,
+              ifIndex: ipResult.ifIndex,
+              ifName: ipResult.ifName || undefined,
+              ifAlias: ipResult.ifAlias || undefined,
+              matchType: 'ip-route-lookup',
+            };
+            console.log(`[Monitor] ${link.name}: Found interface via IP route lookup: ifIndex=${ipResult.ifIndex}, ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}"`);
+
+            if (!link.pppoeUser && ipResult.ifAlias) {
+              await db.update(links).set({ pppoeUser: ipResult.ifAlias }).where(eq(links.id, link.id));
+              console.log(`[Monitor] ${link.name}: Stored pppoeUser="${ipResult.ifAlias}" discovered via IP route lookup`);
+            }
           }
         }
       }
@@ -1816,14 +1870,31 @@ async function handleIfIndexAutoDiscovery(
         if (!searchResult.found && link.monitoredIp) {
           const ipResult = await lookupIfIndexByIp(backupConcentrator, link.monitoredIp, backupProfile);
           if (ipResult.ifIndex) {
-            searchResult = {
-              found: true,
-              ifIndex: ipResult.ifIndex,
-              ifName: ipResult.ifName || undefined,
-              ifAlias: ipResult.ifAlias || undefined,
-              matchType: 'backup-ip-route-lookup',
-            };
-            console.log(`[Monitor] ${link.name}: Found on backup concentrator ${backupConcentrator.name} via IP route: ifIndex=${ipResult.ifIndex}`);
+            // Mesma validação do IP route lookup primário — rejeita rotas agregadas do
+            // pool PPPoE que apontam para uplink do BNG no concentrador backup.
+            const isPppoeStyle =
+              link.authType === 'pppoe' ||
+              !!link.pppoeUser ||
+              !!effectivePppoeUser ||
+              link.trafficSourceType === 'concentrator';
+            const candidatePppoeUser = link.pppoeUser || effectivePppoeUser;
+            const looksLikeSession = isPlausibleSubscriberInterface(
+              ipResult.ifName,
+              ipResult.ifAlias,
+              candidatePppoeUser,
+            );
+            if (isPppoeStyle && !looksLikeSession) {
+              console.warn(`[Monitor] ${link.name}: Backup IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta no concentrador backup ${backupConcentrator.name} — provavelmente rota agregada do pool apontando para uplink do BNG.`);
+            } else {
+              searchResult = {
+                found: true,
+                ifIndex: ipResult.ifIndex,
+                ifName: ipResult.ifName || undefined,
+                ifAlias: ipResult.ifAlias || undefined,
+                matchType: 'backup-ip-route-lookup',
+              };
+              console.log(`[Monitor] ${link.name}: Found on backup concentrator ${backupConcentrator.name} via IP route: ifIndex=${ipResult.ifIndex}`);
+            }
           }
         }
       }
