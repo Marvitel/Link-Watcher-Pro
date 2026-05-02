@@ -1,0 +1,122 @@
+Linux link-monitor 6.1.0-41-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.158-1 (2025-11-09) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+Last login: Sat May  2 11:33:16 2026 from 100.80.2.250
+gerencia@link-monitor:~$ su -
+Senha: 
+root@link-monitor:~# journalctl -u link-monitor -f --no-pager | grep -E "Voalle Solicitations|VoalleAdapter|solicitations"
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:19 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)
+mai 02 14:56:19 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/5551?allAssignments=False
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 5551)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 5551, user: 57765588591)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 0 solicitações
+mai 02 14:56:20 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 0 total -> 0 para link cibelly.arimateia (serviceTag: F718YVN8)
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 57765588591): /contractservicetagspaged?txId=57765588591&Page=1&PageSize=50
+mai 02 14:56:20 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:21 link-monitor npm[3478545]: [VoalleAdapter] API antiga: 3 etiquetas encontradas
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:56:22 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 14:56:40 link-monitor npm[3478545]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 14:56:40 link-monitor npm[3478545]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Buscando conexões (voalleCustomerId: 3049)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:58:26 link-monitor npm[3478545]: [Voalle Contract Tags] Usando VoalleAdapter com integração: Voalle Produção
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Usando Portal API para conexões (voalleCustomerId: 3049, user: 349116504)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Portal auth URL: http://api.marvitel.com.br/portal_authentication
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Erro ao buscar conexões: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Erro na Portal API, tentando API antiga: Error: Falha na autenticação Portal Voalle: 403 - {"status":"Invalid credentials.","message":"Bad Credentials (2)"}
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Usando API antiga para etiquetas (CNPJ: 00349116504): /contractservicetagspaged?txId=00349116504&Page=1&PageSize=50
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 14:58:26 link-monitor npm[3478545]: [VoalleAdapter] API antiga: 1 etiquetas encontradas
+mai 02 15:01:12 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:12 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:20 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:20 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:21 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:21 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:21 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:21 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:26 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:26 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:26 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:01:32 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:01:32 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:01:32 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:02:11 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:02:11 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:12 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:12 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:02:12 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:02:12 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER. Amostra dos tickets brutos: [
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:29 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:02:29 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:02:29 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support). Amostra dos tickets brutos: [
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Campos disponíveis na solicitação: [
+mai 02 15:02:38 link-monitor npm[3491997]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:02:38 link-monitor npm[3491997]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:02:38 link-monitor npm[3491997]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support). Amostra dos tickets brutos: [
+mai 02 15:06:11 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:06:11 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:06:47 link-monitor npm[3494790]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:06:47 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:06:47 link-monitor npm[3494790]: [VoalleAdapter] Ticket cru #1 (de 1): {"assignmentId":98612,"title":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","protocol":59546,"status":"Andamento","team":"Operacional","sectorArea":"Técnica","beginningData":"2026-01-20T10:09:02.628952","finalData":"2026-01-21T10:09:00"}
+mai 02 15:06:47 link-monitor npm[3494790]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:06:47 link-monitor npm[3494790]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:06:47 link-monitor npm[3494790]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER (linkConnId=1540, linkServiceTag=NR49LS2Z). Amostra: [{"id":98612,"protocol":"59546","subject":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","description":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2026-01-20T10:09:02.628952","closedAt":"2026-01-21T10:09:00"}]
+mai 02 15:06:51 link-monitor npm[3494790]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:06:51 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:06:51 link-monitor npm[3494790]: [VoalleAdapter] Ticket cru #1 (de 1): {"assignmentId":98612,"title":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","protocol":59546,"status":"Andamento","team":"Operacional","sectorArea":"Técnica","beginningData":"2026-01-20T10:09:02.628952","finalData":"2026-01-21T10:09:00"}
+mai 02 15:06:51 link-monitor npm[3494790]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:06:51 link-monitor npm[3494790]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:06:51 link-monitor npm[3494790]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER (linkConnId=1540, linkServiceTag=NR49LS2Z). Amostra: [{"id":98612,"protocol":"59546","subject":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","description":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2026-01-20T10:09:02.628952","closedAt":"2026-01-21T10:09:00"}]
+mai 02 15:06:59 link-monitor npm[3494790]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:06:59 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:06:59 link-monitor npm[3494790]: [VoalleAdapter] Ticket cru #1 (de 7): {"assignmentId":93395,"title":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","protocol":56176,"status":"Andamento","team":"Operacional","sectorArea":"Técnica","beginningData":"2025-08-27T11:37:49.81747","finalData":"2026-02-28T11:37:00"}
+mai 02 15:06:59 link-monitor npm[3494790]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:06:59 link-monitor npm[3494790]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:06:59 link-monitor npm[3494790]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support) (linkConnId=2234, linkServiceTag=084XBT3A). Amostra: [{"id":93395,"protocol":"56176","subject":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2025-08-27T11:37:49.81747","closedAt":"2026-02-28T11:37:00"},{"id":93397,"protocol":"56178","subject":"Protocolo 56178 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 56178 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2025-08-27T11:42:45.531276","closedAt":"2026-01-31T11:42:00"},{"id":98809,"protocol":"59668","subject":"Protocolo 59668 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 59668 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2026-01-25T09:13:35.469285","closedAt":"2026-01-30T22:00:00"}]
+mai 02 15:07:03 link-monitor npm[3494790]: [VoalleAdapter] Buscando solicitações: /solicitationlist/249?allAssignments=False
+mai 02 15:07:03 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:07:03 link-monitor npm[3494790]: [VoalleAdapter] Ticket cru #1 (de 7): {"assignmentId":93395,"title":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","protocol":56176,"status":"Andamento","team":"Operacional","sectorArea":"Técnica","beginningData":"2025-08-27T11:37:49.81747","finalData":"2026-02-28T11:37:00"}
+mai 02 15:07:03 link-monitor npm[3494790]: [VoalleAdapter] Encontradas 7 solicitações
+mai 02 15:07:03 link-monitor npm[3494790]: [Voalle Solicitations] Filtro aplicado: 7 total -> 0 para link PETROX ARUANDA - ONU BRIDGE (user: support) (serviceTag: 084XBT3A, connectionId: 2234)
+mai 02 15:07:03 link-monitor npm[3494790]: [Voalle Solicitations] Filtro derrubou TODAS as 7 solicitações do link PETROX ARUANDA - ONU BRIDGE (user: support) (linkConnId=2234, linkServiceTag=084XBT3A). Amostra: [{"id":93395,"protocol":"56176","subject":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 56176 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2025-08-27T11:37:49.81747","closedAt":"2026-02-28T11:37:00"},{"id":93397,"protocol":"56178","subject":"Protocolo 56178 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 56178 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2025-08-27T11:42:45.531276","closedAt":"2026-01-31T11:42:00"},{"id":98809,"protocol":"59668","subject":"Protocolo 59668 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","description":"Protocolo 59668 - Fibra - Atenuação / Manutenção - PETROX COMERCIAL","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2026-01-25T09:13:35.469285","closedAt":"2026-01-30T22:00:00"}]
+mai 02 15:07:06 link-monitor npm[3494790]: [VoalleAdapter] Buscando solicitações: /solicitationlist/3049?allAssignments=False
+mai 02 15:07:06 link-monitor npm[3494790]: [VoalleAdapter] Autenticando via password grant (user: 547280...)
+mai 02 15:07:06 link-monitor npm[3494790]: [VoalleAdapter] Ticket cru #1 (de 1): {"assignmentId":98612,"title":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","protocol":59546,"status":"Andamento","team":"Operacional","sectorArea":"Técnica","beginningData":"2026-01-20T10:09:02.628952","finalData":"2026-01-21T10:09:00"}
+mai 02 15:07:06 link-monitor npm[3494790]: [VoalleAdapter] Encontradas 1 solicitações
+mai 02 15:07:06 link-monitor npm[3494790]: [Voalle Solicitations] Filtro aplicado: 1 total -> 0 para link ONU-ROUTER (serviceTag: NR49LS2Z, connectionId: 1540)
+mai 02 15:07:06 link-monitor npm[3494790]: [Voalle Solicitations] Filtro derrubou TODAS as 1 solicitações do link ONU-ROUTER (linkConnId=1540, linkServiceTag=NR49LS2Z). Amostra: [{"id":98612,"protocol":"59546","subject":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","description":"Protocolo 59546 - Fibra - Atenuação / Manutenção - CLEBERTON DE SANTANA SANTOS - MAIKAI Q04EL09","status":"Andamento","team":"Operacional","sectorArea":"Técnica","createdAt":"2026-01-20T10:09:02.628952","closedAt":"2026-01-21T10:09:00"}]

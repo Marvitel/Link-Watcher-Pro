@@ -114,6 +114,7 @@ interface VoalleSolicitationsResponse {
   voalleCustomerId?: number;
   message?: string;
   error?: string;
+  filterFallbackUngranular?: boolean;
 }
 
 // Opções de período para os gráficos
@@ -1535,6 +1536,15 @@ export default function LinkDetail() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {voalleSolicitations.filterFallbackUngranular && (
+                    <div className="flex items-start gap-2 p-3 rounded-md border border-amber-500/30 bg-amber-500/5 text-sm text-amber-700 dark:text-amber-300" data-testid="alert-voalle-ungranular">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <p>
+                        O Voalle não retornou campos para identificar a qual link cada solicitação pertence.
+                        Mostrando todas as solicitações em aberto deste cliente.
+                      </p>
+                    </div>
+                  )}
                   {voalleSolicitations.solicitations.map((sol) => (
                     <div 
                       key={sol.id} 

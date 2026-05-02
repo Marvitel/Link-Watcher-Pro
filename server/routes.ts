@@ -3855,59 +3855,86 @@ export async function registerRoutes(
       // Buscar solicitações em aberto usando o adapter
       const allSolicitations = await adapter.getOpenSolicitations(voalleCustomerId ?? undefined);
 
-      // Filtrar solicitações pelo serviceTag do link, se configurado
+      // Filtrar solicitações pelo serviceTag/connectionId/pppoeUser do link.
+      // O endpoint /solicitationlist/{customerId} do Voalle nem sempre retorna
+      // campos granulares (contractServiceTag, connectionId) — quando isso
+      // ocorre, fallback é mostrar TODAS as solicitações do cliente com aviso.
       let solicitations = allSolicitations;
       let filterApplied = false;
-      
-      if (link.voalleContractTagServiceTag || link.voalleConnectionId) {
-        const linkServiceTag = link.voalleContractTagServiceTag
-          ? link.voalleContractTagServiceTag.toLowerCase().trim()
-          : '';
+      let filterFallbackUngranular = false;
 
+      const linkServiceTag = link.voalleContractTagServiceTag
+        ? link.voalleContractTagServiceTag.toLowerCase().trim()
+        : '';
+      const linkPppoeUser = link.pppoeUser ? link.pppoeUser.toLowerCase().trim() : '';
+      const linkIdentifier = link.identifier ? link.identifier.toLowerCase().trim() : '';
+
+      const hasAnyFilter = !!(linkServiceTag || link.voalleConnectionId || linkPppoeUser || linkIdentifier);
+
+      if (hasAnyFilter) {
         // Tenta TODAS as estratégias de match — basta uma casar.
-        // (O bug anterior usava if/else em cascata: se o ticket tinha contractServiceTag
-        //  mas não casava, retornava false sem tentar connectionId nem subject.)
         solicitations = allSolicitations.filter((s: { contractServiceTag?: string; connectionId?: number; subject?: string }) => {
-          // 1. Match por connectionId (caminho mais confiável quando ambos existem)
+          const subject = (s.subject || '').toLowerCase();
+
+          // 1. Match estruturado por connectionId
           if (link.voalleConnectionId && s.connectionId && s.connectionId === link.voalleConnectionId) {
             return true;
           }
-          // 2. Match exato por serviceTag
+          // 2. Match estruturado exato por serviceTag
           if (linkServiceTag && s.contractServiceTag && s.contractServiceTag.toLowerCase().trim() === linkServiceTag) {
             return true;
           }
-          // 3. Fallback: serviceTag aparece no título do ticket
-          if (linkServiceTag && s.subject && s.subject.toLowerCase().includes(linkServiceTag)) {
+          // 3. Substring no título: serviceTag
+          if (linkServiceTag && subject.includes(linkServiceTag)) {
+            return true;
+          }
+          // 4. Substring no título: pppoeUser (forma original e com underscore↔espaço)
+          if (linkPppoeUser && linkPppoeUser.length >= 4) {
+            if (subject.includes(linkPppoeUser)) return true;
+            const normalized = linkPppoeUser.replace(/_/g, ' ');
+            if (normalized !== linkPppoeUser && subject.includes(normalized)) return true;
+          }
+          // 5. Substring no título: identifier
+          if (linkIdentifier && linkIdentifier.length >= 4 && subject.includes(linkIdentifier)) {
             return true;
           }
           return false;
         });
 
         filterApplied = true;
-        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'})`);
+        console.log(`[Voalle Solicitations] Filtro aplicado: ${allSolicitations.length} total -> ${solicitations.length} para link ${link.name} (serviceTag: ${link.voalleContractTagServiceTag || '-'}, connectionId: ${link.voalleConnectionId || '-'}, pppoeUser: ${link.pppoeUser || '-'})`);
 
-        // Log diagnóstico: quando filtro zera tudo apesar de haver tickets, mostra TODAS as
-        // chaves de cada ticket (para descobrir se há outro campo que liga ticket↔link).
-        // Em uma linha só pra journalctl não truncar.
+        // FALLBACK: se filtro zerou tudo E nenhum dos tickets tem campos granulares
+        // (connectionId/contractServiceTag), o Voalle não dá pra distinguir por link.
+        // Devolve TODAS as solicitações com flag pra UI mostrar aviso.
         if (allSolicitations.length > 0 && solicitations.length === 0) {
-          const sample = allSolicitations.slice(0, 3).map((s: any) => {
-            const out: any = { id: s.id, protocol: s.protocol };
-            for (const k of Object.keys(s)) {
-              out[k] = s[k];
-            }
-            return out;
-          });
-          console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name} (linkConnId=${link.voalleConnectionId || '-'}, linkServiceTag=${link.voalleContractTagServiceTag || '-'}). Amostra: ${JSON.stringify(sample)}`);
+          const anyTicketHasGranularField = allSolicitations.some(
+            (s: { contractServiceTag?: string; connectionId?: number }) =>
+              !!s.contractServiceTag || !!s.connectionId,
+          );
+          if (!anyTicketHasGranularField) {
+            solicitations = allSolicitations;
+            filterFallbackUngranular = true;
+            console.warn(`[Voalle Solicitations] Voalle não retornou campos granulares para link ${link.name} — devolvendo TODAS as ${allSolicitations.length} solicitações do cliente como fallback.`);
+          } else {
+            const sample = allSolicitations.slice(0, 3).map((s: any) => {
+              const out: any = { id: s.id, protocol: s.protocol };
+              for (const k of Object.keys(s)) out[k] = s[k];
+              return out;
+            });
+            console.warn(`[Voalle Solicitations] Filtro derrubou TODAS as ${allSolicitations.length} solicitações do link ${link.name} APESAR de existirem campos granulares (linkConnId=${link.voalleConnectionId || '-'}, linkServiceTag=${link.voalleContractTagServiceTag || '-'}). Amostra: ${JSON.stringify(sample)}`);
+          }
         }
       }
 
-      res.json({ 
+      res.json({
         solicitations,
         allSolicitations: filterApplied ? allSolicitations : undefined,
         filterApplied,
+        filterFallbackUngranular,
         filterCriteria: link.voalleContractTagServiceTag || null,
         clientName: client.name,
-        voalleCustomerId 
+        voalleCustomerId,
       });
     } catch (error: any) {
       console.error("[Voalle Solicitations] Error:", error?.message || error);
