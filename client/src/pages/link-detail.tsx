@@ -136,6 +136,7 @@ interface VoalleClosedSolicitationsResponse {
   clientName?: string;
   message?: string;
   error?: string;
+  _debug?: any;
 }
 
 // Relato individual de uma solicitação Voalle
@@ -919,6 +920,12 @@ export default function LinkDetail() {
     staleTime: 60000,
     retry: false,
   });
+
+  useEffect(() => {
+    if (voalleClosedSolicitations?._debug) {
+      console.log('[LinkMonitor] Voalle Closed Debug:', JSON.stringify(voalleClosedSolicitations._debug, null, 2));
+    }
+  }, [voalleClosedSolicitations]);
 
   // Buscar dispositivos do link (CPEs, OLT, Concentrador) para exibição na aba Equipamento
   const { data: devicesInfo } = useQuery<DevicesInfo>({

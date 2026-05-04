@@ -4120,9 +4120,9 @@ export async function registerRoutes(
         console.warn(`[Voalle Solicitations Closed] Status desconhecidos classificados como ENCERRADOS para cliente ${client.name}: ${Array.from(unknownStatuses).join(', ')}. Considere atualizar OPEN_STATUSES/KNOWN_CLOSED_STATUSES.`);
       }
 
-      console.log(`[Voalle Solicitations Closed] v2-enrich: ${allSolicitations.length} total, ${closed.length} encerradas para cliente ${client.name}`);
+      const totalFromVoalle = allSolicitations.length;
+      console.log(`[Voalle Solicitations Closed] v4-fix: ${totalFromVoalle} total, ${closed.length} encerradas para cliente ${client.name}`);
 
-      // Aplica mesmo filtro+enrichment pra pegar só as deste link.
       const { matched, fallbackUngranular } = await applyVoalleSolicitationFilter(
         closed,
         link,
@@ -4130,27 +4130,24 @@ export async function registerRoutes(
         '[Voalle Solicitations Closed]',
       );
 
-      // Em fallback ungranular (link sem critério OU Voalle sem campos granulares
-      // após enrichment), usa todas as encerradas do cliente como base — consistente
-      // com a rota de abertas. UI sinaliza via filterFallbackUngranular.
       const baseForRanking = fallbackUngranular ? closed : matched;
 
-      // Enriquece com data REAL de encerramento (via getSolicitationHistory).
-      // O campo closedAt original é o prazo SLA, NÃO a data de encerramento.
       const enriched = await enrichEffectiveClosedAt(
         baseForRanking,
         adapter,
         '[Voalle Solicitations Closed]',
       );
 
-      // Log diagnóstico: mostra todas as datas de cada ticket pra debug
-      for (const t of enriched) {
-        console.log(`[Voalle Solicitations Closed] ticket #${t.protocol} (id=${t.id}): effectiveClosedAt=${t.effectiveClosedAt}, closedAt=${t.closedAt}, createdAt=${t.createdAt}, status=${t.status}`);
-      }
-
-      // Top 3 por effectiveClosedAt DESC (encerradas mais recentemente).
       const top3 = sortByMostRecentlyClosed(enriched, 3);
-      console.log(`[Voalle Solicitations Closed] Top 3 selecionados: ${top3.map((t: any) => `#${t.protocol}(eca=${t.effectiveClosedAt})`).join(', ')}`);
+
+      const debug = enriched.map((t: any) => ({
+        protocol: t.protocol,
+        id: t.id,
+        status: t.status,
+        effectiveClosedAt: t.effectiveClosedAt || null,
+        closedAt: t.closedAt || null,
+        createdAt: t.createdAt || null,
+      }));
 
       res.json({
         solicitations: top3,
@@ -4158,6 +4155,22 @@ export async function registerRoutes(
         totalClosedForCustomer: closed.length,
         filterFallbackUngranular: fallbackUngranular,
         clientName: client.name,
+        _debug: {
+          version: 'v4-fix',
+          totalFromVoalle,
+          totalClosed: closed.length,
+          filterMatched: matched.length,
+          fallbackUngranular,
+          baseForRanking: baseForRanking.length,
+          linkCriteria: {
+            voalleConnectionId: link.voalleConnectionId || null,
+            serviceTag: link.voalleContractTagServiceTag || null,
+            pppoeUser: link.pppoeUser || null,
+            identifier: link.identifier || null,
+          },
+          allClosedTickets: debug,
+          top3Selected: top3.map((t: any) => `#${t.protocol}(eca=${t.effectiveClosedAt}|ca=${t.closedAt})`),
+        },
       });
     } catch (error: any) {
       console.error("[Voalle Solicitations Closed] Error:", error?.message || error);

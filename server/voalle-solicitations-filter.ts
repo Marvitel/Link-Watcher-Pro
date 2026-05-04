@@ -27,9 +27,10 @@ export const OPEN_STATUSES: ReadonlySet<string> = new Set([
  * é considerada encerrada.
  */
 export const KNOWN_CLOSED_STATUSES: ReadonlySet<string> = new Set([
+  'encerramento',
   'encerrado', 'encerrada',
   'fechado', 'fechada',
-  'cancelado', 'cancelada',
+  'cancelado', 'cancelada', 'cancelamento',
   'concluído', 'concluido', 'concluída', 'concluida',
   'resolvido', 'resolvida',
   'finalizado', 'finalizada',
@@ -226,20 +227,24 @@ export async function applyVoalleSolicitationFilter(
     return false;
   });
 
-  console.log(`${logPrefix} Filtro inline: ${allSolicitations.length} total -> ${matched.length} para link ${link.name}`);
+  const inlineCount = matched.length;
+  console.log(`${logPrefix} Filtro inline: ${allSolicitations.length} total -> ${inlineCount} para link ${link.name}`);
 
   const ENRICHMENT_MAX = 50;
+  const matchedIds = new Set(matched.map((s) => s.id));
+  const remaining = allSolicitations.filter((s) => !matchedIds.has(s.id));
+
   if (
-    matched.length === 0 &&
+    remaining.length > 0 &&
     (linkServiceTag || linkPppoeUser || linkIdentifier) &&
-    allSolicitations.length <= ENRICHMENT_MAX &&
+    remaining.length <= ENRICHMENT_MAX &&
     typeof adapter.getSolicitationData === 'function'
   ) {
     const enrichStart = Date.now();
-    console.log(`${logPrefix} Enriquecendo ${allSolicitations.length} solicitações via getSolicitationData (alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
+    console.log(`${logPrefix} Enriquecendo ${remaining.length} solicitações restantes via getSolicitationData (${inlineCount} já casaram inline; alvo: serviceTag=${linkServiceTag || '-'}, identifier=${linkIdentifier || '-'}, pppoeUser=${linkPppoeUser || '-'})...`);
 
     const enriched = await Promise.all(
-      allSolicitations.map(async (s) => {
+      remaining.map(async (s) => {
         try {
           const details = await adapter.getSolicitationData(s.id);
           return { sol: s, details, error: undefined as string | undefined };
@@ -250,7 +255,7 @@ export async function applyVoalleSolicitationFilter(
     );
 
     const failures = enriched.filter((e) => !!e.error).length;
-    matched = enriched
+    const enrichmentMatched = enriched
       .filter(({ details }) => {
         if (!details) return false;
         const detailTag = details.contractServiceTag?.serviceTag
@@ -268,9 +273,11 @@ export async function applyVoalleSolicitationFilter(
       })
       .map((m) => m.sol);
 
-    console.log(`${logPrefix} Enrichment concluído em ${Date.now() - enrichStart}ms: ${matched.length}/${allSolicitations.length} casaram (${failures} falhas)`);
-  } else if (allSolicitations.length > ENRICHMENT_MAX && matched.length === 0) {
-    console.log(`${logPrefix} Enrichment ignorado: ${allSolicitations.length} solicitações > limite ${ENRICHMENT_MAX}`);
+    matched = [...matched, ...enrichmentMatched];
+
+    console.log(`${logPrefix} Enrichment concluído em ${Date.now() - enrichStart}ms: +${enrichmentMatched.length} via enrichment (total matched: ${matched.length}/${allSolicitations.length}, ${failures} falhas)`);
+  } else if (remaining.length > ENRICHMENT_MAX && inlineCount === 0) {
+    console.log(`${logPrefix} Enrichment ignorado: ${remaining.length} solicitações > limite ${ENRICHMENT_MAX}`);
   }
 
   let fallbackUngranular = false;
