@@ -4143,8 +4143,14 @@ export async function registerRoutes(
         '[Voalle Solicitations Closed]',
       );
 
+      // Log diagnóstico: mostra todas as datas de cada ticket pra debug
+      for (const t of enriched) {
+        console.log(`[Voalle Solicitations Closed] ticket #${t.protocol} (id=${t.id}): effectiveClosedAt=${t.effectiveClosedAt}, closedAt=${t.closedAt}, createdAt=${t.createdAt}, status=${t.status}`);
+      }
+
       // Top 3 por effectiveClosedAt DESC (encerradas mais recentemente).
       const top3 = sortByMostRecentlyClosed(enriched, 3);
+      console.log(`[Voalle Solicitations Closed] Top 3 selecionados: ${top3.map((t: any) => `#${t.protocol}(eca=${t.effectiveClosedAt})`).join(', ')}`);
 
       res.json({
         solicitations: top3,
