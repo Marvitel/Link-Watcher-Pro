@@ -4120,7 +4120,7 @@ export async function registerRoutes(
         console.warn(`[Voalle Solicitations Closed] Status desconhecidos classificados como ENCERRADOS para cliente ${client.name}: ${Array.from(unknownStatuses).join(', ')}. Considere atualizar OPEN_STATUSES/KNOWN_CLOSED_STATUSES.`);
       }
 
-      console.log(`[Voalle Solicitations Closed] ${allSolicitations.length} total, ${closed.length} encerradas para cliente ${client.name}`);
+      console.log(`[Voalle Solicitations Closed] v2-enrich: ${allSolicitations.length} total, ${closed.length} encerradas para cliente ${client.name}`);
 
       // Aplica mesmo filtro+enrichment pra pegar só as deste link.
       const { matched, fallbackUngranular } = await applyVoalleSolicitationFilter(

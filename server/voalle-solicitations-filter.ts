@@ -105,18 +105,31 @@ export async function enrichEffectiveClosedAt(
   const start = Date.now();
   const CONCURRENCY = 10;
 
+  console.log(`${logPrefix} enrichEffectiveClosedAt v2: iniciando para ${tickets.length} tickets`);
+
   const results: Array<any> = new Array(tickets.length);
   let cursor = 0;
+  let successCount = 0;
+  let emptyCount = 0;
+  let errorCount = 0;
 
   while (cursor < tickets.length) {
     const batch = tickets.slice(cursor, cursor + CONCURRENCY);
     const batchResults = await Promise.all(
-      batch.map(async (ticket) => {
+      batch.map(async (ticket, batchIdx) => {
         try {
           const history: Array<{ beginningDate?: string; finalDate?: string }> =
             await adapter.getSolicitationHistory(ticket.id);
           if (!Array.isArray(history) || history.length === 0) {
+            emptyCount++;
+            console.log(`${logPrefix} ticket #${ticket.protocol} (id=${ticket.id}): history vazio (${Array.isArray(history) ? '0 entries' : 'not array'})`);
             return { ...ticket, effectiveClosedAt: null };
+          }
+          if (cursor + batchIdx === 0) {
+            console.log(`${logPrefix} SAMPLE history[0] ticket #${ticket.protocol}: ${JSON.stringify(history[0])}`);
+            if (history.length > 1) {
+              console.log(`${logPrefix} SAMPLE history[last] ticket #${ticket.protocol}: ${JSON.stringify(history[history.length - 1])}`);
+            }
           }
           let maxTs = 0;
           let bestDate: string | null = null;
@@ -130,8 +143,11 @@ export async function enrichEffectiveClosedAt(
               }
             }
           }
+          successCount++;
           return { ...ticket, effectiveClosedAt: bestDate };
-        } catch {
+        } catch (err: any) {
+          errorCount++;
+          console.warn(`${logPrefix} ticket #${ticket.protocol} (id=${ticket.id}): history ERRO: ${err?.message || err}`);
           return { ...ticket, effectiveClosedAt: null };
         }
       }),
@@ -143,7 +159,7 @@ export async function enrichEffectiveClosedAt(
   }
 
   console.log(
-    `${logPrefix} effectiveClosedAt enriquecido para ${tickets.length} tickets em ${Date.now() - start}ms`,
+    `${logPrefix} enrichEffectiveClosedAt v2 concluído em ${Date.now() - start}ms: ${successCount} ok, ${emptyCount} vazios, ${errorCount} erros de ${tickets.length} total`,
   );
   return results;
 }
