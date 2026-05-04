@@ -212,10 +212,14 @@ export {
   KNOWN_CLOSED_STATUSES,
   isOpenSolicitation,
   partitionByStatus,
+  enrichEffectiveClosedAt,
+  sortByMostRecentlyClosed,
 } from "./voalle-solicitations-filter";
 import {
   applyVoalleSolicitationFilter,
   partitionByStatus,
+  enrichEffectiveClosedAt,
+  sortByMostRecentlyClosed,
 } from "./voalle-solicitations-filter";
 
 export async function registerRoutes(
@@ -4131,15 +4135,16 @@ export async function registerRoutes(
       // com a rota de abertas. UI sinaliza via filterFallbackUngranular.
       const baseForRanking = fallbackUngranular ? closed : matched;
 
-      // Top 3 por closedAt DESC (fallback createdAt).
-      const top3 = baseForRanking
-        .slice()
-        .sort((a: any, b: any) => {
-          const da = a.closedAt ? Date.parse(a.closedAt) : (a.createdAt ? Date.parse(a.createdAt) : 0);
-          const db = b.closedAt ? Date.parse(b.closedAt) : (b.createdAt ? Date.parse(b.createdAt) : 0);
-          return db - da;
-        })
-        .slice(0, 3);
+      // Enriquece com data REAL de encerramento (via getSolicitationHistory).
+      // O campo closedAt original é o prazo SLA, NÃO a data de encerramento.
+      const enriched = await enrichEffectiveClosedAt(
+        baseForRanking,
+        adapter,
+        '[Voalle Solicitations Closed]',
+      );
+
+      // Top 3 por effectiveClosedAt DESC (encerradas mais recentemente).
+      const top3 = sortByMostRecentlyClosed(enriched, 3);
 
       res.json({
         solicitations: top3,

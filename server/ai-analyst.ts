@@ -1239,6 +1239,8 @@ async function executeTool(name: string, input: any): Promise<unknown> {
       const {
         applyVoalleSolicitationFilter,
         partitionByStatus,
+        enrichEffectiveClosedAt,
+        sortByMostRecentlyClosed,
       } = await import("./voalle-solicitations-filter");
 
       // ===== voalle_list_link_solicitations =====
@@ -1294,14 +1296,12 @@ async function executeTool(name: string, input: any): Promise<unknown> {
               "[AiAnalyst Voalle Closed]",
             );
           const closedBase: any[] = closedFallback ? closedAll : (matchedClosed as any[]);
-          const top3Closed = closedBase
-            .slice()
-            .sort((a: any, b: any) => {
-              const da = a.closedAt ? Date.parse(a.closedAt) : a.createdAt ? Date.parse(a.createdAt) : 0;
-              const db = b.closedAt ? Date.parse(b.closedAt) : b.createdAt ? Date.parse(b.createdAt) : 0;
-              return db - da;
-            })
-            .slice(0, 3);
+          const enrichedClosed = await enrichEffectiveClosedAt(
+            closedBase,
+            adapter,
+            "[AiAnalyst Voalle Closed]",
+          );
+          const top3Closed = sortByMostRecentlyClosed(enrichedClosed, 3);
           result.closed = top3Closed;
           result.closedCount = closedBase.length;
           result.closedFallbackUngranular = closedFallback;

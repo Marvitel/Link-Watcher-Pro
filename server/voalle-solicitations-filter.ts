@@ -80,6 +80,99 @@ export function partitionByStatus<T extends { status?: string | null }>(
  *  - fallbackUngranular: true se ninguém casou MAS o Voalle não retornou campos
  *    granulares (caller decide se devolve TODAS como fallback)
  */
+/**
+ * Enriquece tickets encerrados com a data REAL de encerramento — obtida via
+ * getSolicitationHistory (último relato → beginningDate ou finalDate).
+ *
+ * O campo `closedAt` original vem do `finalData` do endpoint /solicitationlist,
+ * que é o PRAZO SLA, NÃO a data real de encerramento. Sem este enriquecimento
+ * a ordenação "encerradas mais recentemente" ficava errada.
+ *
+ * Retorna o array original com `effectiveClosedAt` preenchido em cada item.
+ * Limita a `maxEnrich` chamadas paralelas pra não sobrecarregar o Voalle.
+ */
+export async function enrichEffectiveClosedAt(
+  tickets: Array<any>,
+  adapter: any,
+  logPrefix: string,
+): Promise<Array<any>> {
+  if (tickets.length === 0) return tickets;
+  if (typeof adapter.getSolicitationHistory !== "function") {
+    console.warn(`${logPrefix} adapter sem getSolicitationHistory — pulando enriquecimento de effectiveClosedAt`);
+    return tickets;
+  }
+
+  const start = Date.now();
+  const CONCURRENCY = 10;
+
+  const results: Array<any> = new Array(tickets.length);
+  let cursor = 0;
+
+  while (cursor < tickets.length) {
+    const batch = tickets.slice(cursor, cursor + CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(async (ticket) => {
+        try {
+          const history: Array<{ beginningDate?: string; finalDate?: string }> =
+            await adapter.getSolicitationHistory(ticket.id);
+          if (!Array.isArray(history) || history.length === 0) {
+            return { ...ticket, effectiveClosedAt: null };
+          }
+          let maxTs = 0;
+          let bestDate: string | null = null;
+          for (const entry of history) {
+            for (const field of [entry.finalDate, entry.beginningDate]) {
+              if (!field) continue;
+              const ts = Date.parse(field);
+              if (Number.isFinite(ts) && ts > maxTs) {
+                maxTs = ts;
+                bestDate = field;
+              }
+            }
+          }
+          return { ...ticket, effectiveClosedAt: bestDate };
+        } catch {
+          return { ...ticket, effectiveClosedAt: null };
+        }
+      }),
+    );
+    for (let i = 0; i < batchResults.length; i++) {
+      results[cursor + i] = batchResults[i];
+    }
+    cursor += CONCURRENCY;
+  }
+
+  console.log(
+    `${logPrefix} effectiveClosedAt enriquecido para ${tickets.length} tickets em ${Date.now() - start}ms`,
+  );
+  return results;
+}
+
+/**
+ * Ordena tickets encerrados por data de encerramento real (effectiveClosedAt)
+ * com fallback em cadeia: effectiveClosedAt → closedAt → createdAt.
+ * Retorna os primeiros `limit` itens (default 3).
+ */
+function safeParse(v: string | null | undefined): number {
+  if (!v) return 0;
+  const ts = Date.parse(v);
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+export function sortByMostRecentlyClosed(
+  tickets: Array<any>,
+  limit: number = 3,
+): Array<any> {
+  return tickets
+    .slice()
+    .sort((a: any, b: any) => {
+      const da = safeParse(a.effectiveClosedAt) || safeParse(a.closedAt) || safeParse(a.createdAt);
+      const db = safeParse(b.effectiveClosedAt) || safeParse(b.closedAt) || safeParse(b.createdAt);
+      return db - da;
+    })
+    .slice(0, limit);
+}
+
 export async function applyVoalleSolicitationFilter(
   allSolicitations: Array<any>,
   link: { name: string; voalleConnectionId?: number | null; voalleContractTagServiceTag?: string | null; pppoeUser?: string | null; identifier?: string | null },

@@ -113,6 +113,7 @@ interface VoalleSolicitation {
   status: string;
   createdAt: string;
   closedAt?: string;
+  effectiveClosedAt?: string;
   team?: string;
   sectorArea?: string;
 }
@@ -246,9 +247,15 @@ function SolicitationCard({ sol, linkId }: { sol: VoalleSolicitation; linkId: nu
             {sol.subject || sol.description || "Sem descrição"}
           </p>
           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-            <span>
-              Aberto: {formatDistanceToNow(new Date(sol.createdAt), { addSuffix: true, locale: ptBR })}
-            </span>
+            {sol.effectiveClosedAt ? (
+              <span>
+                Encerrado: {formatDistanceToNow(new Date(sol.effectiveClosedAt), { addSuffix: true, locale: ptBR })}
+              </span>
+            ) : (
+              <span>
+                Aberto: {formatDistanceToNow(new Date(sol.createdAt), { addSuffix: true, locale: ptBR })}
+              </span>
+            )}
             {sol.sectorArea && (
               <span className="text-muted-foreground/70">
                 {sol.sectorArea}
