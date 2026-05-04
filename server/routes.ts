@@ -4177,26 +4177,63 @@ export async function registerRoutes(
             }),
           );
 
+          const recentEnrichDebug: Array<any> = [];
+
           const newMatches = enrichResults
-            .filter(({ details }) => {
-              if (!details) return false;
+            .filter(({ sol, details }) => {
+              if (!details) {
+                recentEnrichDebug.push({ protocol: sol.protocol, id: sol.id, reason: 'no-details' });
+                return false;
+              }
               const detailTag = (details.contractServiceTag?.serviceTag || '').toLowerCase().trim();
-              if (linkServiceTag && detailTag && detailTag === linkServiceTag) return true;
-              if (linkIdentifier && detailTag && detailTag === linkIdentifier) return true;
+
+              if (detailTag && linkServiceTag && detailTag !== linkServiceTag && detailTag !== linkIdentifier) {
+                recentEnrichDebug.push({
+                  protocol: sol.protocol, id: sol.id,
+                  reason: 'serviceTag-mismatch',
+                  detailTag,
+                  expected: linkServiceTag,
+                });
+                return false;
+              }
+
+              if (linkServiceTag && detailTag && detailTag === linkServiceTag) {
+                recentEnrichDebug.push({ protocol: sol.protocol, id: sol.id, reason: 'serviceTag-match', detailTag });
+                return true;
+              }
+              if (linkIdentifier && detailTag && detailTag === linkIdentifier) {
+                recentEnrichDebug.push({ protocol: sol.protocol, id: sol.id, reason: 'identifier-match', detailTag });
+                return true;
+              }
               if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
                 const reqName = details.requestor.name.toLowerCase();
-                if (reqName.includes(linkPppoeUser)) return true;
+                if (reqName.includes(linkPppoeUser)) {
+                  recentEnrichDebug.push({ protocol: sol.protocol, id: sol.id, reason: 'pppoe-requestor-match', reqName });
+                  return true;
+                }
                 const normalized = linkPppoeUser.replace(/_/g, ' ');
-                if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
+                if (normalized !== linkPppoeUser && reqName.includes(normalized)) {
+                  recentEnrichDebug.push({ protocol: sol.protocol, id: sol.id, reason: 'pppoe-requestor-normalized-match', reqName });
+                  return true;
+                }
               }
+              recentEnrichDebug.push({
+                protocol: sol.protocol, id: sol.id,
+                reason: 'no-match',
+                detailTag: detailTag || '(empty)',
+                reqName: (details.requestor?.name || '(null)').substring(0, 50),
+              });
               return false;
             })
             .map((m) => m.sol);
 
           recentEnrichmentMatched = newMatches.length;
+          (res as any)._recentEnrichDebug = recentEnrichDebug;
           if (newMatches.length > 0) {
             finalMatched = [...matched, ...newMatches];
             console.log(`[Voalle Solicitations Closed] Enrichment recente: +${newMatches.length} novos matches (total: ${finalMatched.length})`);
+          } else {
+            console.log(`[Voalle Solicitations Closed] Enrichment recente: 0 novos matches`);
           }
         }
       }
@@ -4227,7 +4264,7 @@ export async function registerRoutes(
         filterFallbackUngranular: fallbackUngranular,
         clientName: client.name,
         _debug: {
-          version: 'v5-recent-enrich',
+          version: 'v6-strict-filter',
           totalFromVoalle,
           totalClosed: closed.length,
           inlineMatched: matched.length,
@@ -4235,6 +4272,7 @@ export async function registerRoutes(
           totalMatched: finalMatched.length,
           fallbackUngranular,
           baseForRanking: baseForRanking.length,
+          recentEnrichDetail: (res as any)._recentEnrichDebug || [],
           linkCriteria: {
             voalleConnectionId: link.voalleConnectionId || null,
             serviceTag: link.voalleContractTagServiceTag || null,

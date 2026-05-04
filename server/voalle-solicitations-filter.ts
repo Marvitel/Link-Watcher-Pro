@@ -261,6 +261,9 @@ export async function applyVoalleSolicitationFilter(
         const detailTag = details.contractServiceTag?.serviceTag
           ? details.contractServiceTag.serviceTag.toLowerCase().trim()
           : '';
+        if (detailTag && linkServiceTag && detailTag !== linkServiceTag && detailTag !== linkIdentifier) {
+          return false;
+        }
         if (linkServiceTag && detailTag && detailTag === linkServiceTag) return true;
         if (linkIdentifier && detailTag && detailTag === linkIdentifier) return true;
         if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
