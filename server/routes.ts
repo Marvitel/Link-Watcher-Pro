@@ -4121,7 +4121,7 @@ export async function registerRoutes(
       }
 
       const totalFromVoalle = allSolicitations.length;
-      console.log(`[Voalle Solicitations Closed] v4-fix: ${totalFromVoalle} total, ${closed.length} encerradas para cliente ${client.name}`);
+      console.log(`[Voalle Solicitations Closed] v5: ${totalFromVoalle} total, ${closed.length} encerradas para cliente ${client.name}`);
 
       const { matched, fallbackUngranular } = await applyVoalleSolicitationFilter(
         closed,
@@ -4130,7 +4130,78 @@ export async function registerRoutes(
         '[Voalle Solicitations Closed]',
       );
 
-      const baseForRanking = fallbackUngranular ? closed : matched;
+      let recentEnrichmentMatched = 0;
+      let finalMatched = matched;
+
+      if (
+        !fallbackUngranular &&
+        matched.length > 0 &&
+        closed.length > matched.length
+      ) {
+        const RECENT_ENRICH_MAX = 30;
+        const matchedIds = new Set(matched.map((s: any) => s.id));
+        const remaining = closed.filter((s: any) => !matchedIds.has(s.id));
+
+        if (remaining.length > RECENT_ENRICH_MAX) {
+          const safeParse = (v: string | null | undefined) => {
+            if (!v) return 0;
+            const ts = Date.parse(v);
+            return Number.isFinite(ts) ? ts : 0;
+          };
+          remaining.sort((a: any, b: any) => {
+            const da = safeParse(a.closedAt) || safeParse(a.createdAt);
+            const db = safeParse(b.closedAt) || safeParse(b.createdAt);
+            return db - da;
+          });
+        }
+
+        const recentBatch = remaining.slice(0, RECENT_ENRICH_MAX);
+        const linkServiceTag = (link.voalleContractTagServiceTag || '').toLowerCase().trim();
+        const linkPppoeUser = (link.pppoeUser || '').toLowerCase().trim();
+        const linkIdentifier = (link.identifier || '').toLowerCase().trim();
+
+        if (
+          (linkServiceTag || linkPppoeUser || linkIdentifier) &&
+          typeof adapter.getSolicitationData === 'function'
+        ) {
+          console.log(`[Voalle Solicitations Closed] Enrichment recente: verificando ${recentBatch.length} tickets mais recentes (de ${remaining.length} restantes)`);
+
+          const enrichResults = await Promise.all(
+            recentBatch.map(async (s: any) => {
+              try {
+                const details = await adapter.getSolicitationData(s.id);
+                return { sol: s, details };
+              } catch {
+                return { sol: s, details: null };
+              }
+            }),
+          );
+
+          const newMatches = enrichResults
+            .filter(({ details }) => {
+              if (!details) return false;
+              const detailTag = (details.contractServiceTag?.serviceTag || '').toLowerCase().trim();
+              if (linkServiceTag && detailTag && detailTag === linkServiceTag) return true;
+              if (linkIdentifier && detailTag && detailTag === linkIdentifier) return true;
+              if (linkPppoeUser && linkPppoeUser.length >= 4 && details.requestor?.name) {
+                const reqName = details.requestor.name.toLowerCase();
+                if (reqName.includes(linkPppoeUser)) return true;
+                const normalized = linkPppoeUser.replace(/_/g, ' ');
+                if (normalized !== linkPppoeUser && reqName.includes(normalized)) return true;
+              }
+              return false;
+            })
+            .map((m) => m.sol);
+
+          recentEnrichmentMatched = newMatches.length;
+          if (newMatches.length > 0) {
+            finalMatched = [...matched, ...newMatches];
+            console.log(`[Voalle Solicitations Closed] Enrichment recente: +${newMatches.length} novos matches (total: ${finalMatched.length})`);
+          }
+        }
+      }
+
+      const baseForRanking = fallbackUngranular ? closed : finalMatched;
 
       const enriched = await enrichEffectiveClosedAt(
         baseForRanking,
@@ -4156,10 +4227,12 @@ export async function registerRoutes(
         filterFallbackUngranular: fallbackUngranular,
         clientName: client.name,
         _debug: {
-          version: 'v4-fix',
+          version: 'v5-recent-enrich',
           totalFromVoalle,
           totalClosed: closed.length,
-          filterMatched: matched.length,
+          inlineMatched: matched.length,
+          recentEnrichmentMatched,
+          totalMatched: finalMatched.length,
           fallbackUngranular,
           baseForRanking: baseForRanking.length,
           linkCriteria: {
