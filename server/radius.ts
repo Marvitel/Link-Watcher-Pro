@@ -861,6 +861,13 @@ export async function getRadiusSessionByUsername(username: string): Promise<Radi
   try {
     const client = await pool.connect();
     try {
+      // Tolerante a variações comuns de username em accounting RADIUS:
+      //   1) match exato (mais rápido, prioridade)
+      //   2) match case-insensitive (Cisco/IOS preserva o case digitado pelo cliente)
+      //   3) match com/sem realm `@dominio` em qualquer um dos lados
+      // Pega a sessão MAIS RECENTE entre os matches.
+      const candidate = username.trim();
+      const localPart = candidate.includes("@") ? candidate.split("@")[0] : candidate;
       const result = await client.query(
         `SELECT 
           username,
@@ -874,14 +881,23 @@ export async function getRadiusSessionByUsername(username: string): Promise<Radi
           acctinputoctets,
           acctoutputoctets
         FROM radacct 
-        WHERE username = $1 AND acctstoptime IS NULL
+        WHERE acctstoptime IS NULL
+          AND (
+            username = $1
+            OR LOWER(username) = LOWER($1)
+            OR LOWER(SPLIT_PART(username, '@', 1)) = LOWER($2)
+          )
         ORDER BY acctstarttime DESC
         LIMIT 1`,
-        [username]
+        [candidate, localPart]
       );
 
       if (result.rows.length === 0) {
+        console.log(`[RADIUS] Nenhuma sessão ativa encontrada para username="${candidate}" (testado exato, case-insensitive e SPLIT_PART local="${localPart}")`);
         return null;
+      }
+      if (result.rows[0].username !== candidate) {
+        console.log(`[RADIUS] Sessão encontrada via match tolerante: requisitado="${candidate}", encontrado no radacct="${result.rows[0].username}"`);
       }
 
       const row = result.rows[0];

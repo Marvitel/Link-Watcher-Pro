@@ -308,12 +308,31 @@ export async function detectMassiveOutages(): Promise<{
       if (pool) {
         const client = await pool.connect();
         try {
-          const placeholders = pppoeUsers.map((_, i) => `$${i + 1}`).join(", ");
+          // Tolerante a case e a divergência de realm @dominio (Cisco/IOS preserva
+          // o case digitado pelo cliente; outros NAS strippam o realm). Pra cada
+          // username configurado no link, busca match exato OU case-insensitive
+          // OU pelo local-part (parte antes do @). Mapeia o resultado de volta
+          // pro username original do link pra preservar a chave usada no filtro.
+          const lower = pppoeUsers.map((u) => u.toLowerCase());
+          const locals = pppoeUsers.map((u) => u.split("@")[0].toLowerCase());
           const result = await client.query(
-            `SELECT DISTINCT username FROM radacct WHERE acctstoptime IS NULL AND username IN (${placeholders})`,
-            pppoeUsers,
+            `SELECT DISTINCT
+               username,
+               LOWER(username) AS u_lower,
+               LOWER(SPLIT_PART(username, '@', 1)) AS u_local
+             FROM radacct
+             WHERE acctstoptime IS NULL
+               AND (LOWER(username) = ANY($1::text[]) OR LOWER(SPLIT_PART(username, '@', 1)) = ANY($2::text[]))`,
+            [lower, locals],
           );
-          for (const r of result.rows) activeSet.add(r.username);
+          // Mapeia o username encontrado pro pppoeUser original do link
+          for (const r of result.rows) {
+            for (let i = 0; i < pppoeUsers.length; i++) {
+              if (r.u_lower === lower[i] || r.u_local === locals[i]) {
+                activeSet.add(pppoeUsers[i]);
+              }
+            }
+          }
         } finally {
           client.release();
         }

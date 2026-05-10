@@ -1453,12 +1453,15 @@ export async function registerRoutes(
         });
       }
 
+      console.log(`[PPPoE Session] Consultando link ${linkId} (user="${link.pppoeUser}", concentratorId=${(link as any).concentratorId || "—"})`);
+
       // 1. Tenta primeiro RADIUS (radacct) — funciona quando o concentrador
       // envia accounting RADIUS pro FreeRADIUS.
       const { getRadiusSessionByUsername } = await import("./radius");
       const session = await getRadiusSessionByUsername(link.pppoeUser);
 
       if (session) {
+        console.log(`[PPPoE Session] OK via RADIUS: user="${session.username}", IP=${session.framedIpAddress}, NAS=${session.nasIpAddress}`);
         const now = Date.now();
         const startMs = session.acctStartTime ? new Date(session.acctStartTime).getTime() : null;
         const updateMs = session.acctUpdateTime ? new Date(session.acctUpdateTime).getTime() : null;
@@ -1518,6 +1521,7 @@ export async function registerRoutes(
         }
       }
 
+      console.log(`[PPPoE Session] Sem sessão ativa: user="${link.pppoeUser}" não encontrado em RADIUS nem no concentrador (id=${(link as any).concentratorId || "sem concentrador"})`);
       return res.json({
         available: true,
         active: false,
