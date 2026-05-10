@@ -1179,10 +1179,6 @@ export default function LinkDetail() {
         session={pppoeSession}
       />
 
-      {pppoeSession?.available && pppoeSession.active && link.status === "operational" && (
-        <PppoeSessionCard session={pppoeSession} />
-      )}
-
       {mitigationStatus?.isMitigated && mitigationStatus.mitigationInfo && (
         <Card className="border-amber-500/50 bg-amber-500/5">
           <CardContent className="flex items-center gap-4 py-4">
@@ -2676,6 +2672,9 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     queryKey: ["/api/links", linkId, "tools", "devices"],
   });
 
+  // Sessão PPPoE consolidada na aba Ferramentas (movida do topo da página).
+  const { data: pppoeSession } = usePppoeSession(linkId);
+
   const pingMutation = useMutation({
     mutationFn: async (target: string) => {
       const res = await apiRequest("POST", `/api/links/${linkId}/tools/ping`, { target });
@@ -3003,6 +3002,11 @@ function ToolsSection({ linkId, link }: ToolsSectionProps) {
     <div className="space-y-4">
       {/* Status técnico da conexão Voalle (linha discreta no topo) */}
       <VoalleConnectionStatusInline link={link} />
+
+      {/* Sessão PPPoE ativa (movida do topo da página pra cá) */}
+      {pppoeSession?.available && pppoeSession.active && (
+        <PppoeSessionCard session={pppoeSession} />
+      )}
 
       {/* Terminais - Grid 2x2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
