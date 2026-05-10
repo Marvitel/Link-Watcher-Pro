@@ -13,7 +13,6 @@ import { StatusBadge } from "@/components/status-badge";
 import { VoalleConnectionStatusBadge, getVoalleConnectionStatusLabel } from "@/components/voalle-connection-status-badge";
 import {
   usePppoeSession,
-  PppoeSessionBadge,
   PppoeSessionCard,
   PppoeSessionContradictionAlert,
 } from "@/components/pppoe-session-section";
@@ -1131,7 +1130,6 @@ export default function LinkDetail() {
               </Badge>
             )}
             <MassiveOutageBadge linkId={linkId} />
-            <PppoeSessionBadge session={pppoeSession} />
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="w-4 h-4" />
