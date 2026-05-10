@@ -3563,6 +3563,13 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       throw updateErr;
     }
 
+    // Se o processo está em shutdown (deploy), descarta a métrica: o ping pode
+    // ter sido interrompido pelo SIGTERM e cair como 100% loss falso.
+    if (isShuttingDown) {
+      console.log(`[Monitor] ${link.name}: descartando métrica (shutdown em andamento)`);
+      return true;
+    }
+
     try {
       await db.insert(metrics).values({
       linkId: link.id,
@@ -3853,6 +3860,33 @@ export async function collectAllLinksMetrics(): Promise<void> {
 }
 
 let monitoringInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Shutdown gracioso do monitor. Chamado pelo handler SIGTERM/SIGINT em index.ts
+ * antes do processo ser morto pelo deploy. Para os timers e marca a flag pra
+ * que coletas em vôo NÃO insiram métricas (que iriam virar "100% packet loss"
+ * porque o ping foi interrompido). Isso elimina os picos vermelhos no gráfico
+ * a cada deploy.
+ */
+let isShuttingDown = false;
+let warmupTimeout: NodeJS.Timeout | null = null;
+let fastPollSettingsInterval: NodeJS.Timeout | null = null;
+let pausedInitialCheckTimeout: NodeJS.Timeout | null = null;
+export function isMonitorShuttingDown(): boolean {
+  return isShuttingDown;
+}
+export function stopRealTimeMonitoring(): void {
+  isShuttingDown = true;
+  if (monitoringInterval) { clearInterval(monitoringInterval); monitoringInterval = null; }
+  if (fastPollInterval) { clearInterval(fastPollInterval); fastPollInterval = null; }
+  if (wanguardSyncInterval) { clearInterval(wanguardSyncInterval); wanguardSyncInterval = null; }
+  if (ozmapSyncInterval) { clearInterval(ozmapSyncInterval); ozmapSyncInterval = null; }
+  if (pausedLinkCheckInterval) { clearInterval(pausedLinkCheckInterval); pausedLinkCheckInterval = null; }
+  if (warmupTimeout) { clearTimeout(warmupTimeout); warmupTimeout = null; }
+  if (fastPollSettingsInterval) { clearInterval(fastPollSettingsInterval); fastPollSettingsInterval = null; }
+  if (pausedInitialCheckTimeout) { clearTimeout(pausedInitialCheckTimeout); pausedInitialCheckTimeout = null; }
+  console.log("[Monitor] Shutdown gracioso: timers parados, coletas em vôo serão descartadas");
+}
 
 /**
  * Coleta métricas de CPU/Memória de todos os CPEs cadastrados via SNMP
@@ -4421,7 +4455,16 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
 
   console.log(`[Monitor] Starting real-time monitoring: ${linkCount} links, ${effectiveInterval}s interval (requested: ${intervalSeconds}s)`);
 
-  collectAllLinksMetrics();
+  // Warm-up: aguarda 15s antes da primeira coleta pra dar tempo dos pools
+  // de DB/SNMP/RADIUS estabilizarem. Sem isso, a primeira coleta após restart
+  // pode falhar com timeout/connection error e registrar 100% packet loss
+  // (cria pico vermelho no gráfico a cada deploy).
+  const WARMUP_MS = 15_000;
+  console.log(`[Monitor] Warm-up: primeira coleta em ${WARMUP_MS / 1000}s`);
+  warmupTimeout = setTimeout(() => {
+    warmupTimeout = null;
+    if (!isShuttingDown) collectAllLinksMetrics();
+  }, WARMUP_MS);
   syncWanguardForAllClients();
   syncOzmapForAllLinks();
 
@@ -4456,7 +4499,7 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
   startFastPoll(FAST_POLL_INTERVAL_MS);
   loadFastPollFromSettings();
   // Reaplica config a cada 60s (pega mudanças sem precisar reiniciar processo).
-  setInterval(loadFastPollFromSettings, 60_000);
+  fastPollSettingsInterval = setInterval(loadFastPollFromSettings, 60_000);
 
   // Sincronização do Wanguard a cada 120 segundos (reduzido de 60s para economizar CPU)
   wanguardSyncInterval = setInterval(() => {
@@ -4482,8 +4525,9 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
     });
   }, 5 * 60 * 1000);
   // Roda 1x logo após o boot (com 30s de atraso pra dar tempo do RADIUS conectar)
-  setTimeout(() => {
-    checkPausedLinksForResume().catch(() => {});
+  pausedInitialCheckTimeout = setTimeout(() => {
+    pausedInitialCheckTimeout = null;
+    if (!isShuttingDown) checkPausedLinksForResume().catch(() => {});
   }, 30 * 1000);
   console.log(`[PausedLinks] Verificação de auto-reabilitação iniciada (5min)`);
 }

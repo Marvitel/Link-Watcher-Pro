@@ -77,6 +77,15 @@ An automatic link triage system uses Anthropic Claude (`claude-sonnet-4-5`) with
 
 **Helper Compartilhado** (`server/voalle-solicitations-filter.ts`): centraliza `OPEN_STATUSES`, `KNOWN_CLOSED_STATUSES`, `isOpenSolicitation`, `partitionByStatus` e `applyVoalleSolicitationFilter`. Importado tanto pelas rotas REST (`server/routes.ts`) quanto pelo Analista de IA, garantindo paridade total entre o que a UI vê e o que a IA recebe. Status vazio é tratado como ENCERRADO (comportamento legado preservado pra não ocultar tickets sem status no Voalle).
 
+### Deploy/Restart Hardening (sem picos falsos no gráfico)
+A cada deploy, o Replit envia SIGTERM antes de SIGKILL. Sem proteção, isso causa dois problemas que registram "100% packet loss" falso no gráfico do link:
+1. **Pings em vôo interrompidos pelo SIGTERM**: o `execAsync(ping)` lança erro, o catch retorna `packetLoss: 100`, e o insert no `metrics` ainda acontece antes do processo morrer.
+2. **Coleta imediata no boot**: `collectAllLinksMetrics()` era chamado direto em `startRealTimeMonitoring`, antes dos pools de DB/SNMP/RADIUS estarem warm — primeira métrica falhava.
+
+Soluções implementadas em `server/index.ts` (handler) + `server/monitoring.ts`:
+- **Graceful shutdown** (`stopRealTimeMonitoring`, `isMonitorShuttingDown`): handler `SIGTERM`/`SIGINT` para todos os timers (monitor, fast-poll, wanguard, ozmap, paused), marca flag `isShuttingDown=true`, espera 2s e chama `process.exit(0)`. O insert da métrica no `processLinkMetrics` checa a flag e descarta a coleta em vôo.
+- **Warm-up de 15s no boot**: a primeira `collectAllLinksMetrics` agora roda via `setTimeout(..., 15_000)` em vez de imediato, dando tempo dos pools estabilizarem.
+
 ### Inactive Links & Temporary Pauses
 Links with `monitoringEnabled=false` have open events resolved, status set to 'unknown', and are excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation.
 

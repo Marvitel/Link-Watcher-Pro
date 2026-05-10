@@ -16,6 +16,29 @@ process.on('unhandledRejection', (reason) => {
   console.error(`[Process] Unhandled rejection (handled, not crashing):`, reason);
 });
 
+// Graceful shutdown: a cada deploy o Replit envia SIGTERM antes de SIGKILL.
+// Sem isso, pings em vôo são interrompidos e o catch do execAsync registra
+// "100% packet loss" falso, criando picos vermelhos no gráfico do link.
+let isExiting = false;
+async function gracefulShutdown(signal: string) {
+  if (isExiting) return;
+  isExiting = true;
+  console.log(`[Process] ${signal} recebido — iniciando shutdown gracioso`);
+  try {
+    const { stopRealTimeMonitoring } = await import("./monitoring");
+    stopRealTimeMonitoring();
+  } catch (e: any) {
+    console.error("[Process] Erro ao parar monitor:", e?.message || e);
+  }
+  // Dá um curto janela pras coletas em vôo abortarem (já não vão inserir métricas)
+  setTimeout(() => {
+    console.log("[Process] Shutdown finalizado, encerrando processo");
+    process.exit(0);
+  }, 2000);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 const app = express();
 const httpServer = createServer(app);
 
