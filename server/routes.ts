@@ -1406,11 +1406,68 @@ export async function registerRoutes(
       if (!allowed || !link) {
         return res.status(404).json({ error: "Link not found" });
       }
-      
+
       const statusDetail = await storage.getLinkStatusDetail(linkId);
       res.json(statusDetail);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch link status detail" });
+    }
+  });
+
+  // Sessão PPPoE atual no RADIUS — exposta pra UI mostrar IP/MAC/uptime
+  // e pra detectar contradição com status=offline (fibra intacta vs ping ruim).
+  app.get("/api/links/:id/pppoe-session", requireAuth, async (req, res) => {
+    try {
+      const linkId = parseInt(req.params.id, 10);
+      const { allowed, link } = await validateLinkAccess(req, linkId);
+      if (!allowed || !link) {
+        return res.status(404).json({ error: "Link not found" });
+      }
+
+      if (!link.pppoeUser) {
+        return res.json({
+          available: false,
+          reason: "no-pppoe-user",
+          message: "Link não possui usuário PPPoE configurado",
+        });
+      }
+
+      const { getRadiusSessionByUsername } = await import("./radius");
+      const session = await getRadiusSessionByUsername(link.pppoeUser);
+
+      if (!session) {
+        return res.json({
+          available: true,
+          active: false,
+          username: link.pppoeUser,
+          message: "Nenhuma sessão PPPoE ativa para este usuário",
+        });
+      }
+
+      const now = Date.now();
+      const startMs = session.acctStartTime ? new Date(session.acctStartTime).getTime() : null;
+      const updateMs = session.acctUpdateTime ? new Date(session.acctUpdateTime).getTime() : null;
+      const sessionDurationSec = startMs ? Math.floor((now - startMs) / 1000) : (session.acctSessionTime || null);
+      const lastUpdateAgoSec = updateMs ? Math.floor((now - updateMs) / 1000) : null;
+
+      res.json({
+        available: true,
+        active: true,
+        username: session.username,
+        framedIpAddress: session.framedIpAddress,
+        callingStationId: session.callingStationId,
+        nasIpAddress: session.nasIpAddress,
+        nasPortId: session.nasPortId,
+        acctStartTime: session.acctStartTime,
+        acctUpdateTime: session.acctUpdateTime,
+        sessionDurationSec,
+        lastUpdateAgoSec,
+        inputOctets: session.acctInputOctets,
+        outputOctets: session.acctOutputOctets,
+      });
+    } catch (error) {
+      console.error("[PPPoE Session] Erro:", error);
+      res.status(500).json({ error: "Falha ao consultar sessão PPPoE" });
     }
   });
 

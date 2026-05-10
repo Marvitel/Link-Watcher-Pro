@@ -775,7 +775,7 @@ function getRadiusDbPoolFromEnv(): pg.Pool | null {
   }
 }
 
-async function getRadiusDbPool(): Promise<pg.Pool | null> {
+export async function getRadiusDbPool(): Promise<pg.Pool | null> {
   if (radiusDbPool) {
     return radiusDbPool;
   }

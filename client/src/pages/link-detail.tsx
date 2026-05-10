@@ -11,6 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { VoalleConnectionStatusBadge, getVoalleConnectionStatusLabel } from "@/components/voalle-connection-status-badge";
+import {
+  usePppoeSession,
+  PppoeSessionBadge,
+  PppoeSessionCard,
+  PppoeSessionContradictionAlert,
+} from "@/components/pppoe-session-section";
 import { MetricCard } from "@/components/metric-card";
 import { BandwidthChart, LatencyChart, PacketLossChart, UnifiedMetricsChart, ChartSeriesVisibility } from "@/components/bandwidth-chart";
 import { MultiTrafficChart } from "@/components/multi-traffic-chart";
@@ -608,6 +614,12 @@ export default function LinkDetail() {
     refetchInterval: 5000,
   });
 
+  // Sessão PPPoE viva no RADIUS — só busca quando link tem pppoeUser configurado
+  const { data: pppoeSession } = usePppoeSession(
+    linkId,
+    !isNaN(linkId) && !!(link as any)?.pppoeUser,
+  );
+
   interface MitigationStatus {
     isMitigated: boolean;
     mitigationInfo: {
@@ -1119,6 +1131,7 @@ export default function LinkDetail() {
               </Badge>
             )}
             <MassiveOutageBadge linkId={linkId} />
+            <PppoeSessionBadge session={pppoeSession} />
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="w-4 h-4" />
@@ -1160,6 +1173,17 @@ export default function LinkDetail() {
           </Button>
         </div>
       </div>
+
+      <PppoeSessionContradictionAlert
+        linkId={linkId}
+        linkStatus={link.status}
+        monitoredIp={link.monitoredIp}
+        session={pppoeSession}
+      />
+
+      {pppoeSession?.available && pppoeSession.active && (
+        <PppoeSessionCard session={pppoeSession} />
+      )}
 
       {mitigationStatus?.isMitigated && mitigationStatus.mitigationInfo && (
         <Card className="border-amber-500/50 bg-amber-500/5">

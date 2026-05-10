@@ -6,7 +6,7 @@
 
 import { db } from "./db";
 import { eq, and, sql, isNull, gte, lte, desc, inArray } from "drizzle-orm";
-import { links, massiveOutages, massiveOutageLinks, metrics, olts } from "@shared/schema";
+import { links, massiveOutages, massiveOutageLinks, metrics, olts, events } from "@shared/schema";
 
 // Cache em memória do mapa oltId → nome. Atualizado a cada passada do detector.
 let oltNameById: Map<number, string> = new Map();
@@ -278,7 +278,7 @@ export async function detectMassiveOutages(): Promise<{
   await loadOltNames();
 
   // 1. Busca todos os links offline elegíveis
-  const offline = await db
+  const offlineRaw = await db
     .select()
     .from(links)
     .where(and(
@@ -287,6 +287,70 @@ export async function detectMassiveOutages(): Promise<{
       sql`${links.deletedAt} IS NULL`,
       sql`${links.contractStatus} IN ('active', 'blocked')`,
     ));
+
+  // 1b. Exclui links que têm sessão PPPoE ativa no RADIUS — se o usuário está
+  // autenticado no concentrador, a fibra está intacta pra ele. Logo, esse link
+  // NÃO deve contribuir pra detecção de rompimento massivo (geraria falso-positivo
+  // tipo "afetado por rompimento" quando o problema é só o IP de monitoramento).
+  let offline = offlineRaw;
+  try {
+    const pppoeUsers = Array.from(new Set(
+      offlineRaw
+        .map((l) => l.pppoeUser)
+        .filter((u): u is string => !!u && u.length > 0)
+    ));
+
+    if (pppoeUsers.length > 0) {
+      const { getRadiusDbPool } = await import("./radius");
+      const pool = await getRadiusDbPool();
+      if (pool) {
+        const client = await pool.connect();
+        try {
+          const placeholders = pppoeUsers.map((_, i) => `$${i + 1}`).join(", ");
+          const result = await client.query(
+            `SELECT DISTINCT username FROM radacct WHERE acctstoptime IS NULL AND username IN (${placeholders})`,
+            pppoeUsers,
+          );
+          const activeSet = new Set<string>(result.rows.map((r: any) => r.username));
+          if (activeSet.size > 0) {
+            const before = offline.length;
+            const skippedLinks = offlineRaw.filter((l) => l.pppoeUser && activeSet.has(l.pppoeUser));
+            offline = offlineRaw.filter((l) => !l.pppoeUser || !activeSet.has(l.pppoeUser));
+            const skipped = before - offline.length;
+            if (skipped > 0) {
+              console.log(`[MassiveOutage] Excluídos ${skipped} links offline com sessão PPPoE ativa (fibra intacta)`);
+
+              // Cria evento de divergência por link (uma vez por link, dedup via getLatestUnresolvedLinkEvent)
+              try {
+                const { storage } = await import("./storage");
+                for (const l of skippedLinks) {
+                  const existing = await storage.getLatestUnresolvedLinkEvent(l.id, "ip_mismatch");
+                  if (existing) continue;
+                  await db.insert(events).values({
+                    linkId: l.id,
+                    clientId: l.clientId,
+                    type: "ip_mismatch",
+                    title: "Divergência: ping falha mas PPPoE ativo",
+                    description:
+                      `O ping ao IP monitorado (${l.monitoredIp || 'não definido'}) está falhando, ` +
+                      `mas o usuário PPPoE ${l.pppoeUser} possui sessão ativa no RADIUS — a fibra está intacta. ` +
+                      `Possíveis causas: IP de monitoramento desatualizado, ICMP bloqueado no CPE, ou link dinâmico sem useDynamicIp.`,
+                    resolved: false,
+                  });
+                }
+              } catch (evErr: any) {
+                console.warn(`[MassiveOutage] Falha ao registrar evento monitoring_ip_mismatch: ${evErr?.message || evErr}`);
+              }
+            }
+          }
+        } finally {
+          client.release();
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[MassiveOutage] Falha ao filtrar PPPoE ativos: ${err?.message || err}`);
+  }
 
   // 2. Para cada link offline, computa TODAS as escalas disponíveis (cto/ceo/pon/olt).
   // Atribuição inicial: o mais específico (CTO > CEO > PON > OLT).
