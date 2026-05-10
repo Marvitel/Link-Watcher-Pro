@@ -1181,7 +1181,7 @@ export default function LinkDetail() {
         session={pppoeSession}
       />
 
-      {pppoeSession?.available && pppoeSession.active && (
+      {pppoeSession?.available && pppoeSession.active && link.status === "operational" && (
         <PppoeSessionCard session={pppoeSession} />
       )}
 
@@ -1212,7 +1212,10 @@ export default function LinkDetail() {
         </Card>
       )}
 
-      {hasFailure && failureInfo && (
+      {hasFailure && failureInfo && !(
+        pppoeSession?.available && pppoeSession.active && pppoeSession.framedIpAddress &&
+        (link.status === "down" || link.status === "offline" || link.status === "degraded")
+      ) && (
         <Card className="border-destructive bg-destructive/5">
           <CardContent className="flex items-center gap-4 py-4">
             {FailureIcon && (

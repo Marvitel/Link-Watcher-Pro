@@ -25,38 +25,15 @@ export interface PppoeSessionData {
   outputOctets?: number | null;
 }
 
-function formatBytes(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
-}
-
 function formatDuration(sec: number | null | undefined): string {
   if (sec == null || sec < 0) return "—";
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-function formatRelativeAgo(sec: number | null | undefined): string {
-  if (sec == null) return "—";
-  if (sec < 60) return `há ${sec}s`;
-  const m = Math.floor(sec / 60);
-  if (m < 60) return `há ${m}min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `há ${h}h`;
-  return `há ${Math.floor(h / 24)}d`;
+  if (m > 0) return `${m}m`;
+  return `${sec}s`;
 }
 
 export function usePppoeSession(linkId: number, enabled: boolean = true) {
@@ -98,6 +75,11 @@ export function PppoeSessionBadge({ session }: { session: PppoeSessionData | und
   );
 }
 
+/**
+ * Quando ping falha mas PPPoE está ativo (contradição):
+ * mostra UM card compacto que combina o aviso + dados essenciais da sessão inline,
+ * substituindo o card verde de sessão E o card vermelho de "Sem Resposta".
+ */
 export function PppoeSessionContradictionAlert({
   linkId,
   linkStatus,
@@ -115,7 +97,6 @@ export function PppoeSessionContradictionAlert({
   if (!session || !session.active || !session.framedIpAddress) return null;
   if (linkStatus === "operational") return null;
 
-  // Só mostra alerta se ping falha mas PPPoE ativo (contradição real)
   const isOffline = linkStatus === "down" || linkStatus === "offline" || linkStatus === "degraded";
   if (!isOffline) return null;
 
@@ -143,147 +124,132 @@ export function PppoeSessionContradictionAlert({
 
   return (
     <Card className="border-amber-500/50 bg-amber-500/5" data-testid="alert-pppoe-contradiction">
-      <CardContent className="flex items-start gap-4 py-4">
-        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-          <AlertTriangle className="w-6 h-6 text-amber-500" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-amber-600 dark:text-amber-400">
-            Sessão PPPoE ativa, mas monitoramento por ping falhou
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            A sessão PPPoE de <span className="font-mono">{session.username}</span> está conectada
-            no concentrador <span className="font-mono">{session.nasIpAddress}</span> com IP{" "}
-            <span className="font-mono">{session.framedIpAddress}</span>. Isso indica que a fibra
-            está intacta e o CPE alimentado.
-          </p>
+      <CardContent className="py-3 px-4">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="font-semibold text-amber-600 dark:text-amber-400 text-sm">
+                PPPoE ativo, mas ping falhou — fibra intacta
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                <span className="font-mono">{session.username}</span> · online{" "}
+                {formatDuration(session.sessionDurationSec)}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+              <InlineField label="IP sessão" value={session.framedIpAddress} mono testId="text-pppoe-ip" />
+              {monitoredIp && (
+                <InlineField
+                  label="IP monitorado"
+                  value={monitoredIp}
+                  mono
+                  highlight={!!ipMismatch}
+                  testId="text-pppoe-monitored-ip"
+                />
+              )}
+              <InlineField label="MAC" value={session.callingStationId} mono testId="text-pppoe-mac" />
+              <InlineField label="Concentrador" value={session.nasIpAddress} mono testId="text-pppoe-nas" />
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-2">
+              {ipMismatch
+                ? "IP de monitoramento diverge do IP atual da sessão. Sincronize abaixo."
+                : "Possíveis causas: ICMP bloqueado no CPE, firewall do cliente, ou link com IP dinâmico sem useDynamicIp ativo."}
+            </p>
+          </div>
           {ipMismatch && (
-            <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-              <strong>Possível causa:</strong> o IP monitorado{" "}
-              <span className="font-mono">{monitoredIp}</span> diverge do IP atual da sessão{" "}
-              <span className="font-mono">{session.framedIpAddress}</span>. Atualize o IP de
-              monitoramento.
-            </p>
-          )}
-          {!ipMismatch && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Possíveis causas: ICMP bloqueado no CPE, firewall do cliente, ou link com IP dinâmico
-              sem <code className="text-xs">useDynamicIp</code> ativo.
-            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncIp}
+              data-testid="button-sync-pppoe-ip"
+              className="flex-shrink-0"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Sincronizar IP
+            </Button>
           )}
         </div>
-        {ipMismatch && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncIp}
-            data-testid="button-sync-pppoe-ip"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Sincronizar IP
-          </Button>
-        )}
       </CardContent>
     </Card>
   );
 }
 
+/**
+ * Card compacto da sessão PPPoE — usado quando o link está operacional.
+ * Quando há contradição (ping falha + PPPoE ativo), o ContradictionAlert assume.
+ */
 export function PppoeSessionCard({ session }: { session: PppoeSessionData | undefined }) {
   if (!session || !session.available) return null;
 
   if (!session.active) {
     return (
       <Card className="border-muted" data-testid="card-pppoe-session-inactive">
-        <CardContent className="flex items-center gap-4 py-4">
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-            <WifiOff className="w-5 h-5 text-muted-foreground" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm">Sessão PPPoE Inativa</h3>
-            <p className="text-xs text-muted-foreground">
-              Usuário <span className="font-mono">{session.username}</span> não possui sessão ativa
-              no RADIUS.
-            </p>
-          </div>
+        <CardContent className="flex items-center gap-3 py-2.5 px-4">
+          <WifiOff className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="text-sm">
+            <span className="font-semibold">PPPoE inativo</span>{" "}
+            <span className="text-muted-foreground">
+              · <span className="font-mono">{session.username}</span> sem sessão no concentrador
+            </span>
+          </span>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="border-emerald-500/40 bg-emerald-500/5" data-testid="card-pppoe-session-active">
-      <CardContent className="py-4">
-        <div className="flex items-start gap-3 mb-3">
-          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center">
-            <Wifi className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+    <Card
+      className="border-emerald-500/40 bg-emerald-500/5"
+      data-testid="card-pppoe-session-active"
+    >
+      <CardContent className="py-2.5 px-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <div className="flex items-center gap-2">
+            <Wifi className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+            <span className="font-semibold text-sm text-emerald-700 dark:text-emerald-300">
+              PPPoE Ativo
+            </span>
+            <span className="text-xs text-muted-foreground">
+              <span className="font-mono">{session.username}</span> · online{" "}
+              {formatDuration(session.sessionDurationSec)}
+            </span>
           </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-emerald-700 dark:text-emerald-300">
-              Sessão PPPoE Ativa
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {session.username} · online {formatDuration(session.sessionDurationSec)}
-            </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs ml-auto">
+            <InlineField label="IP" value={session.framedIpAddress} mono testId="text-pppoe-ip" />
+            <InlineField label="MAC" value={session.callingStationId} mono testId="text-pppoe-mac" />
+            <InlineField label="Concentrador" value={session.nasIpAddress} mono testId="text-pppoe-nas" />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-          <SessionField label="IP atribuído" value={session.framedIpAddress} mono testId="text-pppoe-ip" />
-          <SessionField label="MAC do CPE" value={session.callingStationId} mono testId="text-pppoe-mac" />
-          <SessionField label="Concentrador" value={session.nasIpAddress} mono testId="text-pppoe-nas" />
-          {session.nasPortId && (
-            <SessionField label="Porta NAS" value={session.nasPortId} mono testId="text-pppoe-nasport" />
-          )}
-          <SessionField
-            label="Início da sessão"
-            value={
-              session.acctStartTime
-                ? new Date(session.acctStartTime).toLocaleString("pt-BR")
-                : null
-            }
-            testId="text-pppoe-start"
-          />
-          <SessionField
-            label="Última atualização"
-            value={formatRelativeAgo(session.lastUpdateAgoSec)}
-            testId="text-pppoe-update"
-          />
-          <SessionField
-            label="Tráfego entrada"
-            value={formatBytes(session.inputOctets)}
-            testId="text-pppoe-input"
-          />
-          <SessionField
-            label="Tráfego saída"
-            value={formatBytes(session.outputOctets)}
-            testId="text-pppoe-output"
-          />
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function SessionField({
+function InlineField({
   label,
   value,
   mono,
+  highlight,
   testId,
 }: {
   label: string;
   value: string | null | undefined;
   mono?: boolean;
+  highlight?: boolean;
   testId?: string;
 }) {
   return (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={`text-sm ${mono ? "font-mono" : ""}`}
+    <span className="inline-flex items-baseline gap-1">
+      <span className="text-muted-foreground">{label}:</span>
+      <span
+        className={`${mono ? "font-mono" : ""} ${highlight ? "text-amber-600 dark:text-amber-400 font-semibold" : ""}`}
         data-testid={testId}
       >
         {value || "—"}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
