@@ -1416,6 +1416,27 @@ export async function registerRoutes(
 
   // Sessão PPPoE atual no RADIUS — exposta pra UI mostrar IP/MAC/uptime
   // e pra detectar contradição com status=offline (fibra intacta vs ping ruim).
+  // Helper: converte uptime do Mikrotik (ex: "10d01:23:23", "1w2d3h", "5m30s") em segundos.
+  function parseUptimeToSeconds(uptime: string | null): number | null {
+    if (!uptime) return null;
+    let total = 0;
+    const re = /(\d+)([wdhms])/g;
+    const mult: Record<string, number> = { w: 604800, d: 86400, h: 3600, m: 60, s: 1 };
+    let m: RegExpExecArray | null;
+    let matched = false;
+    while ((m = re.exec(uptime)) !== null) {
+      matched = true;
+      total += parseInt(m[1], 10) * (mult[m[2]] || 0);
+    }
+    // Formato fallback "HH:MM:SS" anexado a dias (ex: "10d01:23:23")
+    const colon = uptime.match(/(\d+):(\d+):(\d+)$/);
+    if (colon) {
+      total += parseInt(colon[1], 10) * 3600 + parseInt(colon[2], 10) * 60 + parseInt(colon[3], 10);
+      matched = true;
+    }
+    return matched ? total : null;
+  }
+
   app.get("/api/links/:id/pppoe-session", requireAuth, async (req, res) => {
     try {
       const linkId = parseInt(req.params.id, 10);
@@ -1432,38 +1453,76 @@ export async function registerRoutes(
         });
       }
 
+      // 1. Tenta primeiro RADIUS (radacct) — funciona quando o concentrador
+      // envia accounting RADIUS pro FreeRADIUS.
       const { getRadiusSessionByUsername } = await import("./radius");
       const session = await getRadiusSessionByUsername(link.pppoeUser);
 
-      if (!session) {
+      if (session) {
+        const now = Date.now();
+        const startMs = session.acctStartTime ? new Date(session.acctStartTime).getTime() : null;
+        const updateMs = session.acctUpdateTime ? new Date(session.acctUpdateTime).getTime() : null;
+        const sessionDurationSec = startMs ? Math.floor((now - startMs) / 1000) : (session.acctSessionTime || null);
+        const lastUpdateAgoSec = updateMs ? Math.floor((now - updateMs) / 1000) : null;
+
         return res.json({
           available: true,
-          active: false,
-          username: link.pppoeUser,
-          message: "Nenhuma sessão PPPoE ativa para este usuário",
+          active: true,
+          source: "radius",
+          username: session.username,
+          framedIpAddress: session.framedIpAddress,
+          callingStationId: session.callingStationId,
+          nasIpAddress: session.nasIpAddress,
+          nasPortId: session.nasPortId,
+          acctStartTime: session.acctStartTime,
+          acctUpdateTime: session.acctUpdateTime,
+          sessionDurationSec,
+          lastUpdateAgoSec,
+          inputOctets: session.acctInputOctets,
+          outputOctets: session.acctOutputOctets,
         });
       }
 
-      const now = Date.now();
-      const startMs = session.acctStartTime ? new Date(session.acctStartTime).getTime() : null;
-      const updateMs = session.acctUpdateTime ? new Date(session.acctUpdateTime).getTime() : null;
-      const sessionDurationSec = startMs ? Math.floor((now - startMs) / 1000) : (session.acctSessionTime || null);
-      const lastUpdateAgoSec = updateMs ? Math.floor((now - updateMs) / 1000) : null;
+      // 2. Fallback: consulta direta no concentrador via API Mikrotik (/ppp/active).
+      // Necessário pra PPPoE local (sem RADIUS accounting).
+      if ((link as any).concentratorId) {
+        try {
+          const { storage } = await import("./storage");
+          const { getMikrotikPppoeSessionByUsername } = await import("./concentrator");
+          const concentrator = await storage.getConcentrator((link as any).concentratorId);
+          if (concentrator) {
+            const mtSession = await getMikrotikPppoeSessionByUsername(concentrator, link.pppoeUser);
+            if (mtSession) {
+              // Converte uptime Mikrotik (ex: "10d01:23:23" ou "1w2d3h") em segundos
+              const uptimeSec = parseUptimeToSeconds(mtSession.uptime);
+              return res.json({
+                available: true,
+                active: true,
+                source: "mikrotik",
+                username: mtSession.username,
+                framedIpAddress: mtSession.framedIpAddress,
+                callingStationId: mtSession.callingStationId,
+                nasIpAddress: mtSession.nasIpAddress,
+                nasPortId: null,
+                acctStartTime: null,
+                acctUpdateTime: null,
+                sessionDurationSec: uptimeSec,
+                lastUpdateAgoSec: null,
+                inputOctets: null,
+                outputOctets: null,
+              });
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[PPPoE Session] Mikrotik fallback falhou: ${err?.message || err}`);
+        }
+      }
 
-      res.json({
+      return res.json({
         available: true,
-        active: true,
-        username: session.username,
-        framedIpAddress: session.framedIpAddress,
-        callingStationId: session.callingStationId,
-        nasIpAddress: session.nasIpAddress,
-        nasPortId: session.nasPortId,
-        acctStartTime: session.acctStartTime,
-        acctUpdateTime: session.acctUpdateTime,
-        sessionDurationSec,
-        lastUpdateAgoSec,
-        inputOctets: session.acctInputOctets,
-        outputOctets: session.acctOutputOctets,
+        active: false,
+        username: link.pppoeUser,
+        message: "Nenhuma sessão PPPoE ativa para este usuário (RADIUS e concentrador consultados)",
       });
     } catch (error) {
       console.error("[PPPoE Session] Erro:", error);

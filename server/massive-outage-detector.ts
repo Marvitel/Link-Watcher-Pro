@@ -301,6 +301,8 @@ export async function detectMassiveOutages(): Promise<{
     ));
 
     if (pppoeUsers.length > 0) {
+      // a) Tenta RADIUS primeiro (radacct) — funciona pra concentradores que enviam accounting.
+      const activeSet = new Set<string>();
       const { getRadiusDbPool } = await import("./radius");
       const pool = await getRadiusDbPool();
       if (pool) {
@@ -311,40 +313,70 @@ export async function detectMassiveOutages(): Promise<{
             `SELECT DISTINCT username FROM radacct WHERE acctstoptime IS NULL AND username IN (${placeholders})`,
             pppoeUsers,
           );
-          const activeSet = new Set<string>(result.rows.map((r: any) => r.username));
-          if (activeSet.size > 0) {
-            const before = offline.length;
-            const skippedLinks = offlineRaw.filter((l) => l.pppoeUser && activeSet.has(l.pppoeUser));
-            offline = offlineRaw.filter((l) => !l.pppoeUser || !activeSet.has(l.pppoeUser));
-            const skipped = before - offline.length;
-            if (skipped > 0) {
-              console.log(`[MassiveOutage] Excluídos ${skipped} links offline com sessão PPPoE ativa (fibra intacta)`);
-
-              // Cria evento de divergência por link (uma vez por link, dedup via getLatestUnresolvedLinkEvent)
-              try {
-                const { storage } = await import("./storage");
-                for (const l of skippedLinks) {
-                  const existing = await storage.getLatestUnresolvedLinkEvent(l.id, "ip_mismatch");
-                  if (existing) continue;
-                  await db.insert(events).values({
-                    linkId: l.id,
-                    clientId: l.clientId,
-                    type: "ip_mismatch",
-                    title: "Divergência: ping falha mas PPPoE ativo",
-                    description:
-                      `O ping ao IP monitorado (${l.monitoredIp || 'não definido'}) está falhando, ` +
-                      `mas o usuário PPPoE ${l.pppoeUser} possui sessão ativa no RADIUS — a fibra está intacta. ` +
-                      `Possíveis causas: IP de monitoramento desatualizado, ICMP bloqueado no CPE, ou link dinâmico sem useDynamicIp.`,
-                    resolved: false,
-                  });
-                }
-              } catch (evErr: any) {
-                console.warn(`[MassiveOutage] Falha ao registrar evento monitoring_ip_mismatch: ${evErr?.message || evErr}`);
-              }
-            }
-          }
+          for (const r of result.rows) activeSet.add(r.username);
         } finally {
           client.release();
+        }
+      }
+
+      // b) Fallback Mikrotik: pra links cujo PPPoE não apareceu no RADIUS, consulta
+      // direto os concentradores (uma chamada por concentrador, agrupada).
+      const remainingLinks = offlineRaw.filter((l) => l.pppoeUser && !activeSet.has(l.pppoeUser));
+      const concentratorIds = Array.from(new Set(
+        remainingLinks
+          .map((l) => (l as any).concentratorId)
+          .filter((id): id is number => typeof id === "number" && id > 0)
+      ));
+      if (concentratorIds.length > 0) {
+        try {
+          const { storage } = await import("./storage");
+          const { getMikrotikActivePppoeUsernames } = await import("./concentrator");
+          const concentrators = await Promise.all(concentratorIds.map((id) => storage.getConcentrator(id)));
+          // Limita concorrência (5 simultâneos) pra não saturar a rede de gestão
+          // nem abrir conexões RouterOS demais em ciclos grandes.
+          const POOL = 5;
+          for (let i = 0; i < concentrators.length; i += POOL) {
+            const batch = concentrators.slice(i, i + POOL);
+            await Promise.all(batch.map(async (c) => {
+              if (!c) return;
+              const usernames = await getMikrotikActivePppoeUsernames(c);
+              for (const u of usernames) activeSet.add(u);
+            }));
+          }
+        } catch (mtErr: any) {
+          console.warn(`[MassiveOutage] Fallback Mikrotik falhou: ${mtErr?.message || mtErr}`);
+        }
+      }
+
+      if (activeSet.size > 0) {
+        const before = offline.length;
+        const skippedLinks = offlineRaw.filter((l) => l.pppoeUser && activeSet.has(l.pppoeUser));
+        offline = offlineRaw.filter((l) => !l.pppoeUser || !activeSet.has(l.pppoeUser));
+        const skipped = before - offline.length;
+        if (skipped > 0) {
+          console.log(`[MassiveOutage] Excluídos ${skipped} links offline com sessão PPPoE ativa (fibra intacta)`);
+
+          // Cria evento de divergência por link (uma vez por link, dedup via getLatestUnresolvedLinkEvent)
+          try {
+            const { storage } = await import("./storage");
+            for (const l of skippedLinks) {
+              const existing = await storage.getLatestUnresolvedLinkEvent(l.id, "ip_mismatch");
+              if (existing) continue;
+              await db.insert(events).values({
+                linkId: l.id,
+                clientId: l.clientId,
+                type: "ip_mismatch",
+                title: "Divergência: ping falha mas PPPoE ativo",
+                description:
+                  `O ping ao IP monitorado (${l.monitoredIp || 'não definido'}) está falhando, ` +
+                  `mas o usuário PPPoE ${l.pppoeUser} possui sessão ativa no concentrador — a fibra está intacta. ` +
+                  `Possíveis causas: IP de monitoramento desatualizado, ICMP bloqueado no CPE, ou link dinâmico sem useDynamicIp.`,
+                resolved: false,
+              });
+            }
+          } catch (evErr: any) {
+            console.warn(`[MassiveOutage] Falha ao registrar evento ip_mismatch: ${evErr?.message || evErr}`);
+          }
         }
       }
     }

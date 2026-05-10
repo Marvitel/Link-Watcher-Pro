@@ -41,6 +41,9 @@ Integration with Cisco ASR/ISR routers supports PPPoE concentrator functions, in
 ### Optical Signal Monitoring
 Per-link optical signal monitoring uses a cascading fallback mechanism: OLT via SNMP (primary), Zabbix MySQL (fallback), and Flashman ACS (fallback for neutral networks). It supports various OLT vendors and detects optical signal deltas. Cisco Nexus SFP optical sensors are auto-discovered.
 
+### PPPoE Session Detection (RADIUS + Mikrotik fallback)
+A UI do link mostra um badge/card de sessão PPPoE ativa via `GET /api/links/:id/pppoe-session`. O backend tenta primeiro `radacct` (FreeRADIUS via `getRadiusSessionByUsername`), e se não encontrar, faz fallback pra API binária do concentrador Mikrotik (`/ppp/active`) usando `getMikrotikPppoeSessionByUsername(concentrator, username)`. Necessário porque muitos Mikrotiks fazem PPPoE com user local sem mandar accounting pro RADIUS. O detector de rompimento massivo (`server/massive-outage-detector.ts`) usa o mesmo fallback em modo bulk: agrupa links offline por `concentratorId` e chama `getMikrotikActivePppoeUsernames(concentrator)` UMA vez por concentrador (paralelo). Quando um link offline é filtrado por ter PPPoE ativo, registra evento `ip_mismatch` (deduplicado via `getLatestUnresolvedLinkEvent`).
+
 ### Dynamic IP (PPPoE) Handling
 The system supports dynamic IP addresses for CPEs via a `useDynamicIp` field, prioritizing `links.monitoredIp` over static overrides. A centralized helper (`resolveCpeIp`) manages IP resolution. Voalle imports automatically enable `useDynamicIp` for PPPoE/corporate links.
 

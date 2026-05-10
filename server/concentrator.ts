@@ -124,6 +124,148 @@ export async function lookupMacViaMikrotikApi(
 }
 
 /**
+ * Busca sessão PPPoE ativa por username diretamente no Mikrotik via API binária.
+ * Usado como fallback quando o RADIUS não tem accounting (PPPoE local no concentrador).
+ * Retorna null se o vendor não for Mikrotik, se faltar credenciais, ou se não houver sessão.
+ */
+export interface MikrotikPppoeSession {
+  username: string;
+  framedIpAddress: string | null;
+  callingStationId: string | null;
+  uptime: string | null;
+  service: string | null;
+  nasIpAddress: string;
+}
+
+export async function getMikrotikPppoeSessionByUsername(
+  concentrator: SnmpConcentrator,
+  username: string,
+): Promise<MikrotikPppoeSession | null> {
+  const vendor = (concentrator.vendor || "").toLowerCase();
+  if (vendor && vendor !== "mikrotik" && vendor !== "mikrotikls" && vendor !== "routerboard") {
+    return null;
+  }
+  const sshUser = concentrator.sshUser;
+  let password = concentrator.sshPassword;
+  if (!sshUser || !password || !concentrator.ipAddress) {
+    return null;
+  }
+  if (isEncrypted(password)) {
+    try {
+      password = decrypt(password);
+    } catch {
+      return null;
+    }
+  }
+
+  const port = 8728;
+  let api: any = null;
+  try {
+    api = new RouterOSClient({
+      host: concentrator.ipAddress,
+      user: sshUser,
+      password: password!,
+      port,
+      timeout: 8000,
+    });
+    const client: any = await api.connect();
+    if (client && typeof client.on === "function") {
+      client.on("error", () => {});
+    }
+    const rows = (await client
+      .menu("/ppp/active")
+      .where("name", username)
+      .get()) as Array<Record<string, any>>;
+
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+    const s = rows[0];
+    return {
+      username: s.name || username,
+      framedIpAddress: s.address || null,
+      callingStationId: s["caller-id"] || s.callerId || null,
+      uptime: s.uptime || null,
+      service: s.service || null,
+      nasIpAddress: concentrator.ipAddress,
+    };
+  } catch (err: any) {
+    console.log(
+      `[Mikrotik PPPoE] Falha em ${concentrator.ipAddress} buscando ${username}: ${err?.message || err}`,
+    );
+    return null;
+  } finally {
+    if (api) {
+      try {
+        await api.close();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+/**
+ * Lista TODOS os usernames de sessões PPPoE ativas no concentrador Mikrotik.
+ * Usado em bulk pelo detector de rompimento massivo pra excluir links com PPPoE
+ * ativo numa única chamada por concentrador (evita N+1).
+ */
+export async function getMikrotikActivePppoeUsernames(
+  concentrator: SnmpConcentrator,
+): Promise<Set<string>> {
+  const result = new Set<string>();
+  const vendor = (concentrator.vendor || "").toLowerCase();
+  if (vendor && vendor !== "mikrotik" && vendor !== "mikrotikls" && vendor !== "routerboard") {
+    return result;
+  }
+  const sshUser = concentrator.sshUser;
+  let password = concentrator.sshPassword;
+  if (!sshUser || !password || !concentrator.ipAddress) {
+    return result;
+  }
+  if (isEncrypted(password)) {
+    try {
+      password = decrypt(password);
+    } catch {
+      return result;
+    }
+  }
+
+  const port = 8728;
+  let api: any = null;
+  try {
+    api = new RouterOSClient({
+      host: concentrator.ipAddress,
+      user: sshUser,
+      password: password!,
+      port,
+      timeout: 10000,
+    });
+    const client: any = await api.connect();
+    if (client && typeof client.on === "function") {
+      client.on("error", () => {});
+    }
+    const rows = (await client.menu("/ppp/active").get()) as Array<Record<string, any>>;
+    for (const r of rows || []) {
+      if (r.name) result.add(String(r.name));
+    }
+  } catch (err: any) {
+    console.log(
+      `[Mikrotik PPPoE bulk] Falha em ${concentrator.ipAddress}: ${err?.message || err}`,
+    );
+  } finally {
+    if (api) {
+      try {
+        await api.close();
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * Executa uma consulta arbitrária no Mikrotik via API binária.
  * Suporta menus /ip/arp, /ip/route, /ppp/active, /interface, etc.
  * Os filtros são pares chave→valor que viram cláusulas .where(k,v).
