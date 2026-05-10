@@ -45,32 +45,21 @@ export function usePppoeSession(linkId: number, enabled: boolean = true) {
 }
 
 export function PppoeSessionBadge({ session }: { session: PppoeSessionData | undefined }) {
-  if (!session || !session.available) return null;
-
-  if (session.active) {
-    return (
-      <Badge
-        variant="outline"
-        className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1.5"
-        data-testid="badge-pppoe-connected"
-      >
-        <Wifi className="w-3 h-3" />
-        PPPoE Conectado
-        {session.framedIpAddress && (
-          <span className="font-mono text-[10px] opacity-80">· {session.framedIpAddress}</span>
-        )}
-      </Badge>
-    );
-  }
+  // Só mostra badge quando há sessão PPPoE ATIVA — evita ruído em links dedicados
+  // (sem PPPoE) e o estado "desconectado" já é coberto pelo card de falha vermelho.
+  if (!session || !session.available || !session.active) return null;
 
   return (
     <Badge
       variant="outline"
-      className="bg-muted text-muted-foreground border-muted-foreground/30 gap-1.5"
-      data-testid="badge-pppoe-disconnected"
+      className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1.5"
+      data-testid="badge-pppoe-connected"
     >
-      <WifiOff className="w-3 h-3" />
-      PPPoE Desconectado
+      <Wifi className="w-3 h-3" />
+      PPPoE Conectado
+      {session.framedIpAddress && (
+        <span className="font-mono text-[10px] opacity-80">· {session.framedIpAddress}</span>
+      )}
     </Badge>
   );
 }
