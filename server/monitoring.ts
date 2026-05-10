@@ -3437,8 +3437,15 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
     // Verificar se o uso de banda está acima de 90% da capacidade contratada
     const bandwidthCapacity = link.bandwidth || 0; // Mbps
     if (bandwidthCapacity > 0) {
-      const downloadUsagePercent = (safeDownload / bandwidthCapacity) * 100;
-      const uploadUsagePercent = (safeUpload / bandwidthCapacity) * 100;
+      // Aplica regra de inversão (igual à UI: invertBandwidth=false é o PADRÃO e inverte;
+      // invertBandwidth=true mantém o valor original do coletor). Sem isso, o rótulo do
+      // evento sai trocado pra maioria dos links (concentradores), mostrando "Upload congestionado"
+      // quando na verdade é o Download do cliente que está saturado (e vice-versa).
+      const keepOriginal = link.invertBandwidth ?? false;
+      const effectiveDownload = keepOriginal ? safeDownload : safeUpload;
+      const effectiveUpload = keepOriginal ? safeUpload : safeDownload;
+      const downloadUsagePercent = (effectiveDownload / bandwidthCapacity) * 100;
+      const uploadUsagePercent = (effectiveUpload / bandwidthCapacity) * 100;
       const maxUsagePercent = Math.max(downloadUsagePercent, uploadUsagePercent);
       const congestionThreshold = 90; // 90% padrão
       
@@ -3454,7 +3461,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
       const hasCongestionEvent = activeCongestionEvent.length > 0;
       
       if (maxUsagePercent >= congestionThreshold && !hasCongestionEvent && !isContractBlocked) {
-        // Criar evento de congestionamento
+        // Criar evento de congestionamento (direção já considera invertBandwidth)
         const direction = downloadUsagePercent > uploadUsagePercent ? 'Download' : 'Upload';
         await db.insert(events).values({
           linkId: link.id,
