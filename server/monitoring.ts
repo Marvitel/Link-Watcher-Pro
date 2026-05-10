@@ -3115,9 +3115,14 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
 
 async function processLinkMetrics(link: typeof links.$inferSelect): Promise<boolean> {
   if (!link.monitoringEnabled) return true;
+  // Aborta cedo em shutdown: evita db.update(links) e geração de evento
+  // a partir de coleta interrompida pelo SIGTERM (ping morto = falso positivo).
+  if (isShuttingDown) return true;
 
   try {
     const collectedMetrics = await collectLinkMetrics(link);
+    // Recheck após o await: o SIGTERM pode ter chegado durante o ping.
+    if (isShuttingDown) return true;
 
     const currentUptime = link.uptime || 99;
     let newUptime = currentUptime;
@@ -3777,6 +3782,7 @@ async function processLinkMetrics(link: typeof links.$inferSelect): Promise<bool
 const fastCollecting = new Set<number>(); // evita coletas concorrentes do mesmo link
 
 async function collectWatchedLinksFast(): Promise<void> {
+  if (isShuttingDown) return;
   const now = Date.now();
   for (const [linkId, ts] of watchedLinks.entries()) {
     if (now - ts >= WATCH_EXPIRY_MS) {
@@ -3803,6 +3809,7 @@ async function collectWatchedLinksFast(): Promise<void> {
 }
 
 export async function collectAllLinksMetrics(): Promise<void> {
+  if (isShuttingDown) return;
   if (isCollecting) {
     console.log(`[Monitor] Previous collection cycle still running, skipping this cycle`);
     return;
