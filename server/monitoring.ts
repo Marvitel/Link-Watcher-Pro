@@ -2345,7 +2345,13 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               trafficSourceIfIndex,
               link.snmpInterfaceName
             );
-            if (verification.actualAlias && !link.snmpInterfaceAlias) {
+            // Auto-store de ifAlias: SOMENTE pra interfaces estáveis (BDI, sub-interfaces, GPON).
+            // Em Cisco Vi com concentrador, o slot Vi pode estar servindo QUALQUER cliente PPPoE
+            // a qualquer momento — gravar o alias do "ocupante atual" como pppoeUser/snmpInterfaceAlias
+            // contamina o link permanentemente (knownAlias passa a bater com actualAlias do cliente errado
+            // e o mismatch detector nunca dispara). Pra esses links, pppoeUser deve vir do cadastro.
+            const isCiscoViForAutoStore = isCiscoViInterface && isConcentratorLink;
+            if (verification.actualAlias && !link.snmpInterfaceAlias && !isCiscoViForAutoStore) {
               const aliasUpdate: Record<string, any> = { snmpInterfaceAlias: verification.actualAlias };
               if (!link.pppoeUser) {
                 aliasUpdate.pppoeUser = verification.actualAlias;
@@ -2354,6 +2360,10 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 console.log(`[Monitor] ${link.name}: Storing discovered ifAlias "${verification.actualAlias}" for ifIndex ${trafficSourceIfIndex}`);
               }
               await db.update(links).set(aliasUpdate).where(eq(links.id, link.id));
+            } else if (verification.actualAlias && isCiscoViForAutoStore && !knownAlias) {
+              // Cisco Vi sem pppoeUser cadastrado: não conseguimos validar se o ocupante atual
+              // é o cliente certo. Logar warning pra evidenciar a falta de cadastro.
+              console.warn(`[Monitor] ${link.name}: Cisco Vi ifIndex ${trafficSourceIfIndex} retornou alias "${verification.actualAlias}" mas o link não tem pppoeUser cadastrado — IMPOSSÍVEL validar se é o cliente correto. Cadastre o pppoeUser pra evitar coletar tráfego de outro cliente.`);
             }
             
             // CRITICAL: When SNMP returns null (timeout/unreachable), DO NOT clear the ifIndex!
