@@ -35,6 +35,8 @@ The project uses a monorepo structure (`client/`, `server/`, `shared/`) with pat
 ### SNMP Traffic Collection
 The system supports multiple traffic data sources and collects metrics from additional interfaces, ensuring per-minute timestamp alignment. It includes robust delta protection for SNMP octet counters and a per-link sanity clamp to discard physically impossible bandwidth samples. Auto-discovery of `ifIndex` is implemented with a failover mechanism.
 
+**Cisco PPPoE Vi destruída — detecção imediata**: Em concentradores Cisco, cada sessão PPPoE aloca um `Virtual-Access` (Vi3.123) novo; ao desconectar, o Cisco DESTRÓI a Vi (ifIndex passa a retornar `noSuchInstance` no SNMP). `verifyInterfaceAtIndex` agora distingue 3 casos: (a) **timeout real** → mantém ifIndex (rede pode ter caído), (b) **erro SNMP genérico** → mantém ifIndex, (c) **noSuchInstance/noSuchObject em ifName + ifDescr + ifAlias** → marca `interfaceMissing=true`. No callsite (loop principal de coleta), quando `interfaceMissing=true` E o link é Cisco Vi com concentrador, limpa imediatamente `snmpInterfaceIndex/Name/Descr` e força re-descoberta no próximo ciclo, sem esperar `IFINDEX_MISMATCH_THRESHOLD` acumular (que poderia levar vários minutos). Antes, esses 3 casos eram tratados como timeout indistintamente, então o sistema ficava grudado no Vi velho.
+
 ### Concentrator Integration
 Integration with Cisco ASR/ISR routers supports PPPoE concentrator functions, including interface discovery, PPPoE username retrieval, and MAC address limitations. It collects ONU ID via OLT and supports vendor auto-detection.
 

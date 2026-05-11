@@ -892,35 +892,53 @@ async function verifyInterfaceAtIndex(
   profile: SnmpProfile,
   ifIndex: number,
   expectedName: string
-): Promise<{ matches: boolean; actualName: string | null; actualAlias: string | null }> {
+): Promise<{ matches: boolean; actualName: string | null; actualAlias: string | null; interfaceMissing: boolean }> {
   return new Promise((resolve) => {
+    let resolved = false;
+    const safeResolve = (v: { matches: boolean; actualName: string | null; actualAlias: string | null; interfaceMissing: boolean }) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(v);
+    };
+    let session: ReturnType<typeof createSnmpSession> | null = null;
+    let sessionClosed = false;
+    const closeSession = () => {
+      if (session && !sessionClosed) {
+        sessionClosed = true;
+        try { session.close(); } catch {}
+      }
+    };
     try {
-      const session = createSnmpSession(targetIp, profile);
+      session = createSnmpSession(targetIp, profile);
       const ifDescrOid = `1.3.6.1.2.1.2.2.1.2.${ifIndex}`;
       const ifNameOid = `1.3.6.1.2.1.31.1.1.1.1.${ifIndex}`;
       const ifAliasOid = `1.3.6.1.2.1.31.1.1.1.18.${ifIndex}`;
-
-      let sessionClosed = false;
-      const closeSession = () => {
-        if (!sessionClosed) {
-          sessionClosed = true;
-          try { session.close(); } catch {}
-        }
-      };
 
       const snmpSession = session as unknown as {
         get: (oids: string[], callback: (error: Error | null, varbinds: any[]) => void) => void
       };
 
+      const timer = setTimeout(() => {
+        closeSession();
+        // Timeout real (device sem resposta): NÃO marca interfaceMissing.
+        safeResolve({ matches: false, actualName: null, actualAlias: null, interfaceMissing: false });
+      }, profile.timeout + 2000);
+
       snmpSession.get([ifNameOid, ifDescrOid, ifAliasOid], (error: Error | null, varbinds: any[]) => {
+        clearTimeout(timer);
         closeSession();
         if (error || !varbinds || varbinds.length < 2) {
-          resolve({ matches: false, actualName: null, actualAlias: null });
+          // Erro genuíno de SNMP: NÃO marca interfaceMissing.
+          safeResolve({ matches: false, actualName: null, actualAlias: null, interfaceMissing: false });
           return;
         }
 
+        // type 128 = noSuchObject, type 129 = noSuchInstance, type 130 = endOfMibView
+        const isMissingVarbind = (vb: any): boolean =>
+          !vb || vb.value === undefined || vb.type === 128 || vb.type === 129 || vb.type === 130;
+
         const extractValue = (vb: any): string | null => {
-          if (!vb || vb.value === undefined || vb.type === 128 || vb.type === 129) return null;
+          if (isMissingVarbind(vb)) return null;
           const val = Buffer.isBuffer(vb.value) ? vb.value.toString('utf8') : String(vb.value);
           if (!val || val.length === 0 || val === 'noSuchInstance' || val === 'noSuchObject') return null;
           return val.trim();
@@ -932,8 +950,15 @@ async function verifyInterfaceAtIndex(
 
         const actualName = actualIfName || actualIfDescr;
 
+        // Cisco PPPoE: quando a sessão derruba, o Vi virtual é DESTRUÍDO no ifTable.
+        // O device responde (sem timeout) mas todos os 3 OIDs vêm como noSuchInstance/noSuchObject.
+        // Isso é diferente de timeout — significa que a interface confirmadamente sumiu.
+        // Marcamos `interfaceMissing=true` pra que o callsite limpe o ifIndex imediatamente
+        // em vez de esperar o threshold de mismatch acumular.
+        const interfaceMissing = !actualName && !actualAlias && varbinds.every(isMissingVarbind);
+
         if (!actualName) {
-          resolve({ matches: false, actualName: null, actualAlias });
+          safeResolve({ matches: false, actualName: null, actualAlias, interfaceMissing });
           return;
         }
 
@@ -951,15 +976,10 @@ async function verifyInterfaceAtIndex(
                             normalizedAlias.includes(normalizedExpected) ||
                             normalizedExpected.includes(normalizedAlias));
         const matches = nameMatches || aliasMatches;
-        resolve({ matches, actualName, actualAlias });
+        safeResolve({ matches, actualName, actualAlias, interfaceMissing: false });
       });
-
-      setTimeout(() => {
-        closeSession();
-        resolve({ matches: false, actualName: null, actualAlias: null });
-      }, profile.timeout + 2000);
     } catch {
-      resolve({ matches: false, actualName: null, actualAlias: null });
+      safeResolve({ matches: false, actualName: null, actualAlias: null, interfaceMissing: false });
     }
   });
 }
@@ -2340,8 +2360,26 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             // null means we couldn't reach the device, NOT that the interface doesn't exist.
             // Only clear when we get a POSITIVE response that the interface changed.
             if (verification.actualName === null && verification.actualAlias === null) {
-              // SNMP timeout or device unreachable - keep current ifIndex, just log warning
-              console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verification skipped - SNMP timeout/unreachable on ${trafficSourceIp}. Keeping current interface settings.`);
+              if (verification.interfaceMissing && isCiscoViInterface && isConcentratorLink) {
+                // Cisco PPPoE: o device respondeu com noSuchInstance em todos os OIDs —
+                // a Virtual-Access foi DESTRUÍDA (cliente desconectou). Limpa o ifIndex
+                // imediatamente pra forçar re-descoberta na próxima coleta, sem esperar
+                // o threshold de mismatch acumular (que poderia levar minutos).
+                console.log(`[Monitor] ${link.name}: *** CISCO Vi DESTRUÍDA *** ifIndex ${trafficSourceIfIndex} (${link.snmpInterfaceName}) retornou noSuchInstance — sessão PPPoE encerrada. Limpando ifIndex para re-descoberta imediata.`);
+                trafficDataSuccess = false;
+                previousTrafficData.delete(link.id);
+                trafficSourceIfIndex = null;
+                lastIfNameVerification.delete(link.id);
+                await db.update(links).set({
+                  snmpInterfaceIndex: null,
+                  snmpInterfaceName: null,
+                  snmpInterfaceDescr: null,
+                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1
+                }).where(eq(links.id, link.id));
+              } else {
+                // SNMP timeout ou device inacessível - mantém ifIndex atual, só loga.
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verification skipped - SNMP timeout/unreachable on ${trafficSourceIp}. Keeping current interface settings.`);
+              }
             }
             // For concentrator PPPoE links (Cisco Vi interfaces): verify alias (PPPoE username)
             // Vi interface NAMES stay the same across sessions (Vi1.13 stays Vi1.13)
