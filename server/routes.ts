@@ -1487,38 +1487,81 @@ export async function registerRoutes(
         });
       }
 
-      // 2. Fallback: consulta direta no concentrador via API Mikrotik (/ppp/active).
+      // 2. Fallback: consulta direta no concentrador.
+      // - Mikrotik: API binária /ppp/active
+      // - Cisco: SNMP no Vi salvo (ifAlias/ifDescr) ou via routing table (monitoredIp)
       // Necessário pra PPPoE local (sem RADIUS accounting).
       if ((link as any).concentratorId) {
         try {
           const { storage } = await import("./storage");
-          const { getMikrotikPppoeSessionByUsername } = await import("./concentrator");
           const concentrator = await storage.getConcentrator((link as any).concentratorId);
           if (concentrator) {
-            const mtSession = await getMikrotikPppoeSessionByUsername(concentrator, link.pppoeUser);
-            if (mtSession) {
-              // Converte uptime Mikrotik (ex: "10d01:23:23" ou "1w2d3h") em segundos
-              const uptimeSec = parseUptimeToSeconds(mtSession.uptime);
-              return res.json({
-                available: true,
-                active: true,
-                source: "mikrotik",
-                username: mtSession.username,
-                framedIpAddress: mtSession.framedIpAddress,
-                callingStationId: mtSession.callingStationId,
-                nasIpAddress: mtSession.nasIpAddress,
-                nasPortId: null,
-                acctStartTime: null,
-                acctUpdateTime: null,
-                sessionDurationSec: uptimeSec,
-                lastUpdateAgoSec: null,
-                inputOctets: null,
-                outputOctets: null,
+            const concVendor = (concentrator.vendor || "").toLowerCase();
+            const isCisco = concVendor === "cisco" || concVendor === "ciscosystems" || concVendor === "ciscosystemsinc";
+            const isMikrotik = concVendor === "mikrotik" || concVendor === "mikrotikls" || concVendor === "routerboard";
+
+            if (isMikrotik || !isCisco) {
+              const { getMikrotikPppoeSessionByUsername } = await import("./concentrator");
+              const mtSession = await getMikrotikPppoeSessionByUsername(concentrator, link.pppoeUser);
+              if (mtSession) {
+                const uptimeSec = parseUptimeToSeconds(mtSession.uptime);
+                return res.json({
+                  available: true,
+                  active: true,
+                  source: "mikrotik",
+                  username: mtSession.username,
+                  framedIpAddress: mtSession.framedIpAddress,
+                  callingStationId: mtSession.callingStationId,
+                  nasIpAddress: mtSession.nasIpAddress,
+                  nasPortId: null,
+                  acctStartTime: null,
+                  acctUpdateTime: null,
+                  sessionDurationSec: uptimeSec,
+                  lastUpdateAgoSec: null,
+                  inputOctets: null,
+                  outputOctets: null,
+                });
+              }
+            }
+
+            if (isCisco) {
+              const { getCiscoPppoeSessionByUsername } = await import("./concentrator");
+              const { db } = await import("./db");
+              const { snmpProfiles } = await import("@shared/schema");
+              const { eq } = await import("drizzle-orm");
+              let ciscoProfile: any = null;
+              if (concentrator.snmpProfileId) {
+                const [r] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentrator.snmpProfileId));
+                ciscoProfile = r || null;
+              }
+              const ciscoSession = await getCiscoPppoeSessionByUsername(concentrator, link.pppoeUser, {
+                ifIndex: (link as any).snmpInterfaceIndex || null,
+                monitoredIp: (link as any).monitoredIp || null,
+                snmpProfile: ciscoProfile,
               });
+              if (ciscoSession) {
+                console.log(`[PPPoE Session] OK via Cisco SNMP: user="${ciscoSession.username}", ifName="${ciscoSession.ifName}", ifAlias="${ciscoSession.ifAlias}", uptime=${ciscoSession.uptimeSec}s`);
+                return res.json({
+                  available: true,
+                  active: true,
+                  source: "cisco-snmp",
+                  username: ciscoSession.username,
+                  framedIpAddress: ciscoSession.framedIpAddress,
+                  callingStationId: ciscoSession.callingStationId,
+                  nasIpAddress: ciscoSession.nasIpAddress,
+                  nasPortId: ciscoSession.ifName,
+                  acctStartTime: null,
+                  acctUpdateTime: null,
+                  sessionDurationSec: ciscoSession.uptimeSec,
+                  lastUpdateAgoSec: null,
+                  inputOctets: null,
+                  outputOctets: null,
+                });
+              }
             }
           }
         } catch (err: any) {
-          console.warn(`[PPPoE Session] Mikrotik fallback falhou: ${err?.message || err}`);
+          console.warn(`[PPPoE Session] Concentrator fallback falhou: ${err?.message || err}`);
         }
       }
 

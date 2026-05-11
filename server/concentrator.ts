@@ -266,6 +266,192 @@ export async function getMikrotikActivePppoeUsernames(
 }
 
 /**
+ * Resultado de getCiscoPppoeSessionByUsername.
+ */
+export interface CiscoPppoeSession {
+  username: string;
+  framedIpAddress: string | null;
+  callingStationId: string | null;
+  uptimeSec: number | null;
+  ifName: string | null;
+  ifAlias: string | null;
+  nasIpAddress: string;
+}
+
+/**
+ * Detecta sessão PPPoE ativa em concentrador Cisco via SNMP.
+ *
+ * Estratégia:
+ * 1. Se `ifIndex` for passado (já temos snmpInterfaceIndex salvo): SNMP get em
+ *    ifName/ifDescr/ifAlias/ifOperStatus/ifLastChange + sysUpTime. Se a Vi existe
+ *    (não veio noSuchInstance), está up E o alias OU descr bate com username
+ *    (case-insensitive, ignora @realm), considera sessão ativa.
+ * 2. Senão (ou se o ifIndex salvo não bate), faz fallback via `monitoredIp`:
+ *    chama lookupIfIndexByIp pra ver se o Cisco roteia esse IP por algum ifIndex.
+ *    Se sim e o ifAlias daquele ifIndex bater com username, sessão ativa.
+ *
+ * Retorna null quando: vendor não é cisco, faltam credenciais SNMP, Vi não existe,
+ * Vi está down, ou alias/descr não batem com o username (cliente errado / sem sessão).
+ */
+export async function getCiscoPppoeSessionByUsername(
+  concentrator: SnmpConcentrator,
+  username: string,
+  opts: { ifIndex?: number | null; monitoredIp?: string | null; snmpProfile?: SnmpProfile | null } = {},
+): Promise<CiscoPppoeSession | null> {
+  const vendor = (concentrator.vendor || "").toLowerCase();
+  if (vendor && vendor !== "cisco" && vendor !== "ciscosystems" && vendor !== "ciscosystemsinc") {
+    return null;
+  }
+  if (!concentrator.ipAddress || !username) return null;
+
+  const profile: ConcentratorSnmpProfile = opts.snmpProfile
+    ? {
+        version: opts.snmpProfile.version,
+        port: opts.snmpProfile.port,
+        community: opts.snmpProfile.community,
+        securityLevel: opts.snmpProfile.securityLevel,
+        authProtocol: opts.snmpProfile.authProtocol,
+        authPassword: opts.snmpProfile.authPassword,
+        privProtocol: opts.snmpProfile.privProtocol,
+        privPassword: opts.snmpProfile.privPassword,
+        username: opts.snmpProfile.username,
+        timeout: opts.snmpProfile.timeout,
+        retries: opts.snmpProfile.retries,
+      }
+    : { version: "2c", port: 161, community: "public", timeout: 5000, retries: 1 };
+
+  const noSuchObject = 128;
+  const noSuchInstance = 129;
+
+  const snmpGet = (sess: any, oids: string[]): Promise<any[]> =>
+    new Promise((resolve) => {
+      const t = setTimeout(() => resolve([]), 10000);
+      (sess as any).get(oids, (error: any, varbinds: any[]) => {
+        clearTimeout(t);
+        if (error || !varbinds) return resolve([]);
+        resolve(varbinds);
+      });
+    });
+
+  const isErr = (vb: any): boolean =>
+    !vb || (snmp as any).isVarbindError?.(vb) || vb.type === noSuchObject || vb.type === noSuchInstance;
+  const extractStr = (vb: any): string | null => {
+    if (isErr(vb)) return null;
+    const val = Buffer.isBuffer(vb.value) ? vb.value.toString("utf8").replace(/\x00/g, "").trim() : String(vb.value);
+    return val || null;
+  };
+  const extractInt = (vb: any): number | null => {
+    if (isErr(vb)) return null;
+    const v = typeof vb.value === "number" ? vb.value : parseInt(String(vb.value), 10);
+    return isNaN(v) ? null : v;
+  };
+
+  // Match tolerante: case-insensitive, com/sem @realm. Rejeita strings técnicas
+  // (Virtual-AccessX.Y, Vi3.123) que não carregam username.
+  const isTechnicalLabel = (s: string): boolean =>
+    /^Virtual-Access\d+(\.\d+)?$/i.test(s) || /^Vi\d+(\.\d+)?$/i.test(s);
+  const matchesUsername = (label: string | null, user: string): boolean => {
+    if (!label) return false;
+    const l = label.trim();
+    if (!l || isTechnicalLabel(l)) return false;
+    const u = user.trim();
+    const norm = (s: string) => s.toLowerCase();
+    const stripRealm = (s: string) => s.split("@")[0];
+    return (
+      norm(l) === norm(u) ||
+      norm(l) === norm(stripRealm(u)) ||
+      norm(stripRealm(l)) === norm(stripRealm(u)) ||
+      norm(l).includes(norm(stripRealm(u)))
+    );
+  };
+
+  const session = createSnmpSession(concentrator.ipAddress, profile);
+
+  const buildResult = (
+    ifIndex: number,
+    ifName: string | null,
+    ifAlias: string | null,
+    uptimeSec: number | null,
+  ): CiscoPppoeSession => ({
+    username,
+    framedIpAddress: opts.monitoredIp || null,
+    callingStationId: null,
+    uptimeSec,
+    ifName,
+    ifAlias,
+    nasIpAddress: concentrator.ipAddress!,
+  });
+
+  try {
+    const tryIfIndex = async (ifIndex: number): Promise<CiscoPppoeSession | null> => {
+      const oidName = `1.3.6.1.2.1.31.1.1.1.1.${ifIndex}`;     // ifName
+      const oidDescr = `1.3.6.1.2.1.2.2.1.2.${ifIndex}`;       // ifDescr
+      const oidAlias = `1.3.6.1.2.1.31.1.1.1.18.${ifIndex}`;   // ifAlias
+      const oidOper = `1.3.6.1.2.1.2.2.1.8.${ifIndex}`;        // ifOperStatus (up=1)
+      const oidLast = `1.3.6.1.2.1.2.2.1.9.${ifIndex}`;        // ifLastChange (TimeTicks)
+      const oidSysUp = `1.3.6.1.2.1.1.3.0`;                    // sysUpTime (TimeTicks)
+      const vbs = await snmpGet(session, [oidName, oidDescr, oidAlias, oidOper, oidLast, oidSysUp]);
+      if (vbs.length < 6) return null;
+      const ifName = extractStr(vbs[0]);
+      const ifDescr = extractStr(vbs[1]);
+      const ifAlias = extractStr(vbs[2]);
+      const oper = extractInt(vbs[3]);
+      const lastChange = extractInt(vbs[4]);
+      const sysUpTime = extractInt(vbs[5]);
+
+      // Vi destruída: todos vieram noSuchInstance
+      if (!ifName && !ifDescr && !ifAlias) return null;
+      // Vi existe mas está down
+      if (oper !== null && oper !== 1) return null;
+
+      // Confirma que o slot pertence a esse username via ifAlias OU ifDescr
+      if (!matchesUsername(ifAlias, username) && !matchesUsername(ifDescr, username)) {
+        return null;
+      }
+
+      let uptimeSec: number | null = null;
+      if (sysUpTime !== null && lastChange !== null && sysUpTime >= lastChange) {
+        uptimeSec = Math.floor((sysUpTime - lastChange) / 100);
+      }
+      return buildResult(ifIndex, ifName, ifAlias, uptimeSec);
+    };
+
+    // 1. Tenta ifIndex já cadastrado
+    if (opts.ifIndex && opts.ifIndex > 0) {
+      const r = await tryIfIndex(opts.ifIndex);
+      if (r) return r;
+    }
+
+    // 2. Fallback: descobre ifIndex pelo IP roteado
+    if (opts.monitoredIp) {
+      try { session.close(); } catch {}
+      const ipResult = await lookupIfIndexByIp(concentrator, opts.monitoredIp, opts.snmpProfile || null);
+      if (ipResult.ifIndex) {
+        // Confirma alias/descr também
+        if (matchesUsername(ipResult.ifAlias, username)) {
+          // uptime não disponível nesse caminho sem novo SNMP get (poderia, mas evita custo extra)
+          return {
+            username,
+            framedIpAddress: opts.monitoredIp,
+            callingStationId: null,
+            uptimeSec: null,
+            ifName: ipResult.ifName,
+            ifAlias: ipResult.ifAlias,
+            nasIpAddress: concentrator.ipAddress!,
+          };
+        }
+      }
+    }
+    return null;
+  } catch (err: any) {
+    console.log(`[Cisco PPPoE] Falha em ${concentrator.ipAddress} buscando ${username}: ${err?.message || err}`);
+    return null;
+  } finally {
+    try { session.close(); } catch {}
+  }
+}
+
+/**
  * Executa uma consulta arbitrária no Mikrotik via API binária.
  * Suporta menus /ip/arp, /ip/route, /ppp/active, /interface, etc.
  * Os filtros são pares chave→valor que viram cláusulas .where(k,v).
