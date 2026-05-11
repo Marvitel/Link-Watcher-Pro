@@ -2391,27 +2391,38 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                 console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verification skipped - SNMP timeout/unreachable on ${trafficSourceIp}. Keeping current interface settings.`);
               }
             }
-            // For concentrator PPPoE links (Cisco Vi interfaces): verify alias (PPPoE username)
-            // Vi interface NAMES stay the same across sessions (Vi1.13 stays Vi1.13)
-            // But the ALIAS changes because a different PPPoE client took over that Vi slot
-            // This is the CRITICAL check: if alias changed, we're monitoring the WRONG client!
-            else if (isCiscoViInterface && isConcentratorLink && knownAlias && verification.actualAlias) {
+            // For concentrator PPPoE links (Cisco Vi interfaces): verify PPPoE user identity
+            // Vi interface NAMES (Vi1.13) stay the same across sessions, but the OCCUPANT changes.
+            // Cisco expõe o usuário PPPoE em DOIS campos possíveis: ifAlias e ifDescr (quando o
+            // operador configura "description = username" via RADIUS Cisco-AVPair). Validamos AMBOS:
+            // se nenhum dos dois bater com o knownAlias (pppoeUser cadastrado), é cliente errado.
+            else if (isCiscoViInterface && isConcentratorLink && knownAlias && (verification.actualAlias || verification.actualName)) {
               const normalizedKnown = knownAlias.toLowerCase().trim();
-              const normalizedActual = verification.actualAlias.toLowerCase().trim();
-              if (normalizedKnown !== normalizedActual) {
-                console.log(`[Monitor] ${link.name}: *** CISCO Vi ALIAS MISMATCH *** ifIndex ${trafficSourceIfIndex} (${link.snmpInterfaceName}) alias changed from "${knownAlias}" to "${verification.actualAlias}". WRONG CLIENT! Clearing ifIndex for immediate re-discovery.`);
+              const normalizedAlias = verification.actualAlias ? verification.actualAlias.toLowerCase().trim() : null;
+              // ifDescr só vale como "PPPoE user" quando NÃO é o nome técnico padrão (Virtual-AccessX.Y / ViX.Y)
+              const descrIsPppoeUser = verification.actualName
+                && !/^Virtual-Access/i.test(verification.actualName)
+                && !/^Vi\d+\.\d+$/i.test(verification.actualName);
+              const normalizedDescr = descrIsPppoeUser ? verification.actualName!.toLowerCase().trim() : null;
+
+              const aliasMatches = normalizedAlias !== null && normalizedAlias === normalizedKnown;
+              const descrMatches = normalizedDescr !== null && normalizedDescr === normalizedKnown;
+
+              if (!aliasMatches && !descrMatches) {
+                console.log(`[Monitor] ${link.name}: *** CISCO Vi PPPoE USER MISMATCH *** ifIndex ${trafficSourceIfIndex} (${link.snmpInterfaceName}) — knownAlias "${knownAlias}" não bate com ifAlias "${verification.actualAlias ?? 'null'}" nem com ifDescr "${verification.actualName ?? 'null'}". WRONG CLIENT! Clearing ifIndex for immediate re-discovery.`);
                 trafficDataSuccess = false;
                 previousTrafficData.delete(link.id);
                 trafficSourceIfIndex = null;
                 lastIfNameVerification.delete(link.id);
-                await db.update(links).set({ 
+                await db.update(links).set({
                   snmpInterfaceIndex: null,
                   snmpInterfaceName: null,
                   snmpInterfaceDescr: null,
-                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1 
+                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1
                 }).where(eq(links.id, link.id));
               } else {
-                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - "${verification.actualName}" alias "${verification.actualAlias}" matches pppoeUser "${knownAlias}"`);
+                const matchedVia = aliasMatches ? `ifAlias="${verification.actualAlias}"` : `ifDescr="${verification.actualName}"`;
+                console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - ${matchedVia} matches pppoeUser "${knownAlias}"`);
               }
             } else if (!verification.matches && verification.actualName !== null) {
               if (isCiscoViInterface) {
