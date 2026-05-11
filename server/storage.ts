@@ -1701,8 +1701,19 @@ export class DatabaseStorage {
     console.log("Initialized default client: DPE/SE with 2 links");
   }
 
-  startMetricCollection(): void {
-    startRealTimeMonitoring(30);
+  async startMetricCollection(): Promise<void> {
+    // Lê o intervalo padrão do system_settings (configurável pela UI admin).
+    // Mínimo de 10s aplicado no backend pra evitar estourar SNMP/RADIUS quando
+    // o admin configura algo agressivo demais. Se a leitura falhar, cai pro
+    // default de 30s que é o histórico do sistema.
+    let intervalSeconds = 30;
+    try {
+      const s = await this.getSystemSettings();
+      intervalSeconds = Math.max(10, s.metricsPollingInterval ?? 30);
+    } catch (err) {
+      console.warn("[Monitor] Falha ao ler metricsPollingInterval, usando default 30s:", err);
+    }
+    await startRealTimeMonitoring(intervalSeconds);
     startAggregationJobs();
   }
 

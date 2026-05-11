@@ -2,7 +2,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import snmp from "net-snmp";
 import { db } from "./db";
-import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators, externalIntegrations } from "@shared/schema";
+import { links, metrics, snmpProfiles, equipmentVendors, events, olts, switches, monitoringSettings, linkMonitoringState, blacklistChecks, cpes, linkCpes, clients, clientSettings, ddosEvents, linkTrafficInterfaces, trafficInterfaceMetrics, snmpConcentrators, externalIntegrations, systemSettings as systemSettingsTable } from "@shared/schema";
 import { eq, and, not, like, gte, isNotNull, isNull, desc, or, sql } from "drizzle-orm";
 import { queryAllOltAlarms, queryOltAlarm, getDiagnosisFromAlarms, hasSpecificDiagnosisCommand, buildOnuDiagnosisKey, queryZabbixOpticalMetrics, type OltAlarm, type ZabbixOpticalMetrics } from "./olt";
 import { findInterfaceByName, discoverInterfaces, getOpticalSignal, getOpticalSignalFromSwitch, getCiscoOpticalSignal, getInterfaceOperStatus, type SnmpProfile as SnmpProfileType, type OpticalSignalData } from "./snmp";
@@ -534,6 +534,10 @@ export function isLinkWatched(linkId: number): boolean {
 }
 
 let fastPollInterval: NodeJS.Timeout | null = null;
+// Intervalo efetivo do loop principal (em segundos), recarregado periodicamente
+// de system_settings.metrics_polling_interval. Mínimo 10s aplicado no backend.
+let MONITOR_INTERVAL_SECONDS = 30;
+let monitorSettingsInterval: NodeJS.Timeout | null = null;
 
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
@@ -3891,6 +3895,7 @@ export function stopRealTimeMonitoring(): void {
   if (pausedLinkCheckInterval) { clearInterval(pausedLinkCheckInterval); pausedLinkCheckInterval = null; }
   if (warmupTimeout) { clearTimeout(warmupTimeout); warmupTimeout = null; }
   if (fastPollSettingsInterval) { clearInterval(fastPollSettingsInterval); fastPollSettingsInterval = null; }
+  if (monitorSettingsInterval) { clearInterval(monitorSettingsInterval); monitorSettingsInterval = null; }
   if (pausedInitialCheckTimeout) { clearTimeout(pausedInitialCheckTimeout); pausedInitialCheckTimeout = null; }
   console.log("[Monitor] Shutdown gracioso: timers parados, coletas em vôo serão descartadas");
 }
@@ -4442,6 +4447,52 @@ async function syncOzmapForAllLinks(): Promise<void> {
   }
 }
 
+// Calcula o intervalo efetivo aplicando os clamps por quantidade de links
+// (proteção pra não estourar SNMP/RADIUS em redes grandes).
+function computeEffectiveInterval(intervalSeconds: number, linkCount: number): number {
+  let effective = Math.max(10, intervalSeconds);
+  if (linkCount > 100) effective = Math.max(effective, 45);
+  if (linkCount > 500) effective = Math.max(effective, 60);
+  if (linkCount > 1000) effective = Math.max(effective, 90);
+  return effective;
+}
+
+// Recarrega metrics_polling_interval do banco e recria o timer principal se mudou.
+// Permite que o admin altere o intervalo na UI sem precisar reiniciar o processo.
+//
+// Concorrência: usa um generation token + mutex simples pra descartar respostas
+// antigas (DB lento) que poderiam sobrescrever um valor recém-aplicado.
+let monitorReloadInFlight = false;
+let monitorReloadGeneration = 0;
+async function loadMonitorIntervalFromSettings(): Promise<void> {
+  if (monitorReloadInFlight) return;
+  if (isShuttingDown) return;
+  monitorReloadInFlight = true;
+  const myGen = ++monitorReloadGeneration;
+  try {
+    const [row] = await db.select().from(systemSettingsTable).limit(1);
+    const requested = Math.max(10, row?.metricsPollingInterval ?? 30);
+    const allLinks = await db.select({ id: links.id }).from(links).where(eq(links.monitoringEnabled, true));
+    // Se outra execução começou (gen mudou) ou shutdown chegou, descarta resultado.
+    if (myGen !== monitorReloadGeneration || isShuttingDown) return;
+    const effective = computeEffectiveInterval(requested, allLinks.length);
+    if (effective !== MONITOR_INTERVAL_SECONDS) {
+      const previous = MONITOR_INTERVAL_SECONDS;
+      MONITOR_INTERVAL_SECONDS = effective;
+      if (monitoringInterval) clearInterval(monitoringInterval);
+      monitoringInterval = setInterval(() => {
+        collectAllLinksMetrics();
+      }, MONITOR_INTERVAL_SECONDS * 1000);
+      const clampNote = effective !== requested ? ` [clamp por escala aplicado: solicitado ${requested}s → efetivo ${effective}s]` : "";
+      console.log(`[Monitor] Intervalo alterado: ${previous}s → ${effective}s (configurado: ${requested}s, links: ${allLinks.length})${clampNote}`);
+    }
+  } catch (err) {
+    // Se falhar, mantém o valor atual sem quebrar o loop.
+  } finally {
+    monitorReloadInFlight = false;
+  }
+}
+
 export async function startRealTimeMonitoring(intervalSeconds: number = 30): Promise<void> {
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
@@ -4452,15 +4503,17 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
   if (ozmapSyncInterval) {
     clearInterval(ozmapSyncInterval);
   }
+  if (monitorSettingsInterval) {
+    clearInterval(monitorSettingsInterval);
+    monitorSettingsInterval = null;
+  }
 
   const allLinks = await db.select({ id: links.id }).from(links).where(eq(links.monitoringEnabled, true));
   const linkCount = allLinks.length;
-  let effectiveInterval = intervalSeconds;
-  if (linkCount > 100) effectiveInterval = Math.max(intervalSeconds, 45);
-  if (linkCount > 500) effectiveInterval = Math.max(intervalSeconds, 60);
-  if (linkCount > 1000) effectiveInterval = Math.max(intervalSeconds, 90);
+  const effectiveInterval = computeEffectiveInterval(intervalSeconds, linkCount);
+  MONITOR_INTERVAL_SECONDS = effectiveInterval;
 
-  console.log(`[Monitor] Starting real-time monitoring: ${linkCount} links, ${effectiveInterval}s interval (requested: ${intervalSeconds}s)`);
+  console.log(`[Monitor] Starting real-time monitoring: ${linkCount} links, ${effectiveInterval}s interval (requested: ${intervalSeconds}s, min 10s)`);
 
   // Warm-up: aguarda 15s antes da primeira coleta pra dar tempo dos pools
   // de DB/SNMP/RADIUS estabilizarem. Sem isso, a primeira coleta após restart
@@ -4477,7 +4530,11 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
 
   monitoringInterval = setInterval(() => {
     collectAllLinksMetrics();
-  }, effectiveInterval * 1000);
+  }, MONITOR_INTERVAL_SECONDS * 1000);
+
+  // Reaplica metrics_polling_interval a cada 60s — usuário pode alterar na UI
+  // sem precisar reiniciar o processo. Recria o timer só se o valor efetivo mudou.
+  monitorSettingsInterval = setInterval(loadMonitorIntervalFromSettings, 60_000);
 
   // Loop rápido de coleta para links sendo visualizados ativamente.
   // Intervalo configurável via system_settings.fast_poll_interval_seconds.

@@ -227,7 +227,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   await storage.initializeDefaultData();
-  storage.startMetricCollection();
+  await storage.startMetricCollection();
 
   // Registrar fetcher de configuração RADIUS DB a partir da tabela de integrações
   const { setRadiusDbConfigFetcher, resetRadiusDbPool } = await import("./radius");
@@ -17278,6 +17278,15 @@ export async function registerRoutes(
       try {
         const { insertSystemSettingsSchema } = await import("@shared/schema");
         const data = insertSystemSettingsSchema.parse(req.body);
+        // Clamps de segurança aplicados no backend (mesmo se a UI deixar passar):
+        // - metricsPollingInterval: mínimo 10s pra não estourar SNMP/RADIUS
+        // - fastPollIntervalSeconds: 1–60s (limite já aplicado no monitoring.ts)
+        if (data.metricsPollingInterval !== undefined && data.metricsPollingInterval !== null) {
+          data.metricsPollingInterval = Math.max(10, data.metricsPollingInterval);
+        }
+        if (data.fastPollIntervalSeconds !== undefined && data.fastPollIntervalSeconds !== null) {
+          data.fastPollIntervalSeconds = Math.max(1, Math.min(60, data.fastPollIntervalSeconds));
+        }
         const updated = await storage.updateSystemSettings(data);
         res.json(updated);
       } catch (err: any) {

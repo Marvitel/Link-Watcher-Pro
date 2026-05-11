@@ -86,6 +86,18 @@ Soluções implementadas em `server/index.ts` (handler) + `server/monitoring.ts`
 - **Graceful shutdown** (`stopRealTimeMonitoring`, `isMonitorShuttingDown`): handler `SIGTERM`/`SIGINT` para todos os timers (monitor, fast-poll, wanguard, ozmap, paused), marca flag `isShuttingDown=true`, espera 2s e chama `process.exit(0)`. O insert da métrica no `processLinkMetrics` checa a flag e descarta a coleta em vôo.
 - **Warm-up de 15s no boot**: a primeira `collectAllLinksMetrics` agora roda via `setTimeout(..., 15_000)` em vez de imediato, dando tempo dos pools estabilizarem.
 
+### Configurable Collection Interval (system_settings.metrics_polling_interval)
+O intervalo do loop principal de coleta (`startRealTimeMonitoring`) agora é parametrizável via UI admin (`system_settings.metrics_polling_interval`, default 30s, **mínimo 10s** validado em 3 camadas: input HTML, onChange JS, PATCH backend). Antes, o valor estava hard-coded em `storage.startMetricCollection()` como `startRealTimeMonitoring(30)` e o setting da UI era ignorado.
+
+Implementação:
+- `storage.startMetricCollection()` agora é async e lê `metricsPollingInterval` do banco antes de iniciar o monitor (clamp `Math.max(10, ...)`).
+- `monitoring.ts` mantém variável global `MONITOR_INTERVAL_SECONDS` e função `loadMonitorIntervalFromSettings()` que recarrega a cada 60s (paridade com `loadFastPollFromSettings`). Se o valor efetivo mudou, recria o `monitoringInterval` sem precisar reiniciar o processo.
+- `computeEffectiveInterval(requested, linkCount)` aplica os clamps por tamanho de rede: >100 links = mín 45s, >500 = 60s, >1000 = 90s. O usuário só pode REDUZIR até esses pisos.
+- O `monitorSettingsInterval` é limpo no shutdown gracioso (`stopRealTimeMonitoring`).
+- Backend PATCH `/api/admin/system-settings` re-aplica o clamp de 10s mesmo se a UI deixar passar.
+
+Coletas afetadas pelo intervalo: TODAS as etapas do `processLinkMetrics` rodam no mesmo loop (ping, SNMP de tráfego principal, SNMP de interfaces adicionais via `linkTrafficInterfaces`, sinal óptico, PPPoE/RADIUS, status, eventos). Não há loops separados por tipo de coleta — exceto o fast-poll de links assistidos (5s configurável em `fastPollIntervalSeconds`).
+
 ### Inactive Links & Temporary Pauses
 Links with `monitoringEnabled=false` have open events resolved, status set to 'unknown', and are excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation.
 

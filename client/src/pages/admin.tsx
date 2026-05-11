@@ -7708,12 +7708,13 @@ function SystemSettingsTab() {
                 <Input
                   id="pollingInterval"
                   type="number"
+                  min={10}
                   value={settings.metricsPollingInterval}
-                  onChange={(e) => setSettings({ ...settings, metricsPollingInterval: parseInt(e.target.value) })}
+                  onChange={(e) => setSettings({ ...settings, metricsPollingInterval: Math.max(10, parseInt(e.target.value) || 30) })}
                   data-testid="input-polling-interval"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Intervalo padrão de coleta para todos os links.
+                  Intervalo padrão de coleta para todos os links (mínimo 10s). Em redes com 100+ links o backend eleva automaticamente para 45s/60s/90s.
                 </p>
               </div>
               <div className="space-y-2">
