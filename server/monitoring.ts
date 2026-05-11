@@ -545,7 +545,7 @@ let monitorSettingsInterval: NodeJS.Timeout | null = null;
 // pra não estourar latência da janela de 1s. A lista de links é recarregada
 // a cada 60s. O cache de delta SNMP é ISOLADO do loop principal pra evitar
 // que um cálculo de bandwidth contamine o outro.
-const HIGH_FREQ_INTERVAL_MS = 1000;
+const HIGH_FREQ_INTERVAL_MS = 5000;
 const HIGH_FREQ_REFRESH_MS = 60_000;
 let highFreqInterval: NodeJS.Timeout | null = null;
 let highFreqRefreshInterval: NodeJS.Timeout | null = null;

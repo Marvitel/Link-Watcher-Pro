@@ -2193,10 +2193,10 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 text-sm font-medium text-orange-900 dark:text-orange-200">
                 <Activity className="w-3.5 h-3.5" />
-                Monitoramento de Alta Frequência (1s)
+                Monitoramento de Alta Frequência (5s)
               </div>
               <p className="text-xs text-orange-800 dark:text-orange-300 mt-0.5">
-                Coleta ping (latência/perda) e tráfego SNMP a cada 1 segundo. Use SOMENTE em links críticos — gera ~86 mil amostras/dia/link no banco.
+                Coleta ping (latência/perda) e tráfego SNMP a cada 5 segundos. Use SOMENTE em links críticos — gera ~17 mil amostras/dia/link no banco.
               </p>
             </div>
             <Switch
