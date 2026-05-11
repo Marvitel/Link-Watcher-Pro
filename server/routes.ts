@@ -1181,6 +1181,7 @@ export async function registerRoutes(
         'isL2Link', 'icmpBlocked', 'tcpCheckPort',
         'monitoredIpLocked',
         'wifiName', 'wifiPassword',
+        'highFrequencyMonitoring',
       ]);
       const filteredBody: Record<string, any> = {};
       for (const [key, value] of Object.entries(req.body)) {

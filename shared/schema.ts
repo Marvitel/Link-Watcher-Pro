@@ -101,6 +101,10 @@ export const links = pgTable("links", {
   monitoringEnabled: boolean("monitoring_enabled").notNull().default(true),
   monitoringPausedReason: varchar("monitoring_paused_reason", { length: 255 }),
   monitoringAutoResume: boolean("monitoring_auto_resume").notNull().default(false),
+  // Modo alta frequência: liga loop separado de 1s (ping + SNMP de tráfego principal)
+  // pra esse link específico. Use só pra links críticos — gera 86k amostras/dia/link.
+  // Cache de delta SNMP é mantido isolado pra não conflitar com o loop principal.
+  highFrequencyMonitoring: boolean("high_frequency_monitoring").notNull().default(false),
   oltEndpoint: text("olt_endpoint"),
   snmpCommunity: varchar("snmp_community", { length: 100 }),
   icmpInterval: integer("icmp_interval").notNull().default(30),

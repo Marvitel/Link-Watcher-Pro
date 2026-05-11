@@ -539,6 +539,20 @@ let fastPollInterval: NodeJS.Timeout | null = null;
 let MONITOR_INTERVAL_SECONDS = 30;
 let monitorSettingsInterval: NodeJS.Timeout | null = null;
 
+// === Alta frequência (1s) por link ===========================================
+// Loop dedicado pra links com `highFrequencyMonitoring=true`. Coleta SÓ ping
+// (latência + perda) e SNMP de tráfego principal — não roda óptico/PPPoE/RADIUS
+// pra não estourar latência da janela de 1s. A lista de links é recarregada
+// a cada 60s. O cache de delta SNMP é ISOLADO do loop principal pra evitar
+// que um cálculo de bandwidth contamine o outro.
+const HIGH_FREQ_INTERVAL_MS = 1000;
+const HIGH_FREQ_REFRESH_MS = 60_000;
+let highFreqInterval: NodeJS.Timeout | null = null;
+let highFreqRefreshInterval: NodeJS.Timeout | null = null;
+let highFreqLinks: Array<typeof links.$inferSelect> = [];
+const highFreqCollecting = new Set<number>();
+const highFreqLastSample = new Map<number, TrafficResult>();
+
 const isDevelopment = process.env.NODE_ENV === "development";
 let pingPermissionDenied = false;
 
@@ -3896,6 +3910,8 @@ export function stopRealTimeMonitoring(): void {
   if (warmupTimeout) { clearTimeout(warmupTimeout); warmupTimeout = null; }
   if (fastPollSettingsInterval) { clearInterval(fastPollSettingsInterval); fastPollSettingsInterval = null; }
   if (monitorSettingsInterval) { clearInterval(monitorSettingsInterval); monitorSettingsInterval = null; }
+  if (highFreqInterval) { clearInterval(highFreqInterval); highFreqInterval = null; }
+  if (highFreqRefreshInterval) { clearInterval(highFreqRefreshInterval); highFreqRefreshInterval = null; }
   if (pausedInitialCheckTimeout) { clearTimeout(pausedInitialCheckTimeout); pausedInitialCheckTimeout = null; }
   console.log("[Monitor] Shutdown gracioso: timers parados, coletas em vôo serão descartadas");
 }
@@ -4447,6 +4463,102 @@ async function syncOzmapForAllLinks(): Promise<void> {
   }
 }
 
+// Recarrega a lista de links com modo alta frequência ativo. Chamado no boot
+// e a cada 60s pra pegar novos links habilitados sem precisar reiniciar.
+async function loadHighFreqLinks(): Promise<void> {
+  if (isShuttingDown) return;
+  try {
+    const rows = await db.select().from(links).where(
+      and(
+        eq(links.highFrequencyMonitoring, true),
+        eq(links.monitoringEnabled, true),
+        isNull(links.deletedAt),
+      )
+    );
+    const previousIds = new Set(highFreqLinks.map(l => l.id));
+    const currentIds = new Set(rows.map(l => l.id));
+    // Limpa cache de delta dos links que saíram do modo high-freq.
+    for (const id of previousIds) {
+      if (!currentIds.has(id)) {
+        highFreqLastSample.delete(id);
+        highFreqCollecting.delete(id);
+      }
+    }
+    if (rows.length !== highFreqLinks.length || [...currentIds].some(id => !previousIds.has(id))) {
+      console.log(`[Monitor] High-freq: ${rows.length} link(s) ativos${rows.length > 0 ? " — " + rows.map(l => l.name).join(", ") : ""}`);
+    }
+    highFreqLinks = rows;
+  } catch (err) {
+    // Mantém lista anterior em caso de falha no DB.
+  }
+}
+
+// Coleta enxuta para o loop de 1s: ping + SNMP de tráfego principal apenas.
+// NÃO roda óptico, PPPoE, RADIUS, OZmap, BGP, blacklist nem update de status —
+// essas ficam no loop principal (10–90s). Cache de delta SNMP isolado pra não
+// contaminar o cálculo de bandwidth do loop principal.
+async function collectLinkHighFreq(link: typeof links.$inferSelect): Promise<void> {
+  if (isShuttingDown) return;
+  if (!link.monitoringEnabled || !link.highFrequencyMonitoring) return;
+  if (highFreqCollecting.has(link.id)) return; // ainda processando ciclo anterior
+  highFreqCollecting.add(link.id);
+  try {
+    const ipToMonitor = (link.monitoredIp || link.snmpRouterIp || link.address || "").trim();
+    if (!ipToMonitor) return;
+
+    // Ping enxuto (count=2 pra fechar dentro de ~1s).
+    const ping = await pingHost(ipToMonitor, 2);
+    if (isShuttingDown) return;
+
+    // SNMP de tráfego principal — só se o link tem profile + ifIndex + IP do router.
+    let downloadMbps = 0;
+    let uploadMbps = 0;
+    if (link.snmpProfileId && link.snmpInterfaceIndex && link.snmpRouterIp) {
+      try {
+        const profile = await getSnmpProfile(link.snmpProfileId);
+        if (profile && !isShuttingDown) {
+          const traffic = await getInterfaceTraffic(link.snmpRouterIp, profile, link.snmpInterfaceIndex);
+          if (traffic && !isShuttingDown) {
+            const last = highFreqLastSample.get(link.id);
+            if (last) {
+              const bw = calculateBandwidth(traffic, last, link.bandwidth ?? undefined);
+              downloadMbps = bw.downloadMbps;
+              uploadMbps = bw.uploadMbps;
+              if (link.invertBandwidth) {
+                [downloadMbps, uploadMbps] = [uploadMbps, downloadMbps];
+              }
+            }
+            highFreqLastSample.set(link.id, traffic);
+          }
+        }
+      } catch {
+        // SNMP falhou — registra só o ping.
+      }
+    }
+
+    if (isShuttingDown) return;
+    // Status reaproveita o último valor calculado pelo loop principal — não
+    // duplica lógica de eventos/state machine. Se o link estiver marcado como
+    // unknown, registra a amostra mesmo assim pra não criar buracos no gráfico.
+    await db.insert(metrics).values({
+      linkId: link.id,
+      clientId: link.clientId,
+      download: downloadMbps,
+      upload: uploadMbps,
+      latency: ping.latency,
+      packetLoss: ping.packetLoss,
+      cpuUsage: 0,
+      memoryUsage: 0,
+      errorRate: 0,
+      status: link.status || "operational",
+    });
+  } catch {
+    // Não loga por amostra (60 logs/min/link seria ruído).
+  } finally {
+    highFreqCollecting.delete(link.id);
+  }
+}
+
 // Calcula o intervalo efetivo aplicando os clamps por quantidade de links
 // (proteção pra não estourar SNMP/RADIUS em redes grandes).
 function computeEffectiveInterval(intervalSeconds: number, linkCount: number): number {
@@ -4535,6 +4647,17 @@ export async function startRealTimeMonitoring(intervalSeconds: number = 30): Pro
   // Reaplica metrics_polling_interval a cada 60s — usuário pode alterar na UI
   // sem precisar reiniciar o processo. Recria o timer só se o valor efetivo mudou.
   monitorSettingsInterval = setInterval(loadMonitorIntervalFromSettings, 60_000);
+
+  // Loop de alta frequência (1s) — só executa se houver links marcados.
+  await loadHighFreqLinks();
+  highFreqRefreshInterval = setInterval(loadHighFreqLinks, HIGH_FREQ_REFRESH_MS);
+  highFreqInterval = setInterval(() => {
+    if (isShuttingDown || highFreqLinks.length === 0) return;
+    for (const link of highFreqLinks) {
+      collectLinkHighFreq(link).catch(() => {});
+    }
+  }, HIGH_FREQ_INTERVAL_MS);
+  console.log(`[Monitor] High-freq loop iniciado (${HIGH_FREQ_INTERVAL_MS / 1000}s, ${highFreqLinks.length} link(s) marcados)`);
 
   // Loop rápido de coleta para links sendo visualizados ativamente.
   // Intervalo configurável via system_settings.fast_poll_interval_seconds.

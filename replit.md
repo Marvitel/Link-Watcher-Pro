@@ -96,7 +96,18 @@ Implementação:
 - O `monitorSettingsInterval` é limpo no shutdown gracioso (`stopRealTimeMonitoring`).
 - Backend PATCH `/api/admin/system-settings` re-aplica o clamp de 10s mesmo se a UI deixar passar.
 
-Coletas afetadas pelo intervalo: TODAS as etapas do `processLinkMetrics` rodam no mesmo loop (ping, SNMP de tráfego principal, SNMP de interfaces adicionais via `linkTrafficInterfaces`, sinal óptico, PPPoE/RADIUS, status, eventos). Não há loops separados por tipo de coleta — exceto o fast-poll de links assistidos (5s configurável em `fastPollIntervalSeconds`).
+Coletas afetadas pelo intervalo: TODAS as etapas do `processLinkMetrics` rodam no mesmo loop (ping, SNMP de tráfego principal, SNMP de interfaces adicionais via `linkTrafficInterfaces`, sinal óptico, PPPoE/RADIUS, status, eventos). Não há loops separados por tipo de coleta — exceto o fast-poll de links assistidos (5s configurável em `fastPollIntervalSeconds`) e o loop de alta frequência (1s, opt-in por link, abaixo).
+
+### High-Frequency Monitoring (1s) por link (`links.high_frequency_monitoring`)
+Coluna nova `links.highFrequencyMonitoring boolean default false` ativa um loop dedicado de 1s por link, ligado/desligado via Switch no LinkForm da edição do link (com aviso de carga). Implementação em `server/monitoring.ts`:
+- `loadHighFreqLinks()` recarrega a lista (link.highFrequencyMonitoring=true AND monitoringEnabled=true AND deletedAt IS NULL) a cada 60s. Cache de delta dos links removidos é limpo automaticamente.
+- `collectLinkHighFreq(link)` é enxuto: SÓ ping (count=2) + SNMP de tráfego principal (`getInterfaceTraffic` direto via `link.snmpProfileId+snmpInterfaceIndex+snmpRouterIp`). NÃO roda óptico, PPPoE/RADIUS, OZmap, eventos, mudança de status — essas continuam no loop principal de 30s.
+- Mutex por link via `highFreqCollecting: Set<linkId>` evita acúmulo se um ciclo demora mais de 1s.
+- **Cache de delta SNMP isolado** (`highFreqLastSample: Map<linkId, TrafficResult>`), separado do `previousTrafficData` do loop principal. Sem isso, o cálculo de bandwidth dos dois loops competiria pelo mesmo "lastSample" e geraria leituras erradas em ambos.
+- Status reusado de `link.status` — não duplica state machine de eventos.
+- Insert em `metrics` (Opção A escolhida pelo usuário): reusa tabela existente, gráficos atuais funcionam direto. **Custo**: ~86k amostras/dia/link em modo high-freq — usar SOMENTE em links críticos. Retenção global de 6 meses já cobre, mas pode-se reduzir.
+- Cleanup em `stopRealTimeMonitoring`: `highFreqInterval` e `highFreqRefreshInterval` clearados, guard `isShuttingDown` checado em 3 pontos da `collectLinkHighFreq` pra descartar amostras em vôo durante deploy (não gerar picos falsos).
+- `invertBandwidth` respeitado também no high-freq (paridade com loop principal).
 
 ### Inactive Links & Temporary Pauses
 Links with `monitoringEnabled=false` have open events resolved, status set to 'unknown', and are excluded from dashboard counts. Temporary pauses (`monitoringPausedReason`, `monitoringAutoResume`) allow auto-rehabilitation.

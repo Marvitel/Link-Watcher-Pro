@@ -709,6 +709,7 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
     monitoringEnabled: link?.monitoringEnabled ?? true,
     monitoringPausedReason: (link as any)?.monitoringPausedReason || "",
     monitoringAutoResume: (link as any)?.monitoringAutoResume ?? false,
+    highFrequencyMonitoring: (link as any)?.highFrequencyMonitoring ?? false,
     icmpInterval: link?.icmpInterval || 30,
     snmpProfileId: link?.snmpProfileId || null,
     snmpRouterIp: link?.snmpRouterIp || "",
@@ -2187,6 +2188,24 @@ export function LinkForm({ link, onSave, onClose, snmpProfiles, clients, onProfi
             />
           </div>
         </div>
+        {formData.monitoringEnabled && (
+          <div className="mb-3 flex items-start justify-between gap-3 rounded-md border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/30 px-3 py-2.5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-sm font-medium text-orange-900 dark:text-orange-200">
+                <Activity className="w-3.5 h-3.5" />
+                Monitoramento de Alta Frequência (1s)
+              </div>
+              <p className="text-xs text-orange-800 dark:text-orange-300 mt-0.5">
+                Coleta ping (latência/perda) e tráfego SNMP a cada 1 segundo. Use SOMENTE em links críticos — gera ~86 mil amostras/dia/link no banco.
+              </p>
+            </div>
+            <Switch
+              checked={formData.highFrequencyMonitoring}
+              onCheckedChange={(checked) => setFormData({ ...formData, highFrequencyMonitoring: checked })}
+              data-testid="switch-high-frequency-monitoring"
+            />
+          </div>
+        )}
         {!formData.monitoringEnabled && (
           <div className="mb-3 space-y-2 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 px-3 py-3 text-sm text-yellow-800 dark:text-yellow-300">
             <div className="flex items-center gap-2">
