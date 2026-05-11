@@ -855,6 +855,7 @@ export async function testRadiusDbConnection(): Promise<{ success: boolean; mess
 export async function getRadiusSessionByUsername(username: string): Promise<RadiusDbSession | null> {
   const pool = await getRadiusDbPool();
   if (!pool) {
+    console.warn(`[RADIUS DB] Pool indisponível ao buscar username="${username}". Verifique RADIUS_DB_HOST/PORT/NAME/USER/PASSWORD ou config da integração.`);
     return null;
   }
 

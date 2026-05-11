@@ -1458,8 +1458,10 @@ export async function registerRoutes(
 
       // 1. Tenta primeiro RADIUS (radacct) — funciona quando o concentrador
       // envia accounting RADIUS pro FreeRADIUS.
-      const { getRadiusSessionByUsername } = await import("./radius");
-      const session = await getRadiusSessionByUsername(link.pppoeUser);
+      const { getRadiusSessionByUsername, getRadiusDbPool } = await import("./radius");
+      const radiusPoolForCheck = await getRadiusDbPool();
+      console.log(`[PPPoE Session] Tentando RADIUS para user="${link.pppoeUser}" (pool=${radiusPoolForCheck ? "OK" : "INDISPONÍVEL"})`);
+      const session = radiusPoolForCheck ? await getRadiusSessionByUsername(link.pppoeUser) : null;
 
       if (session) {
         console.log(`[PPPoE Session] OK via RADIUS: user="${session.username}", IP=${session.framedIpAddress}, NAS=${session.nasIpAddress}`);
