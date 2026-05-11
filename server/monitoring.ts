@@ -986,7 +986,9 @@ async function verifyInterfaceAtIndex(
 
 const IFNAME_VERIFY_INTERVAL_MS = 60 * 1000; // 1 min for all interfaces
 const CISCO_VI_VERIFY_INTERVAL_MS = 30 * 1000; // 30s for Cisco Vi (PPPoE sessions change frequently)
+const RADIUS_IP_VERIFY_INTERVAL_MS = 5 * 60 * 1000; // 5min RADIUS↔SNMP cross-check (Cisco Vi only)
 const lastIfNameVerification = new Map<number, number>();
+const lastRadiusIpVerification = new Map<number, number>();
 
 // Helper function to parse SNMP values
 function parseSnmpValue(value: unknown): number {
@@ -2423,6 +2425,53 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               } else {
                 const matchedVia = aliasMatches ? `ifAlias="${verification.actualAlias}"` : `ifDescr="${verification.actualName}"`;
                 console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} verified OK - ${matchedVia} matches pppoeUser "${knownAlias}"`);
+              }
+
+              // Camada extra: RADIUS↔SNMP cross-check (5min cooldown).
+              // Pega o IP que o RADIUS atribuiu pra esse pppoeUser e pergunta ao Cisco
+              // qual ifIndex está roteando esse IP. Se for diferente do ifIndex que estamos
+              // coletando, é prova definitiva de cliente errado (independente do que ifAlias/ifDescr digam).
+              if (link.pppoeUser && link.concentratorId && trafficSourceIfIndex) {
+                const lastRadiusVerify = lastRadiusIpVerification.get(link.id) || 0;
+                if (nowMs - lastRadiusVerify >= RADIUS_IP_VERIFY_INTERVAL_MS) {
+                  lastRadiusIpVerification.set(link.id, nowMs);
+                  try {
+                    const { getRadiusSessionByUsername } = await import("./radius");
+                    const radiusSession = await getRadiusSessionByUsername(link.pppoeUser);
+                    if (radiusSession?.framedIpAddress) {
+                      const radiusIp = radiusSession.framedIpAddress.trim();
+                      const concentratorForCrosscheck = await getConcentrator(link.concentratorId);
+                      if (concentratorForCrosscheck) {
+                        let crosscheckProfile: any = null;
+                        if (concentratorForCrosscheck.snmpProfileId) {
+                          const [r] = await db.select().from(snmpProfiles).where(eq(snmpProfiles.id, concentratorForCrosscheck.snmpProfileId));
+                          crosscheckProfile = r || null;
+                        }
+                        const ipLookup = await lookupIfIndexByIp(concentratorForCrosscheck, radiusIp, crosscheckProfile);
+                        if (ipLookup.ifIndex && ipLookup.ifIndex !== trafficSourceIfIndex) {
+                          console.log(`[Monitor] ${link.name}: *** CISCO Vi RADIUS↔SNMP MISMATCH *** RADIUS diz pppoeUser="${link.pppoeUser}" → IP ${radiusIp}; Cisco roteia esse IP via ifIndex=${ipLookup.ifIndex} (ifName="${ipLookup.ifName ?? 'null'}"), mas estávamos coletando do ifIndex=${trafficSourceIfIndex}. Corrigindo pro ifIndex correto sem aguardar re-discovery.`);
+                          trafficDataSuccess = false;
+                          previousTrafficData.delete(link.id);
+                          lastIfNameVerification.delete(link.id);
+                          await db.update(links).set({
+                            snmpInterfaceIndex: ipLookup.ifIndex,
+                            snmpInterfaceName: ipLookup.ifName || link.snmpInterfaceName,
+                            snmpInterfaceDescr: null,
+                            ifIndexMismatchCount: 0,
+                            lastIfIndexValidation: new Date(),
+                          }).where(eq(links.id, link.id));
+                          trafficSourceIfIndex = ipLookup.ifIndex;
+                        } else if (ipLookup.ifIndex) {
+                          console.log(`[Monitor] ${link.name}: RADIUS↔SNMP cross-check OK — IP ${radiusIp} confirmado em ifIndex=${ipLookup.ifIndex} (= atual)`);
+                        } else {
+                          console.log(`[Monitor] ${link.name}: RADIUS↔SNMP cross-check inconclusivo — Cisco não retornou ifIndex pro IP ${radiusIp} (rota não encontrada).`);
+                        }
+                      }
+                    }
+                  } catch (crosscheckErr: any) {
+                    console.warn(`[Monitor] ${link.name}: RADIUS↔SNMP cross-check falhou:`, crosscheckErr?.message);
+                  }
+                }
               }
             } else if (!verification.matches && verification.actualName !== null) {
               if (isCiscoViInterface) {
