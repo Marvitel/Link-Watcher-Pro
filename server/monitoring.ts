@@ -4510,9 +4510,13 @@ async function collectLinkHighFreq(link: typeof links.$inferSelect): Promise<voi
     const ping = await pingHost(ipToMonitor, 2);
     if (isShuttingDown) return;
 
-    // SNMP de tráfego principal — só se o link tem profile + ifIndex + IP do router.
-    let downloadMbps = 0;
-    let uploadMbps = 0;
+    // Bandwidth — carry-forward por padrão para NÃO zerar o gráfico:
+    // se a amostra SNMP de 1s falhar (rate-limit do Mikrotik, timeout) ou for
+    // a primeira amostra (sem baseline de delta), reusa o último valor que o
+    // loop principal de 30s gravou em links.currentDownload/Upload. Sem isso,
+    // 30 amostras zero a cada 1s mascarariam o gráfico.
+    let downloadMbps = link.currentDownload ?? 0;
+    let uploadMbps = link.currentUpload ?? 0;
     if (link.snmpProfileId && link.snmpInterfaceIndex && link.snmpRouterIp) {
       try {
         const profile = await getSnmpProfile(link.snmpProfileId);
@@ -4528,11 +4532,12 @@ async function collectLinkHighFreq(link: typeof links.$inferSelect): Promise<voi
                 [downloadMbps, uploadMbps] = [uploadMbps, downloadMbps];
               }
             }
+            // Sempre atualiza baseline pra próxima amostra ter delta válido.
             highFreqLastSample.set(link.id, traffic);
           }
         }
       } catch {
-        // SNMP falhou — registra só o ping.
+        // SNMP falhou — mantém carry-forward do currentDownload/Upload.
       }
     }
 

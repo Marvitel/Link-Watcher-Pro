@@ -102,6 +102,7 @@ Coletas afetadas pelo intervalo: TODAS as etapas do `processLinkMetrics` rodam n
 Coluna nova `links.highFrequencyMonitoring boolean default false` ativa um loop dedicado de 1s por link, ligado/desligado via Switch no LinkForm da edição do link (com aviso de carga). Implementação em `server/monitoring.ts`:
 - `loadHighFreqLinks()` recarrega a lista (link.highFrequencyMonitoring=true AND monitoringEnabled=true AND deletedAt IS NULL) a cada 60s. Cache de delta dos links removidos é limpo automaticamente.
 - `collectLinkHighFreq(link)` é enxuto: SÓ ping (count=2) + SNMP de tráfego principal (`getInterfaceTraffic` direto via `link.snmpProfileId+snmpInterfaceIndex+snmpRouterIp`). NÃO roda óptico, PPPoE/RADIUS, OZmap, eventos, mudança de status — essas continuam no loop principal de 30s.
+- **Carry-forward de bandwidth**: na 1ª amostra (sem baseline de delta) ou quando o SNMP a 1s falha (rate-limit do Mikrotik, timeout), reusa `link.currentDownload/currentUpload` (atualizados pelo loop principal a cada 30s) em vez de zerar. Sem essa proteção, dezenas de amostras zero/segundo mascaravam o gráfico inteiro pra zero.
 - Mutex por link via `highFreqCollecting: Set<linkId>` evita acúmulo se um ciclo demora mais de 1s.
 - **Cache de delta SNMP isolado** (`highFreqLastSample: Map<linkId, TrafficResult>`), separado do `previousTrafficData` do loop principal. Sem isso, o cálculo de bandwidth dos dois loops competiria pelo mesmo "lastSample" e geraria leituras erradas em ambos.
 - Status reusado de `link.status` — não duplica state machine de eventos.
