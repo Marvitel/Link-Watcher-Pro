@@ -849,11 +849,12 @@ export class DatabaseStorage {
     const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
     const max = (arr: number[]) => arr.length ? Math.max(...arr) : null;
 
-    // Padrão MRTG/Cacti: em janelas que entram aqui como fallback (>=7d, quando
-    // jobs de agregação atrasaram ou ainda não rodaram), também devolvemos o
-    // pico (MAX) como linha principal e a média no campo *Avg, para que o
-    // gráfico desenhe a banda secundária e os picos não sumam.
-    const useMaxAsPrimary = hoursSpan >= 24 * 7;
+    // Padrão MRTG/Cacti em TODA janela bucketizada: linha principal = pico (MAX)
+    // pra não esconder congestionamento momentâneo, banda secundária = média (AVG).
+    // Em janelas curtas (1h/6h/24h) é justamente onde os picos importam mais —
+    // antes só >=7d usava MAX, então picos de 30s eram achatados pela média do
+    // bucket de 1min, sumindo do gráfico.
+    const useMaxAsPrimary = true;
 
     return [...bucketMap.values()]
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())

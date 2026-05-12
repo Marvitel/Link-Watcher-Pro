@@ -71,6 +71,8 @@ Link statuses include `operational`, `degraded`, `offline`, and `unknown`. SLA c
 ### Metric Charts (Bandwidth/Latency/Loss)
 Charts utilize shared utilities for deterministic X-axis scaling and consistent tick formatting. Backend aggregation strategy dynamically fetches data from `metrics`, `metrics_hourly`, or `metrics_daily` tables based on the time range, with server-side decimation for longer periods. Frontend renders stacked areas/lines for aggregated data, showing average and peak values.
 
+**Pico (MAX) sempre como linha principal em buckets — padrão MRTG/Cacti**: `getLinkMetrics` no `storage.ts` agrupa amostras raw em buckets de 1/3/5min (1h/6h/24h respectivamente) pra evitar o gráfico ficar com "espigas" do fast-poll/high-freq. Antes, só janelas ≥7d usavam MAX como linha principal — janelas curtas usavam AVG, então picos de 30s eram achatados pela média do bucket de 1min e sumiam do gráfico (ex.: pico real de 235 Mbit/s no Monsta virava 177 Mbps no LM, mascarando congestionamento momentâneo). Agora `useMaxAsPrimary = true` em TODA janela bucketizada: campo `download/upload/latency/packetLoss` recebe o pico, `*Avg` recebe a média, e o frontend (`bandwidth-chart.tsx`) renderiza o pico como área sólida + média como área translúcida atrás (estilo MRTG). Aplicável apenas quando o bucketing roda (`rawData.length > expectedBuckets * 1.2`); se a granularidade já é adequada (poucos pontos no período), retorna raw sem alterar.
+
 ### Voalle Webhook Processing
 The `POST /api/webhooks/voalle` endpoint processes connection and contract events from Voalle ERP, managing link creation, updates, and soft-deletions, mapping contract statuses, and enriching data via Portal and OZmap APIs. Monitoring adjustments are based on link status.
 
