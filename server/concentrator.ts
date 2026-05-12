@@ -348,6 +348,8 @@ export async function getCiscoPppoeSessionByUsername(
 
   // Match tolerante: case-insensitive, com/sem @realm. Rejeita strings técnicas
   // (Virtual-AccessX.Y, Vi3.123) que não carregam username.
+  // IMPORTANTE: somente igualdade normalizada — substring é proibido pra evitar
+  // falso positivo (ex.: "ana" não pode casar com "mariana").
   const isTechnicalLabel = (s: string): boolean =>
     /^Virtual-Access\d+(\.\d+)?$/i.test(s) || /^Vi\d+(\.\d+)?$/i.test(s);
   const matchesUsername = (label: string | null, user: string): boolean => {
@@ -360,8 +362,7 @@ export async function getCiscoPppoeSessionByUsername(
     return (
       norm(l) === norm(u) ||
       norm(l) === norm(stripRealm(u)) ||
-      norm(stripRealm(l)) === norm(stripRealm(u)) ||
-      norm(l).includes(norm(stripRealm(u)))
+      norm(stripRealm(l)) === norm(stripRealm(u))
     );
   };
 
@@ -382,73 +383,72 @@ export async function getCiscoPppoeSessionByUsername(
     nasIpAddress: concentrator.ipAddress!,
   });
 
+  // Helper genérico: dado uma session SNMP aberta e um ifIndex, faz o GET completo
+  // (ifName/ifDescr/ifAlias/ifOperStatus/ifLastChange/sysUpTime) e valida que o slot
+  // pertence ao username (via ifAlias OU ifDescr, com filtro de rótulo técnico).
+  const probeIfIndex = async (sess: any, ifIndex: number): Promise<CiscoPppoeSession | null> => {
+    const oidName = `1.3.6.1.2.1.31.1.1.1.1.${ifIndex}`;     // ifName
+    const oidDescr = `1.3.6.1.2.1.2.2.1.2.${ifIndex}`;       // ifDescr
+    const oidAlias = `1.3.6.1.2.1.31.1.1.1.18.${ifIndex}`;   // ifAlias
+    const oidOper = `1.3.6.1.2.1.2.2.1.8.${ifIndex}`;        // ifOperStatus (up=1)
+    const oidLast = `1.3.6.1.2.1.2.2.1.9.${ifIndex}`;        // ifLastChange (TimeTicks)
+    const oidSysUp = `1.3.6.1.2.1.1.3.0`;                    // sysUpTime (TimeTicks)
+    const vbs = await snmpGet(sess, [oidName, oidDescr, oidAlias, oidOper, oidLast, oidSysUp]);
+    if (vbs.length < 6) return null;
+    const ifName = extractStr(vbs[0]);
+    const ifDescr = extractStr(vbs[1]);
+    const ifAlias = extractStr(vbs[2]);
+    const oper = extractInt(vbs[3]);
+    const lastChange = extractInt(vbs[4]);
+    const sysUpTime = extractInt(vbs[5]);
+
+    // Vi destruída: todos vieram noSuchInstance
+    if (!ifName && !ifDescr && !ifAlias) return null;
+    // Vi existe mas está down
+    if (oper !== null && oper !== 1) return null;
+    // Confirma que o slot pertence a esse username via ifAlias OU ifDescr
+    if (!matchesUsername(ifAlias, username) && !matchesUsername(ifDescr, username)) {
+      return null;
+    }
+
+    let uptimeSec: number | null = null;
+    if (sysUpTime !== null && lastChange !== null && sysUpTime >= lastChange) {
+      uptimeSec = Math.floor((sysUpTime - lastChange) / 100);
+    }
+    return buildResult(ifIndex, ifName, ifAlias, uptimeSec);
+  };
+
   try {
-    const tryIfIndex = async (ifIndex: number): Promise<CiscoPppoeSession | null> => {
-      const oidName = `1.3.6.1.2.1.31.1.1.1.1.${ifIndex}`;     // ifName
-      const oidDescr = `1.3.6.1.2.1.2.2.1.2.${ifIndex}`;       // ifDescr
-      const oidAlias = `1.3.6.1.2.1.31.1.1.1.18.${ifIndex}`;   // ifAlias
-      const oidOper = `1.3.6.1.2.1.2.2.1.8.${ifIndex}`;        // ifOperStatus (up=1)
-      const oidLast = `1.3.6.1.2.1.2.2.1.9.${ifIndex}`;        // ifLastChange (TimeTicks)
-      const oidSysUp = `1.3.6.1.2.1.1.3.0`;                    // sysUpTime (TimeTicks)
-      const vbs = await snmpGet(session, [oidName, oidDescr, oidAlias, oidOper, oidLast, oidSysUp]);
-      if (vbs.length < 6) return null;
-      const ifName = extractStr(vbs[0]);
-      const ifDescr = extractStr(vbs[1]);
-      const ifAlias = extractStr(vbs[2]);
-      const oper = extractInt(vbs[3]);
-      const lastChange = extractInt(vbs[4]);
-      const sysUpTime = extractInt(vbs[5]);
-
-      // Vi destruída: todos vieram noSuchInstance
-      if (!ifName && !ifDescr && !ifAlias) return null;
-      // Vi existe mas está down
-      if (oper !== null && oper !== 1) return null;
-
-      // Confirma que o slot pertence a esse username via ifAlias OU ifDescr
-      if (!matchesUsername(ifAlias, username) && !matchesUsername(ifDescr, username)) {
-        return null;
-      }
-
-      let uptimeSec: number | null = null;
-      if (sysUpTime !== null && lastChange !== null && sysUpTime >= lastChange) {
-        uptimeSec = Math.floor((sysUpTime - lastChange) / 100);
-      }
-      return buildResult(ifIndex, ifName, ifAlias, uptimeSec);
-    };
-
     // 1. Tenta ifIndex já cadastrado
     if (opts.ifIndex && opts.ifIndex > 0) {
-      const r = await tryIfIndex(opts.ifIndex);
+      const r = await probeIfIndex(session, opts.ifIndex);
       if (r) return r;
     }
-
-    // 2. Fallback: descobre ifIndex pelo IP roteado
-    if (opts.monitoredIp) {
-      try { session.close(); } catch {}
-      const ipResult = await lookupIfIndexByIp(concentrator, opts.monitoredIp, opts.snmpProfile || null);
-      if (ipResult.ifIndex) {
-        // Confirma alias/descr também
-        if (matchesUsername(ipResult.ifAlias, username)) {
-          // uptime não disponível nesse caminho sem novo SNMP get (poderia, mas evita custo extra)
-          return {
-            username,
-            framedIpAddress: opts.monitoredIp,
-            callingStationId: null,
-            uptimeSec: null,
-            ifName: ipResult.ifName,
-            ifAlias: ipResult.ifAlias,
-            nasIpAddress: concentrator.ipAddress!,
-          };
-        }
-      }
-    }
-    return null;
   } catch (err: any) {
-    console.log(`[Cisco PPPoE] Falha em ${concentrator.ipAddress} buscando ${username}: ${err?.message || err}`);
-    return null;
+    console.log(`[Cisco PPPoE] Falha SNMP probe em ${concentrator.ipAddress} buscando ${username}: ${err?.message || err}`);
   } finally {
     try { session.close(); } catch {}
   }
+
+  // 2. Fallback: descobre ifIndex pelo IP roteado e re-valida via SNMP completo
+  // (ifAlias OU ifDescr) usando uma session nova — paridade total com o caminho 1.
+  if (opts.monitoredIp) {
+    try {
+      const ipResult = await lookupIfIndexByIp(concentrator, opts.monitoredIp, opts.snmpProfile || null);
+      if (ipResult.ifIndex) {
+        const session2 = createSnmpSession(concentrator.ipAddress, profile);
+        try {
+          const r = await probeIfIndex(session2, ipResult.ifIndex);
+          if (r) return r;
+        } finally {
+          try { session2.close(); } catch {}
+        }
+      }
+    } catch (err: any) {
+      console.log(`[Cisco PPPoE] Falha no fallback por IP em ${concentrator.ipAddress} buscando ${username}: ${err?.message || err}`);
+    }
+  }
+  return null;
 }
 
 /**

@@ -2434,10 +2434,14 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
               if (link.pppoeUser && link.concentratorId && trafficSourceIfIndex) {
                 const lastRadiusVerify = lastRadiusIpVerification.get(link.id) || 0;
                 if (nowMs - lastRadiusVerify >= RADIUS_IP_VERIFY_INTERVAL_MS) {
-                  lastRadiusIpVerification.set(link.id, nowMs);
+                  // NÃO marca cooldown aqui — só após tentativa concluir com resposta
+                  // concreta (sucesso ou "RADIUS sem sessão"). Em erro transitório,
+                  // permitir nova tentativa no próximo ciclo.
+                  let crosscheckCompleted = false;
                   try {
                     const { getRadiusSessionByUsername } = await import("./radius");
                     const radiusSession = await getRadiusSessionByUsername(link.pppoeUser);
+                    crosscheckCompleted = true; // RADIUS respondeu (com ou sem sessão)
                     if (radiusSession?.framedIpAddress) {
                       const radiusIp = radiusSession.framedIpAddress.trim();
                       const concentratorForCrosscheck = await getConcentrator(link.concentratorId);
@@ -2470,6 +2474,13 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                     }
                   } catch (crosscheckErr: any) {
                     console.warn(`[Monitor] ${link.name}: RADIUS↔SNMP cross-check falhou:`, crosscheckErr?.message);
+                  } finally {
+                    // Marca cooldown SOMENTE se a tentativa concluiu (RADIUS respondeu).
+                    // Em erro transitório (timeout/rede), não queima 5min — tenta de novo
+                    // no próximo ciclo do monitor.
+                    if (crosscheckCompleted) {
+                      lastRadiusIpVerification.set(link.id, nowMs);
+                    }
                   }
                 }
               }
