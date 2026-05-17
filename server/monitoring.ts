@@ -1346,6 +1346,41 @@ function isPlausibleSubscriberInterface(
   return false;
 }
 
+/**
+ * Quando descobrimos um ifIndex novo via IP route lookup pra um link PPPoE que JÁ tinha
+ * identidade conhecida (pppoeUser cadastrado ou snmpInterfaceAlias gravado), o alias da
+ * interface descoberta TEM que bater com essa identidade. Senão, o IP do nosso cliente
+ * está roteado momentaneamente pra sessão de OUTRO cliente (ARP cache antigo, reboot do
+ * BNG, pool dinâmico reciclando IPs) e a "descoberta" vai gravar o ifIndex errado.
+ *
+ * Retorna:
+ *   - true  → seguro atualizar (sem identidade conhecida OU bate com a conhecida)
+ *   - false → rejeitar descoberta (identidade conhecida e NÃO bate)
+ */
+function aliasMatchesKnownIdentity(
+  discoveredIfName: string | null | undefined,
+  discoveredIfAlias: string | null | undefined,
+  knownPppoeUser: string | null | undefined,
+  knownAlias: string | null | undefined,
+): boolean {
+  const known = (knownPppoeUser || knownAlias || '').trim();
+  if (!known) return true; // sem identidade prévia, deixa o caller decidir
+  // Normaliza: lowercase, strip prefixos PPPoE (pppoe-, pppoe_, <pppoe-, <ppp-), strip @realm
+  const norm = (s: string) => {
+    const lower = s.toLowerCase().trim();
+    const stripped = lower
+      .replace(/^<?ppp(oe)?[-_]/, '') // remove <pppoe-, pppoe-, <ppp-, ppp_
+      .replace(/^[<"']+|[>"']+$/g, ''); // remove <, >, ", ' nas pontas
+    return stripped.split('@')[0]; // ignora realm
+  };
+  const k = norm(known);
+  if (!k || k.length < 2) return true; // identidade conhecida vazia/curta demais — fallback permissivo
+  const candidates = [discoveredIfName, discoveredIfAlias]
+    .filter((s): s is string => !!s)
+    .map(norm);
+  return candidates.some((c) => c === k);
+}
+
 // Auto-discovery: Check and fix ifIndex when SNMP collection fails
 async function handleIfIndexAutoDiscovery(
   link: typeof links.$inferSelect,
@@ -1847,8 +1882,20 @@ async function handleIfIndexAutoDiscovery(
             ipResult.ifAlias,
             candidatePppoeUser,
           );
+          // Validação extra: se o link JÁ tem identidade PPPoE conhecida (pppoeUser ou
+          // snmpInterfaceAlias), o alias descoberto TEM que bater. Senão, o IP do nosso
+          // cliente pode estar momentaneamente roteado pra sessão de outro cliente
+          // (reboot do BNG, ARP cache antigo, pool reciclando IPs).
+          const aliasOk = aliasMatchesKnownIdentity(
+            ipResult.ifName,
+            ipResult.ifAlias,
+            link.pppoeUser,
+            link.snmpInterfaceAlias,
+          );
           if (isPppoeStyle && !looksLikeSession) {
             console.warn(`[Monitor] ${link.name}: IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta — provavelmente rota agregada do pool apontando para uplink do BNG.`);
+          } else if (isPppoeStyle && !aliasOk) {
+            console.warn(`[Monitor] ${link.name}: IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifAlias="${ipResult.ifAlias}", ifName="${ipResult.ifName}") mas alias NÃO bate com identidade conhecida (pppoeUser="${link.pppoeUser}", knownAlias="${link.snmpInterfaceAlias}"). Rejeitando descoberta — IP provavelmente roteado pra sessão de outro cliente (reboot do BNG/ARP antigo).`);
           } else {
             searchResult = {
               found: true,
@@ -1923,8 +1970,16 @@ async function handleIfIndexAutoDiscovery(
               ipResult.ifAlias,
               candidatePppoeUser,
             );
+            const aliasOk = aliasMatchesKnownIdentity(
+              ipResult.ifName,
+              ipResult.ifAlias,
+              link.pppoeUser,
+              link.snmpInterfaceAlias,
+            );
             if (isPppoeStyle && !looksLikeSession) {
               console.warn(`[Monitor] ${link.name}: Backup IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifName="${ipResult.ifName}", ifAlias="${ipResult.ifAlias}") mas NÃO parece interface de sessão PPPoE. Rejeitando descoberta no concentrador backup ${backupConcentrator.name} — provavelmente rota agregada do pool apontando para uplink do BNG.`);
+            } else if (isPppoeStyle && !aliasOk) {
+              console.warn(`[Monitor] ${link.name}: Backup IP route lookup retornou ifIndex=${ipResult.ifIndex} (ifAlias="${ipResult.ifAlias}", ifName="${ipResult.ifName}") mas alias NÃO bate com identidade conhecida (pppoeUser="${link.pppoeUser}", knownAlias="${link.snmpInterfaceAlias}"). Rejeitando descoberta no concentrador backup ${backupConcentrator.name} — IP provavelmente roteado pra sessão de outro cliente.`);
             } else {
               searchResult = {
                 found: true,
