@@ -2544,7 +2544,38 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
                   }
                 }
               }
-            } else if (!verification.matches && verification.actualName !== null) {
+            }
+            // Detector análogo pra Mikrotik (e outros vendors não-Cisco) PPPoE:
+            // compara o alias SNMP atual contra o `pppoeUser` AUTORITATIVO do cadastro.
+            // IMPORTANTE: não usa `snmpInterfaceAlias` salvo como referência — esse campo
+            // pode ter sido contaminado por descobertas anteriores (caso JE.eleonora.cruz:
+            // ifIndex foi reapontado pra outro cliente durante reboot da OLT e o alias salvo
+            // virou o do outro cliente). O cadastro `pppoeUser` é o único valor confiável.
+            // Se o alias atual não bate, limpa ifIndex pra forçar re-descoberta — que agora
+            // está protegida pelo `aliasMatchesKnownIdentity` no IP route lookup.
+            else if (!isCiscoViInterface && isConcentratorLink && link.pppoeUser && (verification.actualAlias || verification.actualName)) {
+              const pppoeMatches = aliasMatchesKnownIdentity(
+                verification.actualName,
+                verification.actualAlias,
+                link.pppoeUser,
+                null, // não usa snmpInterfaceAlias salvo (pode estar contaminado)
+              );
+              if (!pppoeMatches) {
+                console.log(`[Monitor] ${link.name}: *** PPPoE USER MISMATCH (non-Cisco) *** ifIndex ${trafficSourceIfIndex} — pppoeUser cadastrado "${link.pppoeUser}" não bate com ifAlias "${verification.actualAlias ?? 'null'}" nem com ifName "${verification.actualName ?? 'null'}". WRONG CLIENT! Clearing ifIndex/alias for immediate re-discovery.`);
+                trafficDataSuccess = false;
+                previousTrafficData.delete(link.id);
+                trafficSourceIfIndex = null;
+                lastIfNameVerification.delete(link.id);
+                await db.update(links).set({
+                  snmpInterfaceIndex: null,
+                  snmpInterfaceName: null,
+                  snmpInterfaceDescr: null,
+                  snmpInterfaceAlias: null, // também limpa o alias contaminado
+                  ifIndexMismatchCount: IFINDEX_MISMATCH_THRESHOLD + 1,
+                }).where(eq(links.id, link.id));
+              }
+            }
+            else if (!verification.matches && verification.actualName !== null) {
               if (isCiscoViInterface) {
                 // Cisco Vi interfaces: clear immediately — different Vi slots can serve different clients
                 console.log(`[Monitor] ${link.name}: ifIndex ${trafficSourceIfIndex} name mismatch (Cisco Vi)! Expected "${link.snmpInterfaceName}", found "${verification.actualName}". Clearing ifIndex.`);
