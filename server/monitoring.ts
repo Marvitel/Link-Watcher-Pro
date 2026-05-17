@@ -2553,7 +2553,24 @@ export async function collectLinkMetrics(link: typeof links.$inferSelect): Promi
             // virou o do outro cliente). O cadastro `pppoeUser` é o único valor confiável.
             // Se o alias atual não bate, limpa ifIndex pra forçar re-descoberta — que agora
             // está protegida pelo `aliasMatchesKnownIdentity` no IP route lookup.
-            else if (!isCiscoViInterface && isConcentratorLink && link.pppoeUser && (verification.actualAlias || verification.actualName)) {
+            //
+            // GUARDS adicionais (evitar false-trigger e flapping):
+            //  - authType !== 'corporate' E !vlanInterface → não roda em corporate VLAN
+            //    (esses tem o detector próprio do lookupVlanInterfaceIndex; aqui pppoeUser
+            //    pode ser residual de migração e não deve causar limpeza).
+            //  - isPlausibleSubscriberInterface(actualName, actualAlias, pppoeUser) → SNMP
+            //    precisa parecer uma sessão PPPoE (Vi*, pppoe-*, ppp\d, etc) OU conter o
+            //    pppoeUser. Se SNMP retorna nome não-PPPoE (ether1, vlan100), o link
+            //    provavelmente foi reclassificado — fica no caminho conservador.
+            else if (
+              !isCiscoViInterface &&
+              isConcentratorLink &&
+              link.pppoeUser &&
+              link.authType !== 'corporate' &&
+              !link.vlanInterface &&
+              (verification.actualAlias || verification.actualName) &&
+              isPlausibleSubscriberInterface(verification.actualName, verification.actualAlias, link.pppoeUser)
+            ) {
               const pppoeMatches = aliasMatchesKnownIdentity(
                 verification.actualName,
                 verification.actualAlias,

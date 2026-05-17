@@ -1898,44 +1898,65 @@ export async function lookupVlanInterfaceIndex(
       console.log(`[Corporate SNMP] Primeiras interfaces (ifName): ${sample}...`);
     }
 
-    // Normalizar o nome da interface para busca
+    // Normalizar o nome da interface para busca (remove . - _ espaço pra tolerar variações de formatação)
     const normalizedSearch = vlanInterface.toLowerCase().replace(/[.\-_\s]/g, "");
     console.log(`[Corporate SNMP] Buscando normalizado: "${normalizedSearch}"`);
-    
-    // Debug: buscar interface específica na lista
-    const exactMatch = ifNameData.find(e => e.value === vlanInterface);
-    if (exactMatch) {
-      console.log(`[Corporate SNMP] Interface encontrada diretamente: ${exactMatch.value} (index: ${exactMatch.index})`);
-    }
 
-    // Primeiro tentar ifName (mais preciso)
-    for (const entry of ifNameData) {
-      const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
-      const ifName = entry.value;
-      const normalizedName = ifName.toLowerCase().replace(/[.\-_\s]/g, "");
-
-      if (normalizedName === normalizedSearch || 
-          normalizedName.includes(normalizedSearch) || 
-          normalizedSearch.includes(normalizedName)) {
-        console.log(`[Corporate SNMP] Match encontrado via ifName: "${ifName}" -> ifIndex ${ifIndex}`);
-        session.close();
-        return { ifIndex, ifName };
+    // Helper que faz a busca em 3 passos seguros num dataset (ifName ou ifDescr).
+    // NÃO usar `normalizedSearch.includes(normalizedName)` (substring reversa) —
+    // isso aceita a interface MÃE quando o cadastro contém o nome dela como prefixo.
+    // Ex.: cadastro "vlan1sfp28-11-OLT-DATACOM-TG-1/1/1-gpon.3-vlan.721-ASSEC-CEHOP"
+    // continha "sfp28-11-OLT-DATACOM-TG-1/1/1" como substring → pegava o uplink agregador
+    // (ifIndex 20) ao invés da sub-interface VLAN específica do cliente (ifIndex 247).
+    const findMatch = (
+      data: Array<{ index: string; value: string }>,
+      label: string
+    ): { ifIndex: number; ifName: string } | null => {
+      // Pass 1: match exato (case-sensitive)
+      const exact = data.find(e => e.value === vlanInterface);
+      if (exact) {
+        const ifIndex = parseInt(exact.index.split(".").pop() || "0", 10);
+        console.log(`[Corporate SNMP] Match exato via ${label}: "${exact.value}" -> ifIndex ${ifIndex}`);
+        return { ifIndex, ifName: exact.value };
       }
-    }
-
-    // Fallback para ifDescr
-    for (const entry of ifDescrData) {
-      const ifIndex = parseInt(entry.index.split(".").pop() || "0", 10);
-      const ifDescr = entry.value;
-      const normalizedDescr = ifDescr.toLowerCase().replace(/[.\-_\s]/g, "");
-
-      if (normalizedDescr === normalizedSearch || 
-          normalizedDescr.includes(normalizedSearch) || 
-          normalizedSearch.includes(normalizedDescr)) {
-        console.log(`[Corporate SNMP] Match encontrado via ifDescr: "${ifDescr}" -> ifIndex ${ifIndex}`);
-        session.close();
-        return { ifIndex, ifName: ifDescr };
+      // Pass 2: match exato normalizado (case-insensitive, ignora . - _ espaço)
+      const normalizedExact = data.find(e =>
+        e.value.toLowerCase().replace(/[.\-_\s]/g, "") === normalizedSearch
+      );
+      if (normalizedExact) {
+        const ifIndex = parseInt(normalizedExact.index.split(".").pop() || "0", 10);
+        console.log(`[Corporate SNMP] Match normalizado via ${label}: "${normalizedExact.value}" -> ifIndex ${ifIndex}`);
+        return { ifIndex, ifName: normalizedExact.value };
       }
+      // Pass 3: nome real CONTÉM o cadastrado (direção segura) — exige candidato ÚNICO.
+      // Útil quando o concentrador adiciona prefixos/sufixos automáticos ao nome cadastrado.
+      // Se houver mais de um candidato, é ambíguo → não escolhe nenhum.
+      const containsMatches = data.filter(e => {
+        const normalizedName = e.value.toLowerCase().replace(/[.\-_\s]/g, "");
+        return normalizedName !== normalizedSearch && normalizedName.includes(normalizedSearch);
+      });
+      if (containsMatches.length === 1) {
+        const only = containsMatches[0];
+        const ifIndex = parseInt(only.index.split(".").pop() || "0", 10);
+        console.log(`[Corporate SNMP] Match único por substring via ${label}: "${only.value}" -> ifIndex ${ifIndex}`);
+        return { ifIndex, ifName: only.value };
+      } else if (containsMatches.length > 1) {
+        const samples = containsMatches.slice(0, 5).map(e => e.value).join(", ");
+        console.log(`[Corporate SNMP] Match por substring AMBÍGUO via ${label} (${containsMatches.length} candidatos): ${samples}${containsMatches.length > 5 ? "..." : ""}. Não escolhendo nenhum para evitar interface errada.`);
+      }
+      return null;
+    };
+
+    // Primeiro tentar ifName (mais preciso), depois ifDescr
+    const nameMatch = findMatch(ifNameData, "ifName");
+    if (nameMatch) {
+      session.close();
+      return nameMatch;
+    }
+    const descrMatch = findMatch(ifDescrData, "ifDescr");
+    if (descrMatch) {
+      session.close();
+      return descrMatch;
     }
 
     // Não fazer busca flexível por VLAN ID - pode atribuir interface errada
