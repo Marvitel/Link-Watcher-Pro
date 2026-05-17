@@ -1363,8 +1363,6 @@ function aliasMatchesKnownIdentity(
   knownPppoeUser: string | null | undefined,
   knownAlias: string | null | undefined,
 ): boolean {
-  const known = (knownPppoeUser || knownAlias || '').trim();
-  if (!known) return true; // sem identidade prévia, deixa o caller decidir
   // Normaliza: lowercase, strip prefixos PPPoE (pppoe-, pppoe_, <pppoe-, <ppp-), strip @realm
   const norm = (s: string) => {
     const lower = s.toLowerCase().trim();
@@ -1373,12 +1371,19 @@ function aliasMatchesKnownIdentity(
       .replace(/^[<"']+|[>"']+$/g, ''); // remove <, >, ", ' nas pontas
     return stripped.split('@')[0]; // ignora realm
   };
-  const k = norm(known);
-  if (!k || k.length < 2) return true; // identidade conhecida vazia/curta demais — fallback permissivo
+  // Aceita match contra QUALQUER identidade conhecida (pppoeUser do cadastro OU
+  // snmpInterfaceAlias visto em ciclo anterior). Isso evita travar a descoberta
+  // legítima quando o cliente trocou o username e o cadastro ficou stale — o
+  // alias salvo da última coleta válida ainda permite reconhecer a nova sessão.
+  const knownIdentities = [knownPppoeUser, knownAlias]
+    .filter((s): s is string => !!s && s.trim().length > 0)
+    .map(norm)
+    .filter((s) => s.length >= 2); // filtra identidades curtas demais (ambíguas)
+  if (knownIdentities.length === 0) return true; // sem identidade prévia, deixa o caller decidir
   const candidates = [discoveredIfName, discoveredIfAlias]
     .filter((s): s is string => !!s)
     .map(norm);
-  return candidates.some((c) => c === k);
+  return candidates.some((c) => knownIdentities.includes(c));
 }
 
 // Auto-discovery: Check and fix ifIndex when SNMP collection fails
